@@ -6,10 +6,10 @@ mod validator;
 pub use msg::{BlockParams, ConsensusParams, EvidenceParams, HooksMsg, TgradeMsg, VersionParams};
 pub use query::{
     GetValidatorSetUpdaterResponse, HooksQuery, ListBeginBlockersResponse, ListEndBlockersResponse,
-    TgradeQuery, ValidatorSetResponse,
+    TgradeQuery, ValidatorVoteResponse,
 };
 pub use sudo::{Evidence, EvidenceType, PrivilegeChangeMsg, TgradeSudoMsg, ValidatorDiff};
-pub use validator::{validator_addr, Validator, ValidatorUpdate};
+pub use validator::{validator_addr, Validator, ValidatorUpdate, ValidatorVote};
 
 #[cfg(test)]
 mod tests {

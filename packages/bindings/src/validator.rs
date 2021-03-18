@@ -24,6 +24,16 @@ pub struct ValidatorUpdate {
     pub power: u64,
 }
 
+/// This is taken from BeginBlock.LastCommitInfo
+/// See https://github.com/tendermint/tendermint/blob/v0.34.8/proto/tendermint/abci/types.proto#L348-L352
+#[derive(Serialize, Deserialize, Clone, PartialEq, JsonSchema, Debug)]
+pub struct ValidatorVote {
+    // The first 20 bytes of SHA256(public key)
+    pub address: Binary,
+    pub power: u64,
+    pub voted: bool,
+}
+
 /// Calculate the validator address from the pubkey
 pub fn validator_addr(pubkey: Binary) -> Binary {
     // The first 20 bytes of SHA256(public key)

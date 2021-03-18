@@ -4,13 +4,13 @@ use std::fmt;
 
 use cosmwasm_std::HumanAddr;
 
-use crate::validator::Validator;
+use crate::validator::ValidatorVote;
 
 #[derive(Serialize, Deserialize, Clone, PartialEq, JsonSchema, Debug)]
 #[serde(rename_all = "snake_case")]
 pub enum TgradeQuery {
-    /// Returns the native tendermint validator set
-    ValidatorSet {},
+    /// Returns the current tendermint validator set, along with their voting status from last block
+    ValidatorVotes {},
     Hooks(HooksQuery),
 }
 
@@ -25,8 +25,8 @@ pub enum HooksQuery {
 }
 
 #[derive(Serialize, Deserialize, Clone, PartialEq, JsonSchema, Debug)]
-pub struct ValidatorSetResponse {
-    pub validators: Vec<Validator>,
+pub struct ValidatorVoteResponse {
+    pub votes: Vec<ValidatorVote>,
 }
 
 #[derive(Serialize, Deserialize, Clone, PartialEq, JsonSchema, Debug)]

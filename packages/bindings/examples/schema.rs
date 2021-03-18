@@ -5,7 +5,7 @@ use cosmwasm_schema::{export_schema, export_schema_with_title, remove_schemas, s
 
 use tgrade_bindings::{
     GetValidatorSetUpdaterResponse, ListBeginBlockersResponse, ListEndBlockersResponse, TgradeMsg,
-    TgradeQuery, TgradeSudoMsg, ValidatorSetResponse,
+    TgradeQuery, TgradeSudoMsg, ValidatorDiff, ValidatorVoteResponse,
 };
 
 fn main() {
@@ -20,5 +20,6 @@ fn main() {
     export_schema(&schema_for!(GetValidatorSetUpdaterResponse), &out_dir);
     export_schema(&schema_for!(ListBeginBlockersResponse), &out_dir);
     export_schema(&schema_for!(ListEndBlockersResponse), &out_dir);
-    export_schema(&schema_for!(ValidatorSetResponse), &out_dir);
+    export_schema(&schema_for!(ValidatorVoteResponse), &out_dir);
+    export_schema(&schema_for!(ValidatorDiff), &out_dir);
 }
