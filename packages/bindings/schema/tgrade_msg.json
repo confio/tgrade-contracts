@@ -1,0 +1,234 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "TgradeMsg",
+  "anyOf": [
+    {
+      "description": "un/register for begin or end block hooks",
+      "type": "object",
+      "required": [
+        "hooks"
+      ],
+      "properties": {
+        "hooks": {
+          "$ref": "#/definitions/HooksMsg"
+        }
+      }
+    },
+    {
+      "description": "privileged contracts can mint arbitrary native tokens",
+      "type": "object",
+      "required": [
+        "mint_tokens"
+      ],
+      "properties": {
+        "mint_tokens": {
+          "type": "object",
+          "required": [
+            "amount",
+            "denom",
+            "recipient"
+          ],
+          "properties": {
+            "amount": {
+              "$ref": "#/definitions/Uint128"
+            },
+            "denom": {
+              "type": "string"
+            },
+            "recipient": {
+              "$ref": "#/definitions/HumanAddr"
+            }
+          }
+        }
+      }
+    },
+    {
+      "description": "as well as adjust tendermint consensus params",
+      "type": "object",
+      "required": [
+        "consensus_params"
+      ],
+      "properties": {
+        "consensus_params": {
+          "$ref": "#/definitions/ConsensusParams"
+        }
+      }
+    }
+  ],
+  "definitions": {
+    "BlockParams": {
+      "type": "object",
+      "properties": {
+        "max_bytes": {
+          "description": "Maximum number of bytes (over all tx) to be included in a block",
+          "type": [
+            "integer",
+            "null"
+          ],
+          "format": "int64"
+        },
+        "max_gas": {
+          "description": "Maximum gas (over all tx) to be executed in one block. If set, more txs may be included in a block, but when executing, all tx after this is limit are consumed will immediately error",
+          "type": [
+            "integer",
+            "null"
+          ],
+          "format": "int64"
+        }
+      }
+    },
+    "ConsensusParams": {
+      "description": "See https://github.com/tendermint/tendermint/blob/v0.34.8/proto/tendermint/abci/types.proto#L282-L289 These are various Tendermint Consensus Params that can be adjusted by EndBlockers If any of them are set to Some, then the blockchain will set those as new parameter for tendermint consensus.\n\nNote: we are not including ValidatorParams, which is used to change the allowed pubkey types for validators",
+      "type": "object",
+      "properties": {
+        "block": {
+          "anyOf": [
+            {
+              "$ref": "#/definitions/BlockParams"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "evidence": {
+          "anyOf": [
+            {
+              "$ref": "#/definitions/EvidenceParams"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "version": {
+          "anyOf": [
+            {
+              "$ref": "#/definitions/VersionParams"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      }
+    },
+    "EvidenceParams": {
+      "type": "object",
+      "properties": {
+        "max_age_duration": {
+          "description": "Max age of evidence, in seconds. It should correspond with an app's \"unbonding period\"",
+          "type": [
+            "integer",
+            "null"
+          ],
+          "format": "int64"
+        },
+        "max_age_num_blocks": {
+          "description": "Max age of evidence, in blocks.",
+          "type": [
+            "integer",
+            "null"
+          ],
+          "format": "int64"
+        },
+        "max_bytes": {
+          "description": "Maximum number of bytes of evidence to be included in a block",
+          "type": [
+            "integer",
+            "null"
+          ],
+          "format": "int64"
+        }
+      }
+    },
+    "HooksMsg": {
+      "anyOf": [
+        {
+          "type": "object",
+          "required": [
+            "register_begin_block"
+          ],
+          "properties": {
+            "register_begin_block": {
+              "type": "object"
+            }
+          }
+        },
+        {
+          "type": "object",
+          "required": [
+            "unregister_begin_block"
+          ],
+          "properties": {
+            "unregister_begin_block": {
+              "type": "object"
+            }
+          }
+        },
+        {
+          "type": "object",
+          "required": [
+            "register_end_block"
+          ],
+          "properties": {
+            "register_end_block": {
+              "type": "object"
+            }
+          }
+        },
+        {
+          "type": "object",
+          "required": [
+            "unregister_end_block"
+          ],
+          "properties": {
+            "unregister_end_block": {
+              "type": "object"
+            }
+          }
+        },
+        {
+          "type": "object",
+          "required": [
+            "register_validator_set_update"
+          ],
+          "properties": {
+            "register_validator_set_update": {
+              "type": "object"
+            }
+          }
+        },
+        {
+          "type": "object",
+          "required": [
+            "unregister_validator_set_update"
+          ],
+          "properties": {
+            "unregister_validator_set_update": {
+              "type": "object"
+            }
+          }
+        }
+      ]
+    },
+    "HumanAddr": {
+      "type": "string"
+    },
+    "Uint128": {
+      "type": "string"
+    },
+    "VersionParams": {
+      "type": "object",
+      "properties": {
+        "app_version": {
+          "description": "The app version returned in the /status field",
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      }
+    }
+  }
+}

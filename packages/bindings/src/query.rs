@@ -1,6 +1,5 @@
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
-use std::fmt;
 
 use cosmwasm_std::HumanAddr;
 
