@@ -1,26 +1,21 @@
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
-use cosmwasm_std::{Binary, Coin, CosmosMsg, HumanAddr, Uint128};
+use cosmwasm_std::{CosmosMsg, HumanAddr, Uint128};
 
 #[derive(Serialize, Deserialize, Clone, PartialEq, JsonSchema, Debug)]
 #[serde(rename_all = "snake_case")]
 pub enum TgradeMsg {
+    /// un/register for begin or end block hooks
     Hooks(HooksMsg),
-    // privileged contracts can mint arbitrary native tokens
+    /// privileged contracts can mint arbitrary native tokens
     MintTokens {
         denom: String,
         amount: Uint128,
         recipient: HumanAddr,
     },
-    // TODO: move into part 2
-    // they can also execute the `sudo` entrypoint of other contracts (like WasmMsg::Execute but more special)
-    WasmSudo {
-        contract_addr: HumanAddr,
-        /// msg is the json-encoded SudoMsg struct (as raw Binary)
-        msg: Binary,
-        send: Vec<Coin>,
-    },
+    /// as well as adjust tendermint consensus params
+    ConsensusParams(ConsensusParams),
 }
 
 #[derive(Serialize, Deserialize, Clone, PartialEq, JsonSchema, Debug)]
@@ -35,6 +30,84 @@ pub enum HooksMsg {
     // only max 1 contract can be registered here, this is called in EndBlock (after everything else) and can change the validator set.
     RegisterValidatorSetUpdate {},
     UnregisterValidatorSetUpdate {},
+}
+
+/// See https://github.com/tendermint/tendermint/blob/v0.34.8/proto/tendermint/abci/types.proto#L282-L289
+/// These are various Tendermint Consensus Params that can be adjusted by EndBlockers
+/// If any of them are set to Some, then the blockchain will set those as new parameter for tendermint consensus.
+///
+/// Note: we are not including ValidatorParams, which is used to change the allowed pubkey types for validators
+#[derive(Serialize, Deserialize, Clone, PartialEq, JsonSchema, Debug, Default)]
+pub struct ConsensusParams {
+    pub block: Option<BlockParams>,
+    pub evidence: Option<EvidenceParams>,
+    pub version: Option<VersionParams>,
+}
+
+#[derive(Serialize, Deserialize, Clone, PartialEq, JsonSchema, Debug, Default)]
+pub struct BlockParams {
+    /// Maximum number of bytes (over all tx) to be included in a block
+    pub max_bytes: Option<i64>,
+    /// Maximum gas (over all tx) to be executed in one block.
+    /// If set, more txs may be included in a block, but when executing, all tx after this is limit
+    /// are consumed will immediately error
+    pub max_gas: Option<i64>,
+}
+
+#[derive(Serialize, Deserialize, Clone, PartialEq, JsonSchema, Debug, Default)]
+pub struct EvidenceParams {
+    /// Max age of evidence, in blocks.
+    pub max_age_num_blocks: Option<i64>,
+
+    /// Max age of evidence, in seconds.
+    /// It should correspond with an app's "unbonding period"
+    pub max_age_duration: Option<i64>,
+
+    /// Maximum number of bytes of evidence to be included in a block
+    pub max_bytes: Option<i64>,
+}
+
+#[derive(Serialize, Deserialize, Clone, PartialEq, JsonSchema, Debug, Default)]
+pub struct VersionParams {
+    /// The app version returned in the /status field
+    pub app_version: Option<String>,
+}
+
+// we provide some constructor helpers for some common parameter changes
+impl ConsensusParams {
+    pub fn app_version(version: String) -> Self {
+        ConsensusParams {
+            block: None,
+            evidence: None,
+            version: Some(VersionParams {
+                app_version: Some(version),
+            }),
+        }
+    }
+
+    /// set -1 for unlimited, positive number for a gas limit over all txs in a block
+    pub fn max_block_gas(gas: i64) -> Self {
+        ConsensusParams {
+            block: Some(BlockParams {
+                max_bytes: None,
+                max_gas: Some(gas),
+            }),
+            evidence: None,
+            version: None,
+        }
+    }
+
+    pub fn max_evidence_age(seconds: i64) -> Self {
+        ConsensusParams {
+            block: None,
+            evidence: Some(EvidenceParams {
+                max_age_num_blocks: None,
+                max_age_duration: Some(seconds),
+                max_bytes: None,
+            }),
+            version: None,
+        }
+    }
 }
 
 impl From<TgradeMsg> for CosmosMsg<TgradeMsg> {
@@ -52,5 +125,11 @@ impl From<HooksMsg> for TgradeMsg {
 impl From<HooksMsg> for CosmosMsg<TgradeMsg> {
     fn from(msg: HooksMsg) -> CosmosMsg<TgradeMsg> {
         CosmosMsg::Custom(TgradeMsg::from(msg))
+    }
+}
+
+impl From<ConsensusParams> for CosmosMsg<TgradeMsg> {
+    fn from(params: ConsensusParams) -> CosmosMsg<TgradeMsg> {
+        CosmosMsg::Custom(TgradeMsg::ConsensusParams(params))
     }
 }

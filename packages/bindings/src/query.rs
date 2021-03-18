@@ -2,7 +2,9 @@ use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use std::fmt;
 
-use cosmwasm_std::{CosmosMsg, Empty, HumanAddr};
+use cosmwasm_std::HumanAddr;
+
+use crate::validator::Validator;
 
 #[derive(Serialize, Deserialize, Clone, PartialEq, JsonSchema, Debug)]
 #[serde(rename_all = "snake_case")]
@@ -24,14 +26,7 @@ pub enum HooksQuery {
 
 #[derive(Serialize, Deserialize, Clone, PartialEq, JsonSchema, Debug)]
 pub struct ValidatorSetResponse {
-    pub validators: Vec<ValidatorInfo>,
-}
-
-#[derive(Serialize, Deserialize, Clone, PartialEq, JsonSchema, Debug)]
-pub struct ValidatorInfo {
-    // TODO: review this
-    pub tendermint_pubkey: Binary,
-    pub voting_power: u64,
+    pub validators: Vec<Validator>,
 }
 
 #[derive(Serialize, Deserialize, Clone, PartialEq, JsonSchema, Debug)]
