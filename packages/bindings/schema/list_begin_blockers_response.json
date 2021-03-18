@@ -1,0 +1,21 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "ListBeginBlockersResponse",
+  "type": "object",
+  "required": [
+    "begin_blockers"
+  ],
+  "properties": {
+    "begin_blockers": {
+      "type": "array",
+      "items": {
+        "$ref": "#/definitions/HumanAddr"
+      }
+    }
+  },
+  "definitions": {
+    "HumanAddr": {
+      "type": "string"
+    }
+  }
+}
