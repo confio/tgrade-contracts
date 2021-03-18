@@ -1,6 +1,12 @@
 mod msg;
 mod query;
 
+pub use msg::{HooksMsg, TgradeMsg};
+pub use query::{
+    GetValidatorSetUpdaterResponse, HooksQuery, ListBeginBlockersResponse, ListEndBlockersResponse,
+    TgradeQuery, ValidatorInfo, ValidatorSetResponse,
+};
+
 #[cfg(test)]
 mod tests {
     #[test]
