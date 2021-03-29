@@ -18,7 +18,7 @@ fn main() {
     export_schema_with_title(&mut schema_for!(ExecuteMsg), &out_dir, "ExecuteMsg");
     export_schema_with_title(&mut schema_for!(QueryMsg), &out_dir, "QueryMsg");
 
-    export_schema(&schema_for!(ConfigResponse), &out_dir);
+    export_schema_with_title(&mut schema_for!(ConfigResponse), &out_dir, "ConfigResponse");
     export_schema(&schema_for!(EpochResponse), &out_dir);
     export_schema(&schema_for!(ListValidatorKeysResponse), &out_dir);
     export_schema(&schema_for!(ValidatorKeyResponse), &out_dir);

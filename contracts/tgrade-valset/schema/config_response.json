@@ -18,7 +18,7 @@
       "description": "address of a cw4 contract with the raw membership used to feed the validator set",
       "allOf": [
         {
-          "$ref": "#/definitions/HumanAddr"
+          "$ref": "#/definitions/Cw4Contract"
         }
       ]
     },
@@ -39,6 +39,14 @@
     }
   },
   "definitions": {
+    "Cw4Contract": {
+      "description": "Cw4Contract is a wrapper around HumanAddr that provides a lot of helpers for working with cw4 contracts\n\nIf you wish to persist this, convert to Cw4CanonicalContract via .canonical()",
+      "allOf": [
+        {
+          "$ref": "#/definitions/HumanAddr"
+        }
+      ]
+    },
     "HumanAddr": {
       "type": "string"
     }

@@ -9,13 +9,20 @@
     "validators": {
       "type": "array",
       "items": {
-        "$ref": "#/definitions/ActiveValidator"
+        "$ref": "#/definitions/ValidatorInfo"
       }
     }
   },
   "definitions": {
-    "ActiveValidator": {
-      "description": "Maps an sdk address to a Tendermint pubkey.",
+    "Binary": {
+      "description": "Binary is a wrapper around Vec<u8> to add base64 de/serialization with serde. It also adds some helper methods to help encode inline.\n\nThis is only needed as serde-json-{core,wasm} has a horrible encoding for Vec<u8>",
+      "type": "string"
+    },
+    "HumanAddr": {
+      "type": "string"
+    },
+    "ValidatorInfo": {
+      "description": "Operators SDK address, Tendermint public key, and tendermint voting power.",
       "type": "object",
       "required": [
         "operator",
@@ -41,13 +48,6 @@
           ]
         }
       }
-    },
-    "Binary": {
-      "description": "Binary is a wrapper around Vec<u8> to add base64 de/serialization with serde. It also adds some helper methods to help encode inline.\n\nThis is only needed as serde-json-{core,wasm} has a horrible encoding for Vec<u8>",
-      "type": "string"
-    },
-    "HumanAddr": {
-      "type": "string"
     }
   }
 }
