@@ -3,94 +3,20 @@
   "title": "ExecuteMsg",
   "anyOf": [
     {
-      "description": "Change the admin",
+      "description": "Links info.sender (operator) to this Tendermint consensus key. The operator can cannot re-register another key. No two operators may have the same consensus_key.",
       "type": "object",
       "required": [
-        "update_admin"
+        "register_validator_key"
       ],
       "properties": {
-        "update_admin": {
-          "type": "object",
-          "properties": {
-            "admin": {
-              "anyOf": [
-                {
-                  "$ref": "#/definitions/HumanAddr"
-                },
-                {
-                  "type": "null"
-                }
-              ]
-            }
-          }
-        }
-      }
-    },
-    {
-      "description": "apply a diff to the existing members. remove is applied after add, so if an address is in both, it is removed",
-      "type": "object",
-      "required": [
-        "update_members"
-      ],
-      "properties": {
-        "update_members": {
+        "register_validator_key": {
           "type": "object",
           "required": [
-            "add",
-            "remove"
+            "pubkey"
           ],
           "properties": {
-            "add": {
-              "type": "array",
-              "items": {
-                "$ref": "#/definitions/Member"
-              }
-            },
-            "remove": {
-              "type": "array",
-              "items": {
-                "$ref": "#/definitions/HumanAddr"
-              }
-            }
-          }
-        }
-      }
-    },
-    {
-      "description": "Add a new hook to be informed of all membership changes. Must be called by Admin",
-      "type": "object",
-      "required": [
-        "add_hook"
-      ],
-      "properties": {
-        "add_hook": {
-          "type": "object",
-          "required": [
-            "addr"
-          ],
-          "properties": {
-            "addr": {
-              "$ref": "#/definitions/HumanAddr"
-            }
-          }
-        }
-      }
-    },
-    {
-      "description": "Remove a hook. Must be called by Admin",
-      "type": "object",
-      "required": [
-        "remove_hook"
-      ],
-      "properties": {
-        "remove_hook": {
-          "type": "object",
-          "required": [
-            "addr"
-          ],
-          "properties": {
-            "addr": {
-              "$ref": "#/definitions/HumanAddr"
+            "pubkey": {
+              "$ref": "#/definitions/Binary"
             }
           }
         }
@@ -98,26 +24,9 @@
     }
   ],
   "definitions": {
-    "HumanAddr": {
+    "Binary": {
+      "description": "Binary is a wrapper around Vec<u8> to add base64 de/serialization with serde. It also adds some helper methods to help encode inline.\n\nThis is only needed as serde-json-{core,wasm} has a horrible encoding for Vec<u8>",
       "type": "string"
-    },
-    "Member": {
-      "description": "A group member has a weight associated with them. This may all be equal, or may have meaning in the app that makes use of the group (eg. voting power)",
-      "type": "object",
-      "required": [
-        "addr",
-        "weight"
-      ],
-      "properties": {
-        "addr": {
-          "$ref": "#/definitions/HumanAddr"
-        },
-        "weight": {
-          "type": "integer",
-          "format": "uint64",
-          "minimum": 0.0
-        }
-      }
     }
   }
 }

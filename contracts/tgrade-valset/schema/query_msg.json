@@ -3,37 +3,45 @@
   "title": "QueryMsg",
   "anyOf": [
     {
-      "description": "Return AdminResponse",
+      "description": "Return ConfigResponse - basic contract data",
       "type": "object",
       "required": [
-        "admin"
+        "config"
       ],
       "properties": {
-        "admin": {
+        "config": {
           "type": "object"
         }
       }
     },
     {
-      "description": "Return TotalWeightResponse",
+      "description": "Returns the validator key (if present) for the given operator",
       "type": "object",
       "required": [
-        "total_weight"
+        "validator_key"
       ],
       "properties": {
-        "total_weight": {
-          "type": "object"
+        "validator_key": {
+          "type": "object",
+          "required": [
+            "operator"
+          ],
+          "properties": {
+            "operator": {
+              "$ref": "#/definitions/HumanAddr"
+            }
+          }
         }
       }
     },
     {
-      "description": "Returns MembersListResponse",
+      "description": "Paginate over all operators.",
       "type": "object",
       "required": [
-        "list_members"
+        "list_validator_keys"
       ],
       "properties": {
-        "list_members": {
+        "list_validator_keys": {
           "type": "object",
           "properties": {
             "limit": {
@@ -55,46 +63,6 @@
               ]
             }
           }
-        }
-      }
-    },
-    {
-      "description": "Returns MemberResponse",
-      "type": "object",
-      "required": [
-        "member"
-      ],
-      "properties": {
-        "member": {
-          "type": "object",
-          "required": [
-            "addr"
-          ],
-          "properties": {
-            "addr": {
-              "$ref": "#/definitions/HumanAddr"
-            },
-            "at_height": {
-              "type": [
-                "integer",
-                "null"
-              ],
-              "format": "uint64",
-              "minimum": 0.0
-            }
-          }
-        }
-      }
-    },
-    {
-      "description": "Shows all registered hooks. Returns HooksResponse.",
-      "type": "object",
-      "required": [
-        "hooks"
-      ],
-      "properties": {
-        "hooks": {
-          "type": "object"
         }
       }
     }

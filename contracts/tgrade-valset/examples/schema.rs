@@ -3,8 +3,10 @@ use std::fs::create_dir_all;
 
 use cosmwasm_schema::{export_schema, export_schema_with_title, remove_schemas, schema_for};
 
-pub use cw4::{AdminResponse, MemberListResponse, MemberResponse, TotalWeightResponse};
-pub use tgrade_valset::msg::{ExecuteMsg, InstantiateMsg, QueryMsg};
+pub use tgrade_valset::msg::{
+    ConfigResponse, ExecuteMsg, InstantiateMsg, ListValidatorKeysResponse, QueryMsg,
+    ValidatorKeyResponse,
+};
 
 fn main() {
     let mut out_dir = current_dir().unwrap();
@@ -15,9 +17,8 @@ fn main() {
     export_schema_with_title(&mut schema_for!(InstantiateMsg), &out_dir, "InstantiateMsg");
     export_schema_with_title(&mut schema_for!(ExecuteMsg), &out_dir, "ExecuteMsg");
     export_schema_with_title(&mut schema_for!(QueryMsg), &out_dir, "QueryMsg");
-    // TODO
-    export_schema(&schema_for!(AdminResponse), &out_dir);
-    export_schema(&schema_for!(MemberListResponse), &out_dir);
-    export_schema(&schema_for!(MemberResponse), &out_dir);
-    export_schema(&schema_for!(TotalWeightResponse), &out_dir);
+
+    export_schema(&schema_for!(ConfigResponse), &out_dir);
+    export_schema(&schema_for!(ListValidatorKeysResponse), &out_dir);
+    export_schema(&schema_for!(ValidatorKeyResponse), &out_dir);
 }
