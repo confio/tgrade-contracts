@@ -6,6 +6,9 @@ pub enum ContractError {
     #[error("{0}")]
     Std(#[from] StdError),
 
+    #[error("Operator is already registered, cannot change Tendermint pubkey")]
+    OperatorRegistered {},
+
     #[error("Unauthorized")]
     Unauthorized {},
 }
