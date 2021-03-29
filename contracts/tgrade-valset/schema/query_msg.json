@@ -3,13 +3,25 @@
   "title": "QueryMsg",
   "anyOf": [
     {
-      "description": "Return ConfigResponse - basic contract data",
+      "description": "Returns ConfigResponse - static contract data",
       "type": "object",
       "required": [
         "config"
       ],
       "properties": {
         "config": {
+          "type": "object"
+        }
+      }
+    },
+    {
+      "description": "Returns EpochResponse - get info on current and next epochs",
+      "type": "object",
+      "required": [
+        "epoch"
+      ],
+      "properties": {
+        "epoch": {
           "type": "object"
         }
       }
@@ -63,6 +75,18 @@
               ]
             }
           }
+        }
+      }
+    },
+    {
+      "description": "List the current validator set, sorted by power descending (no pagination - reasonable limit from max_validators)",
+      "type": "object",
+      "required": [
+        "list_active_validators"
+      ],
+      "properties": {
+        "list_active_validators": {
+          "type": "object"
         }
       }
     }

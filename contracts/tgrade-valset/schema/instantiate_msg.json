@@ -11,7 +11,7 @@
   ],
   "properties": {
     "epoch_length": {
-      "description": "Number of seconds in one epoch. We update the Tendermint validator set only once per epoch. Divide",
+      "description": "Number of seconds in one epoch. We update the Tendermint validator set only once per epoch. Epoch # is env.block.time/epoch_length (round down). First block with a new epoch number will trigger a new validator calculation.",
       "type": "integer",
       "format": "uint64",
       "minimum": 0.0

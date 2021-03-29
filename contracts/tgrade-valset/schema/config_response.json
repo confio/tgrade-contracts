@@ -3,18 +3,11 @@
   "title": "ConfigResponse",
   "type": "object",
   "required": [
-    "epoch_length",
     "max_validators",
     "membership",
     "min_weight"
   ],
   "properties": {
-    "epoch_length": {
-      "description": "Number of seconds in one epoch. We update the Tendermint validator set only once per epoch. Divide",
-      "type": "integer",
-      "format": "uint64",
-      "minimum": 0.0
-    },
     "max_validators": {
       "description": "The maximum number of validators that can be included in the Tendermint validator set. If there are more validators than slots, we select the top N by membership weight descending. (In case of ties at the last slot, select by \"first\" tendermint pubkey lexographically sorted).",
       "type": "integer",

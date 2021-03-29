@@ -22,7 +22,8 @@ pub struct InstantiateMsg {
     /// lexographically sorted).
     pub max_validators: u32,
     /// Number of seconds in one epoch. We update the Tendermint validator set only once per epoch.
-    /// Divide
+    /// Epoch # is env.block.time/epoch_length (round down). First block with a new epoch number
+    /// will trigger a new validator calculation.
     pub epoch_length: u64,
 
     /// Initial operators and validator keys registered - needed to have non-empty validator
@@ -54,8 +55,10 @@ pub enum ExecuteMsg {
 #[derive(Serialize, Deserialize, Clone, PartialEq, JsonSchema, Debug)]
 #[serde(rename_all = "snake_case")]
 pub enum QueryMsg {
-    /// Return ConfigResponse - basic contract data
+    /// Returns ConfigResponse - static contract data
     Config {},
+    /// Returns EpochResponse - get info on current and next epochs
+    Epoch {},
 
     /// Returns the validator key (if present) for the given operator
     ValidatorKey { operator: HumanAddr },
@@ -64,8 +67,10 @@ pub enum QueryMsg {
         start_after: Option<HumanAddr>,
         limit: Option<u32>,
     },
-    // TODO: info on last epoch updated, current set
 
+    /// List the current validator set, sorted by power descending
+    /// (no pagination - reasonable limit from max_validators)
+    ListActiveValidators {},
     // TODO: dry-run calculating what the set would be now?
 }
 
@@ -83,12 +88,22 @@ pub struct ConfigResponse {
     /// descending. (In case of ties at the last slot, select by "first" tendermint pubkey
     /// lexographically sorted).
     pub max_validators: u32,
-    /// Number of seconds in one epoch. We update the Tendermint validator set only once per epoch.
-    /// Divide
-    pub epoch_length: u64,
     /// A scaling factor to multiply cw4-group weights to produce the tendermint validator power
     /// (TODO: should we allow this to reduce weight? Like 1/1000?)
     pub scaling: Option<u32>,
+}
+
+#[derive(Serialize, Deserialize, Clone, PartialEq, JsonSchema, Debug)]
+pub struct EpochResponse {
+    /// Number of seconds in one epoch. We update the Tendermint validator set only once per epoch.
+    pub epoch_length: u64,
+    /// The current epoch # (env.block.time/epoch_length, rounding down)
+    pub current_epoch: u64,
+    /// The last time we updated the validator set - block time and height
+    pub last_update_time: u64,
+    pub last_update_height: u64,
+    /// Seconds (UTC UNIX time) of next timestamp that will trigger a validator recalculation
+    pub next_update_time: u64,
 }
 
 #[derive(Serialize, Deserialize, Clone, PartialEq, JsonSchema, Debug)]
@@ -100,4 +115,19 @@ pub struct ValidatorKeyResponse {
 #[derive(Serialize, Deserialize, Clone, PartialEq, JsonSchema, Debug)]
 pub struct ListValidatorKeysResponse {
     pub operators: Vec<OperatorKey>,
+}
+
+#[derive(Serialize, Deserialize, Clone, PartialEq, JsonSchema, Debug)]
+pub struct ListActiveValidatorsResponse {
+    pub validators: Vec<ActiveValidator>,
+}
+
+/// Maps an sdk address to a Tendermint pubkey.
+#[derive(Serialize, Deserialize, Clone, PartialEq, JsonSchema, Debug)]
+pub struct ActiveValidator {
+    pub operator: HumanAddr,
+    /// TODO: better name to specify this is the Tendermint pubkey for consensus?
+    pub validator_pubkey: Binary,
+    /// The voting power in Tendermint sdk
+    pub power: u64,
 }
