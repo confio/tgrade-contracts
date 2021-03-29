@@ -52,7 +52,7 @@ fn execute_register_validator_key(
     res.add_attribute("action", "register_validator_key");
     res.add_attribute("operator", info.sender);
     res.add_attribute("pubkey", pubkey.to_base64());
-    Ok(res.into())
+    Ok(res)
 }
 
 #[cfg_attr(not(feature = "library"), entry_point)]
