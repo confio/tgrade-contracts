@@ -9,6 +9,9 @@ pub enum ContractError {
     #[error("Operator is already registered, cannot change Tendermint pubkey")]
     OperatorRegistered {},
 
+    #[error("Received system callback we didn't expect")]
+    UnknownSudoType {},
+
     #[error("Unauthorized")]
     Unauthorized {},
 }

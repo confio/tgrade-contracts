@@ -1,7 +1,7 @@
 use cosmwasm_std::{entry_point, to_binary, Binary, Deps, DepsMut, Env, HumanAddr, MessageInfo};
 use cw2::set_contract_version;
 
-use tgrade_bindings::{TgradeMsg, TgradeSudoMsg};
+use tgrade_bindings::{HooksMsg, PrivilegeChangeMsg, TgradeMsg, TgradeSudoMsg};
 
 use crate::error::ContractError;
 use crate::msg::{
@@ -111,6 +111,32 @@ fn list_active_validators(
 }
 
 #[cfg_attr(not(feature = "library"), entry_point)]
-pub fn sudo(_deps: DepsMut, _env: Env, _msg: TgradeSudoMsg) -> Result<Response, ContractError> {
+pub fn sudo(deps: DepsMut, env: Env, msg: TgradeSudoMsg) -> Result<Response, ContractError> {
+    match msg {
+        TgradeSudoMsg::PrivilegeChange(change) => privilege_change(deps, change),
+        TgradeSudoMsg::EndWithValidatorUpdate {} => end_block(deps, env),
+        _ => Err(ContractError::UnknownSudoType {}),
+    }
+}
+
+fn privilege_change(_deps: DepsMut, change: PrivilegeChangeMsg) -> Result<Response, ContractError> {
+    match change {
+        PrivilegeChangeMsg::Promoted {} => {
+            let msg = TgradeMsg::Hooks(HooksMsg::RegisterValidatorSetUpdate {}).into();
+            let resp = Response {
+                messages: vec![msg],
+                ..Response::default()
+            };
+            Ok(resp)
+        }
+        PrivilegeChangeMsg::Demoted {} => {
+            // TODO: signal this is frozen?
+            Ok(Response::default())
+        }
+    }
+}
+
+fn end_block(_deps: DepsMut, _env: Env) -> Result<Response, ContractError> {
+    // TODO: check if needed, then calculate validator change if so
     unimplemented!();
 }
