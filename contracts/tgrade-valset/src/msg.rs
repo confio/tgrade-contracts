@@ -18,7 +18,7 @@ pub struct InstantiateMsg {
     /// The maximum number of validators that can be included in the Tendermint validator set.
     /// If there are more validators than slots, we select the top N by membership weight
     /// descending. (In case of ties at the last slot, select by "first" tendermint pubkey
-    /// lexographically sorted).
+    /// lexicographically sorted).
     pub max_validators: u32,
     /// Number of seconds in one epoch. We update the Tendermint validator set only once per epoch.
     /// Epoch # is env.block.time/epoch_length (round down). First block with a new epoch number
@@ -46,7 +46,7 @@ pub struct OperatorKey {
 #[serde(rename_all = "snake_case")]
 pub enum ExecuteMsg {
     /// Links info.sender (operator) to this Tendermint consensus key.
-    /// The operator can cannot re-register another key.
+    /// The operator cannot re-register another key.
     /// No two operators may have the same consensus_key.
     RegisterValidatorKey { pubkey: Binary },
 }

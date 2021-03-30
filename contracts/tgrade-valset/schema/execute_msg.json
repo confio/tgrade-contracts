@@ -3,7 +3,7 @@
   "title": "ExecuteMsg",
   "anyOf": [
     {
-      "description": "Links info.sender (operator) to this Tendermint consensus key. The operator can cannot re-register another key. No two operators may have the same consensus_key.",
+      "description": "Links info.sender (operator) to this Tendermint consensus key. The operator cannot re-register another key. No two operators may have the same consensus_key.",
       "type": "object",
       "required": [
         "register_validator_key"

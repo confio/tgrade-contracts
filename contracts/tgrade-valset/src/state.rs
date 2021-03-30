@@ -17,7 +17,7 @@ pub struct Config {
     /// The maximum number of validators that can be included in the Tendermint validator set.
     /// If there are more validators than slots, we select the top N by membership weight
     /// descending. (In case of ties at the last slot, select by "first" tendermint pubkey
-    /// lexographically sorted).
+    /// lexicographically sorted).
     pub max_validators: u32,
     /// A scaling factor to multiply cw4-group weights to produce the tendermint validator power
     /// (TODO: should we allow this to reduce weight? Like 1/1000?)
