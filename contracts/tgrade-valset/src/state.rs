@@ -54,4 +54,4 @@ pub const OPERATORS: Map<&str, Binary> = Map::new("operators");
 
 /// VALIDATORS is the calculated list of the active validators from the last execution.
 /// This will be empty only on the first run.
-pub const VALIDATORS: Item<ValidatorInfo> = Item::new("validators");
+pub const VALIDATORS: Item<Vec<ValidatorInfo>> = Item::new("validators");

@@ -3,7 +3,11 @@ use serde::{Deserialize, Serialize};
 
 use cosmwasm_std::{Binary, HumanAddr};
 
+use crate::error::ContractError;
 use crate::state::{Config, ValidatorInfo};
+
+/// Required size of all tendermint pubkeys
+const PUBKEY_LENGTH: usize = 32;
 
 #[derive(Serialize, Deserialize, Clone, PartialEq, JsonSchema, Debug)]
 #[serde(rename_all = "snake_case")]
@@ -34,12 +38,37 @@ pub struct InstantiateMsg {
     pub scaling: Option<u32>,
 }
 
+impl InstantiateMsg {
+    pub fn validate(&self) -> Result<(), ContractError> {
+        if self.epoch_length == 0 {
+            return Err(ContractError::InvalidEpoch {});
+        }
+        if self.initial_keys.is_empty() {
+            return Err(ContractError::NoValidators {});
+        }
+        for op in self.initial_keys.iter() {
+            op.validate()?
+        }
+        Ok(())
+    }
+}
+
 /// Maps an sdk address to a Tendermint pubkey.
 #[derive(Serialize, Deserialize, Clone, PartialEq, JsonSchema, Debug)]
 pub struct OperatorKey {
     pub operator: HumanAddr,
     /// TODO: better name to specify this is the Tendermint pubkey for consensus?
     pub validator_pubkey: Binary,
+}
+
+impl OperatorKey {
+    pub fn validate(&self) -> Result<(), ContractError> {
+        if self.validator_pubkey.len() != PUBKEY_LENGTH {
+            Err(ContractError::InvalidPubkey {})
+        } else {
+            Ok(())
+        }
+    }
 }
 
 #[derive(Serialize, Deserialize, Clone, PartialEq, JsonSchema, Debug)]
