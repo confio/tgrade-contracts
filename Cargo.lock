@@ -606,6 +606,7 @@ dependencies = [
  "cw4",
  "schemars",
  "serde",
+ "tgrade-bindings",
  "thiserror",
 ]
 

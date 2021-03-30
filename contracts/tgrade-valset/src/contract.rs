@@ -1,13 +1,21 @@
-use cosmwasm_std::{entry_point, Binary, Deps, DepsMut, Env, MessageInfo, Response};
+use cosmwasm_std::{entry_point, to_binary, Binary, Deps, DepsMut, Env, HumanAddr, MessageInfo};
 use cw2::set_contract_version;
 
+use tgrade_bindings::{TgradeMsg, TgradeSudoMsg};
+
 use crate::error::ContractError;
-use crate::msg::{ExecuteMsg, InstantiateMsg, QueryMsg};
+use crate::msg::{
+    ConfigResponse, EpochResponse, ExecuteMsg, InstantiateMsg, ListActiveValidatorsResponse,
+    ListValidatorKeysResponse, QueryMsg, ValidatorKeyResponse,
+};
 use crate::state::OPERATORS;
 
 // version info for migration info
 const CONTRACT_NAME: &str = "crates.io:tgrade-valset";
 const CONTRACT_VERSION: &str = env!("CARGO_PKG_VERSION");
+
+/// We use this custom message everywhere
+pub type Response = cosmwasm_std::Response<TgradeMsg>;
 
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn instantiate(
@@ -53,11 +61,56 @@ fn execute_register_validator_key(
 }
 
 #[cfg_attr(not(feature = "library"), entry_point)]
-pub fn query(_deps: Deps, _env: Env, _msg: QueryMsg) -> Result<Binary, ContractError> {
+pub fn query(deps: Deps, env: Env, msg: QueryMsg) -> Result<Binary, ContractError> {
+    match msg {
+        QueryMsg::Config {} => Ok(to_binary(&query_config(deps, env)?)?),
+        QueryMsg::Epoch {} => Ok(to_binary(&query_epoch(deps, env)?)?),
+        QueryMsg::ValidatorKey { operator } => {
+            Ok(to_binary(&query_validator_key(deps, env, operator)?)?)
+        }
+        QueryMsg::ListValidatorKeys { start_after, limit } => Ok(to_binary(&list_validator_keys(
+            deps,
+            env,
+            start_after,
+            limit,
+        )?)?),
+        QueryMsg::ListActiveValidators {} => Ok(to_binary(&list_active_validators(deps, env)?)?),
+    }
+}
+
+fn query_config(_deps: Deps, _env: Env) -> Result<ConfigResponse, ContractError> {
+    unimplemented!();
+}
+
+fn query_epoch(_deps: Deps, _env: Env) -> Result<EpochResponse, ContractError> {
+    unimplemented!();
+}
+
+fn query_validator_key(
+    _deps: Deps,
+    _env: Env,
+    _operator: HumanAddr,
+) -> Result<ValidatorKeyResponse, ContractError> {
+    unimplemented!();
+}
+
+fn list_validator_keys(
+    _deps: Deps,
+    _env: Env,
+    _start_after: Option<HumanAddr>,
+    _limit: Option<u32>,
+) -> Result<ListValidatorKeysResponse, ContractError> {
+    unimplemented!();
+}
+
+fn list_active_validators(
+    _deps: Deps,
+    _env: Env,
+) -> Result<ListActiveValidatorsResponse, ContractError> {
     unimplemented!();
 }
 
 #[cfg_attr(not(feature = "library"), entry_point)]
-pub fn sudo(_deps: DepsMut, _env: Env, _msg: QueryMsg) -> Result<Response, ContractError> {
+pub fn sudo(_deps: DepsMut, _env: Env, _msg: TgradeSudoMsg) -> Result<Response, ContractError> {
     unimplemented!();
 }
