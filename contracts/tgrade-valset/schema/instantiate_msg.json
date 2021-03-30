@@ -1,0 +1,86 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "InstantiateMsg",
+  "type": "object",
+  "required": [
+    "epoch_length",
+    "initial_keys",
+    "max_validators",
+    "membership",
+    "min_weight"
+  ],
+  "properties": {
+    "epoch_length": {
+      "description": "Number of seconds in one epoch. We update the Tendermint validator set only once per epoch. Epoch # is env.block.time/epoch_length (round down). First block with a new epoch number will trigger a new validator calculation.",
+      "type": "integer",
+      "format": "uint64",
+      "minimum": 0.0
+    },
+    "initial_keys": {
+      "description": "Initial operators and validator keys registered - needed to have non-empty validator set upon initialization.",
+      "type": "array",
+      "items": {
+        "$ref": "#/definitions/OperatorKey"
+      }
+    },
+    "max_validators": {
+      "description": "The maximum number of validators that can be included in the Tendermint validator set. If there are more validators than slots, we select the top N by membership weight descending. (In case of ties at the last slot, select by \"first\" tendermint pubkey lexicographically sorted).",
+      "type": "integer",
+      "format": "uint32",
+      "minimum": 0.0
+    },
+    "membership": {
+      "description": "address of a cw4 contract with the raw membership used to feed the validator set",
+      "allOf": [
+        {
+          "$ref": "#/definitions/HumanAddr"
+        }
+      ]
+    },
+    "min_weight": {
+      "description": "minimum weight needed by an address in `membership` to be considered for the validator set. 0-weight members are always filtered out. TODO: if we allow sub-1 scaling factors, determine if this is pre-/post- scaling (use weight for cw4, power for tendermint)",
+      "type": "integer",
+      "format": "uint64",
+      "minimum": 0.0
+    },
+    "scaling": {
+      "description": "A scaling factor to multiply cw4-group weights to produce the tendermint validator power (TODO: should we allow this to reduce weight? Like 1/1000?)",
+      "type": [
+        "integer",
+        "null"
+      ],
+      "format": "uint32",
+      "minimum": 0.0
+    }
+  },
+  "definitions": {
+    "Binary": {
+      "description": "Binary is a wrapper around Vec<u8> to add base64 de/serialization with serde. It also adds some helper methods to help encode inline.\n\nThis is only needed as serde-json-{core,wasm} has a horrible encoding for Vec<u8>",
+      "type": "string"
+    },
+    "HumanAddr": {
+      "type": "string"
+    },
+    "OperatorKey": {
+      "description": "Maps an sdk address to a Tendermint pubkey.",
+      "type": "object",
+      "required": [
+        "operator",
+        "validator_pubkey"
+      ],
+      "properties": {
+        "operator": {
+          "$ref": "#/definitions/HumanAddr"
+        },
+        "validator_pubkey": {
+          "description": "TODO: better name to specify this is the Tendermint pubkey for consensus?",
+          "allOf": [
+            {
+              "$ref": "#/definitions/Binary"
+            }
+          ]
+        }
+      }
+    }
+  }
+}

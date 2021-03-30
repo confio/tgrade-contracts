@@ -1,0 +1,99 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "QueryMsg",
+  "anyOf": [
+    {
+      "description": "Returns ConfigResponse - static contract data",
+      "type": "object",
+      "required": [
+        "config"
+      ],
+      "properties": {
+        "config": {
+          "type": "object"
+        }
+      }
+    },
+    {
+      "description": "Returns EpochResponse - get info on current and next epochs",
+      "type": "object",
+      "required": [
+        "epoch"
+      ],
+      "properties": {
+        "epoch": {
+          "type": "object"
+        }
+      }
+    },
+    {
+      "description": "Returns the validator key (if present) for the given operator",
+      "type": "object",
+      "required": [
+        "validator_key"
+      ],
+      "properties": {
+        "validator_key": {
+          "type": "object",
+          "required": [
+            "operator"
+          ],
+          "properties": {
+            "operator": {
+              "$ref": "#/definitions/HumanAddr"
+            }
+          }
+        }
+      }
+    },
+    {
+      "description": "Paginate over all operators.",
+      "type": "object",
+      "required": [
+        "list_validator_keys"
+      ],
+      "properties": {
+        "list_validator_keys": {
+          "type": "object",
+          "properties": {
+            "limit": {
+              "type": [
+                "integer",
+                "null"
+              ],
+              "format": "uint32",
+              "minimum": 0.0
+            },
+            "start_after": {
+              "anyOf": [
+                {
+                  "$ref": "#/definitions/HumanAddr"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          }
+        }
+      }
+    },
+    {
+      "description": "List the current validator set, sorted by power descending (no pagination - reasonable limit from max_validators)",
+      "type": "object",
+      "required": [
+        "list_active_validators"
+      ],
+      "properties": {
+        "list_active_validators": {
+          "type": "object"
+        }
+      }
+    }
+  ],
+  "definitions": {
+    "HumanAddr": {
+      "type": "string"
+    }
+  }
+}

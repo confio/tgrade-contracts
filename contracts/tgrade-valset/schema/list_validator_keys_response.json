@@ -1,0 +1,46 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "ListValidatorKeysResponse",
+  "type": "object",
+  "required": [
+    "operators"
+  ],
+  "properties": {
+    "operators": {
+      "type": "array",
+      "items": {
+        "$ref": "#/definitions/OperatorKey"
+      }
+    }
+  },
+  "definitions": {
+    "Binary": {
+      "description": "Binary is a wrapper around Vec<u8> to add base64 de/serialization with serde. It also adds some helper methods to help encode inline.\n\nThis is only needed as serde-json-{core,wasm} has a horrible encoding for Vec<u8>",
+      "type": "string"
+    },
+    "HumanAddr": {
+      "type": "string"
+    },
+    "OperatorKey": {
+      "description": "Maps an sdk address to a Tendermint pubkey.",
+      "type": "object",
+      "required": [
+        "operator",
+        "validator_pubkey"
+      ],
+      "properties": {
+        "operator": {
+          "$ref": "#/definitions/HumanAddr"
+        },
+        "validator_pubkey": {
+          "description": "TODO: better name to specify this is the Tendermint pubkey for consensus?",
+          "allOf": [
+            {
+              "$ref": "#/definitions/Binary"
+            }
+          ]
+        }
+      }
+    }
+  }
+}
