@@ -15,7 +15,7 @@ use crate::msg::{
     ConfigResponse, EpochResponse, ExecuteMsg, InstantiateMsg, ListActiveValidatorsResponse,
     ListValidatorKeysResponse, QueryMsg, ValidatorKeyResponse,
 };
-use crate::state::{Config, EpochInfo, ValidatorInfo, CONFIG, EPOCH, OPERATORS, VALIDATORS};
+use crate::state::{operators, Config, EpochInfo, ValidatorInfo, CONFIG, EPOCH, VALIDATORS};
 
 // version info for migration info
 const CONTRACT_NAME: &str = "crates.io:tgrade-valset";
@@ -61,7 +61,7 @@ pub fn instantiate(
     for op in msg.initial_keys.into_iter() {
         // FIXME: use new validate API
         deps.api.canonical_address(&op.operator)?;
-        OPERATORS.save(deps.storage, &op.operator, &op.validator_pubkey)?;
+        operators().save(deps.storage, &op.operator, &op.validator_pubkey)?;
     }
 
     Ok(Response::default())
@@ -87,9 +87,9 @@ fn execute_register_validator_key(
     info: MessageInfo,
     pubkey: Binary,
 ) -> Result<Response, ContractError> {
-    match OPERATORS.may_load(deps.storage, &info.sender)? {
+    match operators().may_load(deps.storage, &info.sender)? {
         Some(_) => return Err(ContractError::OperatorRegistered {}),
-        None => OPERATORS.save(deps.storage, &info.sender, &pubkey)?,
+        None => operators().save(deps.storage, &info.sender, &pubkey)?,
     };
 
     let mut res = Response::new();
@@ -130,7 +130,7 @@ fn query_validator_key(
     _env: Env,
     operator: HumanAddr,
 ) -> Result<ValidatorKeyResponse, ContractError> {
-    let pubkey = OPERATORS.may_load(deps.storage, &operator)?;
+    let pubkey = operators().may_load(deps.storage, &operator)?;
     Ok(ValidatorKeyResponse { pubkey })
 }
 
@@ -220,7 +220,7 @@ fn calculate_validators(deps: Deps) -> Result<Vec<ValidatorInfo>, ContractError>
             .filter_map(|m| {
                 // any operator without a registered validator_pubkey is filtered out
                 // otherwise, we add this info
-                OPERATORS
+                operators()
                     .load(deps.storage, &m.addr)
                     .ok()
                     .map(|validator_pubkey| ValidatorInfo {
