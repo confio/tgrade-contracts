@@ -1,8 +1,10 @@
 use cosmwasm_std::{
-    entry_point, to_binary, Binary, Deps, DepsMut, Env, HumanAddr, MessageInfo, StdError,
+    entry_point, to_binary, Binary, Deps, DepsMut, Env, HumanAddr, MessageInfo, Order, StdError,
+    StdResult,
 };
 use cw2::set_contract_version;
 use cw4::Cw4Contract;
+use cw_storage_plus::Bound;
 use std::cmp::max;
 use std::collections::BTreeMap;
 
@@ -13,7 +15,7 @@ use tgrade_bindings::{
 use crate::error::ContractError;
 use crate::msg::{
     ConfigResponse, EpochResponse, ExecuteMsg, InstantiateMsg, ListActiveValidatorsResponse,
-    ListValidatorKeysResponse, QueryMsg, ValidatorKeyResponse,
+    ListValidatorKeysResponse, OperatorKey, QueryMsg, ValidatorKeyResponse,
 };
 use crate::state::{operators, Config, EpochInfo, ValidatorInfo, CONFIG, EPOCH, VALIDATORS};
 
@@ -121,8 +123,21 @@ fn query_config(deps: Deps, _env: Env) -> Result<ConfigResponse, StdError> {
     CONFIG.load(deps.storage)
 }
 
-fn query_epoch(_deps: Deps, _env: Env) -> Result<EpochResponse, ContractError> {
-    unimplemented!();
+fn query_epoch(deps: Deps, env: Env) -> Result<EpochResponse, ContractError> {
+    let epoch = EPOCH.load(deps.storage)?;
+    let mut next_update_time = (epoch.current_epoch + 1) * epoch.epoch_length;
+    if env.block.time > next_update_time {
+        next_update_time = env.block.time;
+    }
+
+    let resp = EpochResponse {
+        epoch_length: epoch.epoch_length,
+        current_epoch: epoch.current_epoch,
+        last_update_time: epoch.last_update_time,
+        last_update_height: epoch.last_update_height,
+        next_update_time,
+    };
+    Ok(resp)
 }
 
 fn query_validator_key(
@@ -134,13 +149,35 @@ fn query_validator_key(
     Ok(ValidatorKeyResponse { pubkey })
 }
 
+// settings for pagination
+const MAX_LIMIT: u32 = 30;
+const DEFAULT_LIMIT: u32 = 10;
+
 fn list_validator_keys(
-    _deps: Deps,
+    deps: Deps,
     _env: Env,
-    _start_after: Option<HumanAddr>,
-    _limit: Option<u32>,
+    start_after: Option<HumanAddr>,
+    limit: Option<u32>,
 ) -> Result<ListValidatorKeysResponse, ContractError> {
-    unimplemented!();
+    let limit = limit.unwrap_or(DEFAULT_LIMIT).min(MAX_LIMIT) as usize;
+    let start = start_after.map(|addr| Bound::exclusive(addr.0));
+
+    let operators: StdResult<Vec<_>> = operators()
+        .range(deps.storage, start, None, Order::Ascending)
+        .map(|r| {
+            let (key, validator_pubkey) = r?;
+            let operator = HumanAddr(String::from_utf8(key)?);
+            Ok(OperatorKey {
+                operator,
+                validator_pubkey,
+            })
+        })
+        .take(limit)
+        .collect();
+
+    Ok(ListValidatorKeysResponse {
+        operators: operators?,
+    })
 }
 
 fn list_active_validators(
@@ -178,11 +215,14 @@ fn privilege_change(_deps: DepsMut, change: PrivilegeChangeMsg) -> Response {
 
 fn end_block(deps: DepsMut, env: Env) -> Result<Response, ContractError> {
     // check if needed and quit early if we didn't hit epoch boundary
-    let epoch = EPOCH.load(deps.storage)?;
+    let mut epoch = EPOCH.load(deps.storage)?;
     let cur_epoch = env.block.time / epoch.epoch_length;
     if cur_epoch <= epoch.current_epoch {
         return Ok(Response::default());
     }
+    // ensure to update this so we wait until next epoch to run this again
+    epoch.current_epoch = cur_epoch;
+    EPOCH.save(deps.storage, &epoch)?;
 
     // calculate and store new validator set
     let validators = calculate_validators(deps.as_ref())?;
