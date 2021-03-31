@@ -7,7 +7,7 @@ use crate::error::ContractError;
 use crate::state::{Config, ValidatorInfo};
 
 /// Required size of all tendermint pubkeys
-const PUBKEY_LENGTH: usize = 32;
+pub const PUBKEY_LENGTH: usize = 32;
 
 #[derive(Serialize, Deserialize, Clone, PartialEq, JsonSchema, Debug)]
 #[serde(rename_all = "snake_case")]
@@ -140,4 +140,95 @@ pub struct ListValidatorKeysResponse {
 #[derive(Serialize, Deserialize, Clone, PartialEq, JsonSchema, Debug)]
 pub struct ListActiveValidatorsResponse {
     pub validators: Vec<ValidatorInfo>,
+}
+
+#[cfg(test)]
+mod test {
+    use super::*;
+
+    use crate::error::ContractError;
+    use cosmwasm_std::Binary;
+
+    // creates a valid pubkey from a seed
+    fn mock_pubkey(base: &[u8]) -> Binary {
+        let copies = (PUBKEY_LENGTH / base.len()) + 1;
+        let mut raw = base.repeat(copies);
+        raw.truncate(PUBKEY_LENGTH);
+        Binary(raw)
+    }
+
+    fn valid_operator(seed: &str) -> OperatorKey {
+        OperatorKey {
+            operator: seed.into(),
+            validator_pubkey: mock_pubkey(seed.as_bytes()),
+        }
+    }
+
+    fn invalid_operator() -> OperatorKey {
+        OperatorKey {
+            operator: "foobar".into(),
+            validator_pubkey: b"too-short".into(),
+        }
+    }
+
+    #[test]
+    fn validate_operator_key() {
+        valid_operator("foo").validate().unwrap();
+        let err = invalid_operator().validate().unwrap_err();
+        assert_eq!(err, ContractError::InvalidPubkey {});
+    }
+
+    #[test]
+    fn validate_init_msg() {
+        let proper = InstantiateMsg {
+            membership: "contract-addr".into(),
+            min_weight: 5,
+            max_validators: 20,
+            epoch_length: 5000,
+            initial_keys: vec![valid_operator("foo"), valid_operator("bar")],
+            scaling: None,
+        };
+        proper.validate().unwrap();
+
+        // with scaling also works
+        let mut with_scaling = proper.clone();
+        with_scaling.scaling = Some(10);
+        with_scaling.validate().unwrap();
+
+        // fails on 0 scaling
+        let mut invalid = proper.clone();
+        invalid.scaling = Some(0);
+        let err = invalid.validate().unwrap_err();
+        assert_eq!(err, ContractError::InvalidScaling {});
+
+        // fails on 0 min weight
+        let mut invalid = proper.clone();
+        invalid.min_weight = 0;
+        let err = invalid.validate().unwrap_err();
+        assert_eq!(err, ContractError::InvalidMinWeight {});
+
+        // fails on 0 max validators
+        let mut invalid = proper.clone();
+        invalid.max_validators = 0;
+        let err = invalid.validate().unwrap_err();
+        assert_eq!(err, ContractError::InvalidMaxValidators {});
+
+        // fails on 0 epoch size
+        let mut invalid = proper.clone();
+        invalid.epoch_length = 0;
+        let err = invalid.validate().unwrap_err();
+        assert_eq!(err, ContractError::InvalidEpoch {});
+
+        // fails on no operators
+        let mut invalid = proper.clone();
+        invalid.initial_keys = vec![];
+        let err = invalid.validate().unwrap_err();
+        assert_eq!(err, ContractError::NoValidators {});
+
+        // fails on invalid operator
+        let mut invalid = proper.clone();
+        invalid.initial_keys = vec![valid_operator("foo"), invalid_operator()];
+        let err = invalid.validate().unwrap_err();
+        assert_eq!(err, ContractError::InvalidPubkey {});
+    }
 }

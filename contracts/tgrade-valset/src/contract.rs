@@ -15,7 +15,7 @@ use tgrade_bindings::{
 use crate::error::ContractError;
 use crate::msg::{
     ConfigResponse, EpochResponse, ExecuteMsg, InstantiateMsg, ListActiveValidatorsResponse,
-    ListValidatorKeysResponse, OperatorKey, QueryMsg, ValidatorKeyResponse,
+    ListValidatorKeysResponse, OperatorKey, QueryMsg, ValidatorKeyResponse, PUBKEY_LENGTH,
 };
 use crate::state::{operators, Config, EpochInfo, ValidatorInfo, CONFIG, EPOCH, VALIDATORS};
 
@@ -89,6 +89,10 @@ fn execute_register_validator_key(
     info: MessageInfo,
     pubkey: Binary,
 ) -> Result<Response, ContractError> {
+    if pubkey.len() != PUBKEY_LENGTH {
+        return Err(ContractError::InvalidPubkey {});
+    }
+
     match operators().may_load(deps.storage, &info.sender)? {
         Some(_) => return Err(ContractError::OperatorRegistered {}),
         None => operators().save(deps.storage, &info.sender, &pubkey)?,
