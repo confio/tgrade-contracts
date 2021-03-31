@@ -1,7 +1,10 @@
-use cosmwasm_std::{entry_point, to_binary, Binary, Deps, DepsMut, Env, HumanAddr, MessageInfo};
+use cosmwasm_std::{
+    entry_point, to_binary, Binary, Deps, DepsMut, Env, HumanAddr, MessageInfo, StdError,
+};
 use cw2::set_contract_version;
 use cw4::Cw4Contract;
 use std::cmp::max;
+use std::collections::BTreeMap;
 
 use tgrade_bindings::{
     HooksMsg, PrivilegeChangeMsg, TgradeMsg, TgradeSudoMsg, ValidatorDiff, ValidatorUpdate,
@@ -13,8 +16,6 @@ use crate::msg::{
     ListValidatorKeysResponse, QueryMsg, ValidatorKeyResponse,
 };
 use crate::state::{Config, EpochInfo, ValidatorInfo, CONFIG, EPOCH, OPERATORS, VALIDATORS};
-use std::collections::BTreeMap;
-use std::convert::TryInto;
 
 // version info for migration info
 const CONTRACT_NAME: &str = "crates.io:tgrade-valset";
@@ -116,9 +117,8 @@ pub fn query(deps: Deps, env: Env, msg: QueryMsg) -> Result<Binary, ContractErro
     }
 }
 
-fn query_config(deps: Deps, _env: Env) -> Result<ConfigResponse, ContractError> {
-    let cfg = CONFIG.load(deps.storage)?;
-    Ok(cfg)
+fn query_config(deps: Deps, _env: Env) -> Result<ConfigResponse, StdError> {
+    CONFIG.load(deps.storage)
 }
 
 fn query_epoch(_deps: Deps, _env: Env) -> Result<EpochResponse, ContractError> {
@@ -213,7 +213,7 @@ fn calculate_validators(deps: Deps) -> Result<Vec<ValidatorInfo>, ContractError>
         .membership
         .list_members(&deps.querier, None, QUERY_LIMIT)?;
     while !batch.is_empty() {
-        let last_addr = batch[batch.len() - 1].addr.clone();
+        let last_addr = batch.last().unwrap().addr.clone();
         let filtered: Vec<_> = batch
             .into_iter()
             .filter(|m| m.weight >= min_weight)
@@ -241,8 +241,7 @@ fn calculate_validators(deps: Deps) -> Result<Vec<ValidatorInfo>, ContractError>
     // sort so we get the highest first (this means we return the opposite result in cmp)
     // and grab the top slots
     validators.sort_by(|a, b| b.power.cmp(&a.power));
-    let max_vals: usize = cfg.max_validators.try_into().unwrap();
-    validators.truncate(max_vals);
+    validators.truncate(cfg.max_validators as usize);
 
     Ok(validators)
 }

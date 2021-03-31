@@ -18,6 +18,15 @@ pub enum ContractError {
     #[error("The epoch length must be greater than zero")]
     InvalidEpoch {},
 
+    #[error("Min_weight must be greater than zero")]
+    InvalidMinWeight {},
+
+    #[error("Max validators must be greater than zero")]
+    InvalidMaxValidators {},
+
+    #[error("Scaling must be unset or greater than zero")]
+    InvalidScaling {},
+
     #[error("You must define initial validators for the contract")]
     NoValidators {},
 

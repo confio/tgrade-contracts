@@ -43,6 +43,15 @@ impl InstantiateMsg {
         if self.epoch_length == 0 {
             return Err(ContractError::InvalidEpoch {});
         }
+        if self.min_weight == 0 {
+            return Err(ContractError::InvalidMinWeight {});
+        }
+        if self.max_validators == 0 {
+            return Err(ContractError::InvalidMaxValidators {});
+        }
+        if self.scaling == Some(0) {
+            return Err(ContractError::InvalidScaling {});
+        }
         if self.initial_keys.is_empty() {
             return Err(ContractError::NoValidators {});
         }
