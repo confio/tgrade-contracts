@@ -1,5 +1,7 @@
 use cosmwasm_std::{entry_point, to_binary, Binary, Deps, DepsMut, Env, HumanAddr, MessageInfo};
 use cw2::set_contract_version;
+use cw4::Cw4Contract;
+use std::cmp::max;
 
 use tgrade_bindings::{HooksMsg, PrivilegeChangeMsg, TgradeMsg, TgradeSudoMsg, ValidatorDiff};
 
@@ -9,7 +11,7 @@ use crate::msg::{
     ListValidatorKeysResponse, QueryMsg, ValidatorKeyResponse,
 };
 use crate::state::{Config, EpochInfo, ValidatorInfo, CONFIG, EPOCH, OPERATORS, VALIDATORS};
-use cw4::Cw4Contract;
+use std::convert::TryInto;
 
 // version info for migration info
 const CONTRACT_NAME: &str = "crates.io:tgrade-valset";
@@ -193,8 +195,53 @@ fn end_block(deps: DepsMut, env: Env) -> Result<Response, ContractError> {
     Ok(res)
 }
 
-fn calculate_validators(_deps: Deps) -> Result<Vec<ValidatorInfo>, ContractError> {
-    unimplemented!();
+const QUERY_LIMIT: Option<u32> = Some(30);
+
+fn calculate_validators(deps: Deps) -> Result<Vec<ValidatorInfo>, ContractError> {
+    let cfg = CONFIG.load(deps.storage)?;
+    let min_weight = max(cfg.min_weight, 1);
+    let scaling: u64 = cfg.scaling.unwrap_or(1).into();
+
+    // get all validators from the contract, filtered
+    // FIXME: optimize when cw4 extension to handle list by weight is implemented
+    // https://github.com/CosmWasm/cosmwasm-plus/issues/255
+    let mut validators = vec![];
+    let mut batch = cfg
+        .membership
+        .list_members(&deps.querier, None, QUERY_LIMIT)?;
+    while !batch.is_empty() {
+        let last_addr = batch[batch.len() - 1].addr.clone();
+        let filtered: Vec<_> = batch
+            .into_iter()
+            .filter(|m| m.weight >= min_weight)
+            .filter_map(|m| {
+                // any operator without a registered validator_pubkey is filtered out
+                // otherwise, we add this info
+                OPERATORS
+                    .load(deps.storage, &m.addr)
+                    .ok()
+                    .map(|validator_pubkey| ValidatorInfo {
+                        operator: m.addr,
+                        validator_pubkey,
+                        power: m.weight * scaling,
+                    })
+            })
+            .collect();
+        validators.extend_from_slice(&filtered);
+
+        // and get the next page
+        batch = cfg
+            .membership
+            .list_members(&deps.querier, Some(last_addr), QUERY_LIMIT)?;
+    }
+
+    // sort so we get the highest first (this means we return the opposite result in cmp)
+    // and grab the top slots
+    validators.sort_by(|a, b| b.power.cmp(&a.power));
+    let max_vals: usize = cfg.max_validators.try_into().unwrap();
+    validators.truncate(max_vals);
+
+    Ok(validators)
 }
 
 fn calculate_diff(_cur_vals: Vec<ValidatorInfo>, _old_vals: Vec<ValidatorInfo>) -> ValidatorDiff {
