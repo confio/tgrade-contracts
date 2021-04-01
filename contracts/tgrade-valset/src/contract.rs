@@ -495,21 +495,59 @@ mod test {
         assert_eq!(active.validators, vec![]);
 
         // check a validator is set
-        let ops: Vec<_> = addrs(4).into_iter().map(|s| valid_operator(&s)).collect();
+        let op = addrs(4)
+            .into_iter()
+            .map(|s| valid_operator(&s))
+            .last()
+            .unwrap();
 
         let val: ValidatorKeyResponse = app
             .wrap()
             .query_wasm_smart(
                 &valset_addr,
                 &QueryMsg::ValidatorKey {
-                    operator: ops[2].operator.clone(),
+                    operator: op.operator,
                 },
             )
             .unwrap();
-        assert_eq!(val.pubkey.unwrap(), ops[2].validator_pubkey.clone());
+        assert_eq!(val.pubkey.unwrap(), op.validator_pubkey);
     }
 
-    // TODO: simulate active validators
+    // TODO: test this with other cutoffs... higher max_vals, higher min_weight so they cannot all be filled
+    #[test]
+    fn simulate_validators() {
+        let mut app = mock_app();
+
+        // make a simple group
+        let group_addr = instantiate_group(&mut app, 36);
+        // make a valset that references it (this does init)
+        let valset_addr = instantiate_valset(&mut app, group_addr.clone(), 10, 5);
+
+        // what do we expect?
+        // 1..24 have pubkeys registered, we take the top 10 (14..24)
+        let active: ListActiveValidatorsResponse = app
+            .wrap()
+            .query_wasm_smart(&valset_addr, &QueryMsg::SimulateActiveValidators {})
+            .unwrap();
+        assert_eq!(10, active.validators.len());
+
+        let mut expected: Vec<_> = addrs(24)
+            .into_iter()
+            .enumerate()
+            .map(|(idx, addr)| {
+                let val = valid_operator(&addr);
+                ValidatorInfo {
+                    operator: val.operator,
+                    validator_pubkey: val.validator_pubkey,
+                    power: idx as u64,
+                }
+            })
+            .collect();
+        // remember, active validators returns sorted from highest power to lowest, take last ten
+        expected.reverse();
+        expected.truncate(10);
+        assert_eq!(expected, active.validators);
+    }
 
     // TODO: validator list (and modifications)
 
