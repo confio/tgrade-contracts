@@ -339,3 +339,134 @@ fn calculate_diff(cur_vals: Vec<ValidatorInfo>, old_vals: Vec<ValidatorInfo>) ->
 
     ValidatorDiff { diffs }
 }
+
+#[cfg(test)]
+mod test {
+    use cosmwasm_std::testing::{mock_env, MockApi, MockStorage};
+    use cw4::Member;
+    use cw_multi_test::{App, Contract, ContractWrapper, SimpleBank};
+
+    use super::*;
+    use crate::test_helpers::valid_operator;
+
+    const MIN_WEIGHT: u64 = 5;
+    const EPOCH_LENGTH: u64 = 100;
+    const GROUP_OWNER: &str = "admin";
+
+    // these control how many pubkeys get set in the valset init
+    const PREREGISTER_MEMBERS: u32 = 24;
+    const PREREGISTER_NONMEMBERS: u32 = 12;
+
+    // returns a list of addresses that are set in the cw4-group contract
+    fn addrs(count: u32) -> Vec<String> {
+        (1..count).map(|x| format!("operator-{}", x)).collect()
+    }
+
+    // returns a list of addresses that are not in the cw4-group
+    // this can be used to check handling of members without pubkey registered
+    fn nonmembers(count: u32) -> Vec<String> {
+        (1..count).map(|x| format!("non-member-{}", x)).collect()
+    }
+
+    pub fn contract_valset() -> Box<dyn Contract> {
+        let contract = ContractWrapper::new(
+            crate::contract::execute,
+            crate::contract::instantiate,
+            crate::contract::query,
+        );
+        Box::new(contract)
+    }
+
+    pub fn contract_group() -> Box<dyn Contract> {
+        let contract = ContractWrapper::new(
+            cw4_group::contract::execute,
+            cw4_group::contract::instantiate,
+            cw4_group::contract::query,
+        );
+        Box::new(contract)
+    }
+
+    fn mock_app() -> App {
+        let env = mock_env();
+        let api = Box::new(MockApi::default());
+        let bank = SimpleBank {};
+
+        App::new(api, env.block, bank, || Box::new(MockStorage::new()))
+    }
+
+    // the group has a list of
+    fn instantiate_group(app: &mut App, num_members: u32) -> HumanAddr {
+        let group_id = app.store_code(contract_group());
+        let members = addrs(num_members)
+            .into_iter()
+            .enumerate()
+            .map(|(idx, addr)| Member {
+                addr: addr.into(),
+                weight: idx as u64,
+            })
+            .collect();
+        let msg = cw4_group::msg::InstantiateMsg {
+            admin: Some(GROUP_OWNER.into()),
+            members,
+        };
+        app.instantiate_contract(group_id, GROUP_OWNER, &msg, &[], "group")
+            .unwrap()
+    }
+
+    // always registers 24 members and 12 non-members with pubkeys
+    fn instantiate_valset(
+        app: &mut App,
+        group: HumanAddr,
+        max_validators: u32,
+        min_weight: u64,
+    ) -> HumanAddr {
+        let valset_id = app.store_code(contract_valset());
+        let msg = init_msg(group, max_validators, min_weight);
+        app.instantiate_contract(valset_id, GROUP_OWNER, &msg, &[], "flex")
+            .unwrap()
+    }
+
+    // registers first PREREGISTER_MEMBERS members and PREREGISTER_NONMEMBERS non-members with pubkeys
+    fn init_msg(group_addr: HumanAddr, max_validators: u32, min_weight: u64) -> InstantiateMsg {
+        let members = addrs(PREREGISTER_MEMBERS)
+            .iter()
+            .map(|s| valid_operator(&s));
+        let nonmembers = nonmembers(PREREGISTER_NONMEMBERS)
+            .iter()
+            .map(|s| valid_operator(&s));
+
+        InstantiateMsg {
+            membership: group_addr,
+            min_weight,
+            max_validators,
+            epoch_length: EPOCH_LENGTH,
+            initial_keys: members.chain(nonmembers).collect(),
+            scaling: None,
+        }
+    }
+
+    #[test]
+    fn init_and_query_state() {
+        let mut app = mock_app();
+
+        // make a simple group
+        let group_addr = instantiate_group(&mut app, 36);
+        // make a valset that references it (this does init)
+        let valset_addr = instantiate_valset(&mut app, group_addr.clone(), 10, 5);
+
+        // make some basic queries
+        let cfg: ConfigResponse = app
+            .wrap()
+            .query_wasm_smart(&valset_addr, &QueryMsg::Config {})
+            .unwrap();
+        assert_eq!(
+            cfg,
+            ConfigResponse {
+                membership: Cw4Contract(group_addr.clone()),
+                min_weight: 5,
+                max_validators: 10,
+                scaling: None
+            }
+        );
+    }
+}

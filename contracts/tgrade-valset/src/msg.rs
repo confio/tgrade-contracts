@@ -149,31 +149,8 @@ pub struct ListActiveValidatorsResponse {
 #[cfg(test)]
 mod test {
     use super::*;
-
     use crate::error::ContractError;
-    use cosmwasm_std::Binary;
-
-    // creates a valid pubkey from a seed
-    fn mock_pubkey(base: &[u8]) -> Binary {
-        let copies = (PUBKEY_LENGTH / base.len()) + 1;
-        let mut raw = base.repeat(copies);
-        raw.truncate(PUBKEY_LENGTH);
-        Binary(raw)
-    }
-
-    fn valid_operator(seed: &str) -> OperatorKey {
-        OperatorKey {
-            operator: seed.into(),
-            validator_pubkey: mock_pubkey(seed.as_bytes()),
-        }
-    }
-
-    fn invalid_operator() -> OperatorKey {
-        OperatorKey {
-            operator: "foobar".into(),
-            validator_pubkey: b"too-short".into(),
-        }
-    }
+    use crate::test_helpers::{invalid_operator, valid_operator};
 
     #[test]
     fn validate_operator_key() {
