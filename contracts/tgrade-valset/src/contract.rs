@@ -120,6 +120,9 @@ pub fn query(deps: Deps, env: Env, msg: QueryMsg) -> Result<Binary, ContractErro
             limit,
         )?)?),
         QueryMsg::ListActiveValidators {} => Ok(to_binary(&list_active_validators(deps, env)?)?),
+        QueryMsg::SimulateActiveValidators {} => {
+            Ok(to_binary(&simulate_active_validators(deps, env)?)?)
+        }
     }
 }
 
@@ -189,6 +192,14 @@ fn list_active_validators(
     _env: Env,
 ) -> Result<ListActiveValidatorsResponse, ContractError> {
     let validators = VALIDATORS.load(deps.storage)?;
+    Ok(ListActiveValidatorsResponse { validators })
+}
+
+fn simulate_active_validators(
+    deps: Deps,
+    _env: Env,
+) -> Result<ListActiveValidatorsResponse, ContractError> {
+    let validators = calculate_validators(deps)?;
     Ok(ListActiveValidatorsResponse { validators })
 }
 

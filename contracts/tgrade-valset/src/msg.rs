@@ -108,7 +108,11 @@ pub enum QueryMsg {
     /// List the current validator set, sorted by power descending
     /// (no pagination - reasonable limit from max_validators)
     ListActiveValidators {},
-    // TODO: dry-run calculating what the set would be now?
+
+    /// This will calculate who the new validators would be if
+    /// we recalculated endblock right now.
+    /// Also returns ListActiveValidatorsResponse
+    SimulateActiveValidators {},
 }
 
 pub type ConfigResponse = Config;
