@@ -349,7 +349,6 @@ mod test {
     use super::*;
     use crate::test_helpers::valid_operator;
 
-    const MIN_WEIGHT: u64 = 5;
     const EPOCH_LENGTH: u64 = 100;
     const GROUP_OWNER: &str = "admin";
 
@@ -360,6 +359,17 @@ mod test {
     // returns a list of addresses that are set in the cw4-group contract
     fn addrs(count: u32) -> Vec<String> {
         (1..count).map(|x| format!("operator-{}", x)).collect()
+    }
+
+    fn members(count: u32) -> Vec<Member> {
+        addrs(count)
+            .into_iter()
+            .enumerate()
+            .map(|(idx, addr)| Member {
+                addr: addr.into(),
+                weight: idx as u64,
+            })
+            .collect()
     }
 
     // returns a list of addresses that are not in the cw4-group
@@ -377,8 +387,8 @@ mod test {
         Box::new(contract)
     }
 
-    pub fn contract_group() -> Box<dyn Contract> {
-        let contract = ContractWrapper::new(
+    pub fn contract_group() -> Box<dyn Contract<TgradeMsg>> {
+        let contract = ContractWrapper::new_with_empty(
             cw4_group::contract::execute,
             cw4_group::contract::instantiate,
             cw4_group::contract::query,
@@ -386,7 +396,7 @@ mod test {
         Box::new(contract)
     }
 
-    fn mock_app() -> App {
+    fn mock_app() -> App<TgradeMsg> {
         let env = mock_env();
         let api = Box::new(MockApi::default());
         let bank = SimpleBank {};
@@ -395,19 +405,11 @@ mod test {
     }
 
     // the group has a list of
-    fn instantiate_group(app: &mut App, num_members: u32) -> HumanAddr {
+    fn instantiate_group(app: &mut App<TgradeMsg>, num_members: u32) -> HumanAddr {
         let group_id = app.store_code(contract_group());
-        let members = addrs(num_members)
-            .into_iter()
-            .enumerate()
-            .map(|(idx, addr)| Member {
-                addr: addr.into(),
-                weight: idx as u64,
-            })
-            .collect();
         let msg = cw4_group::msg::InstantiateMsg {
             admin: Some(GROUP_OWNER.into()),
-            members,
+            members: members(num_members),
         };
         app.instantiate_contract(group_id, GROUP_OWNER, &msg, &[], "group")
             .unwrap()
@@ -415,7 +417,7 @@ mod test {
 
     // always registers 24 members and 12 non-members with pubkeys
     fn instantiate_valset(
-        app: &mut App,
+        app: &mut App<TgradeMsg>,
         group: HumanAddr,
         max_validators: u32,
         min_weight: u64,
@@ -429,10 +431,10 @@ mod test {
     // registers first PREREGISTER_MEMBERS members and PREREGISTER_NONMEMBERS non-members with pubkeys
     fn init_msg(group_addr: HumanAddr, max_validators: u32, min_weight: u64) -> InstantiateMsg {
         let members = addrs(PREREGISTER_MEMBERS)
-            .iter()
+            .into_iter()
             .map(|s| valid_operator(&s));
         let nonmembers = nonmembers(PREREGISTER_NONMEMBERS)
-            .iter()
+            .into_iter()
             .map(|s| valid_operator(&s));
 
         InstantiateMsg {
@@ -454,7 +456,7 @@ mod test {
         // make a valset that references it (this does init)
         let valset_addr = instantiate_valset(&mut app, group_addr.clone(), 10, 5);
 
-        // make some basic queries
+        // check config
         let cfg: ConfigResponse = app
             .wrap()
             .query_wasm_smart(&valset_addr, &QueryMsg::Config {})
@@ -468,5 +470,50 @@ mod test {
                 scaling: None
             }
         );
+
+        // check epoch
+        let epoch: EpochResponse = app
+            .wrap()
+            .query_wasm_smart(&valset_addr, &QueryMsg::Epoch {})
+            .unwrap();
+        assert_eq!(
+            epoch,
+            EpochResponse {
+                epoch_length: EPOCH_LENGTH,
+                current_epoch: 0,
+                last_update_time: 0,
+                last_update_height: 0,
+                next_update_time: app.block_info().time,
+            }
+        );
+
+        // no initial active set
+        let active: ListActiveValidatorsResponse = app
+            .wrap()
+            .query_wasm_smart(&valset_addr, &QueryMsg::ListActiveValidators {})
+            .unwrap();
+        assert_eq!(active.validators, vec![]);
+
+        // check a validator is set
+        let ops: Vec<_> = addrs(4).into_iter().map(|s| valid_operator(&s)).collect();
+
+        let val: ValidatorKeyResponse = app
+            .wrap()
+            .query_wasm_smart(
+                &valset_addr,
+                &QueryMsg::ValidatorKey {
+                    operator: ops[2].operator.clone(),
+                },
+            )
+            .unwrap();
+        assert_eq!(val.pubkey.unwrap(), ops[2].validator_pubkey.clone());
     }
+
+    // TODO: simulate active validators
+
+    // TODO: validator list (and modifications)
+
+    // TODO: end block run
+
+    // TODO: unit test diff algorithm
 }
