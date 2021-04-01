@@ -368,7 +368,7 @@ mod test {
         (1..count).map(|x| format!("non-member-{}", x)).collect()
     }
 
-    pub fn contract_valset() -> Box<dyn Contract> {
+    pub fn contract_valset() -> Box<dyn Contract<TgradeMsg>> {
         let contract = ContractWrapper::new(
             crate::contract::execute,
             crate::contract::instantiate,
