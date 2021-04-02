@@ -3,6 +3,7 @@
 use cosmwasm_std::Binary;
 
 use crate::msg::{OperatorKey, PUBKEY_LENGTH};
+use crate::state::ValidatorInfo;
 
 // creates a valid pubkey from a seed
 pub fn mock_pubkey(base: &[u8]) -> Binary {
@@ -23,5 +24,13 @@ pub fn invalid_operator() -> OperatorKey {
     OperatorKey {
         operator: "foobar".into(),
         validator_pubkey: b"too-short".into(),
+    }
+}
+
+pub fn valid_validator(seed: &str, power: u64) -> ValidatorInfo {
+    ValidatorInfo {
+        operator: seed.into(),
+        validator_pubkey: mock_pubkey(seed.as_bytes()),
+        power,
     }
 }

@@ -347,7 +347,7 @@ mod test {
     use cw_multi_test::{App, Contract, ContractWrapper, SimpleBank};
 
     use super::*;
-    use crate::test_helpers::valid_operator;
+    use crate::test_helpers::{valid_operator, valid_validator};
 
     const EPOCH_LENGTH: u64 = 100;
     const GROUP_OWNER: &str = "admin";
@@ -356,9 +356,13 @@ mod test {
     const PREREGISTER_MEMBERS: u32 = 24;
     const PREREGISTER_NONMEMBERS: u32 = 12;
 
+    // Number of validators for tests
+    // FIXME: This number cannot be higher, or order issues appear in the diff
+    const VALIDATORS: usize = 9;
+
     // returns a list of addresses that are set in the cw4-group contract
     fn addrs(count: u32) -> Vec<String> {
-        (1..count).map(|x| format!("operator-{}", x)).collect()
+        (1..=count).map(|x| format!("operator-{}", x)).collect()
     }
 
     fn members(count: u32) -> Vec<Member> {
@@ -370,6 +374,18 @@ mod test {
                 weight: idx as u64,
             })
             .collect()
+    }
+
+    fn validators(count: usize) -> Vec<ValidatorInfo> {
+        let mut p: u64 = 0;
+        let vals: Vec<_> = addrs(count as u32)
+            .into_iter()
+            .map(|s| {
+                p += 1;
+                valid_validator(&s, p)
+            })
+            .collect();
+        vals
     }
 
     // returns a list of addresses that are not in the cw4-group
@@ -553,5 +569,121 @@ mod test {
 
     // TODO: end block run
 
-    // TODO: unit test diff algorithm
+    // Unit tests calculate_diff()
+    #[test]
+    fn test_calculate_diff() {
+        let empty: Vec<_> = vec![];
+        let vals = validators(VALIDATORS);
+
+        // diff with itself must be empty
+        let diff = calculate_diff(vals.clone(), vals.clone());
+        assert_eq!(ValidatorDiff { diffs: vec![] }, diff);
+
+        // diff with empty must be itself (additions)
+        let diff = calculate_diff(vals.clone(), empty.clone());
+        assert_eq!(
+            ValidatorDiff {
+                diffs: vals
+                    .iter()
+                    .map(|vi| ValidatorUpdate {
+                        pubkey: vi.validator_pubkey.clone(),
+                        power: vi.power
+                    })
+                    .collect()
+            },
+            diff
+        );
+
+        // diff between empty and vals must be removals
+        let diff = calculate_diff(empty.clone(), vals.clone());
+        assert_eq!(vals.len(), diff.diffs.len());
+        assert_eq!(
+            ValidatorDiff {
+                diffs: vals
+                    .iter()
+                    .map(|vi| ValidatorUpdate {
+                        pubkey: vi.validator_pubkey.clone(),
+                        power: 0
+                    })
+                    .collect()
+            },
+            diff
+        );
+
+        // add a new member
+        let cur: Vec<_> = validators(VALIDATORS + 1);
+
+        // diff must be add last
+        let diff = calculate_diff(cur.clone(), vals.clone());
+        assert_eq!(diff.diffs.len(), 1);
+        assert_eq!(
+            ValidatorDiff {
+                diffs: cur
+                    .iter()
+                    .skip(VALIDATORS)
+                    .map(|vi| ValidatorUpdate {
+                        pubkey: vi.validator_pubkey.clone(),
+                        power: (VALIDATORS + 1) as u64
+                    })
+                    .collect()
+            },
+            diff
+        );
+
+        // add all but (one) last member
+        let old: Vec<_> = vals.iter().skip(VALIDATORS - 1).cloned().collect();
+
+        // diff must be add all but last
+        let diff = calculate_diff(vals.clone(), old.clone());
+        assert_eq!(diff.diffs.len(), VALIDATORS - 1);
+        assert_eq!(
+            ValidatorDiff {
+                diffs: vals
+                    .iter()
+                    .take(VALIDATORS - 1)
+                    .map(|vi| ValidatorUpdate {
+                        pubkey: vi.validator_pubkey.clone(),
+                        power: vi.power
+                    })
+                    .collect()
+            },
+            diff
+        );
+
+        // remove last member
+        let cur: Vec<_> = vals.iter().take(VALIDATORS - 1).cloned().collect();
+        // diff must be remove last
+        let diff = calculate_diff(cur, vals.clone());
+        assert_eq!(
+            ValidatorDiff {
+                diffs: vals
+                    .iter()
+                    .skip(VALIDATORS - 1)
+                    .map(|vi| ValidatorUpdate {
+                        pubkey: vi.validator_pubkey.clone(),
+                        power: 0
+                    })
+                    .collect()
+            },
+            diff
+        );
+
+        // remove all but last member
+        let cur: Vec<_> = vals.iter().skip(VALIDATORS - 1).cloned().collect();
+        // diff must be remove all but last
+        let diff = calculate_diff(cur, vals.clone());
+        assert_eq!(
+            ValidatorDiff {
+                diffs: vals
+                    .iter()
+                    .take(VALIDATORS - 1)
+                    .map(|vi| ValidatorUpdate {
+                        pubkey: vi.validator_pubkey.clone(),
+                        power: 0
+                    })
+                    .collect()
+            },
+            diff
+        );
+    }
 }
