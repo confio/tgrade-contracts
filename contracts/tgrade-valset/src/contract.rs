@@ -568,7 +568,123 @@ mod test {
 
     // TODO: end block run
 
-    // Unit tests calculate_diff()
+    // Unit tests for calculate_diff()
+    #[test]
+    fn test_calculate_diff_simple() {
+        let empty: Vec<_> = vec![];
+        let vals: Vec<_> = vec![
+            ValidatorInfo {
+                operator: HumanAddr("op1".to_string()),
+                validator_pubkey: Binary("pubkey1".into()),
+                power: 1,
+            },
+            ValidatorInfo {
+                operator: HumanAddr("op2".to_string()),
+                validator_pubkey: Binary("pubkey2".into()),
+                power: 2,
+            },
+        ];
+
+        // diff with itself must be empty
+        let diff = calculate_diff(vals.clone(), vals.clone());
+        assert_eq!(diff.diffs.len(), 0);
+
+        // diff with empty must be itself (additions)
+        let mut diff = calculate_diff(vals.clone(), empty.clone());
+        assert_eq!(diff.diffs.len(), 2);
+        diff.diffs.sort_by_key(|vu| vu.pubkey.0.clone());
+        assert_eq!(
+            vec![
+                ValidatorUpdate {
+                    pubkey: Binary("pubkey1".into()),
+                    power: 1
+                },
+                ValidatorUpdate {
+                    pubkey: Binary("pubkey2".into()),
+                    power: 2
+                }
+            ],
+            diff.diffs
+        );
+
+        // diff between empty and vals must be removals
+        let mut diff = calculate_diff(empty.clone(), vals.clone());
+        assert_eq!(diff.diffs.len(), 2);
+        diff.diffs.sort_by_key(|vu| vu.pubkey.0.clone());
+        assert_eq!(
+            vec![
+                ValidatorUpdate {
+                    pubkey: Binary("pubkey1".into()),
+                    power: 0
+                },
+                ValidatorUpdate {
+                    pubkey: Binary("pubkey2".into()),
+                    power: 0
+                }
+            ],
+            diff.diffs
+        );
+
+        // Add a new member
+        let mut cur = vals.clone();
+        cur.push(ValidatorInfo {
+            operator: HumanAddr("op3".to_string()),
+            validator_pubkey: Binary("pubkey3".into()),
+            power: 3,
+        });
+
+        // diff must be add last
+        let diff = calculate_diff(cur.clone(), vals.clone());
+        assert_eq!(diff.diffs.len(), 1);
+        assert_eq!(
+            vec![ValidatorUpdate {
+                pubkey: Binary("pubkey3".into()),
+                power: 3
+            },],
+            diff.diffs
+        );
+
+        // add all but (one) last member
+        let old: Vec<_> = vals.iter().skip(1).cloned().collect();
+
+        // diff must be add all but last
+        let diff = calculate_diff(vals.clone(), old.clone());
+        assert_eq!(diff.diffs.len(), 1);
+        assert_eq!(
+            vec![ValidatorUpdate {
+                pubkey: Binary("pubkey1".into()),
+                power: 1
+            },],
+            diff.diffs
+        );
+
+        // remove last member
+        let cur: Vec<_> = vals.iter().take(1).cloned().collect();
+        // diff must be remove last
+        let diff = calculate_diff(cur, vals.clone());
+        assert_eq!(diff.diffs.len(), 1);
+        assert_eq!(
+            vec![ValidatorUpdate {
+                pubkey: Binary("pubkey2".into()),
+                power: 0
+            },],
+            diff.diffs
+        );
+
+        // remove all but last member
+        let cur: Vec<_> = vals.iter().skip(1).cloned().collect();
+        // diff must be remove all but last
+        let diff = calculate_diff(cur, vals.clone());
+        assert_eq!(diff.diffs.len(), 1);
+        assert_eq!(
+            vec![ValidatorUpdate {
+                pubkey: Binary("pubkey1".into()),
+                power: 0
+            },],
+            diff.diffs
+        );
+    }
+
     #[test]
     fn test_calculate_diff() {
         let empty: Vec<_> = vec![];
