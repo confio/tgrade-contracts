@@ -361,7 +361,7 @@ mod test {
 
     // returns a list of addresses that are set in the cw4-group contract
     fn addrs(count: u32) -> Vec<String> {
-        (1..=count).map(|x| format!("operator-{}", x)).collect()
+        (1..=count).map(|x| format!("operator-{:03}", x)).collect()
     }
 
     fn members(count: u32) -> Vec<Member> {
@@ -377,15 +377,13 @@ mod test {
 
     fn validators(count: usize) -> Vec<ValidatorInfo> {
         let mut p: u64 = 0;
-        let mut vals: Vec<_> = addrs(count as u32)
+        let vals: Vec<_> = addrs(count as u32)
             .into_iter()
             .map(|s| {
                 p += 1;
                 valid_validator(&s, p)
             })
             .collect();
-        // Lexicographically sort it (for comparisons stability)
-        vals.sort_by_key(|vi| vi.validator_pubkey.0.clone());
         vals
     }
 
@@ -614,13 +612,8 @@ mod test {
             diff
         );
 
-        // Add a new member (manually, not to change the order)
-        let mut cur: Vec<_> = vals.clone();
-        cur.push(ValidatorInfo {
-            operator: HumanAddr("new_op".to_string()),
-            validator_pubkey: Binary("anything".into()),
-            power: (VALIDATORS + 1) as u64,
-        });
+        // Add a new member
+        let cur = validators(VALIDATORS + 1);
 
         // diff must be add last
         let diff = calculate_diff(cur.clone(), vals.clone());
