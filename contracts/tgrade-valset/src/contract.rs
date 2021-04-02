@@ -23,6 +23,7 @@ use crate::msg::{
     ListValidatorKeysResponse, OperatorKey, QueryMsg, ValidatorKeyResponse,
 };
 use crate::state::{operators, Config, EpochInfo, ValidatorInfo, CONFIG, EPOCH, VALIDATORS};
+use std::convert::TryInto;
 
 // version info for migration info
 const CONTRACT_NAME: &str = "crates.io:tgrade-valset";
@@ -315,38 +316,34 @@ fn calculate_validators(deps: Deps) -> Result<Vec<ValidatorInfo>, ContractError>
 }
 
 fn calculate_diff(cur_vals: Vec<ValidatorInfo>, old_vals: Vec<ValidatorInfo>) -> ValidatorDiff {
-    // Put the old vals in a btree map for quick compare
-    let mut old_map = BTreeMap::new();
-    for val in old_vals.into_iter() {
-        let v = ValidatorUpdate {
-            pubkey: val.validator_pubkey,
-            power: val.power,
-        };
-        old_map.insert(String::from(val.operator), v);
-    }
+    // Additions and updates
+    let cur: HashSet<_> = cur_vals.iter().collect();
+    let old: HashSet<_> = old_vals.iter().collect();
+    let additions_updates: HashSet<_> = cur.difference(&old).collect();
 
-    // Add all the new values that have changed
-    let mut diffs: Vec<_> = cur_vals
-        .into_iter()
-        .filter_map(|info| {
-            // remove all old vals that are also new vals
-            if let Some(old) = old_map.remove(info.operator.as_str()) {
-                // if no change, we return none to filter it out
-                if old.power == info.power {
-                    return None;
-                }
-            }
-            // otherwise we return the new value here
-            Some(ValidatorUpdate {
-                pubkey: info.validator_pubkey,
-                power: info.power,
-            })
+    // Removals
+    let cur: HashSet<_> = cur_vals
+        .iter()
+        .map(|vi| vi.validator_pubkey.clone())
+        .collect();
+    let old: HashSet<_> = old_vals
+        .iter()
+        .map(|vi| vi.validator_pubkey.clone())
+        .collect();
+    let removals: HashSet<_> = old.difference(&cur).collect();
+
+    // Compute differences
+    // Additions and updates
+    let mut diffs: Vec<_> = additions_updates
+        .iter()
+        .map(|vi| ValidatorUpdate {
+            pubkey: vi.validator_pubkey.clone(),
+            power: vi.power,
         })
         .collect();
-
-    // now we can append all that need to be removed
-    diffs.extend(old_map.values().map(|v| ValidatorUpdate {
-        pubkey: v.pubkey.clone(),
+    // Now append all that need to be removed
+    diffs.extend(removals.iter().map(|&pubkey| ValidatorUpdate {
+        pubkey: pubkey.clone(),
         power: 0,
     }));
 

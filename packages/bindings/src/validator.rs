@@ -46,7 +46,7 @@ pub struct ValidatorVote {
 /// If you don't trust the data source, you can create a `ValidatedPubkey` enum that mirrors this
 /// type and uses fixed sized data fields.
 #[non_exhaustive]
-#[derive(Serialize, Deserialize, Clone, JsonSchema, Debug, PartialEq, Eq)]
+#[derive(Serialize, Deserialize, Clone, JsonSchema, Debug, PartialEq, Eq, Hash)]
 #[serde(rename_all = "snake_case")]
 pub enum Pubkey {
     /// 32 bytes Ed25519 pubkey
