@@ -36,7 +36,7 @@ pub struct EpochInfo {
 }
 
 /// Operators SDK address, Tendermint public key, and tendermint voting power.
-#[derive(Serialize, Deserialize, Clone, PartialEq, JsonSchema, Debug)]
+#[derive(Serialize, Deserialize, Clone, PartialEq, Eq, Hash, JsonSchema, Debug)]
 pub struct ValidatorInfo {
     pub operator: HumanAddr,
     /// TODO: better name to specify this is the Tendermint pubkey for consensus?
