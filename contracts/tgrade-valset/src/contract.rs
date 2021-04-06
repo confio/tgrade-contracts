@@ -319,7 +319,7 @@ fn calculate_diff(cur_vals: Vec<ValidatorInfo>, old_vals: Vec<ValidatorInfo>) ->
     // Additions and updates
     let cur: HashSet<_> = cur_vals.iter().collect();
     let old: HashSet<_> = old_vals.iter().collect();
-    let additions_updates: HashSet<_> = cur.difference(&old).collect();
+    let additions_updates: Vec<_> = cur.difference(&old).collect();
 
     // Removals
     let cur: HashSet<_> = cur_vals
@@ -330,19 +330,19 @@ fn calculate_diff(cur_vals: Vec<ValidatorInfo>, old_vals: Vec<ValidatorInfo>) ->
         .iter()
         .map(|vi| vi.validator_pubkey.clone())
         .collect();
-    let removals: HashSet<_> = old.difference(&cur).collect();
+    let removals: Vec<_> = old.difference(&cur).collect();
 
     // Compute differences
     // Additions and updates
     let mut diffs: Vec<_> = additions_updates
-        .iter()
+        .into_iter()
         .map(|vi| ValidatorUpdate {
             pubkey: vi.validator_pubkey.clone(),
             power: vi.power,
         })
         .collect();
     // Now append all that need to be removed
-    diffs.extend(removals.iter().map(|&pubkey| ValidatorUpdate {
+    diffs.extend(removals.into_iter().map(|pubkey| ValidatorUpdate {
         pubkey: pubkey.clone(),
         power: 0,
     }));
