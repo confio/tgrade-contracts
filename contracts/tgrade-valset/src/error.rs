@@ -9,6 +9,30 @@ pub enum ContractError {
     #[error("Operator is already registered, cannot change Tendermint pubkey")]
     OperatorRegistered {},
 
+    #[error("Received system callback we didn't expect")]
+    UnknownSudoType {},
+
+    #[error("The address supplied doesn't implement the cw4 interface")]
+    InvalidCw4Contract {},
+
+    #[error("The epoch length must be greater than zero")]
+    InvalidEpoch {},
+
+    #[error("Min_weight must be greater than zero")]
+    InvalidMinWeight {},
+
+    #[error("Max validators must be greater than zero")]
+    InvalidMaxValidators {},
+
+    #[error("Scaling must be unset or greater than zero")]
+    InvalidScaling {},
+
+    #[error("You must define initial validators for the contract")]
+    NoValidators {},
+
+    #[error("Tendermint pubkey must be 32 bytes long")]
+    InvalidPubkey {},
+
     #[error("Unauthorized")]
     Unauthorized {},
 }

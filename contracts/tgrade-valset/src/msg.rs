@@ -3,7 +3,11 @@ use serde::{Deserialize, Serialize};
 
 use cosmwasm_std::{Binary, HumanAddr};
 
+use crate::error::ContractError;
 use crate::state::{Config, ValidatorInfo};
+
+/// Required size of all tendermint pubkeys
+pub const PUBKEY_LENGTH: usize = 32;
 
 #[derive(Serialize, Deserialize, Clone, PartialEq, JsonSchema, Debug)]
 #[serde(rename_all = "snake_case")]
@@ -34,12 +38,46 @@ pub struct InstantiateMsg {
     pub scaling: Option<u32>,
 }
 
+impl InstantiateMsg {
+    pub fn validate(&self) -> Result<(), ContractError> {
+        if self.epoch_length == 0 {
+            return Err(ContractError::InvalidEpoch {});
+        }
+        if self.min_weight == 0 {
+            return Err(ContractError::InvalidMinWeight {});
+        }
+        if self.max_validators == 0 {
+            return Err(ContractError::InvalidMaxValidators {});
+        }
+        if self.scaling == Some(0) {
+            return Err(ContractError::InvalidScaling {});
+        }
+        if self.initial_keys.is_empty() {
+            return Err(ContractError::NoValidators {});
+        }
+        for op in self.initial_keys.iter() {
+            op.validate()?
+        }
+        Ok(())
+    }
+}
+
 /// Maps an sdk address to a Tendermint pubkey.
 #[derive(Serialize, Deserialize, Clone, PartialEq, JsonSchema, Debug)]
 pub struct OperatorKey {
     pub operator: HumanAddr,
     /// TODO: better name to specify this is the Tendermint pubkey for consensus?
     pub validator_pubkey: Binary,
+}
+
+impl OperatorKey {
+    pub fn validate(&self) -> Result<(), ContractError> {
+        if self.validator_pubkey.len() != PUBKEY_LENGTH {
+            Err(ContractError::InvalidPubkey {})
+        } else {
+            Ok(())
+        }
+    }
 }
 
 #[derive(Serialize, Deserialize, Clone, PartialEq, JsonSchema, Debug)]
@@ -70,7 +108,11 @@ pub enum QueryMsg {
     /// List the current validator set, sorted by power descending
     /// (no pagination - reasonable limit from max_validators)
     ListActiveValidators {},
-    // TODO: dry-run calculating what the set would be now?
+
+    /// This will calculate who the new validators would be if
+    /// we recalculated endblock right now.
+    /// Also returns ListActiveValidatorsResponse
+    SimulateActiveValidators {},
 }
 
 pub type ConfigResponse = Config;
@@ -102,4 +144,72 @@ pub struct ListValidatorKeysResponse {
 #[derive(Serialize, Deserialize, Clone, PartialEq, JsonSchema, Debug)]
 pub struct ListActiveValidatorsResponse {
     pub validators: Vec<ValidatorInfo>,
+}
+
+#[cfg(test)]
+mod test {
+    use super::*;
+    use crate::error::ContractError;
+    use crate::test_helpers::{invalid_operator, valid_operator};
+
+    #[test]
+    fn validate_operator_key() {
+        valid_operator("foo").validate().unwrap();
+        let err = invalid_operator().validate().unwrap_err();
+        assert_eq!(err, ContractError::InvalidPubkey {});
+    }
+
+    #[test]
+    fn validate_init_msg() {
+        let proper = InstantiateMsg {
+            membership: "contract-addr".into(),
+            min_weight: 5,
+            max_validators: 20,
+            epoch_length: 5000,
+            initial_keys: vec![valid_operator("foo"), valid_operator("bar")],
+            scaling: None,
+        };
+        proper.validate().unwrap();
+
+        // with scaling also works
+        let mut with_scaling = proper.clone();
+        with_scaling.scaling = Some(10);
+        with_scaling.validate().unwrap();
+
+        // fails on 0 scaling
+        let mut invalid = proper.clone();
+        invalid.scaling = Some(0);
+        let err = invalid.validate().unwrap_err();
+        assert_eq!(err, ContractError::InvalidScaling {});
+
+        // fails on 0 min weight
+        let mut invalid = proper.clone();
+        invalid.min_weight = 0;
+        let err = invalid.validate().unwrap_err();
+        assert_eq!(err, ContractError::InvalidMinWeight {});
+
+        // fails on 0 max validators
+        let mut invalid = proper.clone();
+        invalid.max_validators = 0;
+        let err = invalid.validate().unwrap_err();
+        assert_eq!(err, ContractError::InvalidMaxValidators {});
+
+        // fails on 0 epoch size
+        let mut invalid = proper.clone();
+        invalid.epoch_length = 0;
+        let err = invalid.validate().unwrap_err();
+        assert_eq!(err, ContractError::InvalidEpoch {});
+
+        // fails on no operators
+        let mut invalid = proper.clone();
+        invalid.initial_keys = vec![];
+        let err = invalid.validate().unwrap_err();
+        assert_eq!(err, ContractError::NoValidators {});
+
+        // fails on invalid operator
+        let mut invalid = proper.clone();
+        invalid.initial_keys = vec![valid_operator("foo"), invalid_operator()];
+        let err = invalid.validate().unwrap_err();
+        assert_eq!(err, ContractError::InvalidPubkey {});
+    }
 }

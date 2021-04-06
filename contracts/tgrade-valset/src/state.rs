@@ -3,7 +3,7 @@ use serde::{Deserialize, Serialize};
 
 use cosmwasm_std::{Binary, HumanAddr};
 use cw4::Cw4Contract;
-use cw_storage_plus::{Item, Map};
+use cw_storage_plus::{Index, IndexList, IndexedMap, Item, PkOwned, UniqueIndex};
 
 #[derive(Serialize, Deserialize, Clone, PartialEq, JsonSchema, Debug)]
 pub struct Config {
@@ -48,10 +48,26 @@ pub struct ValidatorInfo {
 pub const CONFIG: Item<Config> = Item::new("config");
 pub const EPOCH: Item<EpochInfo> = Item::new("epoch");
 
-/// OPERATORS maps from operator (HumanAddr) to Tendermint pubkey.
-/// They can only be registered once
-pub const OPERATORS: Map<&str, Binary> = Map::new("operators");
-
 /// VALIDATORS is the calculated list of the active validators from the last execution.
 /// This will be empty only on the first run.
-pub const VALIDATORS: Item<ValidatorInfo> = Item::new("validators");
+pub const VALIDATORS: Item<Vec<ValidatorInfo>> = Item::new("validators");
+
+/// all this to get a unique secondary index on the pubkey, so we can ensure uniqueness.
+/// (It also allows reverse lookup from tm pubkey to operator address if needed)
+pub fn operators<'a>() -> IndexedMap<'a, &'a str, Binary, OperatorIndexes<'a>> {
+    let indexes = OperatorIndexes {
+        pubkey: UniqueIndex::new(|d| PkOwned(d.to_vec()), "operators__pubkey"),
+    };
+    IndexedMap::new("operators", indexes)
+}
+
+pub struct OperatorIndexes<'a> {
+    pub pubkey: UniqueIndex<'a, PkOwned, Binary>,
+}
+
+impl<'a> IndexList<Binary> for OperatorIndexes<'a> {
+    fn get_indexes(&'_ self) -> Box<dyn Iterator<Item = &'_ dyn Index<Binary>> + '_> {
+        let v: Vec<&dyn Index<Binary>> = vec![&self.pubkey];
+        Box::new(v.into_iter())
+    }
+}
