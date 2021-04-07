@@ -1,14 +1,16 @@
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
-use cosmwasm_std::{CosmosMsg, HumanAddr, Uint128};
+use cosmwasm_std::{Binary, CosmosMsg, HumanAddr, Uint128};
 
 #[derive(Serialize, Deserialize, Clone, PartialEq, JsonSchema, Debug)]
 #[serde(rename_all = "snake_case")]
+/// A number of Custom messages that can be returned by 'privileged' contracts.
+/// Returning them from any other contract will return an error and abort the transaction.
 pub enum TgradeMsg {
     /// un/register for begin or end block hooks
     Hooks(HooksMsg),
-    /// privileged contracts can mint arbitrary native tokens
+    /// privileged contracts can mint arbitrary native tokens (extends BankMsg)
     MintTokens {
         denom: String,
         amount: Uint128,
@@ -16,6 +18,14 @@ pub enum TgradeMsg {
     },
     /// as well as adjust tendermint consensus params
     ConsensusParams(ConsensusParams),
+    /// Run another contract in "sudo" mode (extends WasmMsg)
+    WasmSudo {
+        contract_addr: String,
+        /// msg is the json-encoded SudoMsg struct (as raw Binary).
+        /// Note the contract may support different variants than the base TgradeSudoMsg,
+        /// which defines the base chain->contract interface
+        msg: Binary,
+    },
 }
 
 #[derive(Serialize, Deserialize, Clone, PartialEq, JsonSchema, Debug)]
