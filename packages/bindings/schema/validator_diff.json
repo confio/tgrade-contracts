@@ -1,7 +1,7 @@
 {
   "$schema": "http://json-schema.org/draft-07/schema#",
   "title": "ValidatorDiff",
-  "description": "See https://github.com/tendermint/tendermint/blob/v0.34.8/proto/tendermint/abci/types.proto#L229-L235",
+  "description": "See https://github.com/tendermint/tendermint/blob/v0.34.8/proto/tendermint/abci/types.proto#L229-L235 A `EndWithValidatorUpdate{}` call may return a JSON-encoded ValidatorDiff in Response.data if it wishes to chnage the validator set.",
   "type": "object",
   "required": [
     "diffs"

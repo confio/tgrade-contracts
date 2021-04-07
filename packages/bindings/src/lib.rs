@@ -3,7 +3,7 @@ mod query;
 mod sudo;
 mod validator;
 
-pub use msg::{BlockParams, ConsensusParams, EvidenceParams, HooksMsg, TgradeMsg, VersionParams};
+pub use msg::{BlockParams, ConsensusParams, EvidenceParams, HooksMsg, TgradeMsg};
 pub use query::{
     GetValidatorSetUpdaterResponse, HooksQuery, ListBeginBlockersResponse, ListEndBlockersResponse,
     TgradeQuery, ValidatorVoteResponse,

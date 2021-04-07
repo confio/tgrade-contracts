@@ -100,16 +100,6 @@
               "type": "null"
             }
           ]
-        },
-        "version": {
-          "anyOf": [
-            {
-              "$ref": "#/definitions/VersionParams"
-            },
-            {
-              "type": "null"
-            }
-          ]
         }
       }
     },
@@ -217,18 +207,6 @@
     },
     "Uint128": {
       "type": "string"
-    },
-    "VersionParams": {
-      "type": "object",
-      "properties": {
-        "app_version": {
-          "description": "The app version returned in the /status field",
-          "type": [
-            "string",
-            "null"
-          ]
-        }
-      }
     }
   }
 }
