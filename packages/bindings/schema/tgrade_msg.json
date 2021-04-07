@@ -139,6 +139,21 @@
         }
       }
     },
+    "Coin": {
+      "type": "object",
+      "required": [
+        "amount",
+        "denom"
+      ],
+      "properties": {
+        "amount": {
+          "$ref": "#/definitions/Uint128"
+        },
+        "denom": {
+          "type": "string"
+        }
+      }
+    },
     "ConsensusParams": {
       "description": "See https://github.com/tendermint/tendermint/blob/v0.34.8/proto/tendermint/abci/types.proto#L282-L289 These are various Tendermint Consensus Params that can be adjusted by EndBlockers If any of them are set to Some, then the blockchain will set those as new parameter for tendermint consensus.\n\nNote: we are not including ValidatorParams, which is used to change the allowed pubkey types for validators",
       "type": "object",
@@ -291,6 +306,242 @@
                 },
                 "header": {
                   "$ref": "#/definitions/ProtoAny"
+                }
+              }
+            }
+          }
+        },
+        {
+          "description": "See https://github.com/confio/tgrade/blob/privileged_contracts_5/proto/confio/twasm/v1beta1/proposal.proto",
+          "type": "object",
+          "required": [
+            "promote_to_privileged_contract"
+          ],
+          "properties": {
+            "promote_to_privileged_contract": {
+              "type": "object",
+              "required": [
+                "contract"
+              ],
+              "properties": {
+                "contract": {
+                  "type": "string"
+                }
+              }
+            }
+          }
+        },
+        {
+          "description": "See https://github.com/confio/tgrade/blob/privileged_contracts_5/proto/confio/twasm/v1beta1/proposal.proto",
+          "type": "object",
+          "required": [
+            "demote_privileged_contract"
+          ],
+          "properties": {
+            "demote_privileged_contract": {
+              "type": "object",
+              "required": [
+                "contract"
+              ],
+              "properties": {
+                "contract": {
+                  "type": "string"
+                }
+              }
+            }
+          }
+        },
+        {
+          "description": "See https://github.com/CosmWasm/wasmd/blob/master/proto/cosmwasm/wasm/v1beta1/proposal.proto#L32-L54",
+          "type": "object",
+          "required": [
+            "instantiate_contract"
+          ],
+          "properties": {
+            "instantiate_contract": {
+              "type": "object",
+              "required": [
+                "admin",
+                "code_id",
+                "funds",
+                "init_msg",
+                "label",
+                "run_as"
+              ],
+              "properties": {
+                "admin": {
+                  "description": "Admin is an optional address that can execute migrations",
+                  "type": "string"
+                },
+                "code_id": {
+                  "description": "the reference to the stored WASM code",
+                  "type": "integer",
+                  "format": "uint64",
+                  "minimum": 0.0
+                },
+                "funds": {
+                  "description": "coins that are transferred to the contract on instantiation",
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/definitions/Coin"
+                  }
+                },
+                "init_msg": {
+                  "description": "json encoded message to be passed to the contract on instantiation",
+                  "allOf": [
+                    {
+                      "$ref": "#/definitions/Binary"
+                    }
+                  ]
+                },
+                "label": {
+                  "description": "metadata to be stored with a contract instance.",
+                  "type": "string"
+                },
+                "run_as": {
+                  "description": "the address that is passed to the contract's environment as sender",
+                  "type": "string"
+                }
+              }
+            }
+          }
+        },
+        {
+          "description": "See https://github.com/CosmWasm/wasmd/blob/master/proto/cosmwasm/wasm/v1beta1/proposal.proto#L56-L70",
+          "type": "object",
+          "required": [
+            "migrate_contract"
+          ],
+          "properties": {
+            "migrate_contract": {
+              "type": "object",
+              "required": [
+                "code_id",
+                "contract",
+                "migrate_msg",
+                "run_as"
+              ],
+              "properties": {
+                "code_id": {
+                  "description": "a reference to the new WASM code that it should be migrated to",
+                  "type": "integer",
+                  "format": "uint64",
+                  "minimum": 0.0
+                },
+                "contract": {
+                  "description": "the contract address to be migrated",
+                  "type": "string"
+                },
+                "migrate_msg": {
+                  "description": "json encoded message to be passed to the new WASM code to perform the migration",
+                  "allOf": [
+                    {
+                      "$ref": "#/definitions/Binary"
+                    }
+                  ]
+                },
+                "run_as": {
+                  "description": "the address that is passed to the contract's environment as sender",
+                  "type": "string"
+                }
+              }
+            }
+          }
+        },
+        {
+          "description": "See https://github.com/CosmWasm/wasmd/blob/master/proto/cosmwasm/wasm/v1beta1/proposal.proto#L72-L82",
+          "type": "object",
+          "required": [
+            "set_contract_admin"
+          ],
+          "properties": {
+            "set_contract_admin": {
+              "type": "object",
+              "required": [
+                "contract",
+                "new_admin"
+              ],
+              "properties": {
+                "contract": {
+                  "description": "the contract address to be updated",
+                  "type": "string"
+                },
+                "new_admin": {
+                  "description": "the account address to become admin of this contract",
+                  "type": "string"
+                }
+              }
+            }
+          }
+        },
+        {
+          "description": "See https://github.com/CosmWasm/wasmd/blob/master/proto/cosmwasm/wasm/v1beta1/proposal.proto#L84-L93",
+          "type": "object",
+          "required": [
+            "clear_contract_admin"
+          ],
+          "properties": {
+            "clear_contract_admin": {
+              "type": "object",
+              "required": [
+                "contract"
+              ],
+              "properties": {
+                "contract": {
+                  "description": "the contract address to be cleared",
+                  "type": "string"
+                }
+              }
+            }
+          }
+        },
+        {
+          "description": "See https://github.com/CosmWasm/wasmd/blob/master/proto/cosmwasm/wasm/v1beta1/proposal.proto#L95-L107",
+          "type": "object",
+          "required": [
+            "pin_codes"
+          ],
+          "properties": {
+            "pin_codes": {
+              "type": "object",
+              "required": [
+                "code_ids"
+              ],
+              "properties": {
+                "code_ids": {
+                  "description": "all code ideas that should be pinned in cache for high performance",
+                  "type": "array",
+                  "items": {
+                    "type": "integer",
+                    "format": "uint64",
+                    "minimum": 0.0
+                  }
+                }
+              }
+            }
+          }
+        },
+        {
+          "description": "See https://github.com/CosmWasm/wasmd/blob/master/proto/cosmwasm/wasm/v1beta1/proposal.proto#L109-L121",
+          "type": "object",
+          "required": [
+            "unpin_codes"
+          ],
+          "properties": {
+            "unpin_codes": {
+              "type": "object",
+              "required": [
+                "code_ids"
+              ],
+              "properties": {
+                "code_ids": {
+                  "description": "all code ideas that should be removed from cache to free space",
+                  "type": "array",
+                  "items": {
+                    "type": "integer",
+                    "format": "uint64",
+                    "minimum": 0.0
+                  }
                 }
               }
             }
