@@ -83,6 +83,34 @@
           }
         }
       }
+    },
+    {
+      "description": "This will execute an approved proposal in the Cosmos SDK \"Gov Router\". That allows access to many of the system internals, like sdk params or x/upgrade, as well as privileged access to the wasm module (eg. mark module privileged)",
+      "type": "object",
+      "required": [
+        "execute_gov_proposal"
+      ],
+      "properties": {
+        "execute_gov_proposal": {
+          "type": "object",
+          "required": [
+            "description",
+            "proposal",
+            "title"
+          ],
+          "properties": {
+            "description": {
+              "type": "string"
+            },
+            "proposal": {
+              "$ref": "#/definitions/GovProposal"
+            },
+            "title": {
+              "type": "string"
+            }
+          }
+        }
+      }
     }
   ],
   "definitions": {
@@ -166,6 +194,110 @@
         }
       }
     },
+    "GovProposal": {
+      "anyOf": [
+        {
+          "description": "Signaling proposal, the text and description field will be recorded",
+          "type": "object",
+          "required": [
+            "text"
+          ],
+          "properties": {
+            "text": {
+              "type": "object"
+            }
+          }
+        },
+        {
+          "description": "Register an \"live upgrade\" on the x/upgrade module See https://github.com/cosmos/cosmos-sdk/blob/v0.42.3/proto/cosmos/upgrade/v1beta1/upgrade.proto#L12-L53",
+          "type": "object",
+          "required": [
+            "register_upgrade"
+          ],
+          "properties": {
+            "register_upgrade": {
+              "type": "object",
+              "required": [
+                "height",
+                "info",
+                "name",
+                "upgraded_client_state"
+              ],
+              "properties": {
+                "height": {
+                  "description": "The height at which the upgrade must be performed. (Time-based upgrades are not supported due to instability)",
+                  "type": "integer",
+                  "format": "uint64",
+                  "minimum": 0.0
+                },
+                "info": {
+                  "description": "Any application specific upgrade info to be included on-chain such as a git commit that validators could automatically upgrade to",
+                  "type": "string"
+                },
+                "name": {
+                  "description": "Sets the name for the upgrade. This name will be used by the upgraded version of the software to apply any special \"on-upgrade\" commands during the first BeginBlock method after the upgrade is applied.",
+                  "type": "string"
+                },
+                "upgraded_client_state": {
+                  "$ref": "#/definitions/ProtoAny"
+                }
+              }
+            }
+          }
+        },
+        {
+          "description": "Defines a proposal to change one or more parameters. See https://github.com/cosmos/cosmos-sdk/blob/v0.42.3/proto/cosmos/params/v1beta1/params.proto#L9-L27",
+          "type": "object",
+          "required": [
+            "change_params"
+          ],
+          "properties": {
+            "change_params": {
+              "type": "array",
+              "items": {
+                "$ref": "#/definitions/ParamChange"
+              }
+            }
+          }
+        },
+        {
+          "description": "Allows raw bytes (if client and wasmd are aware of something the contract is not) Like CosmosMsg::Stargate but for the governance router, not normal router",
+          "type": "object",
+          "required": [
+            "raw_proto_proposal"
+          ],
+          "properties": {
+            "raw_proto_proposal": {
+              "$ref": "#/definitions/ProtoAny"
+            }
+          }
+        },
+        {
+          "description": "Updates the matching client to set a new trusted header. This can be used by governance to restore a client that has timed out or forked or otherwise broken. See https://github.com/cosmos/cosmos-sdk/blob/v0.42.3/proto/ibc/core/client/v1/client.proto#L36-L49",
+          "type": "object",
+          "required": [
+            "ibc_client_update"
+          ],
+          "properties": {
+            "ibc_client_update": {
+              "type": "object",
+              "required": [
+                "client_id",
+                "header"
+              ],
+              "properties": {
+                "client_id": {
+                  "type": "string"
+                },
+                "header": {
+                  "$ref": "#/definitions/ProtoAny"
+                }
+              }
+            }
+          }
+        }
+      ]
+    },
     "HooksMsg": {
       "anyOf": [
         {
@@ -238,6 +370,41 @@
     },
     "HumanAddr": {
       "type": "string"
+    },
+    "ParamChange": {
+      "description": "ParamChange defines an individual parameter change, for use in ParameterChangeProposal.",
+      "type": "object",
+      "required": [
+        "key",
+        "subspace",
+        "value"
+      ],
+      "properties": {
+        "key": {
+          "type": "string"
+        },
+        "subspace": {
+          "type": "string"
+        },
+        "value": {
+          "type": "string"
+        }
+      }
+    },
+    "ProtoAny": {
+      "type": "object",
+      "required": [
+        "type_url",
+        "value"
+      ],
+      "properties": {
+        "type_url": {
+          "type": "string"
+        },
+        "value": {
+          "$ref": "#/definitions/Binary"
+        }
+      }
     },
     "Uint128": {
       "type": "string"
