@@ -21,9 +21,12 @@ pub enum GovProposal {
         /// Any application specific upgrade info to be included on-chain
         /// such as a git commit that validators could automatically upgrade to
         info: String,
-        // TODO: https://github.com/cosmos/cosmos-sdk/blob/v0.42.3/proto/cosmos/upgrade/v1beta1/upgrade.proto#L37-L42
+        // See https://github.com/cosmos/cosmos-sdk/blob/v0.42.3/proto/cosmos/upgrade/v1beta1/upgrade.proto#L37-L42
         upgraded_client_state: ProtoAny,
     },
+    /// There can only be one pending upgrade at a given time. This cancels the pending upgrade, if any.
+    /// See https://github.com/cosmos/cosmos-sdk/blob/v0.42.3/proto/cosmos/upgrade/v1beta1/upgrade.proto#L57-L62
+    CancelUpgrade {},
     /// Defines a proposal to change one or more parameters.
     /// See https://github.com/cosmos/cosmos-sdk/blob/v0.42.3/proto/cosmos/params/v1beta1/params.proto#L9-L27
     ChangeParams(Vec<ParamChange>),
