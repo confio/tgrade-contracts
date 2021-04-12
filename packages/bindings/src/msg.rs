@@ -41,7 +41,6 @@ pub enum HooksMsg {
 pub struct ConsensusParams {
     pub block: Option<BlockParams>,
     pub evidence: Option<EvidenceParams>,
-    pub version: Option<VersionParams>,
 }
 
 #[derive(Serialize, Deserialize, Clone, PartialEq, JsonSchema, Debug, Default)]
@@ -67,24 +66,8 @@ pub struct EvidenceParams {
     pub max_bytes: Option<i64>,
 }
 
-#[derive(Serialize, Deserialize, Clone, PartialEq, JsonSchema, Debug, Default)]
-pub struct VersionParams {
-    /// The app version returned in the /status field
-    pub app_version: Option<String>,
-}
-
 // we provide some constructor helpers for some common parameter changes
 impl ConsensusParams {
-    pub fn app_version(version: String) -> Self {
-        ConsensusParams {
-            block: None,
-            evidence: None,
-            version: Some(VersionParams {
-                app_version: Some(version),
-            }),
-        }
-    }
-
     /// set -1 for unlimited, positive number for a gas limit over all txs in a block
     pub fn max_block_gas(gas: i64) -> Self {
         ConsensusParams {
@@ -93,7 +76,17 @@ impl ConsensusParams {
                 max_gas: Some(gas),
             }),
             evidence: None,
-            version: None,
+        }
+    }
+
+    /// set -1 for unlimited, positive number for a gas limit over all txs in a block
+    pub fn max_block_size(bytes: i64) -> Self {
+        ConsensusParams {
+            block: Some(BlockParams {
+                max_bytes: Some(bytes),
+                max_gas: None,
+            }),
+            evidence: None,
         }
     }
 
@@ -105,7 +98,6 @@ impl ConsensusParams {
                 max_age_duration: Some(seconds),
                 max_bytes: None,
             }),
-            version: None,
         }
     }
 }
