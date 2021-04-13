@@ -207,15 +207,20 @@ mod test {
             .unwrap();
         assert_eq!(0, active.validators.len());
 
-        let operators = addrs(PREREGISTER_MEMBERS);
+        let operators: Vec<_> = addrs(PREREGISTER_MEMBERS)
+            .iter()
+            .map(|addr| HumanAddr(addr.clone()))
+            .collect();
+
+        // First, let's fund the operators
+        let operator_funds = cosmwasm_std::coins(OPERATOR_FUNDS, BOND_DENOM);
+        for op_addr in &operators {
+            app.set_bank_balance(op_addr.clone(), operator_funds.clone())
+                .unwrap();
+        }
 
         // One member bonds needed tokens to have enough weight
-        let op1_addr = HumanAddr(operators[0].clone());
-
-        // First, let's fund the operator
-        let operator_funds = cosmwasm_std::coins(OPERATOR_FUNDS, BOND_DENOM);
-        app.set_bank_balance(op1_addr.clone(), operator_funds)
-            .unwrap();
+        let op1_addr = &operators[0];
 
         // First, he does not bond enough tokens
         let stake = cosmwasm_std::coins(
