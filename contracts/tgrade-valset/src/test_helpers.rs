@@ -1,6 +1,6 @@
 #![cfg(test)]
 
-use cosmwasm_std::Binary;
+use cosmwasm_std::{Addr, Binary};
 
 use crate::msg::{OperatorKey, PUBKEY_LENGTH};
 use crate::state::ValidatorInfo;
@@ -29,7 +29,7 @@ pub fn invalid_operator() -> OperatorKey {
 
 pub fn valid_validator(seed: &str, power: u64) -> ValidatorInfo {
     ValidatorInfo {
-        operator: seed.into(),
+        operator: Addr::unchecked(seed),
         validator_pubkey: mock_pubkey(seed.as_bytes()),
         power,
     }

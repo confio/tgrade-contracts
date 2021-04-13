@@ -1,7 +1,7 @@
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
-use cosmwasm_std::{Binary, HumanAddr};
+use cosmwasm_std::{Addr, Binary};
 use cw4::Cw4Contract;
 use cw_storage_plus::{Index, IndexList, IndexedMap, Item, PkOwned, UniqueIndex};
 
@@ -38,7 +38,7 @@ pub struct EpochInfo {
 /// Operators SDK address, Tendermint public key, and tendermint voting power.
 #[derive(Serialize, Deserialize, Clone, PartialEq, JsonSchema, Debug)]
 pub struct ValidatorInfo {
-    pub operator: HumanAddr,
+    pub operator: Addr,
     /// TODO: better name to specify this is the Tendermint pubkey for consensus?
     pub validator_pubkey: Binary,
     /// The voting power in Tendermint sdk
@@ -54,7 +54,7 @@ pub const VALIDATORS: Item<Vec<ValidatorInfo>> = Item::new("validators");
 
 /// all this to get a unique secondary index on the pubkey, so we can ensure uniqueness.
 /// (It also allows reverse lookup from tm pubkey to operator address if needed)
-pub fn operators<'a>() -> IndexedMap<'a, &'a str, Binary, OperatorIndexes<'a>> {
+pub fn operators<'a>() -> IndexedMap<'a, &'a Addr, Binary, OperatorIndexes<'a>> {
     let indexes = OperatorIndexes {
         pubkey: UniqueIndex::new(|d| PkOwned(d.to_vec()), "operators__pubkey"),
     };
