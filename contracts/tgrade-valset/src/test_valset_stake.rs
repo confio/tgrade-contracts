@@ -1,13 +1,13 @@
 #[cfg(test)]
 mod test {
     use cosmwasm_std::testing::{mock_env, MockApi, MockStorage};
-    use cosmwasm_std::{HumanAddr, Uint128};
+    use cosmwasm_std::{Coin, HumanAddr, Uint128};
 
     use cw0::Duration;
     use cw20::Denom;
     use cw4::Cw4Contract;
 
-    use cw_multi_test::{next_block, App, Contract, ContractWrapper, SimpleBank};
+    use cw_multi_test::{App, Contract, ContractWrapper, SimpleBank};
 
     use tgrade_bindings::TgradeMsg;
 
@@ -39,6 +39,12 @@ mod test {
     // returns a list of addresses that are set in the cw4-stake contract
     fn addrs(count: u32) -> Vec<String> {
         (1..=count).map(|x| format!("operator-{:03}", x)).collect()
+    }
+
+    fn bond(app: &mut App<TgradeMsg>, addr: &HumanAddr, stake_addr: &HumanAddr, stake: &Vec<Coin>) {
+        let _ = app
+            .execute_contract(addr, stake_addr, &ExecuteMsg::Bond {}, &stake)
+            .unwrap();
     }
 
     // returns a list of addresses that are not in the cw4-stake
@@ -210,15 +216,25 @@ mod test {
         let operator_funds = cosmwasm_std::coins(OPERATOR_FUNDS, BOND_DENOM);
         app.set_bank_balance(op1_addr.clone(), operator_funds)
             .unwrap();
-        app.update_block(next_block);
 
-        // Now, he bonds enough tokens of the right denom
-        let bond = cosmwasm_std::coins(TOKENS_PER_WEIGHT * MIN_WEIGHT as u128, BOND_DENOM);
-        let _res = app
-            // .execute_contract(op1_addr, stake_addr, &ExecuteMsg::Bond {}, &min_bond)
-            .execute_contract(op1_addr, stake_addr, &ExecuteMsg::Bond {}, &bond)
+        // First, he does not bond enough tokens
+        let stake = cosmwasm_std::coins(
+            TOKENS_PER_WEIGHT * MIN_WEIGHT as u128 - 1 as u128,
+            BOND_DENOM,
+        );
+        bond(&mut app, &op1_addr, &stake_addr, &stake);
+
+        // what do we expect?
+        // 1..24 have pubkeys registered, we take the top 10, only one has stake, but not enough of it, so zero
+        let active: ListActiveValidatorsResponse = app
+            .wrap()
+            .query_wasm_smart(&valset_addr, &QueryMsg::SimulateActiveValidators {})
             .unwrap();
-        app.update_block(next_block);
+        assert_eq!(0, active.validators.len());
+
+        // Now, he bonds just enough tokens of the right denom
+        let stake = cosmwasm_std::coins(1, BOND_DENOM);
+        bond(&mut app, &op1_addr, &stake_addr, &stake);
 
         // what do we expect?
         // 1..24 have pubkeys registered, we take the top 10, but only one have stake yet
