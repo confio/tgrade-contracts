@@ -1,43 +1,45 @@
 #[cfg(test)]
 mod test {
     use cosmwasm_std::testing::{mock_env, MockApi, MockStorage};
+    use cosmwasm_std::{HumanAddr, Uint128};
+
+    use cw0::Duration;
+    use cw20::Denom;
     use cw4::Cw4Contract;
-    use cw_multi_test::{App, Contract, ContractWrapper, SimpleBank};
+
+    use cw_multi_test::{next_block, App, Contract, ContractWrapper, SimpleBank};
+
+    use tgrade_bindings::TgradeMsg;
+
+    use cw4_stake::msg::ExecuteMsg;
 
     use crate::msg::{
         ConfigResponse, EpochResponse, InstantiateMsg, ListActiveValidatorsResponse, QueryMsg,
         ValidatorKeyResponse,
     };
+    use crate::state::ValidatorInfo;
     use crate::test_helpers::valid_operator;
-    use cosmwasm_std::{HumanAddr, Uint128};
-    use cw0::Duration;
-    use cw20::Denom;
-    use tgrade_bindings::TgradeMsg;
 
     const EPOCH_LENGTH: u64 = 100;
-    const STAKE_OWNER: &str = "admin";
 
+    const OPERATOR_FUNDS: u128 = 1_000;
+
+    // Stake contract config
+    const STAKE_OWNER: &str = "admin";
+    const TOKENS_PER_WEIGHT: u128 = 100;
+    const BOND_DENOM: &str = "tgrade";
+    const MIN_BOND: u128 = 100;
+
+    // Valset contract config
     // these control how many pubkeys get set in the valset init
     const PREREGISTER_MEMBERS: u32 = 24;
     const PREREGISTER_NONMEMBERS: u32 = 12;
+    const MIN_WEIGHT: u64 = 2;
 
     // returns a list of addresses that are set in the cw4-stake contract
     fn addrs(count: u32) -> Vec<String> {
         (1..=count).map(|x| format!("operator-{:03}", x)).collect()
     }
-
-    /*
-    fn members(count: u32) -> Vec<Member> {
-        addrs(count)
-            .into_iter()
-            .enumerate()
-            .map(|(idx, addr)| Member {
-                addr: addr.into(),
-                weight: idx as u64,
-            })
-            .collect()
-    }
-    */
 
     // returns a list of addresses that are not in the cw4-stake
     // this can be used to check handling of members without pubkey registered
@@ -74,9 +76,9 @@ mod test {
     fn instantiate_stake(app: &mut App<TgradeMsg>) -> HumanAddr {
         let stake_id = app.store_code(contract_stake());
         let msg = cw4_stake::msg::InstantiateMsg {
-            denom: Denom::Native("tgrade".into()),
-            tokens_per_weight: Uint128(100),
-            min_bond: Uint128(100),
+            denom: Denom::Native(BOND_DENOM.into()),
+            tokens_per_weight: Uint128(TOKENS_PER_WEIGHT),
+            min_bond: Uint128(MIN_BOND),
             unbonding_period: Duration::Time(1234),
             admin: Some(STAKE_OWNER.into()),
         };
@@ -189,7 +191,7 @@ mod test {
         // make a simple stake
         let stake_addr = instantiate_stake(&mut app);
         // make a valset that references it (this does init)
-        let valset_addr = instantiate_valset(&mut app, stake_addr.clone(), 10, 5);
+        let valset_addr = instantiate_valset(&mut app, stake_addr.clone(), 10, MIN_WEIGHT);
 
         // what do we expect?
         // 1..24 have pubkeys registered, we take the top 10, but none have stake yet, so zero
@@ -199,23 +201,49 @@ mod test {
             .unwrap();
         assert_eq!(0, active.validators.len());
 
-        /*
-        let mut expected: Vec<_> = addrs(24)
+        let operators = addrs(PREREGISTER_MEMBERS);
+
+        // One member bonds needed tokens to have enough weight
+        let op1_addr = HumanAddr(operators[0].clone());
+
+        // First, let's fund the operator
+        let operator_funds = cosmwasm_std::coins(OPERATOR_FUNDS, BOND_DENOM);
+        app.set_bank_balance(op1_addr.clone(), operator_funds)
+            .unwrap();
+        app.update_block(next_block);
+
+        // Now, he bonds enough tokens of the right denom
+        let bond = cosmwasm_std::coins(TOKENS_PER_WEIGHT * MIN_WEIGHT as u128, BOND_DENOM);
+        let _res = app
+            // .execute_contract(op1_addr, stake_addr, &ExecuteMsg::Bond {}, &min_bond)
+            .execute_contract(op1_addr, stake_addr, &ExecuteMsg::Bond {}, &bond)
+            .unwrap();
+        app.update_block(next_block);
+
+        // what do we expect?
+        // 1..24 have pubkeys registered, we take the top 10, but only one have stake yet
+        let active: ListActiveValidatorsResponse = app
+            .wrap()
+            .query_wasm_smart(&valset_addr, &QueryMsg::SimulateActiveValidators {})
+            .unwrap();
+        assert_eq!(1, active.validators.len());
+
+        let expected: Vec<_> = addrs(1)
             .into_iter()
-            .enumerate()
-            .map(|(idx, addr)| {
+            .map(|addr| {
                 let val = valid_operator(&addr);
                 ValidatorInfo {
                     operator: val.operator,
                     validator_pubkey: val.validator_pubkey,
-                    power: idx as u64,
+                    power: MIN_WEIGHT,
                 }
             })
             .collect();
+        /*
         // remember, active validators returns sorted from highest power to lowest, take last ten
         expected.reverse();
         expected.truncate(10);
-        assert_eq!(expected, active.validators);
         */
+        assert_eq!(expected, active.validators);
     }
 }
