@@ -13,7 +13,8 @@
         "hooks": {
           "$ref": "#/definitions/HooksMsg"
         }
-      }
+      },
+      "additionalProperties": false
     },
     {
       "description": "privileged contracts can mint arbitrary native tokens (extends BankMsg)",
@@ -37,11 +38,12 @@
               "type": "string"
             },
             "recipient": {
-              "$ref": "#/definitions/HumanAddr"
+              "type": "string"
             }
           }
         }
-      }
+      },
+      "additionalProperties": false
     },
     {
       "description": "as well as adjust tendermint consensus params",
@@ -53,7 +55,8 @@
         "consensus_params": {
           "$ref": "#/definitions/ConsensusParams"
         }
-      }
+      },
+      "additionalProperties": false
     },
     {
       "description": "Run another contract in \"sudo\" mode (extends WasmMsg)",
@@ -82,7 +85,8 @@
             }
           }
         }
-      }
+      },
+      "additionalProperties": false
     },
     {
       "description": "This will execute an approved proposal in the Cosmos SDK \"Gov Router\". That allows access to many of the system internals, like sdk params or x/upgrade, as well as privileged access to the wasm module (eg. mark module privileged)",
@@ -110,7 +114,8 @@
             }
           }
         }
-      }
+      },
+      "additionalProperties": false
     }
   ],
   "definitions": {
@@ -221,7 +226,8 @@
             "text": {
               "type": "object"
             }
-          }
+          },
+          "additionalProperties": false
         },
         {
           "description": "Register an \"live upgrade\" on the x/upgrade module See https://github.com/cosmos/cosmos-sdk/blob/v0.42.3/proto/cosmos/upgrade/v1beta1/upgrade.proto#L12-L53",
@@ -258,7 +264,8 @@
                 }
               }
             }
-          }
+          },
+          "additionalProperties": false
         },
         {
           "description": "There can only be one pending upgrade at a given time. This cancels the pending upgrade, if any. See https://github.com/cosmos/cosmos-sdk/blob/v0.42.3/proto/cosmos/upgrade/v1beta1/upgrade.proto#L57-L62",
@@ -270,7 +277,8 @@
             "cancel_upgrade": {
               "type": "object"
             }
-          }
+          },
+          "additionalProperties": false
         },
         {
           "description": "Defines a proposal to change one or more parameters. See https://github.com/cosmos/cosmos-sdk/blob/v0.42.3/proto/cosmos/params/v1beta1/params.proto#L9-L27",
@@ -285,7 +293,8 @@
                 "$ref": "#/definitions/ParamChange"
               }
             }
-          }
+          },
+          "additionalProperties": false
         },
         {
           "description": "Allows raw bytes (if client and wasmd are aware of something the contract is not) Like CosmosMsg::Stargate but for the governance router, not normal router",
@@ -297,7 +306,8 @@
             "raw_proto_proposal": {
               "$ref": "#/definitions/ProtoAny"
             }
-          }
+          },
+          "additionalProperties": false
         },
         {
           "description": "Updates the matching client to set a new trusted header. This can be used by governance to restore a client that has timed out or forked or otherwise broken. See https://github.com/cosmos/cosmos-sdk/blob/v0.42.3/proto/ibc/core/client/v1/client.proto#L36-L49",
@@ -321,7 +331,8 @@
                 }
               }
             }
-          }
+          },
+          "additionalProperties": false
         },
         {
           "description": "See https://github.com/confio/tgrade/blob/privileged_contracts_5/proto/confio/twasm/v1beta1/proposal.proto",
@@ -341,7 +352,8 @@
                 }
               }
             }
-          }
+          },
+          "additionalProperties": false
         },
         {
           "description": "See https://github.com/confio/tgrade/blob/privileged_contracts_5/proto/confio/twasm/v1beta1/proposal.proto",
@@ -361,7 +373,8 @@
                 }
               }
             }
-          }
+          },
+          "additionalProperties": false
         },
         {
           "description": "See https://github.com/CosmWasm/wasmd/blob/master/proto/cosmwasm/wasm/v1beta1/proposal.proto#L32-L54",
@@ -416,7 +429,8 @@
                 }
               }
             }
-          }
+          },
+          "additionalProperties": false
         },
         {
           "description": "See https://github.com/CosmWasm/wasmd/blob/master/proto/cosmwasm/wasm/v1beta1/proposal.proto#L56-L70",
@@ -458,7 +472,8 @@
                 }
               }
             }
-          }
+          },
+          "additionalProperties": false
         },
         {
           "description": "See https://github.com/CosmWasm/wasmd/blob/master/proto/cosmwasm/wasm/v1beta1/proposal.proto#L72-L82",
@@ -484,7 +499,8 @@
                 }
               }
             }
-          }
+          },
+          "additionalProperties": false
         },
         {
           "description": "See https://github.com/CosmWasm/wasmd/blob/master/proto/cosmwasm/wasm/v1beta1/proposal.proto#L84-L93",
@@ -505,7 +521,8 @@
                 }
               }
             }
-          }
+          },
+          "additionalProperties": false
         },
         {
           "description": "See https://github.com/CosmWasm/wasmd/blob/master/proto/cosmwasm/wasm/v1beta1/proposal.proto#L95-L107",
@@ -531,7 +548,8 @@
                 }
               }
             }
-          }
+          },
+          "additionalProperties": false
         },
         {
           "description": "See https://github.com/CosmWasm/wasmd/blob/master/proto/cosmwasm/wasm/v1beta1/proposal.proto#L109-L121",
@@ -557,7 +575,8 @@
                 }
               }
             }
-          }
+          },
+          "additionalProperties": false
         }
       ]
     },
@@ -572,7 +591,8 @@
             "register_begin_block": {
               "type": "object"
             }
-          }
+          },
+          "additionalProperties": false
         },
         {
           "type": "object",
@@ -583,7 +603,8 @@
             "unregister_begin_block": {
               "type": "object"
             }
-          }
+          },
+          "additionalProperties": false
         },
         {
           "type": "object",
@@ -594,7 +615,8 @@
             "register_end_block": {
               "type": "object"
             }
-          }
+          },
+          "additionalProperties": false
         },
         {
           "type": "object",
@@ -605,7 +627,8 @@
             "unregister_end_block": {
               "type": "object"
             }
-          }
+          },
+          "additionalProperties": false
         },
         {
           "type": "object",
@@ -616,7 +639,8 @@
             "register_validator_set_update": {
               "type": "object"
             }
-          }
+          },
+          "additionalProperties": false
         },
         {
           "type": "object",
@@ -627,12 +651,10 @@
             "unregister_validator_set_update": {
               "type": "object"
             }
-          }
+          },
+          "additionalProperties": false
         }
       ]
-    },
-    "HumanAddr": {
-      "type": "string"
     },
     "ParamChange": {
       "description": "ParamChange defines an individual parameter change, for use in ParameterChangeProposal.",
