@@ -353,12 +353,12 @@ fn calculate_diff(cur_vals: Vec<ValidatorInfo>, old_vals: Vec<ValidatorInfo>) ->
 
 #[cfg(test)]
 mod test {
-    use cosmwasm_std::testing::{mock_env, MockApi, MockStorage};
-    use cw_multi_test::{App, Contract, ContractWrapper, SimpleBank};
+    use cw_multi_test::{App, Contract, ContractWrapper};
 
     use super::*;
     use crate::test_helpers::{
-        addrs, contract_valset, members, mock_pubkey, nonmembers, valid_operator, valid_validator,
+        addrs, contract_valset, members, mock_app, mock_pubkey, nonmembers, valid_operator,
+        valid_validator,
     };
 
     const EPOCH_LENGTH: u64 = 100;
@@ -390,14 +390,6 @@ mod test {
             cw4_group::contract::query,
         );
         Box::new(contract)
-    }
-
-    fn mock_app() -> App<TgradeMsg> {
-        let env = mock_env();
-        let api = Box::new(MockApi::default());
-        let bank = SimpleBank {};
-
-        App::new(api, env.block, bank, || Box::new(MockStorage::new()))
     }
 
     // always registers 24 members and 12 non-members with pubkeys
