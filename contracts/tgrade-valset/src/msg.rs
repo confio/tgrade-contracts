@@ -207,7 +207,7 @@ mod test {
         assert_eq!(err, ContractError::NoValidators {});
 
         // fails on invalid operator
-        let mut invalid = proper.clone();
+        let mut invalid = proper;
         invalid.initial_keys = vec![valid_operator("foo"), invalid_operator()];
         let err = invalid.validate().unwrap_err();
         assert_eq!(err, ContractError::InvalidPubkey {});

@@ -418,13 +418,7 @@ mod tests {
         let remove_msg = ExecuteMsg::RemoveHook {
             addr: contract2.clone(),
         };
-        let err = execute(
-            deps.as_mut(),
-            mock_env(),
-            admin_info.clone(),
-            remove_msg.clone(),
-        )
-        .unwrap_err();
+        let err = execute(deps.as_mut(), mock_env(), admin_info.clone(), remove_msg).unwrap_err();
         assert_eq!(err, HookError::HookNotRegistered {}.into());
 
         // add second contract
@@ -436,38 +430,18 @@ mod tests {
         assert_eq!(hooks.hooks, vec![contract1.clone(), contract2.clone()]);
 
         // cannot re-add an existing contract
-        let err = execute(
-            deps.as_mut(),
-            mock_env(),
-            admin_info.clone(),
-            add_msg.clone(),
-        )
-        .unwrap_err();
+        let err = execute(deps.as_mut(), mock_env(), admin_info.clone(), add_msg).unwrap_err();
         assert_eq!(err, HookError::HookAlreadyRegistered {}.into());
 
         // non-admin cannot remove
-        let remove_msg = ExecuteMsg::RemoveHook {
-            addr: contract1.clone(),
-        };
-        let err = execute(
-            deps.as_mut(),
-            mock_env(),
-            user_info.clone(),
-            remove_msg.clone(),
-        )
-        .unwrap_err();
+        let remove_msg = ExecuteMsg::RemoveHook { addr: contract1 };
+        let err = execute(deps.as_mut(), mock_env(), user_info, remove_msg.clone()).unwrap_err();
         assert_eq!(err, HookError::Admin(AdminError::NotAdmin {}).into());
 
         // remove the original
-        let _ = execute(
-            deps.as_mut(),
-            mock_env(),
-            admin_info.clone(),
-            remove_msg.clone(),
-        )
-        .unwrap();
+        let _ = execute(deps.as_mut(), mock_env(), admin_info, remove_msg).unwrap();
         let hooks = HOOKS.query_hooks(deps.as_ref()).unwrap();
-        assert_eq!(hooks.hooks, vec![contract2.clone()]);
+        assert_eq!(hooks.hooks, vec![contract2]);
     }
 
     #[test]
@@ -510,7 +484,7 @@ mod tests {
 
         // admin updates properly
         assert_users(&deps, Some(11), Some(6), None, None);
-        let res = execute(deps.as_mut(), mock_env(), admin_info.clone(), msg).unwrap();
+        let res = execute(deps.as_mut(), mock_env(), admin_info, msg).unwrap();
         assert_users(&deps, Some(20), None, Some(5), None);
 
         // ensure 2 messages for the 2 hooks
