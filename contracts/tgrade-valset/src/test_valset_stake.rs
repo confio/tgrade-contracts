@@ -41,7 +41,7 @@ mod test {
         (1..=count).map(|x| format!("operator-{:03}", x)).collect()
     }
 
-    fn bond(app: &mut App<TgradeMsg>, addr: &HumanAddr, stake_addr: &HumanAddr, stake: &Vec<Coin>) {
+    fn bond(app: &mut App<TgradeMsg>, addr: &HumanAddr, stake_addr: &HumanAddr, stake: &[Coin]) {
         let _ = app
             .execute_contract(addr, stake_addr, &ExecuteMsg::Bond {}, &stake)
             .unwrap();
