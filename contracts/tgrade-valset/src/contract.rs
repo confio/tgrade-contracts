@@ -354,11 +354,12 @@ fn calculate_diff(cur_vals: Vec<ValidatorInfo>, old_vals: Vec<ValidatorInfo>) ->
 #[cfg(test)]
 mod test {
     use cosmwasm_std::testing::{mock_env, MockApi, MockStorage};
-    use cw4::Member;
     use cw_multi_test::{App, Contract, ContractWrapper, SimpleBank};
 
     use super::*;
-    use crate::test_helpers::{valid_operator, valid_validator};
+    use crate::test_helpers::{
+        addrs, contract_valset, members, nonmembers, valid_operator, valid_validator,
+    };
 
     const EPOCH_LENGTH: u64 = 100;
     const GROUP_OWNER: &str = "admin";
@@ -369,22 +370,6 @@ mod test {
 
     // Number of validators for tests
     const VALIDATORS: usize = 32;
-
-    // returns a list of addresses that are set in the cw4-group contract
-    fn addrs(count: u32) -> Vec<String> {
-        (1..=count).map(|x| format!("operator-{:03}", x)).collect()
-    }
-
-    fn members(count: u32) -> Vec<Member> {
-        addrs(count)
-            .into_iter()
-            .enumerate()
-            .map(|(idx, addr)| Member {
-                addr,
-                weight: idx as u64,
-            })
-            .collect()
-    }
 
     fn validators(count: usize) -> Vec<ValidatorInfo> {
         let mut p: u64 = 0;
@@ -398,22 +383,7 @@ mod test {
         vals
     }
 
-    // returns a list of addresses that are not in the cw4-group
-    // this can be used to check handling of members without pubkey registered
-    fn nonmembers(count: u32) -> Vec<String> {
-        (1..count).map(|x| format!("non-member-{}", x)).collect()
-    }
-
-    pub fn contract_valset() -> Box<dyn Contract<TgradeMsg>> {
-        let contract = ContractWrapper::new(
-            crate::contract::execute,
-            crate::contract::instantiate,
-            crate::contract::query,
-        );
-        Box::new(contract)
-    }
-
-    pub fn contract_group() -> Box<dyn Contract<TgradeMsg>> {
+    fn contract_group() -> Box<dyn Contract<TgradeMsg>> {
         let contract = ContractWrapper::new_with_empty(
             cw4_group::contract::execute,
             cw4_group::contract::instantiate,
@@ -430,6 +400,19 @@ mod test {
         App::new(api, env.block, bank, || Box::new(MockStorage::new()))
     }
 
+    // always registers 24 members and 12 non-members with pubkeys
+    pub fn instantiate_valset(
+        app: &mut App<TgradeMsg>,
+        stake: HumanAddr,
+        max_validators: u32,
+        min_weight: u64,
+    ) -> HumanAddr {
+        let valset_id = app.store_code(contract_valset());
+        let msg = init_msg(stake, max_validators, min_weight);
+        app.instantiate_contract(valset_id, GROUP_OWNER, &msg, &[], "flex")
+            .unwrap()
+    }
+
     // the group has a list of
     fn instantiate_group(app: &mut App<TgradeMsg>, num_members: u32) -> Addr {
         let group_id = app.store_code(contract_group());
@@ -439,20 +422,6 @@ mod test {
         };
         let owner = Addr::unchecked(GROUP_OWNER);
         app.instantiate_contract(group_id, owner, &msg, &[], "group")
-            .unwrap()
-    }
-
-    // always registers 24 members and 12 non-members with pubkeys
-    fn instantiate_valset(
-        app: &mut App<TgradeMsg>,
-        group: Addr,
-        max_validators: u32,
-        min_weight: u64,
-    ) -> Addr {
-        let valset_id = app.store_code(contract_valset());
-        let msg = init_msg(group, max_validators, min_weight);
-        let owner = Addr::unchecked(GROUP_OWNER);
-        app.instantiate_contract(valset_id, owner, &msg, &[], "flex")
             .unwrap()
     }
 

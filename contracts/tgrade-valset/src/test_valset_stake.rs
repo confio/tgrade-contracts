@@ -1,12 +1,11 @@
 #![cfg(test)]
-use cosmwasm_std::testing::{mock_env, MockApi, MockStorage};
 use cosmwasm_std::{Coin, HumanAddr, Uint128};
 
 use cw0::Duration;
 use cw20::Denom;
 use cw4::Cw4Contract;
 
-use cw_multi_test::{App, Contract, ContractWrapper, SimpleBank};
+use cw_multi_test::{App, Contract, ContractWrapper};
 
 use tgrade_bindings::TgradeMsg;
 
@@ -17,7 +16,7 @@ use crate::msg::{
     ValidatorKeyResponse,
 };
 use crate::state::ValidatorInfo;
-use crate::test_helpers::valid_operator;
+use crate::test_helpers::{addrs, contract_valset, mock_app, valid_operator};
 
 const EPOCH_LENGTH: u64 = 100;
 
@@ -32,12 +31,57 @@ const MIN_BOND: u128 = 100;
 // Valset contract config
 // these control how many pubkeys get set in the valset init
 const PREREGISTER_MEMBERS: u32 = 24;
-const PREREGISTER_NONMEMBERS: u32 = 12;
 const MIN_WEIGHT: u64 = 2;
 
-// returns a list of addresses that are set in the cw4-stake contract
-fn addrs(count: u32) -> Vec<String> {
-    (1..=count).map(|x| format!("operator-{:03}", x)).collect()
+fn contract_stake() -> Box<dyn Contract<TgradeMsg>> {
+    let contract = ContractWrapper::new_with_empty(
+        cw4_stake::contract::execute,
+        cw4_stake::contract::instantiate,
+        cw4_stake::contract::query,
+    );
+    Box::new(contract)
+}
+
+// always registers 24 members and 12 non-members with pubkeys
+pub fn instantiate_valset(
+    app: &mut App<TgradeMsg>,
+    stake: HumanAddr,
+    max_validators: u32,
+    min_weight: u64,
+) -> HumanAddr {
+    let valset_id = app.store_code(contract_valset());
+    let msg = init_msg(stake, max_validators, min_weight);
+    app.instantiate_contract(valset_id, STAKE_OWNER, &msg, &[], "flex")
+        .unwrap()
+}
+
+fn instantiate_stake(app: &mut App<TgradeMsg>) -> HumanAddr {
+    let stake_id = app.store_code(contract_stake());
+    let msg = cw4_stake::msg::InstantiateMsg {
+        denom: Denom::Native(BOND_DENOM.into()),
+        tokens_per_weight: Uint128(TOKENS_PER_WEIGHT),
+        min_bond: Uint128(MIN_BOND),
+        unbonding_period: Duration::Time(1234),
+        admin: Some(STAKE_OWNER.into()),
+    };
+    app.instantiate_contract(stake_id, STAKE_OWNER, &msg, &[], "stake")
+        .unwrap()
+}
+
+// registers first PREREGISTER_MEMBERS members with pubkeys
+fn init_msg(stake_addr: HumanAddr, max_validators: u32, min_weight: u64) -> InstantiateMsg {
+    let members = addrs(PREREGISTER_MEMBERS)
+        .into_iter()
+        .map(|s| valid_operator(&s))
+        .collect();
+    InstantiateMsg {
+        membership: stake_addr,
+        min_weight,
+        max_validators,
+        epoch_length: EPOCH_LENGTH,
+        initial_keys: members,
+        scaling: None,
+    }
 }
 
 fn bond(app: &mut App<TgradeMsg>, addr: &HumanAddr, stake_addr: &HumanAddr, stake: &[Coin]) {
@@ -57,83 +101,6 @@ fn unbond(app: &mut App<TgradeMsg>, addr: &HumanAddr, stake_addr: &HumanAddr, to
             &[],
         )
         .unwrap();
-}
-
-// returns a list of addresses that are not in the cw4-stake
-// this can be used to check handling of members without pubkey registered
-fn nonmembers(count: u32) -> Vec<String> {
-    (1..count).map(|x| format!("non-member-{}", x)).collect()
-}
-
-pub fn contract_valset() -> Box<dyn Contract<TgradeMsg>> {
-    let contract = ContractWrapper::new(
-        crate::contract::execute,
-        crate::contract::instantiate,
-        crate::contract::query,
-    );
-    Box::new(contract)
-}
-
-pub fn contract_stake() -> Box<dyn Contract<TgradeMsg>> {
-    let contract = ContractWrapper::new_with_empty(
-        cw4_stake::contract::execute,
-        cw4_stake::contract::instantiate,
-        cw4_stake::contract::query,
-    );
-    Box::new(contract)
-}
-
-fn mock_app() -> App<TgradeMsg> {
-    let env = mock_env();
-    let api = Box::new(MockApi::default());
-    let bank = SimpleBank {};
-
-    App::new(api, env.block, bank, || Box::new(MockStorage::new()))
-}
-
-fn instantiate_stake(app: &mut App<TgradeMsg>) -> HumanAddr {
-    let stake_id = app.store_code(contract_stake());
-    let msg = cw4_stake::msg::InstantiateMsg {
-        denom: Denom::Native(BOND_DENOM.into()),
-        tokens_per_weight: Uint128(TOKENS_PER_WEIGHT),
-        min_bond: Uint128(MIN_BOND),
-        unbonding_period: Duration::Time(1234),
-        admin: Some(STAKE_OWNER.into()),
-    };
-    app.instantiate_contract(stake_id, STAKE_OWNER, &msg, &[], "stake")
-        .unwrap()
-}
-
-// always registers 24 members and 12 non-members with pubkeys
-fn instantiate_valset(
-    app: &mut App<TgradeMsg>,
-    stake: HumanAddr,
-    max_validators: u32,
-    min_weight: u64,
-) -> HumanAddr {
-    let valset_id = app.store_code(contract_valset());
-    let msg = init_msg(stake, max_validators, min_weight);
-    app.instantiate_contract(valset_id, STAKE_OWNER, &msg, &[], "flex")
-        .unwrap()
-}
-
-// registers first PREREGISTER_MEMBERS members and PREREGISTER_NONMEMBERS non-members with pubkeys
-fn init_msg(stake_addr: HumanAddr, max_validators: u32, min_weight: u64) -> InstantiateMsg {
-    let members = addrs(PREREGISTER_MEMBERS)
-        .into_iter()
-        .map(|s| valid_operator(&s));
-    let nonmembers = nonmembers(PREREGISTER_NONMEMBERS)
-        .into_iter()
-        .map(|s| valid_operator(&s));
-
-    InstantiateMsg {
-        membership: stake_addr,
-        min_weight,
-        max_validators,
-        epoch_length: EPOCH_LENGTH,
-        initial_keys: members.chain(nonmembers).collect(),
-        scaling: None,
-    }
 }
 
 #[test]
