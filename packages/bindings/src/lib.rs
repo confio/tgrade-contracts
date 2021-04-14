@@ -12,11 +12,3 @@ pub use query::{
 };
 pub use sudo::{Evidence, EvidenceType, PrivilegeChangeMsg, TgradeSudoMsg, ValidatorDiff};
 pub use validator::{validator_addr, Validator, ValidatorUpdate, ValidatorVote};
-
-#[cfg(test)]
-mod tests {
-    #[test]
-    fn it_works() {
-        assert_eq!(2 + 2, 4);
-    }
-}
