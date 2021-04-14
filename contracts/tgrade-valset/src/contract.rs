@@ -577,7 +577,6 @@ mod test {
         assert_eq!(expected, validator_keys.operators);
 
         // Then come the members (2nd batch, different  limit)
-        debug_assert!(PREREGISTER_NONMEMBERS > 0);
         let validator_keys: ListValidatorKeysResponse = app
             .wrap()
             .query_wasm_smart(
@@ -603,7 +602,6 @@ mod test {
         assert_eq!(expected, validator_keys.operators);
 
         // And that's all
-        debug_assert!(PREREGISTER_MEMBERS > 0);
         let last = validator_keys.operators.last().unwrap().operator.clone();
         let validator_keys: ListValidatorKeysResponse = app
             .wrap()
