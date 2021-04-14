@@ -275,10 +275,16 @@ fn calculate_validators(deps: Deps) -> Result<Vec<ValidatorInfo>, ContractError>
             .into_iter()
             .filter(|m| m.weight >= min_weight)
             .filter_map(|m| {
-                // any operator without a registered validator_pubkey is filtered out
-                // otherwise, we add this info
-                // we could validate all these keys coming in, but if they are not bech32,
-                // they will not match (return error on load)
+                // why do we allow Addr::unchecked here?
+                // all valid keys for `operators()` are already validated before insertion
+                // we have 3 cases:
+                // 1. There is a match with operators().load(), this means it is a valid address and
+                //    has a pubkey registered -> count in our group
+                // 2. The address is valid, but has no pubkey registered in operators() -> skip
+                // 3. The address is invalid -> skip
+                //
+                // All 3 cases are handled properly below (operators.load() returns an Error on
+                // both 2 and 3), so we do not need to perform N addr_validate calls here
                 let m_addr = Addr::unchecked(&m.addr);
                 operators()
                     .load(deps.storage, &m_addr)
