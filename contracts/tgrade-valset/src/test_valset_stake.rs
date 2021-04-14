@@ -258,17 +258,11 @@ fn simulate_validators() {
         .unwrap();
     assert_eq!(1, active.validators.len());
 
-    let expected: Vec<_> = addrs(1)
-        .into_iter()
-        .map(|addr| {
-            let val = valid_operator(&addr);
-            ValidatorInfo {
-                operator: val.operator,
-                validator_pubkey: val.validator_pubkey,
-                power: MIN_WEIGHT,
-            }
-        })
-        .collect();
+    let expected: Vec<_> = vec![ValidatorInfo {
+        operator: op1_addr.clone(),
+        validator_pubkey: valid_operator(&op1_addr).validator_pubkey,
+        power: MIN_WEIGHT,
+    }];
     assert_eq!(expected, active.validators);
 
     // Other member bonds twice the minimum amount
@@ -285,20 +279,19 @@ fn simulate_validators() {
         .unwrap();
     assert_eq!(2, active.validators.len());
 
-    let mut expected: Vec<_> = addrs(2)
-        .into_iter()
-        .enumerate()
-        .map(|(idx, addr)| {
-            let val = valid_operator(&addr);
-            ValidatorInfo {
-                operator: val.operator,
-                validator_pubkey: val.validator_pubkey,
-                power: MIN_WEIGHT * (idx as u64 + 1u64),
-            }
-        })
-        .collect();
     // Active validators are returned sorted from highest power to lowest
-    expected.reverse();
+    let expected: Vec<_> = vec![
+        ValidatorInfo {
+            operator: op2_addr.clone(),
+            validator_pubkey: valid_operator(&op2_addr).validator_pubkey,
+            power: MIN_WEIGHT * 2,
+        },
+        ValidatorInfo {
+            operator: op1_addr.clone(),
+            validator_pubkey: valid_operator(&op1_addr).validator_pubkey,
+            power: MIN_WEIGHT,
+        },
+    ];
     assert_eq!(expected, active.validators);
 
     // Other member bonds almost thrice the minimum amount
@@ -318,21 +311,24 @@ fn simulate_validators() {
         .unwrap();
     assert_eq!(3, active.validators.len());
 
-    let mut expected: Vec<_> = addrs(3)
-        .into_iter()
-        .enumerate()
-        .map(|(idx, addr)| {
-            let val = valid_operator(&addr);
-            ValidatorInfo {
-                operator: val.operator,
-                validator_pubkey: val.validator_pubkey,
-                // power is being rounded down
-                power: MIN_WEIGHT * (idx as u64 + 1u64) - (idx == 2) as u64,
-            }
-        })
-        .collect();
     // Active validators are returned sorted from highest power to lowest
-    expected.reverse();
+    let expected: Vec<_> = vec![
+        ValidatorInfo {
+            operator: op3_addr.clone(),
+            validator_pubkey: valid_operator(&op3_addr).validator_pubkey,
+            power: MIN_WEIGHT * 3 - 1,
+        },
+        ValidatorInfo {
+            operator: op2_addr.clone(),
+            validator_pubkey: valid_operator(&op2_addr).validator_pubkey,
+            power: MIN_WEIGHT * 2,
+        },
+        ValidatorInfo {
+            operator: op1_addr.clone(),
+            validator_pubkey: valid_operator(&op1_addr).validator_pubkey,
+            power: MIN_WEIGHT,
+        },
+    ];
     assert_eq!(expected, active.validators);
 
     // Now, op1 unbonds some tokens
@@ -347,21 +343,18 @@ fn simulate_validators() {
         .unwrap();
     assert_eq!(2, active.validators.len());
 
-    let mut expected: Vec<_> = addrs(3)
-        .into_iter()
-        .skip(1)
-        .enumerate()
-        .map(|(idx, addr)| {
-            let val = valid_operator(&addr);
-            ValidatorInfo {
-                operator: val.operator,
-                validator_pubkey: val.validator_pubkey,
-                // power is being rounded down
-                power: MIN_WEIGHT * (idx as u64 + 2u64) - (idx == 1) as u64,
-            }
-        })
-        .collect();
     // Active validators are returned sorted from highest power to lowest
-    expected.reverse();
+    let expected: Vec<_> = vec![
+        ValidatorInfo {
+            operator: op3_addr.clone(),
+            validator_pubkey: valid_operator(&op3_addr).validator_pubkey,
+            power: MIN_WEIGHT * 3 - 1,
+        },
+        ValidatorInfo {
+            operator: op2_addr.clone(),
+            validator_pubkey: valid_operator(&op2_addr).validator_pubkey,
+            power: MIN_WEIGHT * 2,
+        },
+    ];
     assert_eq!(expected, active.validators);
 }
