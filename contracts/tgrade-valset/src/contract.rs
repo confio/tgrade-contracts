@@ -358,7 +358,7 @@ mod test {
 
     use super::*;
     use crate::test_helpers::{
-        addrs, contract_valset, members, nonmembers, valid_operator, valid_validator,
+        addrs, contract_valset, members, mock_pubkey, nonmembers, valid_operator, valid_validator,
     };
 
     const EPOCH_LENGTH: u64 = 100;
@@ -637,19 +637,51 @@ mod test {
 
         // And that's all
         debug_assert!(PREREGISTER_MEMBERS > 0);
+        let last = validator_keys.operators.last().unwrap().operator.clone();
         let validator_keys: ListValidatorKeysResponse = app
             .wrap()
             .query_wasm_smart(
                 &valset_addr,
                 &QueryMsg::ListValidatorKeys {
-                    start_after: Some(validator_keys.operators.last().unwrap().operator.clone()),
+                    start_after: Some(last.clone()),
                     limit: None,
                 },
             )
             .unwrap();
         assert_eq!(validator_keys.operators.len(), 0);
 
-        // TODO: validator list modifications
+        // Validator list modifications
+        // Add a new operator
+        let new_operator: &str = "operator-999";
+        let _ = app
+            .execute_contract(
+                HumanAddr(new_operator.into()),
+                valset_addr.clone(),
+                &ExecuteMsg::RegisterValidatorKey {
+                    pubkey: mock_pubkey(new_operator.as_bytes()),
+                },
+                &[],
+            )
+            .unwrap();
+
+        // Then come the operator
+        let validator_keys: ListValidatorKeysResponse = app
+            .wrap()
+            .query_wasm_smart(
+                &valset_addr,
+                &QueryMsg::ListValidatorKeys {
+                    start_after: Some(last),
+                    limit: None,
+                },
+            )
+            .unwrap();
+        assert_eq!(validator_keys.operators.len(), 1);
+
+        let expected: Vec<_> = vec![OperatorKey {
+            operator: new_operator.into(),
+            validator_pubkey: mock_pubkey(new_operator.as_bytes()),
+        }];
+        assert_eq!(expected, validator_keys.operators);
     }
 
     // TODO: end block run
