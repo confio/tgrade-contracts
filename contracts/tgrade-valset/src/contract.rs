@@ -536,31 +536,6 @@ mod test {
         expected.reverse();
         expected.truncate(10);
         assert_eq!(expected, active.validators);
-
-        // list validator keys
-        let validator_keys: ListValidatorKeysResponse = app
-            .wrap()
-            .query_wasm_smart(
-                &valset_addr,
-                &QueryMsg::ListValidatorKeys {
-                    start_after: None,
-                    limit: None,
-                },
-            )
-            .unwrap();
-        assert_eq!(validator_keys.operators.len(), 10);
-
-        let expected: Vec<_> = nonmembers(10)
-            .into_iter()
-            .map(|addr| {
-                let val = valid_operator(&addr);
-                OperatorKey {
-                    operator: val.operator,
-                    validator_pubkey: val.validator_pubkey,
-                }
-            })
-            .collect();
-        assert_eq!(expected[1], validator_keys.operators[1]);
     }
 
     #[test]
