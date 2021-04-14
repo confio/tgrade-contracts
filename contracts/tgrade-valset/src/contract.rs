@@ -380,7 +380,7 @@ mod test {
             .into_iter()
             .enumerate()
             .map(|(idx, addr)| Member {
-                addr: addr.into(),
+                addr,
                 weight: idx as u64,
             })
             .collect()
