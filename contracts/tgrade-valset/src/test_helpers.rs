@@ -18,10 +18,11 @@ pub fn mock_app() -> App<TgradeMsg> {
 }
 
 pub fn contract_valset() -> Box<dyn Contract<TgradeMsg>> {
-    let contract = ContractWrapper::new(
+    let contract = ContractWrapper::new_with_sudo(
         crate::contract::execute,
         crate::contract::instantiate,
         crate::contract::query,
+        crate::contract::sudo,
     );
     Box::new(contract)
 }

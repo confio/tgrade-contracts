@@ -649,7 +649,38 @@ mod test {
         assert_eq!(expected, validator_keys.operators);
     }
 
-    // TODO: end block run
+    #[test]
+    fn end_block_run() {
+        let mut app = mock_app();
+
+        // make a simple group
+        let group_addr = instantiate_group(&mut app, 36);
+        // make a valset that references it (this does init)
+        let valset_addr = instantiate_valset(&mut app, group_addr, 10, 5);
+
+        // what do we expect?
+        // end_block hasn't run yet, so empty list
+        let active: ListActiveValidatorsResponse = app
+            .wrap()
+            .query_wasm_smart(&valset_addr, &QueryMsg::ListActiveValidators {})
+            .unwrap();
+        assert_eq!(0, active.validators.len());
+
+        // Force end block run through sudo call
+        let _ = app
+            .sudo(
+                valset_addr.clone(),
+                &TgradeSudoMsg::EndWithValidatorUpdate {},
+            )
+            .unwrap();
+
+        // end_block has run now, so validators list is updated
+        let active: ListActiveValidatorsResponse = app
+            .wrap()
+            .query_wasm_smart(&valset_addr, &QueryMsg::ListActiveValidators {})
+            .unwrap();
+        assert_eq!(10, active.validators.len());
+    }
 
     // Unit tests for calculate_diff()
     #[test]
