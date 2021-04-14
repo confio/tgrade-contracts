@@ -36,7 +36,7 @@ pub fn members(count: u32) -> Vec<Member> {
         .into_iter()
         .enumerate()
         .map(|(idx, addr)| Member {
-            addr: addr.into(),
+            addr,
             weight: idx as u64,
         })
         .collect()

@@ -395,13 +395,13 @@ mod test {
     // always registers 24 members and 12 non-members with pubkeys
     pub fn instantiate_valset(
         app: &mut App<TgradeMsg>,
-        stake: HumanAddr,
+        stake: Addr,
         max_validators: u32,
         min_weight: u64,
-    ) -> HumanAddr {
+    ) -> Addr {
         let valset_id = app.store_code(contract_valset());
         let msg = init_msg(stake, max_validators, min_weight);
-        app.instantiate_contract(valset_id, GROUP_OWNER, &msg, &[], "flex")
+        app.instantiate_contract(valset_id, Addr::unchecked(GROUP_OWNER), &msg, &[], "flex")
             .unwrap()
     }
 
@@ -620,7 +620,7 @@ mod test {
         let new_operator: &str = "operator-999";
         let _ = app
             .execute_contract(
-                HumanAddr(new_operator.into()),
+                Addr::unchecked(new_operator),
                 valset_addr.clone(),
                 &ExecuteMsg::RegisterValidatorKey {
                     pubkey: mock_pubkey(new_operator.as_bytes()),

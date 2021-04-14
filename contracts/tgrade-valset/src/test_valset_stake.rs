@@ -1,5 +1,5 @@
 #![cfg(test)]
-use cosmwasm_std::{Coin, HumanAddr, Uint128};
+use cosmwasm_std::{Addr, Coin, Uint128};
 
 use cw0::Duration;
 use cw20::Denom;
@@ -45,17 +45,17 @@ fn contract_stake() -> Box<dyn Contract<TgradeMsg>> {
 // always registers 24 members and 12 non-members with pubkeys
 pub fn instantiate_valset(
     app: &mut App<TgradeMsg>,
-    stake: HumanAddr,
+    stake: &Addr,
     max_validators: u32,
     min_weight: u64,
-) -> HumanAddr {
+) -> Addr {
     let valset_id = app.store_code(contract_valset());
-    let msg = init_msg(stake, max_validators, min_weight);
-    app.instantiate_contract(valset_id, STAKE_OWNER, &msg, &[], "flex")
+    let msg = init_msg(&stake.to_string(), max_validators, min_weight);
+    app.instantiate_contract(valset_id, Addr::unchecked(STAKE_OWNER), &msg, &[], "flex")
         .unwrap()
 }
 
-fn instantiate_stake(app: &mut App<TgradeMsg>) -> HumanAddr {
+fn instantiate_stake(app: &mut App<TgradeMsg>) -> Addr {
     let stake_id = app.store_code(contract_stake());
     let msg = cw4_stake::msg::InstantiateMsg {
         denom: Denom::Native(BOND_DENOM.into()),
@@ -64,18 +64,18 @@ fn instantiate_stake(app: &mut App<TgradeMsg>) -> HumanAddr {
         unbonding_period: Duration::Time(1234),
         admin: Some(STAKE_OWNER.into()),
     };
-    app.instantiate_contract(stake_id, STAKE_OWNER, &msg, &[], "stake")
+    app.instantiate_contract(stake_id, Addr::unchecked(STAKE_OWNER), &msg, &[], "stake")
         .unwrap()
 }
 
 // registers first PREREGISTER_MEMBERS members with pubkeys
-fn init_msg(stake_addr: HumanAddr, max_validators: u32, min_weight: u64) -> InstantiateMsg {
+fn init_msg(stake_addr: &str, max_validators: u32, min_weight: u64) -> InstantiateMsg {
     let members = addrs(PREREGISTER_MEMBERS)
         .into_iter()
         .map(|s| valid_operator(&s))
         .collect();
     InstantiateMsg {
-        membership: stake_addr,
+        membership: stake_addr.into(),
         min_weight,
         max_validators,
         epoch_length: EPOCH_LENGTH,
@@ -84,17 +84,22 @@ fn init_msg(stake_addr: HumanAddr, max_validators: u32, min_weight: u64) -> Inst
     }
 }
 
-fn bond(app: &mut App<TgradeMsg>, addr: &HumanAddr, stake_addr: &HumanAddr, stake: &[Coin]) {
+fn bond(app: &mut App<TgradeMsg>, addr: &Addr, stake_addr: &Addr, stake: &[Coin]) {
     let _ = app
-        .execute_contract(addr, stake_addr, &ExecuteMsg::Bond {}, &stake)
+        .execute_contract(
+            addr.clone(),
+            stake_addr.clone(),
+            &ExecuteMsg::Bond {},
+            &stake,
+        )
         .unwrap();
 }
 
-fn unbond(app: &mut App<TgradeMsg>, addr: &HumanAddr, stake_addr: &HumanAddr, tokens: u128) {
+fn unbond(app: &mut App<TgradeMsg>, addr: &Addr, stake_addr: &Addr, tokens: u128) {
     let _ = app
         .execute_contract(
-            addr,
-            stake_addr,
+            addr.clone(),
+            stake_addr.clone(),
             &ExecuteMsg::Unbond {
                 tokens: Uint128(tokens),
             },
@@ -110,7 +115,7 @@ fn init_and_query_state() {
     // make a simple stake
     let stake_addr = instantiate_stake(&mut app);
     // make a valset that references it (this does init)
-    let valset_addr = instantiate_valset(&mut app, stake_addr.clone(), 10, 5);
+    let valset_addr = instantiate_valset(&mut app, &stake_addr, 10, 5);
 
     // check config
     let cfg: ConfigResponse = app
@@ -176,7 +181,7 @@ fn simulate_validators() {
     // make a simple stake
     let stake_addr = instantiate_stake(&mut app);
     // make a valset that references it (this does init)
-    let valset_addr = instantiate_valset(&mut app, stake_addr.clone(), 10, MIN_WEIGHT);
+    let valset_addr = instantiate_valset(&mut app, &stake_addr, 10, MIN_WEIGHT);
 
     // what do we expect?
     // 1..24 have pubkeys registered, we take the top 10, but none have stake yet, so zero
@@ -188,13 +193,13 @@ fn simulate_validators() {
 
     let operators: Vec<_> = addrs(PREREGISTER_MEMBERS)
         .iter()
-        .map(|addr| HumanAddr(addr.clone()))
+        .map(Addr::unchecked)
         .collect();
 
     // First, let's fund the operators
     let operator_funds = cosmwasm_std::coins(OPERATOR_FUNDS, BOND_DENOM);
     for op_addr in &operators {
-        app.set_bank_balance(op_addr.clone(), operator_funds.clone())
+        app.set_bank_balance(&op_addr, operator_funds.clone())
             .unwrap();
     }
 
@@ -227,7 +232,7 @@ fn simulate_validators() {
 
     let expected: Vec<_> = vec![ValidatorInfo {
         operator: op1_addr.clone(),
-        validator_pubkey: valid_operator(&op1_addr).validator_pubkey,
+        validator_pubkey: valid_operator(op1_addr.as_ref()).validator_pubkey,
         power: MIN_WEIGHT,
     }];
     assert_eq!(expected, active.validators);
@@ -250,12 +255,12 @@ fn simulate_validators() {
     let expected: Vec<_> = vec![
         ValidatorInfo {
             operator: op2_addr.clone(),
-            validator_pubkey: valid_operator(&op2_addr).validator_pubkey,
+            validator_pubkey: valid_operator(op2_addr.as_ref()).validator_pubkey,
             power: MIN_WEIGHT * 2,
         },
         ValidatorInfo {
             operator: op1_addr.clone(),
-            validator_pubkey: valid_operator(&op1_addr).validator_pubkey,
+            validator_pubkey: valid_operator(op1_addr.as_ref()).validator_pubkey,
             power: MIN_WEIGHT,
         },
     ];
@@ -282,17 +287,17 @@ fn simulate_validators() {
     let expected: Vec<_> = vec![
         ValidatorInfo {
             operator: op3_addr.clone(),
-            validator_pubkey: valid_operator(&op3_addr).validator_pubkey,
+            validator_pubkey: valid_operator(op3_addr.as_ref()).validator_pubkey,
             power: MIN_WEIGHT * 3 - 1,
         },
         ValidatorInfo {
             operator: op2_addr.clone(),
-            validator_pubkey: valid_operator(&op2_addr).validator_pubkey,
+            validator_pubkey: valid_operator(op2_addr.as_ref()).validator_pubkey,
             power: MIN_WEIGHT * 2,
         },
         ValidatorInfo {
             operator: op1_addr.clone(),
-            validator_pubkey: valid_operator(&op1_addr).validator_pubkey,
+            validator_pubkey: valid_operator(op1_addr.as_ref()).validator_pubkey,
             power: MIN_WEIGHT,
         },
     ];
@@ -314,12 +319,12 @@ fn simulate_validators() {
     let expected: Vec<_> = vec![
         ValidatorInfo {
             operator: op3_addr.clone(),
-            validator_pubkey: valid_operator(&op3_addr).validator_pubkey,
+            validator_pubkey: valid_operator(op3_addr.as_ref()).validator_pubkey,
             power: MIN_WEIGHT * 3 - 1,
         },
         ValidatorInfo {
             operator: op2_addr.clone(),
-            validator_pubkey: valid_operator(&op2_addr).validator_pubkey,
+            validator_pubkey: valid_operator(op2_addr.as_ref()).validator_pubkey,
             power: MIN_WEIGHT * 2,
         },
     ];

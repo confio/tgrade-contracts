@@ -184,9 +184,9 @@ dependencies = [
 
 [[package]]
 name = "cw20"
-version = "0.6.0-alpha3"
+version = "0.6.0-beta1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "d409712ffdf853e87e197109b9443fb74d89225281d6ba9884563ac17ee19694"
+checksum = "506f223bc762abf74529066cadde9d35d6bd72358ab967062d2472324a01b3b9"
 dependencies = [
  "cosmwasm-std",
  "cw0",
@@ -224,9 +224,9 @@ dependencies = [
 
 [[package]]
 name = "cw4-stake"
-version = "0.6.0-alpha3"
+version = "0.6.0-beta1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "b8cdfb90ae9f9d1b4f24b85be1a3caf824a73b6703319be2d3c88840a3da665a"
+checksum = "af9841933084e5a6efd0a3cb90b51c58399de3710f5cc384b79e2c6e99998dca"
 dependencies = [
  "cosmwasm-std",
  "cw-controllers",
