@@ -45,7 +45,9 @@ pub fn members(count: u32) -> Vec<Member> {
 // returns a list of addresses that are not in the cw4-stake
 // this can be used to check handling of members without pubkey registered
 pub fn nonmembers(count: u32) -> Vec<String> {
-    (1..count).map(|x| format!("non-member-{}", x)).collect()
+    (1..=count)
+        .map(|x| format!("non-member-{:03}", x))
+        .collect()
 }
 
 pub fn valid_operator(seed: &str) -> OperatorKey {

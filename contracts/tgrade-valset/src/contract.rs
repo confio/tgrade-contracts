@@ -528,7 +528,7 @@ mod test {
             .unwrap();
         assert_eq!(10, active.validators.len());
 
-        let mut expected: Vec<_> = addrs(24)
+        let mut expected: Vec<_> = addrs(PREREGISTER_MEMBERS)
             .into_iter()
             .enumerate()
             .map(|(idx, addr)| {
@@ -544,9 +544,113 @@ mod test {
         expected.reverse();
         expected.truncate(10);
         assert_eq!(expected, active.validators);
+
+        // list validator keys
+        let validator_keys: ListValidatorKeysResponse = app
+            .wrap()
+            .query_wasm_smart(
+                &valset_addr,
+                &QueryMsg::ListValidatorKeys {
+                    start_after: None,
+                    limit: None,
+                },
+            )
+            .unwrap();
+        assert_eq!(validator_keys.operators.len(), 10);
+
+        let expected: Vec<_> = nonmembers(10)
+            .into_iter()
+            .map(|addr| {
+                let val = valid_operator(&addr);
+                OperatorKey {
+                    operator: val.operator,
+                    validator_pubkey: val.validator_pubkey,
+                }
+            })
+            .collect();
+        assert_eq!(expected[1], validator_keys.operators[1]);
     }
 
-    // TODO: validator list (and modifications)
+    #[test]
+    fn validator_list() {
+        let mut app = mock_app();
+
+        // make a simple group
+        let group_addr = instantiate_group(&mut app, 36);
+        // make a valset that references it (this does init)
+        let valset_addr = instantiate_valset(&mut app, group_addr, 10, 5);
+
+        // List validator keys
+        // First come the non-members
+        let validator_keys: ListValidatorKeysResponse = app
+            .wrap()
+            .query_wasm_smart(
+                &valset_addr,
+                &QueryMsg::ListValidatorKeys {
+                    start_after: None,
+                    limit: Some(PREREGISTER_NONMEMBERS),
+                },
+            )
+            .unwrap();
+        assert_eq!(
+            validator_keys.operators.len(),
+            PREREGISTER_NONMEMBERS as usize
+        );
+
+        let expected: Vec<_> = nonmembers(PREREGISTER_NONMEMBERS)
+            .into_iter()
+            .map(|addr| {
+                let val = valid_operator(&addr);
+                OperatorKey {
+                    operator: val.operator,
+                    validator_pubkey: val.validator_pubkey,
+                }
+            })
+            .collect();
+        assert_eq!(expected, validator_keys.operators);
+
+        // Then come the members (2nd batch, different  limit)
+        debug_assert!(PREREGISTER_NONMEMBERS > 0);
+        let validator_keys: ListValidatorKeysResponse = app
+            .wrap()
+            .query_wasm_smart(
+                &valset_addr,
+                &QueryMsg::ListValidatorKeys {
+                    start_after: Some(validator_keys.operators.last().unwrap().operator.clone()),
+                    limit: Some(PREREGISTER_MEMBERS),
+                },
+            )
+            .unwrap();
+        assert_eq!(validator_keys.operators.len(), PREREGISTER_MEMBERS as usize);
+
+        let expected: Vec<_> = addrs(PREREGISTER_MEMBERS)
+            .into_iter()
+            .map(|addr| {
+                let val = valid_operator(&addr);
+                OperatorKey {
+                    operator: val.operator,
+                    validator_pubkey: val.validator_pubkey,
+                }
+            })
+            .collect();
+        assert_eq!(expected, validator_keys.operators);
+
+        // And that's all
+        debug_assert!(PREREGISTER_MEMBERS > 0);
+        let validator_keys: ListValidatorKeysResponse = app
+            .wrap()
+            .query_wasm_smart(
+                &valset_addr,
+                &QueryMsg::ListValidatorKeys {
+                    start_after: Some(validator_keys.operators.last().unwrap().operator.clone()),
+                    limit: None,
+                },
+            )
+            .unwrap();
+        assert_eq!(validator_keys.operators.len(), 0);
+
+        // TODO: validator list modifications
+    }
 
     // TODO: end block run
 
