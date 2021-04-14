@@ -49,7 +49,14 @@ mod test {
 
     fn unbond(app: &mut App<TgradeMsg>, addr: &HumanAddr, stake_addr: &HumanAddr, tokens: u128) {
         let _ = app
-            .execute_contract(addr, stake_addr, &ExecuteMsg::Unbond { tokens: Uint128(tokens) }, &[])
+            .execute_contract(
+                addr,
+                stake_addr,
+                &ExecuteMsg::Unbond {
+                    tokens: Uint128(tokens),
+                },
+                &[],
+            )
             .unwrap();
     }
 
@@ -147,7 +154,7 @@ mod test {
         assert_eq!(
             cfg,
             ConfigResponse {
-                membership: Cw4Contract(stake_addr.clone()),
+                membership: Cw4Contract(stake_addr),
                 min_weight: 5,
                 max_validators: 10,
                 scaling: None
