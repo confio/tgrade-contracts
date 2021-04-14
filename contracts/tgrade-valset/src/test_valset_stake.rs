@@ -47,6 +47,12 @@ mod test {
             .unwrap();
     }
 
+    fn unbond(app: &mut App<TgradeMsg>, addr: &HumanAddr, stake_addr: &HumanAddr, tokens: u128) {
+        let _ = app
+            .execute_contract(addr, stake_addr, &ExecuteMsg::Unbond { tokens: Uint128(tokens) }, &[])
+            .unwrap();
+    }
+
     // returns a list of addresses that are not in the cw4-stake
     // this can be used to check handling of members without pubkey registered
     fn nonmembers(count: u32) -> Vec<String> {
@@ -223,14 +229,11 @@ mod test {
         let op1_addr = &operators[0];
 
         // First, he does not bond enough tokens
-        let stake = cosmwasm_std::coins(
-            TOKENS_PER_WEIGHT * MIN_WEIGHT as u128 - 1 as u128,
-            BOND_DENOM,
-        );
+        let stake = cosmwasm_std::coins(TOKENS_PER_WEIGHT * MIN_WEIGHT as u128 - 1u128, BOND_DENOM);
         bond(&mut app, &op1_addr, &stake_addr, &stake);
 
         // what do we expect?
-        // 1..24 have pubkeys registered, we take the top 10, only one has stake, but not enough of it, so zero
+        // 1..24 have pubkeys registered, we take the top 10, only one has stake but not enough of it, so zero
         let active: ListActiveValidatorsResponse = app
             .wrap()
             .query_wasm_smart(&valset_addr, &QueryMsg::SimulateActiveValidators {})
@@ -242,7 +245,7 @@ mod test {
         bond(&mut app, &op1_addr, &stake_addr, &stake);
 
         // what do we expect?
-        // 1..24 have pubkeys registered, we take the top 10, but only one have stake yet
+        // only one have enough stake now, so one
         let active: ListActiveValidatorsResponse = app
             .wrap()
             .query_wasm_smart(&valset_addr, &QueryMsg::SimulateActiveValidators {})
@@ -260,11 +263,102 @@ mod test {
                 }
             })
             .collect();
-        /*
-        // remember, active validators returns sorted from highest power to lowest, take last ten
-        expected.reverse();
-        expected.truncate(10);
-        */
         assert_eq!(expected, active.validators);
+
+        // Other member bonds twice the minimum amount
+        let op2_addr = &operators[1];
+
+        let stake = cosmwasm_std::coins(TOKENS_PER_WEIGHT * MIN_WEIGHT as u128 * 2u128, BOND_DENOM);
+        bond(&mut app, &op2_addr, &stake_addr, &stake);
+
+        // what do we expect?
+        // two have stake, so two
+        let active: ListActiveValidatorsResponse = app
+            .wrap()
+            .query_wasm_smart(&valset_addr, &QueryMsg::SimulateActiveValidators {})
+            .unwrap();
+        assert_eq!(2, active.validators.len());
+
+        let mut expected: Vec<_> = addrs(2)
+            .into_iter()
+            .enumerate()
+            .map(|(idx, addr)| {
+                let val = valid_operator(&addr);
+                ValidatorInfo {
+                    operator: val.operator,
+                    validator_pubkey: val.validator_pubkey,
+                    power: MIN_WEIGHT * (idx as u64 + 1u64),
+                }
+            })
+            .collect();
+        // Active validators are returned sorted from highest power to lowest
+        expected.reverse();
+        assert_eq!(expected, active.validators);
+
+        // Other member bonds almost thrice the minimum amount
+        let op3_addr = &operators[2];
+
+        let stake = cosmwasm_std::coins(
+            TOKENS_PER_WEIGHT * MIN_WEIGHT as u128 * 3u128 - 1u128,
+            BOND_DENOM,
+        );
+        bond(&mut app, &op3_addr, &stake_addr, &stake);
+
+        // what do we expect?
+        // three have stake, so three
+        let active: ListActiveValidatorsResponse = app
+            .wrap()
+            .query_wasm_smart(&valset_addr, &QueryMsg::SimulateActiveValidators {})
+            .unwrap();
+        assert_eq!(3, active.validators.len());
+
+        let mut expected: Vec<_> = addrs(3)
+            .into_iter()
+            .enumerate()
+            .map(|(idx, addr)| {
+                let val = valid_operator(&addr);
+                ValidatorInfo {
+                    operator: val.operator,
+                    validator_pubkey: val.validator_pubkey,
+                    // power is being rounded down
+                    power: MIN_WEIGHT * (idx as u64 + 1u64) - (idx == 2) as u64,
+                }
+            })
+            .collect();
+        // Active validators are returned sorted from highest power to lowest
+        expected.reverse();
+        assert_eq!(expected, active.validators);
+
+        // Now, op1 unbonds some tokens
+        let tokens = 1;
+        unbond(&mut app, &op1_addr, &stake_addr, tokens);
+
+        // what do we expect?
+        // only two have enough stake, so two
+        let active: ListActiveValidatorsResponse = app
+            .wrap()
+            .query_wasm_smart(&valset_addr, &QueryMsg::SimulateActiveValidators {})
+            .unwrap();
+        assert_eq!(2, active.validators.len());
+
+        let mut expected: Vec<_> = addrs(3)
+            .into_iter()
+            .skip(1)
+            .enumerate()
+            .map(|(idx, addr)| {
+                let val = valid_operator(&addr);
+                ValidatorInfo {
+                    operator: val.operator,
+                    validator_pubkey: val.validator_pubkey,
+                    // power is being rounded down
+                    power: MIN_WEIGHT * (idx as u64 + 2u64) - (idx == 1) as u64,
+                }
+            })
+            .collect();
+        // Active validators are returned sorted from highest power to lowest
+        expected.reverse();
+        assert_eq!(expected, active.validators);
+
+        // And so on...
     }
 }
