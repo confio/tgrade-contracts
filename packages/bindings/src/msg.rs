@@ -1,7 +1,7 @@
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
-use cosmwasm_std::{Binary, CosmosMsg, HumanAddr, Uint128};
+use cosmwasm_std::{Binary, CosmosMsg, Uint128};
 
 use crate::gov::GovProposal;
 
@@ -16,7 +16,7 @@ pub enum TgradeMsg {
     MintTokens {
         denom: String,
         amount: Uint128,
-        recipient: HumanAddr,
+        recipient: String,
     },
     /// as well as adjust tendermint consensus params
     ConsensusParams(ConsensusParams),

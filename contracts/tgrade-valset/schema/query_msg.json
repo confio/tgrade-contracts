@@ -12,7 +12,8 @@
         "config": {
           "type": "object"
         }
-      }
+      },
+      "additionalProperties": false
     },
     {
       "description": "Returns EpochResponse - get info on current and next epochs",
@@ -24,7 +25,8 @@
         "epoch": {
           "type": "object"
         }
-      }
+      },
+      "additionalProperties": false
     },
     {
       "description": "Returns the validator key (if present) for the given operator",
@@ -40,11 +42,12 @@
           ],
           "properties": {
             "operator": {
-              "$ref": "#/definitions/HumanAddr"
+              "type": "string"
             }
           }
         }
-      }
+      },
+      "additionalProperties": false
     },
     {
       "description": "Paginate over all operators.",
@@ -65,18 +68,15 @@
               "minimum": 0.0
             },
             "start_after": {
-              "anyOf": [
-                {
-                  "$ref": "#/definitions/HumanAddr"
-                },
-                {
-                  "type": "null"
-                }
+              "type": [
+                "string",
+                "null"
               ]
             }
           }
         }
-      }
+      },
+      "additionalProperties": false
     },
     {
       "description": "List the current validator set, sorted by power descending (no pagination - reasonable limit from max_validators)",
@@ -88,7 +88,8 @@
         "list_active_validators": {
           "type": "object"
         }
-      }
+      },
+      "additionalProperties": false
     },
     {
       "description": "This will calculate who the new validators would be if we recalculated endblock right now. Also returns ListActiveValidatorsResponse",
@@ -100,12 +101,8 @@
         "simulate_active_validators": {
           "type": "object"
         }
-      }
+      },
+      "additionalProperties": false
     }
-  ],
-  "definitions": {
-    "HumanAddr": {
-      "type": "string"
-    }
-  }
+  ]
 }

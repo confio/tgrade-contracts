@@ -1,9 +1,8 @@
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
-use cosmwasm_std::HumanAddr;
-
 use crate::validator::ValidatorVote;
+use cosmwasm_std::Addr;
 
 #[derive(Serialize, Deserialize, Clone, PartialEq, JsonSchema, Debug)]
 #[serde(rename_all = "snake_case")]
@@ -30,15 +29,18 @@ pub struct ValidatorVoteResponse {
 
 #[derive(Serialize, Deserialize, Clone, PartialEq, JsonSchema, Debug)]
 pub struct ListBeginBlockersResponse {
-    pub begin_blockers: Vec<HumanAddr>,
+    // we can guarantee correctly formatted addresses from the Go runtime, use Addr here
+    pub begin_blockers: Vec<Addr>,
 }
 
 #[derive(Serialize, Deserialize, Clone, PartialEq, JsonSchema, Debug)]
 pub struct ListEndBlockersResponse {
-    pub end_blockers: Vec<HumanAddr>,
+    // we can guarantee correctly formatted addresses from the Go runtime, use Addr here
+    pub end_blockers: Vec<Addr>,
 }
 
 #[derive(Serialize, Deserialize, Clone, PartialEq, JsonSchema, Debug)]
 pub struct GetValidatorSetUpdaterResponse {
-    pub updater: Option<HumanAddr>,
+    // we can guarantee correctly formatted addresses from the Go runtime, use Addr here
+    pub updater: Option<Addr>,
 }

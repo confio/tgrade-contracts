@@ -1,7 +1,7 @@
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
-use cosmwasm_std::{Binary, HumanAddr};
+use cosmwasm_std::Binary;
 
 use crate::error::ContractError;
 use crate::state::{Config, ValidatorInfo};
@@ -13,7 +13,7 @@ pub const PUBKEY_LENGTH: usize = 32;
 #[serde(rename_all = "snake_case")]
 pub struct InstantiateMsg {
     /// address of a cw4 contract with the raw membership used to feed the validator set
-    pub membership: HumanAddr,
+    pub membership: String,
     /// minimum weight needed by an address in `membership` to be considered for the validator set.
     /// 0-weight members are always filtered out.
     /// TODO: if we allow sub-1 scaling factors, determine if this is pre-/post- scaling
@@ -65,7 +65,7 @@ impl InstantiateMsg {
 /// Maps an sdk address to a Tendermint pubkey.
 #[derive(Serialize, Deserialize, Clone, PartialEq, JsonSchema, Debug)]
 pub struct OperatorKey {
-    pub operator: HumanAddr,
+    pub operator: String,
     /// TODO: better name to specify this is the Tendermint pubkey for consensus?
     pub validator_pubkey: Binary,
 }
@@ -98,10 +98,10 @@ pub enum QueryMsg {
     Epoch {},
 
     /// Returns the validator key (if present) for the given operator
-    ValidatorKey { operator: HumanAddr },
+    ValidatorKey { operator: String },
     /// Paginate over all operators.
     ListValidatorKeys {
-        start_after: Option<HumanAddr>,
+        start_after: Option<String>,
         limit: Option<u32>,
     },
 

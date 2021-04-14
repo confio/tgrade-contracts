@@ -12,7 +12,8 @@
         "validator_votes": {
           "type": "object"
         }
-      }
+      },
+      "additionalProperties": false
     },
     {
       "type": "object",
@@ -23,7 +24,8 @@
         "hooks": {
           "$ref": "#/definitions/HooksQuery"
         }
-      }
+      },
+      "additionalProperties": false
     }
   ],
   "definitions": {
@@ -39,7 +41,8 @@
             "list_begin_blockers": {
               "type": "object"
             }
-          }
+          },
+          "additionalProperties": false
         },
         {
           "type": "object",
@@ -50,7 +53,8 @@
             "list_end_blockers": {
               "type": "object"
             }
-          }
+          },
+          "additionalProperties": false
         },
         {
           "type": "object",
@@ -61,7 +65,8 @@
             "get_validator_set_updater": {
               "type": "object"
             }
-          }
+          },
+          "additionalProperties": false
         }
       ]
     }

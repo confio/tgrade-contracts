@@ -24,7 +24,8 @@
             }
           }
         }
-      }
+      },
+      "additionalProperties": false
     },
     {
       "description": "This will be delivered every block if the contract is currently registered for End Block Block height and time is already in Env.",
@@ -36,7 +37,8 @@
         "end_block": {
           "type": "object"
         }
-      }
+      },
+      "additionalProperties": false
     },
     {
       "description": "This will be delivered after all end blockers if this is registered for ValidatorUpdates. If it sets Response.data, it must be a JSON-encoded ValidatorDiff, which will be used to change the validator set.",
@@ -48,7 +50,8 @@
         "end_with_validator_update": {
           "type": "object"
         }
-      }
+      },
+      "additionalProperties": false
     },
     {
       "type": "object",
@@ -59,7 +62,8 @@
         "privilege_change": {
           "$ref": "#/definitions/PrivilegeChangeMsg"
         }
-      }
+      },
+      "additionalProperties": false
     }
   ],
   "definitions": {
@@ -124,7 +128,8 @@
             "promoted": {
               "type": "object"
             }
-          }
+          },
+          "additionalProperties": false
         },
         {
           "description": "This is called when a contract looses \"privileged status\"",
@@ -136,7 +141,8 @@
             "demoted": {
               "type": "object"
             }
-          }
+          },
+          "additionalProperties": false
         }
       ]
     },

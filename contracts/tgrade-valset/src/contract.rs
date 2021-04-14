@@ -1,5 +1,5 @@
 use cosmwasm_std::{
-    entry_point, to_binary, Binary, Deps, DepsMut, Env, HumanAddr, MessageInfo, Order, StdError,
+    entry_point, to_binary, Addr, Binary, Deps, DepsMut, Env, MessageInfo, Order, StdError,
     StdResult,
 };
 use cw2::set_contract_version;
@@ -18,6 +18,7 @@ use crate::msg::{
     ListValidatorKeysResponse, OperatorKey, QueryMsg, ValidatorKeyResponse, PUBKEY_LENGTH,
 };
 use crate::state::{operators, Config, EpochInfo, ValidatorInfo, CONFIG, EPOCH, VALIDATORS};
+use cw0::maybe_addr;
 
 // version info for migration info
 const CONTRACT_NAME: &str = "crates.io:tgrade-valset";
@@ -37,7 +38,7 @@ pub fn instantiate(
 
     // verify the message and contract address are valid
     msg.validate()?;
-    let membership = Cw4Contract(msg.membership);
+    let membership = Cw4Contract(deps.api.addr_validate(&msg.membership)?);
     membership
         .total_weight(&deps.querier)
         .map_err(|_| ContractError::InvalidCw4Contract {})?;
@@ -61,9 +62,8 @@ pub fn instantiate(
     VALIDATORS.save(deps.storage, &vec![])?;
 
     for op in msg.initial_keys.into_iter() {
-        // FIXME: use new validate API
-        deps.api.canonical_address(&op.operator)?;
-        operators().save(deps.storage, &op.operator, &op.validator_pubkey)?;
+        let oper = deps.api.addr_validate(&op.operator)?;
+        operators().save(deps.storage, &oper, &op.validator_pubkey)?;
     }
 
     Ok(Response::default())
@@ -150,8 +150,9 @@ fn query_epoch(deps: Deps, env: Env) -> Result<EpochResponse, ContractError> {
 fn query_validator_key(
     deps: Deps,
     _env: Env,
-    operator: HumanAddr,
+    operator: String,
 ) -> Result<ValidatorKeyResponse, ContractError> {
+    let operator = deps.api.addr_validate(&operator)?;
     let pubkey = operators().may_load(deps.storage, &operator)?;
     Ok(ValidatorKeyResponse { pubkey })
 }
@@ -163,17 +164,18 @@ const DEFAULT_LIMIT: u32 = 10;
 fn list_validator_keys(
     deps: Deps,
     _env: Env,
-    start_after: Option<HumanAddr>,
+    start_after: Option<String>,
     limit: Option<u32>,
 ) -> Result<ListValidatorKeysResponse, ContractError> {
     let limit = limit.unwrap_or(DEFAULT_LIMIT).min(MAX_LIMIT) as usize;
-    let start = start_after.map(|addr| Bound::exclusive(addr.0));
+    let start_after = maybe_addr(deps.api, start_after)?;
+    let start = start_after.map(|addr| Bound::exclusive(addr.as_str()));
 
     let operators: StdResult<Vec<_>> = operators()
         .range(deps.storage, start, None, Order::Ascending)
         .map(|r| {
             let (key, validator_pubkey) = r?;
-            let operator = HumanAddr(String::from_utf8(key)?);
+            let operator = String::from_utf8(key)?;
             Ok(OperatorKey {
                 operator,
                 validator_pubkey,
@@ -273,13 +275,22 @@ fn calculate_validators(deps: Deps) -> Result<Vec<ValidatorInfo>, ContractError>
             .into_iter()
             .filter(|m| m.weight >= min_weight)
             .filter_map(|m| {
-                // any operator without a registered validator_pubkey is filtered out
-                // otherwise, we add this info
+                // why do we allow Addr::unchecked here?
+                // all valid keys for `operators()` are already validated before insertion
+                // we have 3 cases:
+                // 1. There is a match with operators().load(), this means it is a valid address and
+                //    has a pubkey registered -> count in our group
+                // 2. The address is valid, but has no pubkey registered in operators() -> skip
+                // 3. The address is invalid -> skip
+                //
+                // All 3 cases are handled properly below (operators.load() returns an Error on
+                // both 2 and 3), so we do not need to perform N addr_validate calls here
+                let m_addr = Addr::unchecked(&m.addr);
                 operators()
-                    .load(deps.storage, &m.addr)
+                    .load(deps.storage, &m_addr)
                     .ok()
                     .map(|validator_pubkey| ValidatorInfo {
-                        operator: m.addr,
+                        operator: m_addr,
                         validator_pubkey,
                         power: m.weight * scaling,
                     })
@@ -309,7 +320,7 @@ fn calculate_diff(cur_vals: Vec<ValidatorInfo>, old_vals: Vec<ValidatorInfo>) ->
             pubkey: val.validator_pubkey,
             power: val.power,
         };
-        old_map.insert(val.operator.0, v);
+        old_map.insert(String::from(val.operator), v);
     }
 
     // Add all the new values that have changed
@@ -317,7 +328,7 @@ fn calculate_diff(cur_vals: Vec<ValidatorInfo>, old_vals: Vec<ValidatorInfo>) ->
         .into_iter()
         .filter_map(|info| {
             // remove all old vals that are also new vals
-            if let Some(old) = old_map.remove(&info.operator.0) {
+            if let Some(old) = old_map.remove(info.operator.as_str()) {
                 // if no change, we return none to filter it out
                 if old.power == info.power {
                     return None;
@@ -369,7 +380,7 @@ mod test {
             .into_iter()
             .enumerate()
             .map(|(idx, addr)| Member {
-                addr: addr.into(),
+                addr,
                 weight: idx as u64,
             })
             .collect()
@@ -420,31 +431,33 @@ mod test {
     }
 
     // the group has a list of
-    fn instantiate_group(app: &mut App<TgradeMsg>, num_members: u32) -> HumanAddr {
+    fn instantiate_group(app: &mut App<TgradeMsg>, num_members: u32) -> Addr {
         let group_id = app.store_code(contract_group());
         let msg = cw4_group::msg::InstantiateMsg {
             admin: Some(GROUP_OWNER.into()),
             members: members(num_members),
         };
-        app.instantiate_contract(group_id, GROUP_OWNER, &msg, &[], "group")
+        let owner = Addr::unchecked(GROUP_OWNER);
+        app.instantiate_contract(group_id, owner, &msg, &[], "group")
             .unwrap()
     }
 
     // always registers 24 members and 12 non-members with pubkeys
     fn instantiate_valset(
         app: &mut App<TgradeMsg>,
-        group: HumanAddr,
+        group: Addr,
         max_validators: u32,
         min_weight: u64,
-    ) -> HumanAddr {
+    ) -> Addr {
         let valset_id = app.store_code(contract_valset());
         let msg = init_msg(group, max_validators, min_weight);
-        app.instantiate_contract(valset_id, GROUP_OWNER, &msg, &[], "flex")
+        let owner = Addr::unchecked(GROUP_OWNER);
+        app.instantiate_contract(valset_id, owner, &msg, &[], "flex")
             .unwrap()
     }
 
     // registers first PREREGISTER_MEMBERS members and PREREGISTER_NONMEMBERS non-members with pubkeys
-    fn init_msg(group_addr: HumanAddr, max_validators: u32, min_weight: u64) -> InstantiateMsg {
+    fn init_msg(group_addr: Addr, max_validators: u32, min_weight: u64) -> InstantiateMsg {
         let members = addrs(PREREGISTER_MEMBERS)
             .into_iter()
             .map(|s| valid_operator(&s));
@@ -453,7 +466,7 @@ mod test {
             .map(|s| valid_operator(&s));
 
         InstantiateMsg {
-            membership: group_addr,
+            membership: group_addr.into(),
             min_weight,
             max_validators,
             epoch_length: EPOCH_LENGTH,
@@ -552,7 +565,7 @@ mod test {
             .map(|(idx, addr)| {
                 let val = valid_operator(&addr);
                 ValidatorInfo {
-                    operator: val.operator,
+                    operator: Addr::unchecked(val.operator),
                     validator_pubkey: val.validator_pubkey,
                     power: idx as u64,
                 }
@@ -574,12 +587,12 @@ mod test {
         let empty: Vec<_> = vec![];
         let vals: Vec<_> = vec![
             ValidatorInfo {
-                operator: HumanAddr("op1".to_string()),
+                operator: Addr::unchecked("op1"),
                 validator_pubkey: Binary("pubkey1".into()),
                 power: 1,
             },
             ValidatorInfo {
-                operator: HumanAddr("op2".to_string()),
+                operator: Addr::unchecked("op2"),
                 validator_pubkey: Binary("pubkey2".into()),
                 power: 2,
             },
@@ -628,7 +641,7 @@ mod test {
         // Add a new member
         let mut cur = vals.clone();
         cur.push(ValidatorInfo {
-            operator: HumanAddr("op3".to_string()),
+            operator: Addr::unchecked("op3"),
             validator_pubkey: Binary("pubkey3".into()),
             power: 3,
         });

@@ -1,10 +1,6 @@
 [workspace]
 members = ["packages/*", "contracts/*"]
 
-[profile.release.package.tgrade-dso]
-codegen-units = 1
-incremental = false
-
 [profile.release.package.tgrade-valset]
 codegen-units = 1
 incremental = false

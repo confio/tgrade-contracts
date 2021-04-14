@@ -18,9 +18,6 @@
       "description": "Binary is a wrapper around Vec<u8> to add base64 de/serialization with serde. It also adds some helper methods to help encode inline.\n\nThis is only needed as serde-json-{core,wasm} has a horrible encoding for Vec<u8>",
       "type": "string"
     },
-    "HumanAddr": {
-      "type": "string"
-    },
     "OperatorKey": {
       "description": "Maps an sdk address to a Tendermint pubkey.",
       "type": "object",
@@ -30,7 +27,7 @@
       ],
       "properties": {
         "operator": {
-          "$ref": "#/definitions/HumanAddr"
+          "type": "string"
         },
         "validator_pubkey": {
           "description": "TODO: better name to specify this is the Tendermint pubkey for consensus?",

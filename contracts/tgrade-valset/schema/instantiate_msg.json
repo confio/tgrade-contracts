@@ -31,11 +31,7 @@
     },
     "membership": {
       "description": "address of a cw4 contract with the raw membership used to feed the validator set",
-      "allOf": [
-        {
-          "$ref": "#/definitions/HumanAddr"
-        }
-      ]
+      "type": "string"
     },
     "min_weight": {
       "description": "minimum weight needed by an address in `membership` to be considered for the validator set. 0-weight members are always filtered out. TODO: if we allow sub-1 scaling factors, determine if this is pre-/post- scaling (use weight for cw4, power for tendermint)",
@@ -58,9 +54,6 @@
       "description": "Binary is a wrapper around Vec<u8> to add base64 de/serialization with serde. It also adds some helper methods to help encode inline.\n\nThis is only needed as serde-json-{core,wasm} has a horrible encoding for Vec<u8>",
       "type": "string"
     },
-    "HumanAddr": {
-      "type": "string"
-    },
     "OperatorKey": {
       "description": "Maps an sdk address to a Tendermint pubkey.",
       "type": "object",
@@ -70,7 +63,7 @@
       ],
       "properties": {
         "operator": {
-          "$ref": "#/definitions/HumanAddr"
+          "type": "string"
         },
         "validator_pubkey": {
           "description": "TODO: better name to specify this is the Tendermint pubkey for consensus?",
