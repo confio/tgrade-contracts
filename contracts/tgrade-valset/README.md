@@ -80,4 +80,4 @@ pub enum QueryMsg {
 ## Future Work
 
 Extend `cw4` spec to allow querying members ordered by weight (descending), use this to get the
-member list more efficiently than iterating over all.
+member list more efficiently than iterating over all. (https://github.com/CosmWasm/cosmwasm-plus/issues/255)
