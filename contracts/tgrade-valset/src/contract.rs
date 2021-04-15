@@ -666,7 +666,7 @@ mod test {
             .unwrap();
         assert_eq!(0, active.validators.len());
 
-        // Force end block run through sudo call
+        // Trigger end block run through sudo call
         let _ = app
             .sudo(
                 valset_addr.clone(),
@@ -674,12 +674,14 @@ mod test {
             )
             .unwrap();
 
-        // end_block has run now, so validators list is updated
+        // End block has run now, so active validators list is updated
         let active: ListActiveValidatorsResponse = app
             .wrap()
             .query_wasm_smart(&valset_addr, &QueryMsg::ListActiveValidators {})
             .unwrap();
         assert_eq!(10, active.validators.len());
+
+        // TODO: Updates / epoch tests
     }
 
     // Unit tests for calculate_diff()
