@@ -353,12 +353,13 @@ fn calculate_diff(cur_vals: Vec<ValidatorInfo>, old_vals: Vec<ValidatorInfo>) ->
 
 #[cfg(test)]
 mod test {
-    use cosmwasm_std::testing::{mock_env, MockApi, MockStorage};
-    use cw4::Member;
-    use cw_multi_test::{App, Contract, ContractWrapper, SimpleBank};
+    use cw_multi_test::{App, Contract, ContractWrapper};
 
     use super::*;
-    use crate::test_helpers::{valid_operator, valid_validator};
+    use crate::test_helpers::{
+        addrs, contract_valset, members, mock_app, mock_pubkey, nonmembers, valid_operator,
+        valid_validator,
+    };
 
     const EPOCH_LENGTH: u64 = 100;
     const GROUP_OWNER: &str = "admin";
@@ -369,22 +370,6 @@ mod test {
 
     // Number of validators for tests
     const VALIDATORS: usize = 32;
-
-    // returns a list of addresses that are set in the cw4-group contract
-    fn addrs(count: u32) -> Vec<String> {
-        (1..=count).map(|x| format!("operator-{:03}", x)).collect()
-    }
-
-    fn members(count: u32) -> Vec<Member> {
-        addrs(count)
-            .into_iter()
-            .enumerate()
-            .map(|(idx, addr)| Member {
-                addr,
-                weight: idx as u64,
-            })
-            .collect()
-    }
 
     fn validators(count: usize) -> Vec<ValidatorInfo> {
         let mut p: u64 = 0;
@@ -398,22 +383,7 @@ mod test {
         vals
     }
 
-    // returns a list of addresses that are not in the cw4-group
-    // this can be used to check handling of members without pubkey registered
-    fn nonmembers(count: u32) -> Vec<String> {
-        (1..count).map(|x| format!("non-member-{}", x)).collect()
-    }
-
-    pub fn contract_valset() -> Box<dyn Contract<TgradeMsg>> {
-        let contract = ContractWrapper::new(
-            crate::contract::execute,
-            crate::contract::instantiate,
-            crate::contract::query,
-        );
-        Box::new(contract)
-    }
-
-    pub fn contract_group() -> Box<dyn Contract<TgradeMsg>> {
+    fn contract_group() -> Box<dyn Contract<TgradeMsg>> {
         let contract = ContractWrapper::new_with_empty(
             cw4_group::contract::execute,
             cw4_group::contract::instantiate,
@@ -422,12 +392,17 @@ mod test {
         Box::new(contract)
     }
 
-    fn mock_app() -> App<TgradeMsg> {
-        let env = mock_env();
-        let api = Box::new(MockApi::default());
-        let bank = SimpleBank {};
-
-        App::new(api, env.block, bank, || Box::new(MockStorage::new()))
+    // always registers 24 members and 12 non-members with pubkeys
+    pub fn instantiate_valset(
+        app: &mut App<TgradeMsg>,
+        stake: Addr,
+        max_validators: u32,
+        min_weight: u64,
+    ) -> Addr {
+        let valset_id = app.store_code(contract_valset());
+        let msg = init_msg(stake, max_validators, min_weight);
+        app.instantiate_contract(valset_id, Addr::unchecked(GROUP_OWNER), &msg, &[], "flex")
+            .unwrap()
     }
 
     // the group has a list of
@@ -439,20 +414,6 @@ mod test {
         };
         let owner = Addr::unchecked(GROUP_OWNER);
         app.instantiate_contract(group_id, owner, &msg, &[], "group")
-            .unwrap()
-    }
-
-    // always registers 24 members and 12 non-members with pubkeys
-    fn instantiate_valset(
-        app: &mut App<TgradeMsg>,
-        group: Addr,
-        max_validators: u32,
-        min_weight: u64,
-    ) -> Addr {
-        let valset_id = app.store_code(contract_valset());
-        let msg = init_msg(group, max_validators, min_weight);
-        let owner = Addr::unchecked(GROUP_OWNER);
-        app.instantiate_contract(valset_id, owner, &msg, &[], "flex")
             .unwrap()
     }
 
@@ -559,7 +520,7 @@ mod test {
             .unwrap();
         assert_eq!(10, active.validators.len());
 
-        let mut expected: Vec<_> = addrs(24)
+        let mut expected: Vec<_> = addrs(PREREGISTER_MEMBERS)
             .into_iter()
             .enumerate()
             .map(|(idx, addr)| {
@@ -577,9 +538,151 @@ mod test {
         assert_eq!(expected, active.validators);
     }
 
-    // TODO: validator list (and modifications)
+    #[test]
+    fn validator_list() {
+        let mut app = mock_app();
 
-    // TODO: end block run
+        // make a simple group
+        let group_addr = instantiate_group(&mut app, 36);
+        // make a valset that references it (this does init)
+        let valset_addr = instantiate_valset(&mut app, group_addr, 10, 5);
+
+        // List validator keys
+        // First come the non-members
+        let validator_keys: ListValidatorKeysResponse = app
+            .wrap()
+            .query_wasm_smart(
+                &valset_addr,
+                &QueryMsg::ListValidatorKeys {
+                    start_after: None,
+                    limit: Some(PREREGISTER_NONMEMBERS),
+                },
+            )
+            .unwrap();
+        assert_eq!(
+            validator_keys.operators.len(),
+            PREREGISTER_NONMEMBERS as usize
+        );
+
+        let expected: Vec<_> = nonmembers(PREREGISTER_NONMEMBERS)
+            .into_iter()
+            .map(|addr| {
+                let val = valid_operator(&addr);
+                OperatorKey {
+                    operator: val.operator,
+                    validator_pubkey: val.validator_pubkey,
+                }
+            })
+            .collect();
+        assert_eq!(expected, validator_keys.operators);
+
+        // Then come the members (2nd batch, different  limit)
+        let validator_keys: ListValidatorKeysResponse = app
+            .wrap()
+            .query_wasm_smart(
+                &valset_addr,
+                &QueryMsg::ListValidatorKeys {
+                    start_after: Some(validator_keys.operators.last().unwrap().operator.clone()),
+                    limit: Some(PREREGISTER_MEMBERS),
+                },
+            )
+            .unwrap();
+        assert_eq!(validator_keys.operators.len(), PREREGISTER_MEMBERS as usize);
+
+        let expected: Vec<_> = addrs(PREREGISTER_MEMBERS)
+            .into_iter()
+            .map(|addr| {
+                let val = valid_operator(&addr);
+                OperatorKey {
+                    operator: val.operator,
+                    validator_pubkey: val.validator_pubkey,
+                }
+            })
+            .collect();
+        assert_eq!(expected, validator_keys.operators);
+
+        // And that's all
+        let last = validator_keys.operators.last().unwrap().operator.clone();
+        let validator_keys: ListValidatorKeysResponse = app
+            .wrap()
+            .query_wasm_smart(
+                &valset_addr,
+                &QueryMsg::ListValidatorKeys {
+                    start_after: Some(last.clone()),
+                    limit: None,
+                },
+            )
+            .unwrap();
+        assert_eq!(validator_keys.operators.len(), 0);
+
+        // Validator list modifications
+        // Add a new operator
+        let new_operator: &str = "operator-999";
+        let _ = app
+            .execute_contract(
+                Addr::unchecked(new_operator),
+                valset_addr.clone(),
+                &ExecuteMsg::RegisterValidatorKey {
+                    pubkey: mock_pubkey(new_operator.as_bytes()),
+                },
+                &[],
+            )
+            .unwrap();
+
+        // Then come the operator
+        let validator_keys: ListValidatorKeysResponse = app
+            .wrap()
+            .query_wasm_smart(
+                &valset_addr,
+                &QueryMsg::ListValidatorKeys {
+                    start_after: Some(last),
+                    limit: None,
+                },
+            )
+            .unwrap();
+        assert_eq!(validator_keys.operators.len(), 1);
+
+        let expected: Vec<_> = vec![OperatorKey {
+            operator: new_operator.into(),
+            validator_pubkey: mock_pubkey(new_operator.as_bytes()),
+        }];
+        assert_eq!(expected, validator_keys.operators);
+    }
+
+    #[test]
+    fn end_block_run() {
+        let mut app = mock_app();
+
+        // make a simple group
+        let group_addr = instantiate_group(&mut app, 36);
+        // make a valset that references it (this does init)
+        let valset_addr = instantiate_valset(&mut app, group_addr, 10, 5);
+
+        // what do we expect?
+        // end_block hasn't run yet, so empty list
+        let active: ListActiveValidatorsResponse = app
+            .wrap()
+            .query_wasm_smart(&valset_addr, &QueryMsg::ListActiveValidators {})
+            .unwrap();
+        assert_eq!(0, active.validators.len());
+
+        // Trigger end block run through sudo call
+        let _ = app
+            .sudo(
+                valset_addr.clone(),
+                &TgradeSudoMsg::EndWithValidatorUpdate {},
+            )
+            .unwrap();
+
+        // End block has run now, so active validators list is updated
+        let active: ListActiveValidatorsResponse = app
+            .wrap()
+            .query_wasm_smart(&valset_addr, &QueryMsg::ListActiveValidators {})
+            .unwrap();
+        assert_eq!(10, active.validators.len());
+
+        // TODO: Updates / epoch tests
+    }
 
     // Unit tests for calculate_diff()
     #[test]
