@@ -1,9 +1,9 @@
 use cosmwasm_std::{
-    entry_point, to_binary, Addr, Binary, Deps, DepsMut, Env, MessageInfo, Order, StdError,
-    StdResult,
+    entry_point, to_binary, Addr, Binary, Deps, DepsMut, Empty, Env, MessageInfo, Order,
+    QuerierWrapper, QueryRequest, StdError, StdResult, WasmQuery,
 };
 use cw2::set_contract_version;
-use cw4::Cw4Contract;
+use cw4::{Cw4Contract, Member, MemberListResponse};
 use cw_storage_plus::Bound;
 use std::cmp::max;
 use std::collections::BTreeMap;
@@ -19,6 +19,7 @@ use crate::msg::{
 };
 use crate::state::{operators, Config, EpochInfo, ValidatorInfo, CONFIG, EPOCH, VALIDATORS};
 use cw0::maybe_addr;
+use cw4_group::msg::QueryMsg::ListMembersByWeight;
 
 // version info for migration info
 const CONTRACT_NAME: &str = "crates.io:tgrade-valset";
@@ -263,14 +264,12 @@ fn calculate_validators(deps: Deps) -> Result<Vec<ValidatorInfo>, ContractError>
     let scaling: u64 = cfg.scaling.unwrap_or(1).into();
 
     // get all validators from the contract, filtered
-    // FIXME: optimize when cw4 extension to handle list by weight is implemented
-    // https://github.com/CosmWasm/cosmwasm-plus/issues/255
     let mut validators = vec![];
-    let mut batch = cfg
-        .membership
-        .list_members(&deps.querier, None, QUERY_LIMIT)?;
+    let mut batch = list_members_by_weight(&deps.querier, &cfg.membership, None, QUERY_LIMIT)?;
+
     while !batch.is_empty() {
-        let last_addr = batch.last().unwrap().addr.clone();
+        let last = batch.last().unwrap();
+        let last = (last.weight, last.addr.clone());
         let filtered: Vec<_> = batch
             .into_iter()
             .filter(|m| m.weight >= min_weight)
@@ -299,17 +298,29 @@ fn calculate_validators(deps: Deps) -> Result<Vec<ValidatorInfo>, ContractError>
         validators.extend_from_slice(&filtered);
 
         // and get the next page
-        batch = cfg
-            .membership
-            .list_members(&deps.querier, Some(last_addr), QUERY_LIMIT)?;
+        batch = list_members_by_weight(&deps.querier, &cfg.membership, Some(last), QUERY_LIMIT)?;
     }
 
-    // sort so we get the highest first (this means we return the opposite result in cmp)
-    // and grab the top slots
-    validators.sort_by(|a, b| b.power.cmp(&a.power));
     validators.truncate(cfg.max_validators as usize);
 
     Ok(validators)
+}
+
+fn list_members_by_weight(
+    querier: &QuerierWrapper,
+    contract_addr: &Cw4Contract,
+    start_after: Option<(u64, String)>,
+    limit: Option<u32>,
+) -> StdResult<Vec<Member>> {
+    let msg = ListMembersByWeight { start_after, limit };
+    let query: QueryRequest<Empty> = WasmQuery::Smart {
+        contract_addr: contract_addr.addr().to_string(),
+        msg: to_binary(&msg)?,
+    }
+    .into();
+
+    let res: MemberListResponse = querier.query(&query)?;
+    Ok(res.members)
 }
 
 fn calculate_diff(cur_vals: Vec<ValidatorInfo>, old_vals: Vec<ValidatorInfo>) -> ValidatorDiff {
