@@ -571,6 +571,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "tg4"
+version = "0.1.0"
+dependencies = [
+ "cosmwasm-schema",
+ "cosmwasm-std",
+ "schemars",
+ "serde",
+]
+
+[[package]]
 name = "tgrade-bindings"
 version = "0.1.0"
 dependencies = [
