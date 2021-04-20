@@ -69,6 +69,41 @@ impl Ord for Pubkey {
     }
 }
 
+/// An Ed25519 public key.
+///
+/// This type is known to have the correct length, which serves as a minimal validation. This
+/// does not mean it is a valid curve point though.
+///
+/// ## Examples
+///
+/// This is generated from `Pubkey` as follows:
+///
+/// ```
+/// # use hex_literal::hex;
+/// use std::convert::TryFrom;
+/// use tgrade_bindings::{Ed25519Pubkey, Pubkey};
+///
+/// let pubkey = Pubkey::Ed25519(hex!("14253d61ef42d166d02e68d540d07fdf8d65a9af0acaa46302688e788a8521e2").into());
+/// let ed25519_pubkey = Ed25519Pubkey::try_from(pubkey);
+/// assert!(ed25519_pubkey.is_ok());
+///
+/// let pubkey = Pubkey::Secp256k1(hex!("0292a066ec32d37c607519d7a86eb2107013a26b160ce3da732ee76e9b2e502492").into());
+/// let ed25519_pubkey = Ed25519Pubkey::try_from(pubkey);
+/// assert!(ed25519_pubkey.is_err());
+/// ```
+///
+/// When we have an [Ed25519Pubkey] we can derive an address:
+///
+/// ```
+/// # use hex_literal::hex;
+/// use std::convert::TryFrom;
+/// use tgrade_bindings::{Ed25519Pubkey, Pubkey, ToAddress};
+///
+/// let pubkey = Pubkey::Ed25519(hex!("14253d61ef42d166d02e68d540d07fdf8d65a9af0acaa46302688e788a8521e2").into());
+/// let ed25519_pubkey = Ed25519Pubkey::try_from(pubkey).unwrap();
+/// let address = ed25519_pubkey.to_address();
+/// assert_eq!(address, hex!("0CDA3F47EF3C4906693B170EF650EB968C5F4B2C"));
+/// ```
 #[derive(Serialize, Deserialize, Clone, Debug)]
 pub struct Ed25519Pubkey([u8; 32]);
 
