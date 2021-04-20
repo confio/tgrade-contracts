@@ -1,5 +1,6 @@
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
+use std::cmp::Ordering;
 use std::convert::TryFrom;
 use std::convert::TryInto;
 
@@ -20,8 +21,8 @@ pub struct Validator {
 /// See https://github.com/tendermint/tendermint/blob/v0.34.8/proto/tendermint/abci/types.proto#L343-L346
 #[derive(Serialize, Deserialize, Clone, PartialEq, JsonSchema, Debug)]
 pub struct ValidatorUpdate {
-    /// This is the ed25519 pubkey used in Tendermint consensus
-    pub pubkey: Binary,
+    /// This is the pubkey used in Tendermint consensus
+    pub pubkey: Pubkey,
     /// This is the voting power in the consensus rounds
     pub power: u64,
 }
@@ -49,7 +50,7 @@ pub fn validator_addr(pubkey: Binary) -> Binary {
 /// If you don't trust the data source, you can create a `ValidatedPubkey` enum that mirrors this
 /// type and uses fixed sized data fields.
 #[non_exhaustive]
-#[derive(Serialize, Deserialize, Clone, PartialEq, JsonSchema, Debug)]
+#[derive(Serialize, Deserialize, Clone, JsonSchema, Debug, PartialEq, Eq)]
 #[serde(rename_all = "snake_case")]
 pub enum Pubkey {
     /// 32 bytes Ed25519 pubkey
@@ -58,7 +59,31 @@ pub enum Pubkey {
     Secp256k1(Binary),
 }
 
+impl PartialOrd for Pubkey {
+    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
+        Some(self.cmp(other))
+    }
+}
+
+impl Ord for Pubkey {
+    fn cmp(&self, other: &Self) -> Ordering {
+        match (self, other) {
+            (Pubkey::Ed25519(a), Pubkey::Ed25519(b)) => a.0.cmp(&b.0),
+            (Pubkey::Ed25519(_), Pubkey::Secp256k1(_)) => Ordering::Less,
+            (Pubkey::Secp256k1(_), Pubkey::Ed25519(_)) => Ordering::Greater,
+            (Pubkey::Secp256k1(a), Pubkey::Secp256k1(b)) => a.0.cmp(&b.0),
+        }
+    }
+}
+
+#[derive(Serialize, Deserialize, Clone, Debug)]
 pub struct Ed25519Pubkey([u8; 32]);
+
+impl Ed25519Pubkey {
+    pub fn to_vec(&self) -> Vec<u8> {
+        self.0.to_vec()
+    }
+}
 
 impl ToAddress for Ed25519Pubkey {
     fn to_address(&self) -> [u8; 20] {
@@ -71,16 +96,22 @@ pub trait ToAddress {
     fn to_address(&self) -> [u8; 20];
 }
 
+impl From<Ed25519Pubkey> for Pubkey {
+    fn from(ed: Ed25519Pubkey) -> Self {
+        Pubkey::Ed25519(ed.0.into())
+    }
+}
+
 #[derive(Debug)]
 pub enum Ed25519PubkeyConversionError {
     WrongType,
     InvalidDataLength,
 }
 
-impl TryFrom<Pubkey> for Ed25519Pubkey {
+impl<'a> TryFrom<&'a Pubkey> for Ed25519Pubkey {
     type Error = Ed25519PubkeyConversionError;
 
-    fn try_from(pubkey: Pubkey) -> Result<Self, Self::Error> {
+    fn try_from(pubkey: &'a Pubkey) -> Result<Self, Self::Error> {
         match pubkey {
             Pubkey::Ed25519(data) => {
                 let data: [u8; 32] = data
@@ -91,6 +122,14 @@ impl TryFrom<Pubkey> for Ed25519Pubkey {
             }
             _ => Err(Ed25519PubkeyConversionError::WrongType),
         }
+    }
+}
+
+impl TryFrom<Pubkey> for Ed25519Pubkey {
+    type Error = Ed25519PubkeyConversionError;
+
+    fn try_from(pubkey: Pubkey) -> Result<Self, Self::Error> {
+        Ed25519Pubkey::try_from(&pubkey)
     }
 }
 

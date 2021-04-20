@@ -1,13 +1,16 @@
 #![cfg(test)]
 
-use cosmwasm_std::{Addr, Binary};
-
-use crate::msg::{OperatorKey, PUBKEY_LENGTH};
-use crate::state::ValidatorInfo;
 use cosmwasm_std::testing::{mock_env, MockApi, MockStorage};
+use cosmwasm_std::{Addr, Binary};
 use cw4::Member;
 use cw_multi_test::{App, Contract, ContractWrapper, SimpleBank};
-use tgrade_bindings::TgradeMsg;
+
+use tgrade_bindings::{Pubkey, TgradeMsg};
+
+use crate::msg::OperatorKey;
+use crate::state::ValidatorInfo;
+
+const ED25519_PUBKEY_LENGTH: usize = 32;
 
 pub fn mock_app() -> App<TgradeMsg> {
     let env = mock_env();
@@ -61,7 +64,7 @@ pub fn valid_operator(seed: &str) -> OperatorKey {
 pub fn invalid_operator() -> OperatorKey {
     OperatorKey {
         operator: "foobar".into(),
-        validator_pubkey: b"too-short".into(),
+        validator_pubkey: Pubkey::Ed25519(b"too-short".into()),
     }
 }
 
@@ -74,9 +77,9 @@ pub fn valid_validator(seed: &str, power: u64) -> ValidatorInfo {
 }
 
 // creates a valid pubkey from a seed
-pub fn mock_pubkey(base: &[u8]) -> Binary {
-    let copies = (PUBKEY_LENGTH / base.len()) + 1;
+pub fn mock_pubkey(base: &[u8]) -> Pubkey {
+    let copies = (ED25519_PUBKEY_LENGTH / base.len()) + 1;
     let mut raw = base.repeat(copies);
-    raw.truncate(PUBKEY_LENGTH);
-    Binary(raw)
+    raw.truncate(ED25519_PUBKEY_LENGTH);
+    Pubkey::Ed25519(Binary(raw))
 }

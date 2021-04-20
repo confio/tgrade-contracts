@@ -1,13 +1,11 @@
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
+use std::convert::TryFrom;
 
-use cosmwasm_std::Binary;
+use tgrade_bindings::{Ed25519Pubkey, Pubkey};
 
 use crate::error::ContractError;
 use crate::state::{Config, ValidatorInfo};
-
-/// Required size of all tendermint pubkeys
-pub const PUBKEY_LENGTH: usize = 32;
 
 #[derive(Serialize, Deserialize, Clone, PartialEq, JsonSchema, Debug)]
 #[serde(rename_all = "snake_case")]
@@ -67,16 +65,13 @@ impl InstantiateMsg {
 pub struct OperatorKey {
     pub operator: String,
     /// TODO: better name to specify this is the Tendermint pubkey for consensus?
-    pub validator_pubkey: Binary,
+    pub validator_pubkey: Pubkey,
 }
 
 impl OperatorKey {
     pub fn validate(&self) -> Result<(), ContractError> {
-        if self.validator_pubkey.len() != PUBKEY_LENGTH {
-            Err(ContractError::InvalidPubkey {})
-        } else {
-            Ok(())
-        }
+        Ed25519Pubkey::try_from(&self.validator_pubkey)?;
+        Ok(())
     }
 }
 
@@ -86,7 +81,7 @@ pub enum ExecuteMsg {
     /// Links info.sender (operator) to this Tendermint consensus key.
     /// The operator cannot re-register another key.
     /// No two operators may have the same consensus_key.
-    RegisterValidatorKey { pubkey: Binary },
+    RegisterValidatorKey { pubkey: Pubkey },
 }
 
 #[derive(Serialize, Deserialize, Clone, PartialEq, JsonSchema, Debug)]
@@ -133,7 +128,7 @@ pub struct EpochResponse {
 #[derive(Serialize, Deserialize, Clone, PartialEq, JsonSchema, Debug)]
 pub struct ValidatorKeyResponse {
     /// This is unset if no validator registered
-    pub pubkey: Option<Binary>,
+    pub pubkey: Option<Pubkey>,
 }
 
 #[derive(Serialize, Deserialize, Clone, PartialEq, JsonSchema, Debug)]
