@@ -195,52 +195,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "cw4"
-version = "0.6.0-beta2"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "5406b21b05b4cffe3c0f053334e769d39149a118165efbff905d1ffe31c4e89c"
-dependencies = [
- "cosmwasm-std",
- "schemars",
- "serde",
-]
-
-[[package]]
-name = "cw4-group"
-version = "0.6.0-beta2"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "fe7f22ff0bfee2dd2c98fec7e14073003352fd563cb2725f1b451936804bf4cc"
-dependencies = [
- "cosmwasm-std",
- "cw-controllers",
- "cw-storage-plus",
- "cw0",
- "cw2",
- "cw4",
- "schemars",
- "serde",
- "thiserror",
-]
-
-[[package]]
-name = "cw4-stake"
-version = "0.6.0-beta2"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "b58d332d147d6f6ec20598b9d46471d1fb32f46aea31519e03b5059611104739"
-dependencies = [
- "cosmwasm-std",
- "cw-controllers",
- "cw-storage-plus",
- "cw0",
- "cw2",
- "cw20",
- "cw4",
- "schemars",
- "serde",
- "thiserror",
-]
-
-[[package]]
 name = "der"
 version = "0.1.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -639,11 +593,11 @@ dependencies = [
  "cw0",
  "cw2",
  "cw20",
- "cw4",
- "cw4-group",
- "cw4-stake",
  "schemars",
  "serde",
+ "tg4",
+ "tg4-group",
+ "tg4-stake",
  "tgrade-bindings",
  "thiserror",
 ]

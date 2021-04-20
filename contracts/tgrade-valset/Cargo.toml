@@ -3,7 +3,7 @@ name = "tgrade-valset"
 version = "0.1.0"
 authors = ["Ethan Frey <ethanfrey@users.noreply.github.com>"]
 edition = "2018"
-description = "Control the validator set based on membership of trusted cw4 contract"
+description = "Control the validator set based on membership of trusted tg4 contract"
 repository = "https://github.com/confio/tgrade-contracts"
 homepage = "https://tgrade.finance"
 
@@ -26,7 +26,7 @@ library = []
 [dependencies]
 cw0 = { version = "0.6.0-beta1" }
 cw2 = { version = "0.6.0-beta1" }
-cw4 = { version = "0.6.0-beta1" }
+tg4 = { path = "../../packages/tg4", version = "0.1.0" }
 cw-controllers = { version = "0.6.0-beta1" }
 cw-storage-plus = { version = "0.6.0-beta1", features = ["iterator"] }
 cosmwasm-std = { version = "0.14.0-beta3" }
@@ -39,5 +39,5 @@ thiserror = { version = "1.0.21" }
 cosmwasm-schema = { version = "0.14.0-beta3" }
 cw-multi-test = { version = "0.6.0-beta1" }
 cw20 = { version = "0.6.0-beta1" }
-cw4-group = { version = "0.6.0-beta1" }
-cw4-stake = { version = "0.6.0-beta1" }
+tg4-group = { path = "../tg4-group", version = "0.1.0" }
+tg4-stake = { path = "../tg4-stake", version = "0.1.0" }

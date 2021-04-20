@@ -1,15 +1,17 @@
-use cosmwasm_std::{
-    entry_point, to_binary, Addr, Binary, Deps, DepsMut, Env, MessageInfo, Order, StdError,
-    StdResult,
-};
-use cw0::maybe_addr;
-use cw2::set_contract_version;
-use cw4::Cw4Contract;
-use cw_storage_plus::Bound;
 use std::cmp::max;
 use std::collections::BTreeMap;
 use std::convert::TryInto;
 
+use cosmwasm_std::{
+    entry_point, to_binary, Addr, Binary, Deps, DepsMut, Env, MessageInfo, Order, StdError,
+    StdResult,
+};
+
+use cw0::maybe_addr;
+use cw2::set_contract_version;
+use cw_storage_plus::Bound;
+
+use tg4::Tg4Contract;
 use tgrade_bindings::{
     Ed25519Pubkey, HooksMsg, PrivilegeChangeMsg, Pubkey, TgradeMsg, TgradeSudoMsg, ValidatorDiff,
     ValidatorUpdate,
@@ -40,10 +42,10 @@ pub fn instantiate(
 
     // verify the message and contract address are valid
     msg.validate()?;
-    let membership = Cw4Contract(deps.api.addr_validate(&msg.membership)?);
+    let membership = Tg4Contract(deps.api.addr_validate(&msg.membership)?);
     membership
         .total_weight(&deps.querier)
-        .map_err(|_| ContractError::InvalidCw4Contract {})?;
+        .map_err(|_| ContractError::InvalidTg4Contract {})?;
 
     let cfg = Config {
         membership,
@@ -267,14 +269,14 @@ fn calculate_validators(deps: Deps) -> Result<Vec<ValidatorInfo>, ContractError>
     let scaling: u64 = cfg.scaling.unwrap_or(1).into();
 
     // get all validators from the contract, filtered
-    // FIXME: optimize when cw4 extension to handle list by weight is implemented
-    // https://github.com/CosmWasm/cosmwasm-plus/issues/255
     let mut validators = vec![];
     let mut batch = cfg
         .membership
-        .list_members(&deps.querier, None, QUERY_LIMIT)?;
+        .list_members_by_weight(&deps.querier, None, QUERY_LIMIT)?;
     while !batch.is_empty() {
-        let last_addr = batch.last().unwrap().addr.clone();
+        let last = batch.last().unwrap();
+        let last = Some((last.weight, last.addr.clone()));
+
         let filtered: Vec<_> = batch
             .into_iter()
             .filter(|m| m.weight >= min_weight)
@@ -305,12 +307,9 @@ fn calculate_validators(deps: Deps) -> Result<Vec<ValidatorInfo>, ContractError>
         // and get the next page
         batch = cfg
             .membership
-            .list_members(&deps.querier, Some(last_addr), QUERY_LIMIT)?;
+            .list_members_by_weight(&deps.querier, last, QUERY_LIMIT)?;
     }
 
-    // sort so we get the highest first (this means we return the opposite result in cmp)
-    // and grab the top slots
-    validators.sort_by(|a, b| b.power.cmp(&a.power));
     validators.truncate(cfg.max_validators as usize);
 
     Ok(validators)
@@ -389,9 +388,9 @@ mod test {
 
     fn contract_group() -> Box<dyn Contract<TgradeMsg>> {
         let contract = ContractWrapper::new_with_empty(
-            cw4_group::contract::execute,
-            cw4_group::contract::instantiate,
-            cw4_group::contract::query,
+            tg4_group::contract::execute,
+            tg4_group::contract::instantiate,
+            tg4_group::contract::query,
         );
         Box::new(contract)
     }
@@ -412,7 +411,7 @@ mod test {
     // the group has a list of
     fn instantiate_group(app: &mut App<TgradeMsg>, num_members: u32) -> Addr {
         let group_id = app.store_code(contract_group());
-        let msg = cw4_group::msg::InstantiateMsg {
+        let msg = tg4_group::msg::InstantiateMsg {
             admin: Some(GROUP_OWNER.into()),
             members: members(num_members),
         };
@@ -457,7 +456,7 @@ mod test {
         assert_eq!(
             cfg,
             ConfigResponse {
-                membership: Cw4Contract(group_addr),
+                membership: Tg4Contract(group_addr),
                 min_weight: 5,
                 max_validators: 10,
                 scaling: None
