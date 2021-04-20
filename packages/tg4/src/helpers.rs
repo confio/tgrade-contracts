@@ -136,6 +136,18 @@ impl Tg4Contract {
         Ok(res.members)
     }
 
+    pub fn list_members_by_weight(
+        &self,
+        querier: &QuerierWrapper,
+        start_after: Option<(u64, String)>,
+        limit: Option<u32>,
+    ) -> StdResult<Vec<Member>> {
+        let query =
+            self.encode_smart_query(Tg4QueryMsg::ListMembersByWeight { start_after, limit })?;
+        let res: MemberListResponse = querier.query(&query)?;
+        Ok(res.members)
+    }
+
     /// Read the admin
     pub fn admin(&self, querier: &QuerierWrapper) -> StdResult<Option<String>> {
         let query = self.encode_smart_query(Tg4QueryMsg::Admin {})?;
