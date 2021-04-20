@@ -1,8 +1,12 @@
-# CW4 Spec: Group Members
+# TG4 Spec: Group Members
 
-CW4 is a spec for storing group membership, which can be combined
-with CW3 multisigs. The purpose is to store a set of members/voters
-that can be accessed to determine permissions in another section.
+Based on [cosmwasm-plus](https://github.com/CosmWasm/cosmwasm-plus)
+[CW4](https://github.com/CosmWasm/cosmwasm-plus/tree/master/packages/cw4).
+
+TG4 is a spec for storing group membership, which can be combined
+with [CW3](https://github.com/CosmWasm/cosmwasm-plus/tree/master/packages/cw3) multisigs.
+The purpose is to store a set of members/voters that can be accessed
+to determine permissions in another section.
 
 Since this is often deployed as a contract pair, we expect this
 contract to often be queried with `QueryRaw` and the internal
@@ -40,7 +44,7 @@ Only the `admin` may execute any of these function. Thus, by omitting an
 If we include one, it may often be desired to be a `cw3` contract that
 uses this group contract as a group. This leads to a bit of chicken-and-egg
 problem, but we cover how to instantiate that in 
-[`cw3-flexible-multisig`](../../contracts/cw3-flexible-multisig/README.md#instantiation).
+[`cw3-flexible-multisig`](https://github.com/CosmWasm/cosmwasm-plus/tree/master/contracts/cw3-flexible-multisig/README.md#instantiation).
 
 ## Queries
 
@@ -51,7 +55,7 @@ problem, but we cover how to instantiate that in
   
 `Member{addr, height}` - Returns the weight of this voter if they are a member of the
   group (may be 0), or `None` if they are not a member of the group.
-  If height is set and the cw4 implementation supports snapshots,
+  If height is set and the tg4 implementation supports snapshots,
   this will return the weight of that member at
   the beginning of the block with the given height.
   
@@ -64,26 +68,26 @@ problem, but we cover how to instantiate that in
 
 In addition to the above "SmartQueries", which make up the public API,
 we define two raw queries that are designed for more efficiency
-in contract-contract calls. These use keys exported by `cw4`
+in contract-contract calls. These use keys exported by `tg4`
 
 `TOTAL_KEY` - making a raw query with this key (`b"total"`) will return a 
   JSON-encoded `u64`
   
-`members_key()` - takes a `CanonicalAddr` and returns a key that can be
+`members_key()` - takes an `Addr` and returns a key that can be
    used for raw query (`"\x00\x07members" || addr`). This will return 
    empty bytes if the member is not inside the group, otherwise a 
    JSON-encoded `u64`
  
 ## Hooks
 
-One special feature of the `cw4` contracts is they allow the admin to
+One special feature of the `tg4` contracts is that they allow the admin to
 register multiple hooks. These are special contracts that need to react
 to changes in the group membership, and this allows them stay in sync.
 Again, note this is a powerful ability and you should only set hooks
 to contracts you fully trust, generally some contracts you deployed
 alongside the group.
 
-If a contract is registered as a hook on a cw4 contract, then anytime
+If a contract is registered as a hook on a tg4 contract, then anytime
 `UpdateMembers` is successfully executed, the hook will receive a `handle`
 call with the following format:
 
