@@ -6,29 +6,28 @@ use cosmwasm_std::{
     QueryRequest, StdError, StdResult, SystemResult, WasmMsg, WasmQuery,
 };
 
-use crate::msg::Cw4ExecuteMsg;
+use crate::msg::Tg4ExecuteMsg;
 use crate::query::HooksResponse;
 use crate::{
-    member_key, AdminResponse, Cw4QueryMsg, Member, MemberListResponse, MemberResponse, TOTAL_KEY,
+    member_key, AdminResponse, Member, MemberListResponse, MemberResponse, Tg4QueryMsg, TOTAL_KEY,
 };
 
-/// Cw4Contract is a wrapper around Addr that provides a lot of helpers
-/// for working with cw4 contracts
+/// Tg4Contract is a wrapper around Addr that provides a lot of helpers
+/// for working with tg4 contracts
 ///
-/// If you wish to persist this, convert to Cw4CanonicalContract via .canonical()
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
-pub struct Cw4Contract(pub Addr);
+pub struct Tg4Contract(pub Addr);
 
-impl Cw4Contract {
+impl Tg4Contract {
     pub fn new(addr: Addr) -> Self {
-        Cw4Contract(addr)
+        Tg4Contract(addr)
     }
 
     pub fn addr(&self) -> Addr {
         self.0.clone()
     }
 
-    fn encode_msg(&self, msg: Cw4ExecuteMsg) -> StdResult<CosmosMsg> {
+    fn encode_msg(&self, msg: Tg4ExecuteMsg) -> StdResult<CosmosMsg> {
         Ok(WasmMsg::Execute {
             contract_addr: self.addr().into(),
             msg: to_binary(&msg)?,
@@ -38,23 +37,23 @@ impl Cw4Contract {
     }
 
     pub fn add_hook<T: Into<String>>(&self, addr: T) -> StdResult<CosmosMsg> {
-        let msg = Cw4ExecuteMsg::AddHook { addr: addr.into() };
+        let msg = Tg4ExecuteMsg::AddHook { addr: addr.into() };
         self.encode_msg(msg)
     }
 
     pub fn remove_hook<T: Into<String>>(&self, addr: T) -> StdResult<CosmosMsg> {
-        let msg = Cw4ExecuteMsg::AddHook { addr: addr.into() };
+        let msg = Tg4ExecuteMsg::AddHook { addr: addr.into() };
         self.encode_msg(msg)
     }
 
     pub fn update_admin<T: Into<String>>(&self, admin: Option<T>) -> StdResult<CosmosMsg> {
-        let msg = Cw4ExecuteMsg::UpdateAdmin {
+        let msg = Tg4ExecuteMsg::UpdateAdmin {
             admin: admin.map(|x| x.into()),
         };
         self.encode_msg(msg)
     }
 
-    fn encode_smart_query(&self, msg: Cw4QueryMsg) -> StdResult<QueryRequest<Empty>> {
+    fn encode_smart_query(&self, msg: Tg4QueryMsg) -> StdResult<QueryRequest<Empty>> {
         Ok(WasmQuery::Smart {
             contract_addr: self.addr().into(),
             msg: to_binary(&msg)?,
@@ -72,7 +71,7 @@ impl Cw4Contract {
 
     /// Show the hooks
     pub fn hooks(&self, querier: &QuerierWrapper) -> StdResult<Vec<String>> {
-        let query = self.encode_smart_query(Cw4QueryMsg::Hooks {})?;
+        let query = self.encode_smart_query(Tg4QueryMsg::Hooks {})?;
         let res: HooksResponse = querier.query(&query)?;
         Ok(res.hooks)
     }
@@ -118,7 +117,7 @@ impl Cw4Contract {
         member: T,
         height: u64,
     ) -> StdResult<Option<u64>> {
-        let query = self.encode_smart_query(Cw4QueryMsg::Member {
+        let query = self.encode_smart_query(Tg4QueryMsg::Member {
             addr: member.into(),
             at_height: Some(height),
         })?;
@@ -132,14 +131,14 @@ impl Cw4Contract {
         start_after: Option<String>,
         limit: Option<u32>,
     ) -> StdResult<Vec<Member>> {
-        let query = self.encode_smart_query(Cw4QueryMsg::ListMembers { start_after, limit })?;
+        let query = self.encode_smart_query(Tg4QueryMsg::ListMembers { start_after, limit })?;
         let res: MemberListResponse = querier.query(&query)?;
         Ok(res.members)
     }
 
     /// Read the admin
     pub fn admin(&self, querier: &QuerierWrapper) -> StdResult<Option<String>> {
-        let query = self.encode_smart_query(Cw4QueryMsg::Admin {})?;
+        let query = self.encode_smart_query(Tg4QueryMsg::Admin {})?;
         let res: AdminResponse = querier.query(&query)?;
         Ok(res.admin)
     }

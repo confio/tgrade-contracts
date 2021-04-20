@@ -3,7 +3,7 @@ use serde::{Deserialize, Serialize};
 
 use cosmwasm_std::{to_binary, Binary, CosmosMsg, StdResult, WasmMsg};
 
-/// MemberDiff shows the old and new states for a given cw4 member
+/// MemberDiff shows the old and new states for a given tg4 member
 /// They cannot both be None.
 /// old = None, new = Some -> Insert
 /// old = Some, new = Some -> Update
