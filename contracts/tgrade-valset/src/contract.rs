@@ -695,12 +695,12 @@ mod test {
         let vals: Vec<_> = vec![
             ValidatorInfo {
                 operator: Addr::unchecked("op1"),
-                validator_pubkey: Pubkey::Ed25519(Binary("pubkey1".into())),
+                validator_pubkey: Pubkey::Ed25519(b"pubkey1".into()),
                 power: 1,
             },
             ValidatorInfo {
                 operator: Addr::unchecked("op2"),
-                validator_pubkey: Pubkey::Ed25519(Binary("pubkey2".into())),
+                validator_pubkey: Pubkey::Ed25519(b"pubkey2".into()),
                 power: 2,
             },
         ];
@@ -716,11 +716,11 @@ mod test {
         assert_eq!(
             vec![
                 ValidatorUpdate {
-                    pubkey: Pubkey::Ed25519(Binary("pubkey1".into())),
+                    pubkey: Pubkey::Ed25519(b"pubkey1".into()),
                     power: 1
                 },
                 ValidatorUpdate {
-                    pubkey: Pubkey::Ed25519(Binary("pubkey2".into())),
+                    pubkey: Pubkey::Ed25519(b"pubkey2".into()),
                     power: 2
                 }
             ],
@@ -734,11 +734,11 @@ mod test {
         assert_eq!(
             vec![
                 ValidatorUpdate {
-                    pubkey: Pubkey::Ed25519(Binary("pubkey1".into())),
+                    pubkey: Pubkey::Ed25519(b"pubkey1".into()),
                     power: 0
                 },
                 ValidatorUpdate {
-                    pubkey: Pubkey::Ed25519(Binary("pubkey2".into())),
+                    pubkey: Pubkey::Ed25519(b"pubkey2".into()),
                     power: 0
                 }
             ],
@@ -749,7 +749,7 @@ mod test {
         let mut cur = vals.clone();
         cur.push(ValidatorInfo {
             operator: Addr::unchecked("op3"),
-            validator_pubkey: Pubkey::Ed25519(Binary("pubkey3".into())),
+            validator_pubkey: Pubkey::Ed25519(b"pubkey3".into()),
             power: 3,
         });
 
@@ -758,7 +758,7 @@ mod test {
         assert_eq!(diff.diffs.len(), 1);
         assert_eq!(
             vec![ValidatorUpdate {
-                pubkey: Pubkey::Ed25519(Binary("pubkey3".into())),
+                pubkey: Pubkey::Ed25519(b"pubkey3".into()),
                 power: 3
             },],
             diff.diffs
@@ -772,7 +772,7 @@ mod test {
         assert_eq!(diff.diffs.len(), 1);
         assert_eq!(
             vec![ValidatorUpdate {
-                pubkey: Pubkey::Ed25519(Binary("pubkey1".into())),
+                pubkey: Pubkey::Ed25519(b"pubkey1".into()),
                 power: 1
             },],
             diff.diffs
@@ -785,7 +785,7 @@ mod test {
         assert_eq!(diff.diffs.len(), 1);
         assert_eq!(
             vec![ValidatorUpdate {
-                pubkey: Pubkey::Ed25519(Binary("pubkey2".into())),
+                pubkey: Pubkey::Ed25519(b"pubkey2".into()),
                 power: 0
             },],
             diff.diffs
@@ -798,7 +798,7 @@ mod test {
         assert_eq!(diff.diffs.len(), 1);
         assert_eq!(
             vec![ValidatorUpdate {
-                pubkey: Pubkey::Ed25519(Binary("pubkey1".into())),
+                pubkey: Pubkey::Ed25519(b"pubkey1".into()),
                 power: 0
             },],
             diff.diffs
