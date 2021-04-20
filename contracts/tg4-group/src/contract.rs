@@ -5,7 +5,7 @@ use cosmwasm_std::{
 };
 use cw0::maybe_addr;
 use cw2::set_contract_version;
-use cw_storage_plus::Bound;
+use cw_storage_plus::{Bound, PrimaryKey, U64Key};
 use tg4::{
     Member, MemberChangedHookMsg, MemberDiff, MemberListResponse, MemberResponse,
     TotalWeightResponse,
@@ -13,7 +13,7 @@ use tg4::{
 
 use crate::error::ContractError;
 use crate::msg::{ExecuteMsg, InstantiateMsg, QueryMsg};
-use crate::state::{ADMIN, HOOKS, MEMBERS, TOTAL};
+use crate::state::{members, ADMIN, HOOKS, TOTAL};
 
 // version info for migration info
 const CONTRACT_NAME: &str = "crates.io:tg4-group";
@@ -38,7 +38,7 @@ pub fn instantiate(
 pub fn create(
     mut deps: DepsMut,
     admin: Option<String>,
-    members: Vec<Member>,
+    members_list: Vec<Member>,
     height: u64,
 ) -> Result<(), ContractError> {
     let admin_addr = admin
@@ -47,10 +47,10 @@ pub fn create(
     ADMIN.set(deps.branch(), admin_addr)?;
 
     let mut total = 0u64;
-    for member in members.into_iter() {
+    for member in members_list.into_iter() {
         total += member.weight;
         let member_addr = deps.api.addr_validate(&member.addr)?;
-        MEMBERS.save(deps.storage, &member_addr, &member.weight, height)?;
+        members().save(deps.storage, &member_addr, &member.weight, height)?;
     }
     TOTAL.save(deps.storage, &total)?;
 
@@ -126,7 +126,7 @@ pub fn update_members(
     // add all new members and update total
     for add in to_add.into_iter() {
         let add_addr = deps.api.addr_validate(&add.addr)?;
-        MEMBERS.update(deps.storage, &add_addr, height, |old| -> StdResult<_> {
+        members().update(deps.storage, &add_addr, height, |old| -> StdResult<_> {
             total -= old.unwrap_or_default();
             total += add.weight;
             diffs.push(MemberDiff::new(add.addr, old, Some(add.weight)));
@@ -136,12 +136,12 @@ pub fn update_members(
 
     for remove in to_remove.into_iter() {
         let remove_addr = deps.api.addr_validate(&remove)?;
-        let old = MEMBERS.may_load(deps.storage, &remove_addr)?;
+        let old = members().may_load(deps.storage, &remove_addr)?;
         // Only process this if they were actually in the list before
         if let Some(weight) = old {
             diffs.push(MemberDiff::new(remove, Some(weight), None));
             total -= weight;
-            MEMBERS.remove(deps.storage, &remove_addr, height)?;
+            members().remove(deps.storage, &remove_addr, height)?;
         }
     }
 
@@ -159,6 +159,9 @@ pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
         QueryMsg::ListMembers { start_after, limit } => {
             to_binary(&list_members(deps, start_after, limit)?)
         }
+        QueryMsg::ListMembersByWeight { start_after, limit } => {
+            to_binary(&list_members_by_weight(deps, start_after, limit)?)
+        }
         QueryMsg::TotalWeight {} => to_binary(&query_total_weight(deps)?),
         QueryMsg::Admin {} => to_binary(&ADMIN.query_admin(deps)?),
         QueryMsg::Hooks {} => to_binary(&HOOKS.query_hooks(deps)?),
@@ -173,8 +176,8 @@ fn query_total_weight(deps: Deps) -> StdResult<TotalWeightResponse> {
 fn query_member(deps: Deps, addr: String, height: Option<u64>) -> StdResult<MemberResponse> {
     let addr = deps.api.addr_validate(&addr)?;
     let weight = match height {
-        Some(h) => MEMBERS.may_load_at_height(deps.storage, &addr, h),
-        None => MEMBERS.may_load(deps.storage, &addr),
+        Some(h) => members().may_load_at_height(deps.storage, &addr, h),
+        None => members().may_load(deps.storage, &addr),
     }?;
     Ok(MemberResponse { weight })
 }
@@ -192,8 +195,33 @@ fn list_members(
     let addr = maybe_addr(deps.api, start_after)?;
     let start = addr.map(|addr| Bound::exclusive(addr.to_string()));
 
-    let members: StdResult<Vec<_>> = MEMBERS
+    let members: StdResult<Vec<_>> = members()
         .range(deps.storage, start, None, Order::Ascending)
+        .take(limit)
+        .map(|item| {
+            let (key, weight) = item?;
+            Ok(Member {
+                addr: String::from_utf8(key)?,
+                weight,
+            })
+        })
+        .collect();
+
+    Ok(MemberListResponse { members: members? })
+}
+
+fn list_members_by_weight(
+    deps: Deps,
+    start_after: Option<(u64, String)>,
+    limit: Option<u32>,
+) -> StdResult<MemberListResponse> {
+    let limit = limit.unwrap_or(DEFAULT_LIMIT).min(MAX_LIMIT) as usize;
+    let start =
+        start_after.map(|(w, a)| Bound::exclusive((U64Key::from(w), a.as_str()).joined_key()));
+    let members: StdResult<Vec<_>> = members()
+        .idx
+        .weight
+        .range(deps.storage, start, None, Order::Descending)
         .take(limit)
         .map(|item| {
             let (key, weight) = item?;
@@ -268,6 +296,8 @@ mod tests {
         let members = list_members(deps.as_ref(), None, None).unwrap();
         assert_eq!(members.members.len(), 2);
         // TODO: assert the set is proper
+
+        // TODO: Test pagination / limits
     }
 
     fn assert_users<S: Storage, A: Api, Q: Querier>(
