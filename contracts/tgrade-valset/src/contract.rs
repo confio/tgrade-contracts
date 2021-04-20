@@ -102,7 +102,8 @@ fn execute_register_validator_key(
     let mut res = Response::new();
     res.add_attribute("action", "register_validator_key");
     res.add_attribute("operator", info.sender);
-    res.add_attribute("pubkey", Binary::from(pubkey.to_vec()).to_base64());
+    res.add_attribute("pubkey_type", "ed25519");
+    res.add_attribute("pubkey_value", pubkey.to_base64());
     Ok(res)
 }
 

@@ -83,6 +83,11 @@ impl Ed25519Pubkey {
     pub fn to_vec(&self) -> Vec<u8> {
         self.0.to_vec()
     }
+
+    /// Returns the base64 encoded raw pubkey data.
+    pub fn to_base64(&self) -> String {
+        base64::encode(self.0)
+    }
 }
 
 impl ToAddress for Ed25519Pubkey {
