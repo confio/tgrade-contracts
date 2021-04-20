@@ -1,5 +1,6 @@
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
+use std::convert::TryFrom;
 use std::convert::TryInto;
 
 use sha2::{Digest, Sha256};
@@ -37,8 +38,8 @@ pub struct ValidatorVote {
 
 /// Calculate the validator address from the pubkey
 pub fn validator_addr(pubkey: Binary) -> Binary {
-    let pubkey = Pubkey::Ed25519(pubkey);
-    let address = pubkey.address();
+    let pubkey = Ed25519Pubkey::try_from(Pubkey::Ed25519(pubkey)).expect("Unhandled error");
+    let address = pubkey.to_address();
     address.into()
 }
 
@@ -57,17 +58,38 @@ pub enum Pubkey {
     Secp256k1(Binary),
 }
 
-#[derive(Debug)]
-pub struct InvalidEd25519PubkeyLength;
+pub struct Ed25519Pubkey([u8; 32]);
 
-impl Pubkey {
-    pub fn address(&self) -> [u8; 20] {
-        match self {
+impl ToAddress for Ed25519Pubkey {
+    fn to_address(&self) -> [u8; 20] {
+        let hash = Sha256::digest(&self.0);
+        hash[0..20].try_into().unwrap()
+    }
+}
+
+pub trait ToAddress {
+    fn to_address(&self) -> [u8; 20];
+}
+
+#[derive(Debug)]
+pub enum Ed25519PubkeyConversionError {
+    WrongType,
+    InvalidDataLength,
+}
+
+impl TryFrom<Pubkey> for Ed25519Pubkey {
+    type Error = Ed25519PubkeyConversionError;
+
+    fn try_from(pubkey: Pubkey) -> Result<Self, Self::Error> {
+        match pubkey {
             Pubkey::Ed25519(data) => {
-                let hash = Sha256::digest(data);
-                hash[0..20].try_into().unwrap()
+                let data: [u8; 32] = data
+                    .as_slice()
+                    .try_into()
+                    .map_err(|_| Ed25519PubkeyConversionError::InvalidDataLength)?;
+                Ok(Ed25519Pubkey(data))
             }
-            _ => panic!("Address derivation not implemented for this pubkey type"),
+            _ => Err(Ed25519PubkeyConversionError::WrongType),
         }
     }
 }
@@ -78,16 +100,14 @@ mod tests {
     use hex_literal::hex;
 
     #[test]
-    fn pubkey_address() {
+    fn ed25519pubkey_address() {
         // Test values from https://github.com/informalsystems/tendermint-rs/blob/v0.18.1/tendermint/src/account.rs#L153-L192
 
         // Ed25519
-        let input = hex!("14253D61EF42D166D02E68D540D07FDF8D65A9AF0ACAA46302688E788A8521E2");
-        let pubkey = Pubkey::Ed25519(input.into());
-        let address = pubkey.address();
+        let pubkey = Ed25519Pubkey(hex!(
+            "14253D61EF42D166D02E68D540D07FDF8D65A9AF0ACAA46302688E788A8521E2"
+        ));
+        let address = pubkey.to_address();
         assert_eq!(address, hex!("0CDA3F47EF3C4906693B170EF650EB968C5F4B2C"))
-
-        // Secp256k1
-        // Not implemented
     }
 }
