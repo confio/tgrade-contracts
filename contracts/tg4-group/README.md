@@ -1,6 +1,6 @@
 # TG4 Group
 
-This is a basic implementation of the [th4 spec](../../packages/tg4/README.md).
+This is a basic implementation of the [tg4 spec](../../packages/tg4/README.md).
 It fulfills all elements of the spec, including the raw query lookups,
 and it designed to be used as a backing storage for
 [cw3 compliant contracts](https://github.com/CosmWasm/cosmwasm-plus/blob/master/packages/cw3/README.mdl).

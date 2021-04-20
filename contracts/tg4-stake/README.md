@@ -1,18 +1,18 @@
-# CW4 Stake
+# TG4 Stake
 
-This is a second implementation of the [cw4 spec](../../packages/cw4/README.md).
+This is a second implementation of the [tg4_spec](../../packages/tg4/README.md).
 It fulfills all elements of the spec, including the raw query lookups,
 and is designed to be used as a backing storage for 
-[cw3 compliant contracts](../../packages/cw3/README.md).
+[cw3 compliant contracts](https://github.com/CosmWasm/cosmwasm-plus/blob/master/packages/cw3/README.md).
 
-It provides a similar API to [`cw4-group`] (which handles elected membership),
+It provides a similar API to `tg4-group` (which handles elected membership),
 but rather than appointing members (by admin or multisig), their
 membership and weight are based on the number of tokens they have staked.
 This is similar to many DAOs.
 
 Only one denom can be bonded with both `min_bond` as the minimum amount
 that must be sent by one address to enter, as well as `tokens_per_weight`,
-which can be used to normalize the weight (eg. if the token is uatom
+which can be used to normalize the weight (e.g. if the token is uatom,
 and you want 1 weight per ATOM, you can set `tokens_per_weight = 1_000_000`).
 
 There is also an unbonding period (`Duration`) which sets how long the
@@ -40,7 +40,7 @@ pub struct InstantiateMsg {
 
 Members are defined by an address and a weight. This is transformed
 and stored under their `CanonicalAddr`, in a format defined in
-[cw4 raw queries](../../packages/cw4/README.md#raw).
+[tg4 raw queries](../../packages/tg4/README.md#raw).
 
 Note that 0 *is an allowed weight*. This doesn't give any voting rights, 
 but it does define this address is part of the group, which may be
@@ -56,7 +56,7 @@ have any member with 0 weight.
 ## Messages
 
 Most messages and queries are defined by the 
-[cw4 spec](../../packages/cw4/README.md). Please refer to it for more info.
+[tg4 spec](../../packages/tg4/README.md). Please refer to it for more info.
 
 The following messages have been added to handle un/staking tokens:
 
@@ -67,7 +67,7 @@ The following messages have been added to handle un/staking tokens:
   and can claim them back to his wallet after `unbonding_period`
 
 `Claim{}` -  used to claim your native tokens that you previously "unbonded"
-  after the contract-defined waiting period (eg. 1 week)
+after the contract-defined waiting period (e.g. 1 week)
 
 And the corresponding queries:
 
