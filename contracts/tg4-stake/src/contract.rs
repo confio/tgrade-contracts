@@ -8,7 +8,7 @@ use cosmwasm_std::{
 use cw0::{maybe_addr, NativeBalance};
 use cw2::set_contract_version;
 use cw20::{Balance, Denom};
-use cw_storage_plus::Bound;
+use cw_storage_plus::{Bound, PrimaryKey, U64Key};
 use tg4::{
     Member, MemberChangedHookMsg, MemberDiff, MemberListResponse, MemberResponse,
     TotalWeightResponse,
@@ -16,7 +16,7 @@ use tg4::{
 
 use crate::error::ContractError;
 use crate::msg::{ExecuteMsg, InstantiateMsg, QueryMsg, StakedResponse};
-use crate::state::{Config, ADMIN, CLAIMS, CONFIG, HOOKS, MEMBERS, STAKE, TOTAL};
+use crate::state::{members, Config, ADMIN, CLAIMS, CONFIG, HOOKS, STAKE, TOTAL};
 
 // version info for migration info
 const CONTRACT_NAME: &str = "crates.io:tg4-stake";
@@ -195,7 +195,7 @@ fn update_membership(
 ) -> StdResult<Vec<CosmosMsg>> {
     // update their membership weight
     let new = calc_weight(new_stake, cfg);
-    let old = MEMBERS.may_load(storage, &sender)?;
+    let old = members().may_load(storage, &sender)?;
 
     // short-circuit if no change
     if new == old {
@@ -203,8 +203,8 @@ fn update_membership(
     }
     // otherwise, record change of weight
     match new.as_ref() {
-        Some(w) => MEMBERS.save(storage, &sender, w, height),
-        None => MEMBERS.remove(storage, &sender, height),
+        Some(w) => members().save(storage, &sender, w, height),
+        None => members().remove(storage, &sender, height),
     }?;
 
     // update total
@@ -286,6 +286,9 @@ pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
         QueryMsg::ListMembers { start_after, limit } => {
             to_binary(&list_members(deps, start_after, limit)?)
         }
+        QueryMsg::ListMembersByWeight { start_after, limit } => {
+            to_binary(&list_members_by_weight(deps, start_after, limit)?)
+        }
         QueryMsg::TotalWeight {} => to_binary(&query_total_weight(deps)?),
         QueryMsg::Claims { address } => {
             to_binary(&CLAIMS.query_claims(deps, &deps.api.addr_validate(&address)?)?)
@@ -320,8 +323,8 @@ pub fn query_staked(deps: Deps, addr: String) -> StdResult<StakedResponse> {
 fn query_member(deps: Deps, addr: String, height: Option<u64>) -> StdResult<MemberResponse> {
     let addr = deps.api.addr_validate(&addr)?;
     let weight = match height {
-        Some(h) => MEMBERS.may_load_at_height(deps.storage, &addr, h),
-        None => MEMBERS.may_load(deps.storage, &addr),
+        Some(h) => members().may_load_at_height(deps.storage, &addr, h),
+        None => members().may_load(deps.storage, &addr),
     }?;
     Ok(MemberResponse { weight })
 }
@@ -339,8 +342,34 @@ fn list_members(
     let addr = maybe_addr(deps.api, start_after)?;
     let start = addr.map(|addr| Bound::exclusive(addr.as_ref()));
 
-    let members: StdResult<Vec<_>> = MEMBERS
+    let members: StdResult<Vec<_>> = members()
         .range(deps.storage, start, None, Order::Ascending)
+        .take(limit)
+        .map(|item| {
+            let (key, weight) = item?;
+            Ok(Member {
+                addr: String::from_utf8(key)?,
+                weight,
+            })
+        })
+        .collect();
+
+    Ok(MemberListResponse { members: members? })
+}
+
+fn list_members_by_weight(
+    deps: Deps,
+    start_after: Option<(u64, String)>,
+    limit: Option<u32>,
+) -> StdResult<MemberListResponse> {
+    let limit = limit.unwrap_or(DEFAULT_LIMIT).min(MAX_LIMIT) as usize;
+    let start =
+        start_after.map(|(w, a)| Bound::exclusive((U64Key::from(w), a.as_str()).joined_key()));
+
+    let members: StdResult<Vec<_>> = members()
+        .idx
+        .weight
+        .range(deps.storage, None, start, Order::Descending)
         .take(limit)
         .map(|item| {
             let (key, weight) = item?;
@@ -528,6 +557,149 @@ mod tests {
         assert_users(deps.as_ref(), Some(12), Some(7), None, Some(height + 2)); // after first stake
         assert_users(deps.as_ref(), Some(12), Some(15), Some(5), Some(height + 3));
         // after second stake
+    }
+
+    #[test]
+    fn try_member_queries() {
+        let mut deps = mock_dependencies(&[]);
+        default_instantiate(deps.as_mut());
+
+        bond(deps.as_mut(), 12_000, 7_500, 4_000, 1);
+
+        let member1 = query_member(deps.as_ref(), USER1.into(), None).unwrap();
+        assert_eq!(member1.weight, Some(12));
+
+        let member2 = query_member(deps.as_ref(), USER2.into(), None).unwrap();
+        assert_eq!(member2.weight, Some(7));
+
+        let member3 = query_member(deps.as_ref(), USER3.into(), None).unwrap();
+        assert_eq!(member3.weight, None);
+
+        let members = list_members(deps.as_ref(), None, None).unwrap().members;
+        assert_eq!(members.len(), 2);
+        // Assert the set is proper
+        assert_eq!(
+            members,
+            vec![
+                Member {
+                    addr: USER2.into(),
+                    weight: 7
+                },
+                Member {
+                    addr: USER1.into(),
+                    weight: 12
+                },
+            ]
+        );
+
+        // Test pagination / limits
+        let members = list_members(deps.as_ref(), None, Some(1)).unwrap().members;
+        assert_eq!(members.len(), 1);
+        // Assert the set is proper
+        assert_eq!(
+            members,
+            vec![Member {
+                addr: USER2.into(),
+                weight: 7
+            },]
+        );
+
+        // Next page
+        let start_after = Some(members[0].addr.clone());
+        let members = list_members(deps.as_ref(), start_after, Some(1))
+            .unwrap()
+            .members;
+        assert_eq!(members.len(), 1);
+        // Assert the set is proper
+        assert_eq!(
+            members,
+            vec![Member {
+                addr: USER1.into(),
+                weight: 12
+            },]
+        );
+
+        // Assert there's no more
+        let start_after = Some(members[0].addr.clone());
+        let members = list_members(deps.as_ref(), start_after, Some(1))
+            .unwrap()
+            .members;
+        assert_eq!(members.len(), 0);
+    }
+
+    #[test]
+    fn try_list_members_by_weight() {
+        let mut deps = mock_dependencies(&[]);
+        default_instantiate(deps.as_mut());
+
+        bond(deps.as_mut(), 11_000, 6_500, 5_000, 1);
+
+        let members = list_members_by_weight(deps.as_ref(), None, None)
+            .unwrap()
+            .members;
+        assert_eq!(members.len(), 3);
+        // Assert the set is sorted by (descending) weight
+        assert_eq!(
+            members,
+            vec![
+                Member {
+                    addr: USER1.into(),
+                    weight: 11
+                },
+                Member {
+                    addr: USER2.into(),
+                    weight: 6
+                },
+                Member {
+                    addr: USER3.into(),
+                    weight: 5
+                }
+            ]
+        );
+
+        // Test pagination / limits
+        let members = list_members_by_weight(deps.as_ref(), None, Some(1))
+            .unwrap()
+            .members;
+        assert_eq!(members.len(), 1);
+        // Assert the set is proper
+        assert_eq!(
+            members,
+            vec![Member {
+                addr: USER1.into(),
+                weight: 11
+            },]
+        );
+
+        // Next page
+        let last = members.last().unwrap();
+        let start_after = Some((last.weight, last.addr.clone()));
+        let members = list_members_by_weight(deps.as_ref(), start_after, None)
+            .unwrap()
+            .members;
+        assert_eq!(members.len(), 2);
+        // Assert the set is proper
+        assert_eq!(
+            members,
+            vec![
+                Member {
+                    addr: USER2.into(),
+                    weight: 6
+                },
+                Member {
+                    addr: USER3.into(),
+                    weight: 5
+                }
+            ]
+        );
+
+        // Assert there's no more
+        let last = members.last().unwrap();
+        let start_after = Some((last.weight, last.addr.clone()));
+        let members = list_members_by_weight(deps.as_ref(), start_after, Some(1))
+            .unwrap()
+            .members;
+        assert_eq!(members.len(), 0);
     }
 
     #[test]

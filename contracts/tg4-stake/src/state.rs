@@ -4,12 +4,12 @@ use serde::{Deserialize, Serialize};
 use cosmwasm_std::{Addr, Uint128};
 use cw0::Duration;
 use cw20::Denom;
-use tg4::TOTAL_KEY;
 use cw_controllers::{Admin, Claims, Hooks};
 use cw_storage_plus::{
     Index, IndexList, IndexedSnapshotMap, Item, Map, MultiIndex, PkOwned, SnapshotMap, Strategy,
     U64Key,
 };
+use tg4::TOTAL_KEY;
 
 pub const CLAIMS: Claims = Claims::new("claims");
 
