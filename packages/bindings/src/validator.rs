@@ -39,6 +39,9 @@ pub struct ValidatorVote {
 
 /// A Tendermint validator pubkey.
 ///
+/// See https://github.com/tendermint/tendermint/blob/master/proto/tendermint/crypto/keys.proto for
+/// a list of available types. Sr25519 is added here as it is likely to join the party.
+///
 /// This type is optimized for the JSON interface. No data validation on the enum cases is performed.
 /// If you don't trust the data source, you can create a `ValidatedPubkey` enum that mirrors this
 /// type and uses fixed sized data fields.
@@ -50,21 +53,31 @@ pub enum Pubkey {
     Ed25519(Binary),
     /// Must use 33 bytes 0x02/0x03 prefixed compressed pubkey format
     Secp256k1(Binary),
+    /// 32 bytes Sr25519 pubkey
+    Sr25519(Binary),
 }
 
+// TODO: check if we can derive this automatically when Binary implements PartialOrd.
 impl PartialOrd for Pubkey {
     fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
         Some(self.cmp(other))
     }
 }
 
+// TODO: check if we can derive this automatically when Binary implements Ord.
 impl Ord for Pubkey {
     fn cmp(&self, other: &Self) -> Ordering {
         match (self, other) {
+            // Sort by case name, value
             (Pubkey::Ed25519(a), Pubkey::Ed25519(b)) => a.0.cmp(&b.0),
             (Pubkey::Ed25519(_), Pubkey::Secp256k1(_)) => Ordering::Less,
+            (Pubkey::Ed25519(_), Pubkey::Sr25519(_)) => Ordering::Less,
             (Pubkey::Secp256k1(_), Pubkey::Ed25519(_)) => Ordering::Greater,
             (Pubkey::Secp256k1(a), Pubkey::Secp256k1(b)) => a.0.cmp(&b.0),
+            (Pubkey::Secp256k1(_), Pubkey::Sr25519(_)) => Ordering::Less,
+            (Pubkey::Sr25519(_), Pubkey::Ed25519(_)) => Ordering::Greater,
+            (Pubkey::Sr25519(_), Pubkey::Secp256k1(_)) => Ordering::Greater,
+            (Pubkey::Sr25519(a), Pubkey::Sr25519(b)) => a.0.cmp(&b.0),
         }
     }
 }
@@ -73,6 +86,9 @@ impl Ord for Pubkey {
 ///
 /// This type is known to have the correct length, which serves as a minimal validation. This
 /// does not mean it is a valid curve point though.
+///
+/// Similar types `struct Secp256k1Pubkey([u8; 33])` and `struct Sr25519Pubkey([u8; 32])`
+/// should be created on demand.
 ///
 /// ## Examples
 ///
@@ -170,6 +186,23 @@ impl TryFrom<Pubkey> for Ed25519Pubkey {
 mod tests {
     use super::*;
     use hex_literal::hex;
+
+    #[test]
+    fn pubkey_implements_ord() {
+        let ed_a = Pubkey::Ed25519(b"abc".into());
+        let ed_b = Pubkey::Ed25519(b"bcd".into());
+        let se_a = Pubkey::Secp256k1(b"abc".into());
+        let se_b = Pubkey::Secp256k1(b"bcd".into());
+        let sr_a = Pubkey::Sr25519(b"abc".into());
+        let sr_b = Pubkey::Sr25519(b"bcd".into());
+        assert!(ed_a < ed_b);
+        assert!(se_a < se_b);
+        assert!(sr_a < sr_b);
+
+        assert!(ed_a < se_a);
+        assert!(se_a < sr_a);
+        assert!(ed_a < sr_a);
+    }
 
     #[test]
     fn ed25519pubkey_address() {

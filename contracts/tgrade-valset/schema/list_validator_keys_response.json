@@ -40,7 +40,7 @@
       }
     },
     "Pubkey": {
-      "description": "A Tendermint validator pubkey.\n\nThis type is optimized for the JSON interface. No data validation on the enum cases is performed. If you don't trust the data source, you can create a `ValidatedPubkey` enum that mirrors this type and uses fixed sized data fields.",
+      "description": "A Tendermint validator pubkey.\n\nSee https://github.com/tendermint/tendermint/blob/master/proto/tendermint/crypto/keys.proto for a list of available types. Sr25519 is added here as it is likely to join the party.\n\nThis type is optimized for the JSON interface. No data validation on the enum cases is performed. If you don't trust the data source, you can create a `ValidatedPubkey` enum that mirrors this type and uses fixed sized data fields.",
       "anyOf": [
         {
           "description": "32 bytes Ed25519 pubkey",
@@ -63,6 +63,19 @@
           ],
           "properties": {
             "secp256k1": {
+              "$ref": "#/definitions/Binary"
+            }
+          },
+          "additionalProperties": false
+        },
+        {
+          "description": "32 bytes Sr25519 pubkey",
+          "type": "object",
+          "required": [
+            "sr25519"
+          ],
+          "properties": {
+            "sr25519": {
               "$ref": "#/definitions/Binary"
             }
           },
