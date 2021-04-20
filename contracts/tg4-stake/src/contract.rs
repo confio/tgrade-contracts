@@ -8,18 +8,18 @@ use cosmwasm_std::{
 use cw0::{maybe_addr, NativeBalance};
 use cw2::set_contract_version;
 use cw20::{Balance, Denom};
-use cw4::{
+use cw_storage_plus::Bound;
+use tg4::{
     Member, MemberChangedHookMsg, MemberDiff, MemberListResponse, MemberResponse,
     TotalWeightResponse,
 };
-use cw_storage_plus::Bound;
 
 use crate::error::ContractError;
 use crate::msg::{ExecuteMsg, InstantiateMsg, QueryMsg, StakedResponse};
 use crate::state::{Config, ADMIN, CLAIMS, CONFIG, HOOKS, MEMBERS, STAKE, TOTAL};
 
 // version info for migration info
-const CONTRACT_NAME: &str = "crates.io:cw4-stake";
+const CONTRACT_NAME: &str = "crates.io:tg4-stake";
 const CONTRACT_VERSION: &str = env!("CARGO_PKG_VERSION");
 
 // Note, you can use StdResult in some functions where you do not
@@ -242,7 +242,7 @@ pub fn execute_claim(
     let amount;
     match &config.denom {
         Denom::Native(denom) => amount = coins(release.u128(), denom),
-        Denom::Cw20(_canonical_addr) => {
+        Denom::Cw20(_addr) => {
             unimplemented!("The CW20 coins release functionality is in progress")
         }
     }
@@ -360,8 +360,8 @@ mod tests {
     use cosmwasm_std::{from_slice, OverflowError, OverflowOperation, StdError, Storage};
     use cw0::Duration;
     use cw20::Denom;
-    use cw4::{member_key, TOTAL_KEY};
     use cw_controllers::{AdminError, Claim, HookError};
+    use tg4::{member_key, TOTAL_KEY};
 
     use crate::error::ContractError;
 

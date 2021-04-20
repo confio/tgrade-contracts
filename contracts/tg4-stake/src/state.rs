@@ -4,9 +4,9 @@ use serde::{Deserialize, Serialize};
 use cosmwasm_std::{Addr, Uint128};
 use cw0::Duration;
 use cw20::Denom;
-use cw4::TOTAL_KEY;
 use cw_controllers::{Admin, Claims, Hooks};
 use cw_storage_plus::{Item, Map, SnapshotMap, Strategy};
+use tg4::TOTAL_KEY;
 
 pub const CLAIMS: Claims = Claims::new("claims");
 
@@ -20,14 +20,14 @@ pub struct Config {
 }
 
 pub const ADMIN: Admin = Admin::new("admin");
-pub const HOOKS: Hooks = Hooks::new("cw4-hooks");
+pub const HOOKS: Hooks = Hooks::new("tg4-hooks");
 pub const CONFIG: Item<Config> = Item::new("config");
 pub const TOTAL: Item<u64> = Item::new(TOTAL_KEY);
 
 pub const MEMBERS: SnapshotMap<&Addr, u64> = SnapshotMap::new(
-    cw4::MEMBERS_KEY,
-    cw4::MEMBERS_CHECKPOINTS,
-    cw4::MEMBERS_CHANGELOG,
+    tg4::MEMBERS_KEY,
+    tg4::MEMBERS_CHECKPOINTS,
+    tg4::MEMBERS_CHANGELOG,
     Strategy::EveryBlock,
 );
 
