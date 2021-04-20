@@ -37,13 +37,6 @@ pub struct ValidatorVote {
     pub voted: bool,
 }
 
-/// Calculate the validator address from the pubkey
-pub fn validator_addr(pubkey: Binary) -> Binary {
-    let pubkey = Ed25519Pubkey::try_from(Pubkey::Ed25519(pubkey)).expect("Unhandled error");
-    let address = pubkey.to_address();
-    address.into()
-}
-
 /// A Tendermint validator pubkey.
 ///
 /// This type is optimized for the JSON interface. No data validation on the enum cases is performed.
