@@ -1,5 +1,5 @@
 use std::cmp::max;
-use std::collections::BTreeMap;
+use std::collections::BTreeSet;
 use std::convert::TryInto;
 
 use cosmwasm_std::{
@@ -317,16 +317,16 @@ fn calculate_validators(deps: Deps) -> Result<Vec<ValidatorInfo>, ContractError>
 
 fn calculate_diff(cur_vals: Vec<ValidatorInfo>, old_vals: Vec<ValidatorInfo>) -> ValidatorDiff {
     // Additions and updates
-    let cur: HashSet<_> = cur_vals.iter().collect();
-    let old: HashSet<_> = old_vals.iter().collect();
+    let cur: BTreeSet<_> = cur_vals.iter().collect();
+    let old: BTreeSet<_> = old_vals.iter().collect();
     let additions_updates: Vec<_> = cur.difference(&old).collect();
 
     // Removals
-    let cur: HashSet<_> = cur_vals
+    let cur: BTreeSet<_> = cur_vals
         .iter()
         .map(|vi| vi.validator_pubkey.clone())
         .collect();
-    let old: HashSet<_> = old_vals
+    let old: BTreeSet<_> = old_vals
         .iter()
         .map(|vi| vi.validator_pubkey.clone())
         .collect();
