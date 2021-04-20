@@ -5,18 +5,18 @@ use cosmwasm_std::{
 };
 use cw0::maybe_addr;
 use cw2::set_contract_version;
-use cw4::{
+use cw_storage_plus::Bound;
+use tg4::{
     Member, MemberChangedHookMsg, MemberDiff, MemberListResponse, MemberResponse,
     TotalWeightResponse,
 };
-use cw_storage_plus::Bound;
 
 use crate::error::ContractError;
 use crate::msg::{ExecuteMsg, InstantiateMsg, QueryMsg};
 use crate::state::{ADMIN, HOOKS, MEMBERS, TOTAL};
 
 // version info for migration info
-const CONTRACT_NAME: &str = "crates.io:cw4-group";
+const CONTRACT_NAME: &str = "crates.io:tg4-group";
 const CONTRACT_VERSION: &str = env!("CARGO_PKG_VERSION");
 
 // Note, you can use StdResult in some functions where you do not
@@ -212,8 +212,8 @@ mod tests {
     use super::*;
     use cosmwasm_std::testing::{mock_dependencies, mock_env, mock_info};
     use cosmwasm_std::{from_slice, Api, OwnedDeps, Querier, Storage};
-    use cw4::{member_key, TOTAL_KEY};
     use cw_controllers::{AdminError, HookError};
+    use tg4::{member_key, TOTAL_KEY};
 
     const INIT_ADMIN: &str = "juan";
     const USER1: &str = "somebody";
