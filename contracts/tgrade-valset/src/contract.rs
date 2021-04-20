@@ -2,23 +2,25 @@ use cosmwasm_std::{
     entry_point, to_binary, Addr, Binary, Deps, DepsMut, Env, MessageInfo, Order, StdError,
     StdResult,
 };
+use cw0::maybe_addr;
 use cw2::set_contract_version;
 use cw4::Cw4Contract;
 use cw_storage_plus::Bound;
 use std::cmp::max;
 use std::collections::BTreeMap;
+use std::convert::TryInto;
 
 use tgrade_bindings::{
-    HooksMsg, PrivilegeChangeMsg, TgradeMsg, TgradeSudoMsg, ValidatorDiff, ValidatorUpdate,
+    Ed25519Pubkey, HooksMsg, PrivilegeChangeMsg, Pubkey, TgradeMsg, TgradeSudoMsg, ValidatorDiff,
+    ValidatorUpdate,
 };
 
 use crate::error::ContractError;
 use crate::msg::{
     ConfigResponse, EpochResponse, ExecuteMsg, InstantiateMsg, ListActiveValidatorsResponse,
-    ListValidatorKeysResponse, OperatorKey, QueryMsg, ValidatorKeyResponse, PUBKEY_LENGTH,
+    ListValidatorKeysResponse, OperatorKey, QueryMsg, ValidatorKeyResponse,
 };
 use crate::state::{operators, Config, EpochInfo, ValidatorInfo, CONFIG, EPOCH, VALIDATORS};
-use cw0::maybe_addr;
 
 // version info for migration info
 const CONTRACT_NAME: &str = "crates.io:tgrade-valset";
@@ -63,7 +65,8 @@ pub fn instantiate(
 
     for op in msg.initial_keys.into_iter() {
         let oper = deps.api.addr_validate(&op.operator)?;
-        operators().save(deps.storage, &oper, &op.validator_pubkey)?;
+        let pubkey: Ed25519Pubkey = op.validator_pubkey.try_into()?;
+        operators().save(deps.storage, &oper, &pubkey)?;
     }
 
     Ok(Response::default())
@@ -87,11 +90,9 @@ fn execute_register_validator_key(
     deps: DepsMut,
     _env: Env,
     info: MessageInfo,
-    pubkey: Binary,
+    pubkey: Pubkey,
 ) -> Result<Response, ContractError> {
-    if pubkey.len() != PUBKEY_LENGTH {
-        return Err(ContractError::InvalidPubkey {});
-    }
+    let pubkey: Ed25519Pubkey = pubkey.try_into()?;
 
     match operators().may_load(deps.storage, &info.sender)? {
         Some(_) => return Err(ContractError::OperatorRegistered {}),
@@ -101,7 +102,8 @@ fn execute_register_validator_key(
     let mut res = Response::new();
     res.add_attribute("action", "register_validator_key");
     res.add_attribute("operator", info.sender);
-    res.add_attribute("pubkey", pubkey.to_base64());
+    res.add_attribute("pubkey_type", "ed25519");
+    res.add_attribute("pubkey_value", pubkey.to_base64());
     Ok(res)
 }
 
@@ -154,7 +156,9 @@ fn query_validator_key(
 ) -> Result<ValidatorKeyResponse, ContractError> {
     let operator = deps.api.addr_validate(&operator)?;
     let pubkey = operators().may_load(deps.storage, &operator)?;
-    Ok(ValidatorKeyResponse { pubkey })
+    Ok(ValidatorKeyResponse {
+        pubkey: pubkey.map(|p| p.into()),
+    })
 }
 
 // settings for pagination
@@ -178,7 +182,7 @@ fn list_validator_keys(
             let operator = String::from_utf8(key)?;
             Ok(OperatorKey {
                 operator,
-                validator_pubkey,
+                validator_pubkey: validator_pubkey.into(),
             })
         })
         .take(limit)
@@ -291,7 +295,7 @@ fn calculate_validators(deps: Deps) -> Result<Vec<ValidatorInfo>, ContractError>
                     .ok()
                     .map(|validator_pubkey| ValidatorInfo {
                         operator: m_addr,
-                        validator_pubkey,
+                        validator_pubkey: validator_pubkey.into(),
                         power: m.weight * scaling,
                     })
             })
@@ -691,12 +695,12 @@ mod test {
         let vals: Vec<_> = vec![
             ValidatorInfo {
                 operator: Addr::unchecked("op1"),
-                validator_pubkey: Binary("pubkey1".into()),
+                validator_pubkey: Pubkey::Ed25519(b"pubkey1".into()),
                 power: 1,
             },
             ValidatorInfo {
                 operator: Addr::unchecked("op2"),
-                validator_pubkey: Binary("pubkey2".into()),
+                validator_pubkey: Pubkey::Ed25519(b"pubkey2".into()),
                 power: 2,
             },
         ];
@@ -708,15 +712,15 @@ mod test {
         // diff with empty must be itself (additions)
         let mut diff = calculate_diff(vals.clone(), empty.clone());
         assert_eq!(diff.diffs.len(), 2);
-        diff.diffs.sort_by_key(|vu| vu.pubkey.0.clone());
+        diff.diffs.sort_by_key(|vu| vu.pubkey.clone());
         assert_eq!(
             vec![
                 ValidatorUpdate {
-                    pubkey: Binary("pubkey1".into()),
+                    pubkey: Pubkey::Ed25519(b"pubkey1".into()),
                     power: 1
                 },
                 ValidatorUpdate {
-                    pubkey: Binary("pubkey2".into()),
+                    pubkey: Pubkey::Ed25519(b"pubkey2".into()),
                     power: 2
                 }
             ],
@@ -726,15 +730,15 @@ mod test {
         // diff between empty and vals must be removals
         let mut diff = calculate_diff(empty, vals.clone());
         assert_eq!(diff.diffs.len(), 2);
-        diff.diffs.sort_by_key(|vu| vu.pubkey.0.clone());
+        diff.diffs.sort_by_key(|vu| vu.pubkey.clone());
         assert_eq!(
             vec![
                 ValidatorUpdate {
-                    pubkey: Binary("pubkey1".into()),
+                    pubkey: Pubkey::Ed25519(b"pubkey1".into()),
                     power: 0
                 },
                 ValidatorUpdate {
-                    pubkey: Binary("pubkey2".into()),
+                    pubkey: Pubkey::Ed25519(b"pubkey2".into()),
                     power: 0
                 }
             ],
@@ -745,7 +749,7 @@ mod test {
         let mut cur = vals.clone();
         cur.push(ValidatorInfo {
             operator: Addr::unchecked("op3"),
-            validator_pubkey: Binary("pubkey3".into()),
+            validator_pubkey: Pubkey::Ed25519(b"pubkey3".into()),
             power: 3,
         });
 
@@ -754,7 +758,7 @@ mod test {
         assert_eq!(diff.diffs.len(), 1);
         assert_eq!(
             vec![ValidatorUpdate {
-                pubkey: Binary("pubkey3".into()),
+                pubkey: Pubkey::Ed25519(b"pubkey3".into()),
                 power: 3
             },],
             diff.diffs
@@ -768,7 +772,7 @@ mod test {
         assert_eq!(diff.diffs.len(), 1);
         assert_eq!(
             vec![ValidatorUpdate {
-                pubkey: Binary("pubkey1".into()),
+                pubkey: Pubkey::Ed25519(b"pubkey1".into()),
                 power: 1
             },],
             diff.diffs
@@ -781,7 +785,7 @@ mod test {
         assert_eq!(diff.diffs.len(), 1);
         assert_eq!(
             vec![ValidatorUpdate {
-                pubkey: Binary("pubkey2".into()),
+                pubkey: Pubkey::Ed25519(b"pubkey2".into()),
                 power: 0
             },],
             diff.diffs
@@ -794,7 +798,7 @@ mod test {
         assert_eq!(diff.diffs.len(), 1);
         assert_eq!(
             vec![ValidatorUpdate {
-                pubkey: Binary("pubkey1".into()),
+                pubkey: Pubkey::Ed25519(b"pubkey1".into()),
                 power: 0
             },],
             diff.diffs
@@ -813,7 +817,7 @@ mod test {
         // diff with empty must be itself (additions)
         let mut diff = calculate_diff(vals.clone(), empty.clone());
         assert_eq!(diff.diffs.len(), VALIDATORS);
-        diff.diffs.sort_by_key(|vu| vu.pubkey.0.clone());
+        diff.diffs.sort_by_key(|vu| vu.pubkey.clone());
         assert_eq!(
             ValidatorDiff {
                 diffs: vals
@@ -830,7 +834,7 @@ mod test {
         // diff between empty and vals must be removals
         let mut diff = calculate_diff(empty, vals.clone());
         assert_eq!(diff.diffs.len(), VALIDATORS);
-        diff.diffs.sort_by_key(|vu| vu.pubkey.0.clone());
+        diff.diffs.sort_by_key(|vu| vu.pubkey.clone());
         assert_eq!(
             ValidatorDiff {
                 diffs: vals
@@ -870,7 +874,7 @@ mod test {
         // diff must be add all but last
         let mut diff = calculate_diff(vals.clone(), old);
         assert_eq!(diff.diffs.len(), VALIDATORS - 1);
-        diff.diffs.sort_by_key(|vu| vu.pubkey.0.clone());
+        diff.diffs.sort_by_key(|vu| vu.pubkey.clone());
         assert_eq!(
             ValidatorDiff {
                 diffs: vals
@@ -909,7 +913,7 @@ mod test {
         // diff must be remove all but last
         let mut diff = calculate_diff(cur, vals.clone());
         assert_eq!(diff.diffs.len(), VALIDATORS - 1);
-        diff.diffs.sort_by_key(|vu| vu.pubkey.0.clone());
+        diff.diffs.sort_by_key(|vu| vu.pubkey.clone());
         assert_eq!(
             ValidatorDiff {
                 diffs: vals

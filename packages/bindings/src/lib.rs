@@ -11,4 +11,7 @@ pub use query::{
     TgradeQuery, ValidatorVoteResponse,
 };
 pub use sudo::{Evidence, EvidenceType, PrivilegeChangeMsg, TgradeSudoMsg, ValidatorDiff};
-pub use validator::{validator_addr, Validator, ValidatorUpdate, ValidatorVote};
+pub use validator::{
+    Ed25519Pubkey, Ed25519PubkeyConversionError, Pubkey, ToAddress, Validator, ValidatorUpdate,
+    ValidatorVote,
+};

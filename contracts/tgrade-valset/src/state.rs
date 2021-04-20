@@ -1,9 +1,11 @@
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
-use cosmwasm_std::{Addr, Binary};
+use cosmwasm_std::Addr;
 use cw4::Cw4Contract;
 use cw_storage_plus::{Index, IndexList, IndexedMap, Item, PkOwned, UniqueIndex};
+
+use tgrade_bindings::{Ed25519Pubkey, Pubkey};
 
 #[derive(Serialize, Deserialize, Clone, PartialEq, JsonSchema, Debug)]
 pub struct Config {
@@ -40,7 +42,7 @@ pub struct EpochInfo {
 pub struct ValidatorInfo {
     pub operator: Addr,
     /// TODO: better name to specify this is the Tendermint pubkey for consensus?
-    pub validator_pubkey: Binary,
+    pub validator_pubkey: Pubkey,
     /// The voting power in Tendermint sdk
     pub power: u64,
 }
@@ -54,7 +56,7 @@ pub const VALIDATORS: Item<Vec<ValidatorInfo>> = Item::new("validators");
 
 /// all this to get a unique secondary index on the pubkey, so we can ensure uniqueness.
 /// (It also allows reverse lookup from tm pubkey to operator address if needed)
-pub fn operators<'a>() -> IndexedMap<'a, &'a Addr, Binary, OperatorIndexes<'a>> {
+pub fn operators<'a>() -> IndexedMap<'a, &'a Addr, Ed25519Pubkey, OperatorIndexes<'a>> {
     let indexes = OperatorIndexes {
         pubkey: UniqueIndex::new(|d| PkOwned(d.to_vec()), "operators__pubkey"),
     };
@@ -62,12 +64,12 @@ pub fn operators<'a>() -> IndexedMap<'a, &'a Addr, Binary, OperatorIndexes<'a>> 
 }
 
 pub struct OperatorIndexes<'a> {
-    pub pubkey: UniqueIndex<'a, PkOwned, Binary>,
+    pub pubkey: UniqueIndex<'a, PkOwned, Ed25519Pubkey>,
 }
 
-impl<'a> IndexList<Binary> for OperatorIndexes<'a> {
-    fn get_indexes(&'_ self) -> Box<dyn Iterator<Item = &'_ dyn Index<Binary>> + '_> {
-        let v: Vec<&dyn Index<Binary>> = vec![&self.pubkey];
+impl<'a> IndexList<Ed25519Pubkey> for OperatorIndexes<'a> {
+    fn get_indexes(&'_ self) -> Box<dyn Iterator<Item = &'_ dyn Index<Ed25519Pubkey>> + '_> {
+        let v: Vec<&dyn Index<Ed25519Pubkey>> = vec![&self.pubkey];
         Box::new(v.into_iter())
     }
 }

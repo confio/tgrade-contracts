@@ -1,6 +1,8 @@
 use cosmwasm_std::StdError;
 use thiserror::Error;
 
+use tgrade_bindings::Ed25519PubkeyConversionError;
+
 #[derive(Error, Debug, PartialEq)]
 pub enum ContractError {
     #[error("{0}")]
@@ -35,4 +37,10 @@ pub enum ContractError {
 
     #[error("Unauthorized")]
     Unauthorized {},
+}
+
+impl From<Ed25519PubkeyConversionError> for ContractError {
+    fn from(_err: Ed25519PubkeyConversionError) -> Self {
+        ContractError::InvalidPubkey {}
+    }
 }
