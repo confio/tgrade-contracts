@@ -1,13 +1,11 @@
 [package]
-name = "cw4"
-version = "0.6.0-beta2"
+name = "tg4"
+version = "0.1.0"
 authors = ["Ethan Frey <ethanfrey@users.noreply.github.com>"]
 edition = "2018"
-description = "CosmWasm-4 Interface: Groups Members"
-license = "Apache-2.0"
-repository = "https://github.com/CosmWasm/cosmwasm-plus"
-homepage = "https://cosmwasm.com"
-documentation = "https://docs.cosmwasm.com"
+description = "Tgrade-4 Interface: Groups Members"
+repository = "https://github.com/confio/tgrade-contracts"
+homepage = "https://tgrade.finance"
 
 [dependencies]
 cosmwasm-std = { version = "0.14.0-beta3" }
