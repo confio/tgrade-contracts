@@ -705,9 +705,8 @@ mod test {
         assert_eq!(diff.diffs.len(), 0);
 
         // diff with empty must be itself (additions)
-        let mut diff = calculate_diff(vals.clone(), empty.clone());
+        let diff = calculate_diff(vals.clone(), empty.clone());
         assert_eq!(diff.diffs.len(), 2);
-        diff.diffs.sort_by_key(|vu| vu.pubkey.clone());
         assert_eq!(
             vec![
                 ValidatorUpdate {
@@ -723,9 +722,8 @@ mod test {
         );
 
         // diff between empty and vals must be removals
-        let mut diff = calculate_diff(empty, vals.clone());
+        let diff = calculate_diff(empty, vals.clone());
         assert_eq!(diff.diffs.len(), 2);
-        diff.diffs.sort_by_key(|vu| vu.pubkey.clone());
         assert_eq!(
             vec![
                 ValidatorUpdate {
@@ -810,9 +808,8 @@ mod test {
         assert_eq!(diff.diffs.len(), 0);
 
         // diff with empty must be itself (additions)
-        let mut diff = calculate_diff(vals.clone(), empty.clone());
+        let diff = calculate_diff(vals.clone(), empty.clone());
         assert_eq!(diff.diffs.len(), VALIDATORS);
-        diff.diffs.sort_by_key(|vu| vu.pubkey.clone());
         assert_eq!(
             ValidatorDiff {
                 diffs: vals
@@ -827,9 +824,8 @@ mod test {
         );
 
         // diff between empty and vals must be removals
-        let mut diff = calculate_diff(empty, vals.clone());
+        let diff = calculate_diff(empty, vals.clone());
         assert_eq!(diff.diffs.len(), VALIDATORS);
-        diff.diffs.sort_by_key(|vu| vu.pubkey.clone());
         assert_eq!(
             ValidatorDiff {
                 diffs: vals
@@ -867,9 +863,8 @@ mod test {
         let old: Vec<_> = vals.iter().skip(VALIDATORS - 1).cloned().collect();
 
         // diff must be add all but last
-        let mut diff = calculate_diff(vals.clone(), old);
+        let diff = calculate_diff(vals.clone(), old);
         assert_eq!(diff.diffs.len(), VALIDATORS - 1);
-        diff.diffs.sort_by_key(|vu| vu.pubkey.clone());
         assert_eq!(
             ValidatorDiff {
                 diffs: vals
@@ -906,9 +901,8 @@ mod test {
         // remove all but last member
         let cur: Vec<_> = vals.iter().skip(VALIDATORS - 1).cloned().collect();
         // diff must be remove all but last
-        let mut diff = calculate_diff(cur, vals.clone());
+        let diff = calculate_diff(cur, vals.clone());
         assert_eq!(diff.diffs.len(), VALIDATORS - 1);
-        diff.diffs.sort_by_key(|vu| vu.pubkey.clone());
         assert_eq!(
             ValidatorDiff {
                 diffs: vals
