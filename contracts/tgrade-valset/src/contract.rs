@@ -337,18 +337,12 @@ fn calculate_diff(cur_vals: Vec<ValidatorInfo>, old_vals: Vec<ValidatorInfo>) ->
         .collect();
 
     // Compute removals
-    let cur: BTreeSet<_> = cur_vals
-        .iter()
-        .map(|vi| vi.validator_pubkey.clone())
-        .collect();
-    let old: BTreeSet<_> = old_vals
-        .iter()
-        .map(|vi| vi.validator_pubkey.clone())
-        .collect();
+    let cur: BTreeSet<_> = cur_vals.iter().map(|vi| &vi.validator_pubkey).collect();
+    let old: BTreeSet<_> = old_vals.iter().map(|vi| &vi.validator_pubkey).collect();
     // Compute, map and append removals to diffs
     diffs.extend(
         old.difference(&cur)
-            .map(|pubkey| ValidatorUpdate {
+            .map(|&pubkey| ValidatorUpdate {
                 pubkey: pubkey.clone(),
                 power: 0,
             })
