@@ -139,7 +139,7 @@ impl Tg4Contract {
     pub fn list_members_by_weight(
         &self,
         querier: &QuerierWrapper,
-        start_after: Option<(u64, String)>,
+        start_after: Option<Member>,
         limit: Option<u32>,
     ) -> StdResult<Vec<Member>> {
         let query =

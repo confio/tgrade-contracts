@@ -15,7 +15,7 @@ pub enum Tg4QueryMsg {
     },
     /// Returns MembersListResponse, sorted by weight descending
     ListMembersByWeight {
-        start_after: Option<(u64, String)>,
+        start_after: Option<Member>,
         limit: Option<u32>,
     },
     /// Returns MemberResponse
