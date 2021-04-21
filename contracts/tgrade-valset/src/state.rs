@@ -2,26 +2,26 @@ use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
 use cosmwasm_std::Addr;
-use cw4::Cw4Contract;
 use cw_storage_plus::{Index, IndexList, IndexedMap, Item, PkOwned, UniqueIndex};
+use tg4::Tg4Contract;
 
 use tgrade_bindings::{Ed25519Pubkey, Pubkey};
 
 #[derive(Serialize, Deserialize, Clone, PartialEq, JsonSchema, Debug)]
 pub struct Config {
-    /// address of a cw4 contract with the raw membership used to feed the validator set
-    pub membership: Cw4Contract,
+    /// address of a tg4 contract with the raw membership used to feed the validator set
+    pub membership: Tg4Contract,
     /// minimum weight needed by an address in `membership` to be considered for the validator set.
     /// 0-weight members are always filtered out.
     /// TODO: if we allow sub-1 scaling factors, determine if this is pre-/post- scaling
-    /// (use weight for cw4, power for tendermint)
+    /// (use weight for tg4, power for tendermint)
     pub min_weight: u64,
     /// The maximum number of validators that can be included in the Tendermint validator set.
     /// If there are more validators than slots, we select the top N by membership weight
     /// descending. (In case of ties at the last slot, select by "first" tendermint pubkey
     /// lexicographically sorted).
     pub max_validators: u32,
-    /// A scaling factor to multiply cw4-group weights to produce the tendermint validator power
+    /// A scaling factor to multiply tg4-group weights to produce the tendermint validator power
     /// (TODO: should we allow this to reduce weight? Like 1/1000?)
     pub scaling: Option<u32>,
 }

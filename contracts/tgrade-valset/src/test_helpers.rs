@@ -1,10 +1,9 @@
 #![cfg(test)]
-
 use cosmwasm_std::testing::{mock_env, MockApi, MockStorage};
 use cosmwasm_std::{Addr, Binary};
-use cw4::Member;
 use cw_multi_test::{App, Contract, ContractWrapper, SimpleBank};
 
+use tg4::Member;
 use tgrade_bindings::{Pubkey, TgradeMsg};
 
 use crate::msg::OperatorKey;
@@ -30,7 +29,7 @@ pub fn contract_valset() -> Box<dyn Contract<TgradeMsg>> {
     Box::new(contract)
 }
 
-// returns a list of addresses that are set in the cw4-stake contract
+// returns a list of addresses that are set in the tg4-stake contract
 pub fn addrs(count: u32) -> Vec<String> {
     (1..=count).map(|x| format!("operator-{:03}", x)).collect()
 }
@@ -46,7 +45,7 @@ pub fn members(count: u32) -> Vec<Member> {
         .collect()
 }
 
-// returns a list of addresses that are not in the cw4-stake
+// returns a list of addresses that are not in the tg4-stake
 // this can be used to check handling of members without pubkey registered
 pub fn nonmembers(count: u32) -> Vec<String> {
     (1..=count)

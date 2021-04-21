@@ -3,13 +3,13 @@ use cosmwasm_std::{Addr, Coin, Uint128};
 
 use cw0::Duration;
 use cw20::Denom;
-use cw4::Cw4Contract;
 
-use cw_multi_test::{App, Contract, ContractWrapper};
-
+use tg4::Tg4Contract;
 use tgrade_bindings::TgradeMsg;
 
-use cw4_stake::msg::ExecuteMsg;
+use tg4_stake::msg::ExecuteMsg;
+
+use cw_multi_test::{App, Contract, ContractWrapper};
 
 use crate::msg::{
     ConfigResponse, EpochResponse, InstantiateMsg, ListActiveValidatorsResponse, QueryMsg,
@@ -35,9 +35,9 @@ const MIN_WEIGHT: u64 = 2;
 
 fn contract_stake() -> Box<dyn Contract<TgradeMsg>> {
     let contract = ContractWrapper::new_with_empty(
-        cw4_stake::contract::execute,
-        cw4_stake::contract::instantiate,
-        cw4_stake::contract::query,
+        tg4_stake::contract::execute,
+        tg4_stake::contract::instantiate,
+        tg4_stake::contract::query,
     );
     Box::new(contract)
 }
@@ -57,7 +57,7 @@ pub fn instantiate_valset(
 
 fn instantiate_stake(app: &mut App<TgradeMsg>) -> Addr {
     let stake_id = app.store_code(contract_stake());
-    let msg = cw4_stake::msg::InstantiateMsg {
+    let msg = tg4_stake::msg::InstantiateMsg {
         denom: Denom::Native(BOND_DENOM.into()),
         tokens_per_weight: Uint128(TOKENS_PER_WEIGHT),
         min_bond: Uint128(MIN_BOND),
@@ -125,7 +125,7 @@ fn init_and_query_state() {
     assert_eq!(
         cfg,
         ConfigResponse {
-            membership: Cw4Contract(stake_addr),
+            membership: Tg4Contract(stake_addr),
             min_weight: 5,
             max_validators: 10,
             scaling: None
