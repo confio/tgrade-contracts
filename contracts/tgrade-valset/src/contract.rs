@@ -315,12 +315,18 @@ fn calculate_validators(deps: Deps) -> Result<Vec<ValidatorInfo>, ContractError>
 }
 
 fn calculate_diff(cur_vals: Vec<ValidatorInfo>, old_vals: Vec<ValidatorInfo>) -> ValidatorDiff {
-    // Additions and updates
+    // Compute additions and updates
     let cur: BTreeSet<_> = cur_vals.iter().collect();
     let old: BTreeSet<_> = old_vals.iter().collect();
-    let additions_updates: Vec<_> = cur.difference(&old).collect();
+    let mut diffs: Vec<_> = cur
+        .difference(&old)
+        .map(|vi| ValidatorUpdate {
+            pubkey: vi.validator_pubkey.clone(),
+            power: vi.power,
+        })
+        .collect();
 
-    // Removals
+    // Compute removals
     let cur: BTreeSet<_> = cur_vals
         .iter()
         .map(|vi| vi.validator_pubkey.clone())
@@ -329,22 +335,15 @@ fn calculate_diff(cur_vals: Vec<ValidatorInfo>, old_vals: Vec<ValidatorInfo>) ->
         .iter()
         .map(|vi| vi.validator_pubkey.clone())
         .collect();
-    let removals: Vec<_> = old.difference(&cur).collect();
-
-    // Compute differences
-    // Additions and updates
-    let mut diffs: Vec<_> = additions_updates
-        .into_iter()
-        .map(|vi| ValidatorUpdate {
-            pubkey: vi.validator_pubkey.clone(),
-            power: vi.power,
-        })
-        .collect();
-    // Now append all that need to be removed
-    diffs.extend(removals.into_iter().map(|pubkey| ValidatorUpdate {
-        pubkey: pubkey.clone(),
-        power: 0,
-    }));
+    // Compute, map and append removals to diffs
+    diffs.extend(
+        old.difference(&cur)
+            .map(|pubkey| ValidatorUpdate {
+                pubkey: pubkey.clone(),
+                power: 0,
+            })
+            .collect::<Vec<_>>(),
+    );
 
     ValidatorDiff { diffs }
 }
