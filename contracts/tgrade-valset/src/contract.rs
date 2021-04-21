@@ -314,6 +314,16 @@ fn calculate_validators(deps: Deps) -> Result<Vec<ValidatorInfo>, ContractError>
     Ok(validators)
 }
 
+/// Computes validator differences.
+///
+/// The diffs are calculated by computing two (slightly different) differences:
+/// - In `cur` but not in `old` (comparing by `operator` and `power`) => update with `cur` (handles additions and updates).
+/// - In `old` but not in `cur` (comparing by `validator_pubkey` only) => update with `old`, set power to zero (handles removals).
+///
+/// Uses `validator_pubkey` instead of `operator`, to use the derived `Ord` and `PartialOrd` impls for it.
+/// `operators` and `pubkeys` are one-to-one, so this is legit.
+///
+/// Uses a `BTreeSet`, so computed differences are stable / sorted.
 fn calculate_diff(cur_vals: Vec<ValidatorInfo>, old_vals: Vec<ValidatorInfo>) -> ValidatorDiff {
     // Compute additions and updates
     let cur: BTreeSet<_> = cur_vals.iter().collect();
