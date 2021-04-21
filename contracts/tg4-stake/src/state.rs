@@ -46,6 +46,12 @@ impl<'a> IndexList<u64> for MemberIndexes<'a> {
     }
 }
 
+/// Indexed snapshot map for members.
+/// This allows to query the map members, sorted by weight.
+/// The weight index is a `MultiIndex`, as there can be multiple members with the same weight.
+/// The primary key is added to the `MultiIndex` as second element. This is requirement of the
+/// `MultiIndex` implementation.
+/// The weight index is not snapshotted; only the current weights are indexed at any given time.
 pub fn members<'a>() -> IndexedSnapshotMap<'a, &'a Addr, u64, MemberIndexes<'a>> {
     let indexes = MemberIndexes {
         weight: MultiIndex::new(
