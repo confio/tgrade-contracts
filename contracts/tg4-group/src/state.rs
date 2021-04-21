@@ -22,7 +22,6 @@ impl<'a> IndexList<u64> for MemberIndexes<'a> {
     }
 }
 
-
 /// Indexed snapshot map for members.
 /// This allows to query the map members, sorted by weight.
 /// The weight index is a `MultiIndex`, as there can be multiple members with the same weight.
