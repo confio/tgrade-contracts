@@ -23,7 +23,6 @@ use crate::msg::{
     ListValidatorKeysResponse, OperatorKey, QueryMsg, ValidatorKeyResponse,
 };
 use crate::state::{operators, Config, EpochInfo, ValidatorInfo, CONFIG, EPOCH, VALIDATORS};
-use std::convert::TryInto;
 
 // version info for migration info
 const CONTRACT_NAME: &str = "crates.io:tgrade-valset";
