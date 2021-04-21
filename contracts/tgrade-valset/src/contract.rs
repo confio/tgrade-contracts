@@ -274,8 +274,7 @@ fn calculate_validators(deps: Deps) -> Result<Vec<ValidatorInfo>, ContractError>
         .membership
         .list_members_by_weight(&deps.querier, None, QUERY_LIMIT)?;
     while !batch.is_empty() && validators.len() < cfg.max_validators as usize {
-        let last = batch.last().unwrap();
-        let last = Some((last.weight, last.addr.clone()));
+        let last = Some(batch.last().unwrap().clone());
 
         let filtered: Vec<_> = batch
             .into_iter()
