@@ -76,22 +76,14 @@
               "minimum": 0.0
             },
             "start_after": {
-              "type": [
-                "array",
-                "null"
-              ],
-              "items": [
+              "anyOf": [
                 {
-                  "type": "integer",
-                  "format": "uint64",
-                  "minimum": 0.0
+                  "$ref": "#/definitions/Member"
                 },
                 {
-                  "type": "string"
+                  "type": "null"
                 }
-              ],
-              "maxItems": 2,
-              "minItems": 2
+              ]
             }
           }
         }
@@ -140,5 +132,25 @@
       },
       "additionalProperties": false
     }
-  ]
+  ],
+  "definitions": {
+    "Member": {
+      "description": "A group member has a weight associated with them. This may all be equal, or may have meaning in the app that makes use of the group (eg. voting power)",
+      "type": "object",
+      "required": [
+        "addr",
+        "weight"
+      ],
+      "properties": {
+        "addr": {
+          "type": "string"
+        },
+        "weight": {
+          "type": "integer",
+          "format": "uint64",
+          "minimum": 0.0
+        }
+      }
+    }
+  }
 }
