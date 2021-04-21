@@ -301,6 +301,7 @@ fn calculate_validators(deps: Deps) -> Result<Vec<ValidatorInfo>, ContractError>
                         power: m.weight * scaling,
                     })
             })
+            .take(cfg.max_validators as usize - validators.len() as usize)
             .collect();
         validators.extend_from_slice(&filtered);
 
@@ -309,8 +310,6 @@ fn calculate_validators(deps: Deps) -> Result<Vec<ValidatorInfo>, ContractError>
             .membership
             .list_members_by_weight(&deps.querier, last, QUERY_LIMIT)?;
     }
-
-    validators.truncate(cfg.max_validators as usize);
 
     Ok(validators)
 }
