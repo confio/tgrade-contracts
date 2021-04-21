@@ -359,12 +359,12 @@ fn list_members(
 
 fn list_members_by_weight(
     deps: Deps,
-    start_after: Option<(u64, String)>,
+    start_after: Option<Member>,
     limit: Option<u32>,
 ) -> StdResult<MemberListResponse> {
     let limit = limit.unwrap_or(DEFAULT_LIMIT).min(MAX_LIMIT) as usize;
-    let start =
-        start_after.map(|(w, a)| Bound::exclusive((U64Key::from(w), a.as_str()).joined_key()));
+    let start = start_after
+        .map(|m| Bound::exclusive((U64Key::from(m.weight), m.addr.as_str()).joined_key()));
 
     let members: StdResult<Vec<_>> = members()
         .idx
@@ -673,7 +673,7 @@ mod tests {
 
         // Next page
         let last = members.last().unwrap();
-        let start_after = Some((last.weight, last.addr.clone()));
+        let start_after = Some(last.clone());
         let members = list_members_by_weight(deps.as_ref(), start_after, None)
             .unwrap()
             .members;
@@ -695,7 +695,7 @@ mod tests {
 
         // Assert there's no more
         let last = members.last().unwrap();
-        let start_after = Some((last.weight, last.addr.clone()));
+        let start_after = Some(last.clone());
         let members = list_members_by_weight(deps.as_ref(), start_after, Some(1))
             .unwrap()
             .members;

@@ -5,6 +5,7 @@ use serde::{Deserialize, Serialize};
 use cw0::Duration;
 use cw20::Denom;
 pub use cw_controllers::ClaimsResponse;
+use tg4::Member;
 
 #[derive(Serialize, Deserialize, Clone, PartialEq, JsonSchema, Debug)]
 pub struct InstantiateMsg {
@@ -62,7 +63,7 @@ pub enum QueryMsg {
     },
     /// Returns MembersListResponse, sorted by weight descending.
     ListMembersByWeight {
-        start_after: Option<(u64, String)>,
+        start_after: Option<Member>,
         limit: Option<u32>,
     },
     /// Returns MemberResponse
