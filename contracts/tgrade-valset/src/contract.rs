@@ -1,5 +1,5 @@
 use std::cmp::max;
-use std::collections::BTreeMap;
+use std::collections::BTreeSet;
 use std::convert::TryInto;
 
 use cosmwasm_std::{
@@ -314,41 +314,40 @@ fn calculate_validators(deps: Deps) -> Result<Vec<ValidatorInfo>, ContractError>
     Ok(validators)
 }
 
+/// Computes validator differences.
+///
+/// The diffs are calculated by computing two (slightly different) differences:
+/// - In `cur` but not in `old` (comparing by `operator` and `power`) => update with `cur` (handles additions and updates).
+/// - In `old` but not in `cur` (comparing by `validator_pubkey` only) => update with `old`, set power to zero (handles removals).
+///
+/// Uses `validator_pubkey` instead of `operator`, to use the derived `Ord` and `PartialOrd` impls for it.
+/// `operators` and `pubkeys` are one-to-one, so this is legit.
+///
+/// Uses a `BTreeSet`, so computed differences are stable / sorted.
 fn calculate_diff(cur_vals: Vec<ValidatorInfo>, old_vals: Vec<ValidatorInfo>) -> ValidatorDiff {
-    // Put the old vals in a btree map for quick compare
-    let mut old_map = BTreeMap::new();
-    for val in old_vals.into_iter() {
-        let v = ValidatorUpdate {
-            pubkey: val.validator_pubkey,
-            power: val.power,
-        };
-        old_map.insert(String::from(val.operator), v);
-    }
-
-    // Add all the new values that have changed
-    let mut diffs: Vec<_> = cur_vals
-        .into_iter()
-        .filter_map(|info| {
-            // remove all old vals that are also new vals
-            if let Some(old) = old_map.remove(info.operator.as_str()) {
-                // if no change, we return none to filter it out
-                if old.power == info.power {
-                    return None;
-                }
-            }
-            // otherwise we return the new value here
-            Some(ValidatorUpdate {
-                pubkey: info.validator_pubkey,
-                power: info.power,
-            })
+    // Compute additions and updates
+    let cur: BTreeSet<_> = cur_vals.iter().collect();
+    let old: BTreeSet<_> = old_vals.iter().collect();
+    let mut diffs: Vec<_> = cur
+        .difference(&old)
+        .map(|vi| ValidatorUpdate {
+            pubkey: vi.validator_pubkey.clone(),
+            power: vi.power,
         })
         .collect();
 
-    // now we can append all that need to be removed
-    diffs.extend(old_map.values().map(|v| ValidatorUpdate {
-        pubkey: v.pubkey.clone(),
-        power: 0,
-    }));
+    // Compute removals
+    let cur: BTreeSet<_> = cur_vals.iter().map(|vi| &vi.validator_pubkey).collect();
+    let old: BTreeSet<_> = old_vals.iter().map(|vi| &vi.validator_pubkey).collect();
+    // Compute, map and append removals to diffs
+    diffs.extend(
+        old.difference(&cur)
+            .map(|&pubkey| ValidatorUpdate {
+                pubkey: pubkey.clone(),
+                power: 0,
+            })
+            .collect::<Vec<_>>(),
+    );
 
     ValidatorDiff { diffs }
 }
@@ -708,9 +707,8 @@ mod test {
         assert_eq!(diff.diffs.len(), 0);
 
         // diff with empty must be itself (additions)
-        let mut diff = calculate_diff(vals.clone(), empty.clone());
+        let diff = calculate_diff(vals.clone(), empty.clone());
         assert_eq!(diff.diffs.len(), 2);
-        diff.diffs.sort_by_key(|vu| vu.pubkey.clone());
         assert_eq!(
             vec![
                 ValidatorUpdate {
@@ -726,9 +724,8 @@ mod test {
         );
 
         // diff between empty and vals must be removals
-        let mut diff = calculate_diff(empty, vals.clone());
+        let diff = calculate_diff(empty, vals.clone());
         assert_eq!(diff.diffs.len(), 2);
-        diff.diffs.sort_by_key(|vu| vu.pubkey.clone());
         assert_eq!(
             vec![
                 ValidatorUpdate {
@@ -813,9 +810,8 @@ mod test {
         assert_eq!(diff.diffs.len(), 0);
 
         // diff with empty must be itself (additions)
-        let mut diff = calculate_diff(vals.clone(), empty.clone());
+        let diff = calculate_diff(vals.clone(), empty.clone());
         assert_eq!(diff.diffs.len(), VALIDATORS);
-        diff.diffs.sort_by_key(|vu| vu.pubkey.clone());
         assert_eq!(
             ValidatorDiff {
                 diffs: vals
@@ -830,9 +826,8 @@ mod test {
         );
 
         // diff between empty and vals must be removals
-        let mut diff = calculate_diff(empty, vals.clone());
+        let diff = calculate_diff(empty, vals.clone());
         assert_eq!(diff.diffs.len(), VALIDATORS);
-        diff.diffs.sort_by_key(|vu| vu.pubkey.clone());
         assert_eq!(
             ValidatorDiff {
                 diffs: vals
@@ -870,9 +865,8 @@ mod test {
         let old: Vec<_> = vals.iter().skip(VALIDATORS - 1).cloned().collect();
 
         // diff must be add all but last
-        let mut diff = calculate_diff(vals.clone(), old);
+        let diff = calculate_diff(vals.clone(), old);
         assert_eq!(diff.diffs.len(), VALIDATORS - 1);
-        diff.diffs.sort_by_key(|vu| vu.pubkey.clone());
         assert_eq!(
             ValidatorDiff {
                 diffs: vals
@@ -909,9 +903,8 @@ mod test {
         // remove all but last member
         let cur: Vec<_> = vals.iter().skip(VALIDATORS - 1).cloned().collect();
         // diff must be remove all but last
-        let mut diff = calculate_diff(cur, vals.clone());
+        let diff = calculate_diff(cur, vals.clone());
         assert_eq!(diff.diffs.len(), VALIDATORS - 1);
-        diff.diffs.sort_by_key(|vu| vu.pubkey.clone());
         assert_eq!(
             ValidatorDiff {
                 diffs: vals
