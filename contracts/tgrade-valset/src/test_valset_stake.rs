@@ -144,7 +144,7 @@ fn init_and_query_state() {
             current_epoch: 0,
             last_update_time: 0,
             last_update_height: 0,
-            next_update_time: app.block_info().time,
+            next_update_time: app.block_info().time.nanos() / 1_000_000_000,
         }
     );
 

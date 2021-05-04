@@ -4,7 +4,7 @@ use std::convert::TryInto;
 
 use cosmwasm_std::{
     entry_point, to_binary, Addr, Binary, Deps, DepsMut, Env, MessageInfo, Order, StdError,
-    StdResult,
+    StdResult, Timestamp,
 };
 
 use cw0::maybe_addr;
@@ -136,7 +136,8 @@ fn query_config(deps: Deps, _env: Env) -> Result<ConfigResponse, StdError> {
 
 fn query_epoch(deps: Deps, env: Env) -> Result<EpochResponse, ContractError> {
     let epoch = EPOCH.load(deps.storage)?;
-    let mut next_update_time = (epoch.current_epoch + 1) * epoch.epoch_length;
+    let mut next_update_time =
+        Timestamp::from_seconds((epoch.current_epoch + 1) * epoch.epoch_length);
     if env.block.time > next_update_time {
         next_update_time = env.block.time;
     }
@@ -146,7 +147,7 @@ fn query_epoch(deps: Deps, env: Env) -> Result<EpochResponse, ContractError> {
         current_epoch: epoch.current_epoch,
         last_update_time: epoch.last_update_time,
         last_update_height: epoch.last_update_height,
-        next_update_time,
+        next_update_time: next_update_time.nanos() / 1_000_000_000,
     };
     Ok(resp)
 }
@@ -239,7 +240,7 @@ fn privilege_change(_deps: DepsMut, change: PrivilegeChangeMsg) -> Response {
 fn end_block(deps: DepsMut, env: Env) -> Result<Response, ContractError> {
     // check if needed and quit early if we didn't hit epoch boundary
     let mut epoch = EPOCH.load(deps.storage)?;
-    let cur_epoch = env.block.time / epoch.epoch_length;
+    let cur_epoch = env.block.time.nanos() / (1_000_000_000 * epoch.epoch_length);
     if cur_epoch <= epoch.current_epoch {
         return Ok(Response::default());
     }
@@ -473,7 +474,7 @@ mod test {
                 current_epoch: 0,
                 last_update_time: 0,
                 last_update_height: 0,
-                next_update_time: app.block_info().time,
+                next_update_time: app.block_info().time.nanos() / 1_000_000_000,
             }
         );
 
