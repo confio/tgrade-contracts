@@ -2,7 +2,7 @@ use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
 use cosmwasm_std::Addr;
-use cw_storage_plus::{Index, IndexList, IndexedMap, Item, PkOwned, UniqueIndex};
+use cw_storage_plus::{Index, IndexList, IndexedMap, Item, UniqueIndex};
 use tg4::Tg4Contract;
 
 use tgrade_bindings::{Ed25519Pubkey, Pubkey};
@@ -54,17 +54,17 @@ pub const EPOCH: Item<EpochInfo> = Item::new("epoch");
 /// This will be empty only on the first run.
 pub const VALIDATORS: Item<Vec<ValidatorInfo>> = Item::new("validators");
 
-/// all this to get a unique secondary index on the pubkey, so we can ensure uniqueness.
-/// (It also allows reverse lookup from tm pubkey to operator address if needed)
+/// All this to get a unique secondary index on the pubkey, so we can ensure uniqueness.
+/// (It also allows reverse lookup from the pubkey to operator address if needed)
 pub fn operators<'a>() -> IndexedMap<'a, &'a Addr, Ed25519Pubkey, OperatorIndexes<'a>> {
     let indexes = OperatorIndexes {
-        pubkey: UniqueIndex::new(|d| PkOwned(d.to_vec()), "operators__pubkey"),
+        pubkey: UniqueIndex::new(|d| d.to_vec(), "operators__pubkey"),
     };
     IndexedMap::new("operators", indexes)
 }
 
 pub struct OperatorIndexes<'a> {
-    pub pubkey: UniqueIndex<'a, PkOwned, Ed25519Pubkey>,
+    pub pubkey: UniqueIndex<'a, Vec<u8>, Ed25519Pubkey>,
 }
 
 impl<'a> IndexList<Ed25519Pubkey> for OperatorIndexes<'a> {

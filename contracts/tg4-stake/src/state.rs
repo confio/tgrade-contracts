@@ -6,8 +6,7 @@ use cw0::Duration;
 use cw20::Denom;
 use cw_controllers::{Admin, Claims, Hooks};
 use cw_storage_plus::{
-    Index, IndexList, IndexedSnapshotMap, Item, Map, MultiIndex, PkOwned, SnapshotMap, Strategy,
-    U64Key,
+    Index, IndexList, IndexedSnapshotMap, Item, Map, MultiIndex, SnapshotMap, Strategy, U64Key,
 };
 use tg4::TOTAL_KEY;
 
@@ -36,7 +35,7 @@ pub const MEMBERS: SnapshotMap<&Addr, u64> = SnapshotMap::new(
 
 pub struct MemberIndexes<'a> {
     // pk goes to second tuple element
-    pub weight: MultiIndex<'a, (U64Key, PkOwned), u64>,
+    pub weight: MultiIndex<'a, (U64Key, Vec<u8>), u64>,
 }
 
 impl<'a> IndexList<u64> for MemberIndexes<'a> {
@@ -55,7 +54,7 @@ impl<'a> IndexList<u64> for MemberIndexes<'a> {
 pub fn members<'a>() -> IndexedSnapshotMap<'a, &'a Addr, u64, MemberIndexes<'a>> {
     let indexes = MemberIndexes {
         weight: MultiIndex::new(
-            |&w, k| (U64Key::new(w), PkOwned(k)),
+            |&w, k| (U64Key::new(w), k),
             tg4::MEMBERS_KEY,
             "members__weight",
         ),
