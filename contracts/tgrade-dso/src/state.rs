@@ -1,3 +1,5 @@
+use serde::{Deserialize, Serialize};
+
 use cosmwasm_std::Addr;
 use cw_controllers::{Admin, Hooks};
 use cw_storage_plus::{Index, IndexList, IndexedSnapshotMap, Item, MultiIndex, Strategy, U64Key};
@@ -6,11 +8,16 @@ use tg4::TOTAL_KEY;
 pub const ADMIN: Admin = Admin::new("admin");
 pub const HOOKS: Hooks = Hooks::new("tg4-hooks");
 
-pub const NAME: Item<String> = Item::new("name");
-pub const DENOM: Item<String> = Item::new("denom");
-pub const DURATION: Item<u32> = Item::new("duration");
-pub const QUORUM: Item<u32> = Item::new("quorum");
-pub const THRESHOLD: Item<u32> = Item::new("threshold");
+#[derive(Serialize, Deserialize, Clone, PartialEq, Debug)]
+pub struct Dso {
+    pub name: String,
+    pub escrow_amount: u128,
+    pub voting_period: u32,
+    pub quorum: u32,
+    pub threshold: u32,
+}
+
+pub const DSO: Item<Dso> = Item::new("dso");
 
 pub const TOTAL: Item<u64> = Item::new(TOTAL_KEY);
 

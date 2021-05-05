@@ -13,7 +13,7 @@ use tg4::{
 
 use crate::error::ContractError;
 use crate::msg::{ExecuteMsg, InstantiateMsg, QueryMsg};
-use crate::state::{members, ADMIN, DENOM, DURATION, HOOKS, NAME, QUORUM, THRESHOLD, TOTAL};
+use crate::state::{members, Dso, ADMIN, DSO, HOOKS, TOTAL};
 
 // version info for migration info
 const CONTRACT_NAME: &str = "crates.io:tgrade-dso";
@@ -33,7 +33,7 @@ pub fn instantiate(
         deps,
         msg.admin,
         msg.name,
-        msg.escrow_denom,
+        msg.escrow_amount,
         msg.voting_duration,
         msg.quorum,
         msg.threshold,
@@ -47,30 +47,42 @@ pub fn create(
     mut deps: DepsMut,
     admin: Option<String>,
     name: String,
-    escrow_denom: String,
-    voting_duration: u32,
+    escrow_amount: u128,
+    voting_period: u32,
     quorum: u32,
     threshold: u32,
 ) -> Result<(), ContractError> {
+    if name.trim().is_empty() {
+        return Err(ContractError::EmptyName {});
+    }
+
+    if quorum == 0 || quorum > 100 {
+        return Err(ContractError::InvalidQuorum(quorum));
+    }
+
+    if threshold == 0 || threshold > 100 {
+        return Err(ContractError::InvalidThreshold(threshold));
+    }
+
     let admin_addr = admin
         .map(|admin| deps.api.addr_validate(&admin))
         .transpose()?;
     ADMIN.set(deps.branch(), admin_addr)?;
 
-    // TODO: non empty check
-    NAME.save(deps.storage, &name)?;
+    // FIXME: Already existing check / avoid re-creation
+    DSO.save(
+        deps.storage,
+        &Dso {
+            name,
+            escrow_amount,
+            voting_period,
+            quorum,
+            threshold,
+        },
+    )?;
 
-    // TODO: non empty check
-    DENOM.save(deps.storage, &escrow_denom)?;
-
-    // TODO: consistency check (>0 , <= MAX_DURATION (define))
-    DURATION.save(deps.storage, &voting_duration)?;
-
-    // TODO: consistency check (>0 , <100)
-    QUORUM.save(deps.storage, &quorum)?;
-
-    // TODO: consistency check (>0 , <100)
-    THRESHOLD.save(deps.storage, &threshold)?;
+    // TODO: Store sender as initial member, and define its weight / state
+    // based on init_funds
 
     TOTAL.save(deps.storage, &0)?;
 

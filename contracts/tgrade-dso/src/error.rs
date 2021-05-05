@@ -16,4 +16,13 @@ pub enum ContractError {
 
     #[error("Unauthorized")]
     Unauthorized {},
+
+    #[error("Missing dso name")]
+    EmptyName {},
+
+    #[error("Invalid voting quorum percentage: {0}")]
+    InvalidQuorum(u32),
+
+    #[error("Invalid voting threshold percentage: {0}")]
+    InvalidThreshold(u32),
 }
