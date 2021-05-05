@@ -13,7 +13,7 @@ use tg4::{
 
 use crate::error::ContractError;
 use crate::msg::{ExecuteMsg, InstantiateMsg, QueryMsg};
-use crate::state::{members, Dso, ADMIN, DSO, HOOKS, TOTAL};
+use crate::state::{members, Dso, ADMIN, DSO, DSO_DENOM, HOOKS, TOTAL};
 
 // version info for migration info
 const CONTRACT_NAME: &str = "crates.io:tgrade-dso";
@@ -24,17 +24,19 @@ const CONTRACT_VERSION: &str = env!("CARGO_PKG_VERSION");
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn instantiate(
     deps: DepsMut,
-    _env: Env,
-    _info: MessageInfo,
+    env: Env,
+    info: MessageInfo,
     msg: InstantiateMsg,
 ) -> Result<Response, ContractError> {
     set_contract_version(deps.storage, CONTRACT_NAME, CONTRACT_VERSION)?;
     create(
         deps,
+        &env,
+        &info,
         msg.admin,
         msg.name,
         msg.escrow_amount,
-        msg.voting_duration,
+        msg.voting_period,
         msg.quorum,
         msg.threshold,
     )?;
@@ -45,6 +47,8 @@ pub fn instantiate(
 // easily be imported in other contracts
 pub fn create(
     mut deps: DepsMut,
+    env: &Env,
+    info: &MessageInfo,
     admin: Option<String>,
     name: String,
     escrow_amount: u128,
@@ -64,11 +68,37 @@ pub fn create(
         return Err(ContractError::InvalidThreshold(threshold));
     }
 
+    if escrow_amount == 0 {
+        return Err(ContractError::InvalidEscrow(escrow_amount));
+    }
+
     let admin_addr = admin
         .map(|admin| deps.api.addr_validate(&admin))
         .transpose()?;
     ADMIN.set(deps.branch(), admin_addr)?;
 
+    // Store sender as initial member, and define its weight / state
+    // based on init_funds
+    let amount = match info.funds.len() {
+        0 => Ok(0u128),
+        1 => {
+            let amount = info.funds[0].amount.u128();
+            if info.funds[0].denom == DSO_DENOM {
+                Ok(amount)
+            } else {
+                Err(ContractError::WrongDenom(DSO_DENOM.to_string()))
+            }
+        }
+        _ => Err(ContractError::ExtraDenoms(DSO_DENOM.to_string())),
+    }?;
+    let weight = (amount / escrow_amount) as u64;
+    members().save(deps.storage, &info.sender, &weight, env.block.height)?;
+
+    TOTAL.save(deps.storage, &weight)?;
+
+    // TODO: Put sender funds in escrow
+
+    // Create DSO
     // FIXME: Already existing check / avoid re-creation
     DSO.save(
         deps.storage,
@@ -80,11 +110,6 @@ pub fn create(
             threshold,
         },
     )?;
-
-    // TODO: Store sender as initial member, and define its weight / state
-    // based on init_funds
-
-    TOTAL.save(deps.storage, &0)?;
 
     Ok(())
 }

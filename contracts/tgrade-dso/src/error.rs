@@ -25,4 +25,13 @@ pub enum ContractError {
 
     #[error("Invalid voting threshold percentage: {0}")]
     InvalidThreshold(u32),
+
+    #[error("Invalid escrow amount: {0}")]
+    InvalidEscrow(u128),
+
+    #[error("Wrong funds denomination. Must send '{0}' for escrow")]
+    WrongDenom(String),
+
+    #[error("Sent unsupported denoms, must send only '{0}' for escrow")]
+    ExtraDenoms(String),
 }
