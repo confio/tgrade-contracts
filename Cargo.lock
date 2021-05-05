@@ -582,6 +582,22 @@ dependencies = [
 ]
 
 [[package]]
+name = "tgrade-dso"
+version = "0.1.0"
+dependencies = [
+ "cosmwasm-schema",
+ "cosmwasm-std",
+ "cw-controllers",
+ "cw-storage-plus",
+ "cw0",
+ "cw2",
+ "schemars",
+ "serde",
+ "tg4",
+ "thiserror",
+]
+
+[[package]]
 name = "tgrade-valset"
 version = "0.1.0"
 dependencies = [
