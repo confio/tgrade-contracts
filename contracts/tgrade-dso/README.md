@@ -1,51 +1,71 @@
-# TG4 Group
+# TGrade DSO
 
-This is a basic implementation of the [tg4 spec](../../packages/tg4/README.md).
-It fulfills all elements of the spec, including the raw query lookups,
-and it designed to be used as a backing storage for
-[cw3 compliant contracts](https://github.com/CosmWasm/cosmwasm-plus/blob/master/packages/cw3/README.mdl).
+This is an implementation of the [tg4 spec](../../packages/tg4/README.md)
+with the aim of implementing a DSO (Decentralized Social Organization).
+It implements all the elements of the tg4 spec.
 
-It stores a set of members along with an admin, and allows the admin to
-update the state. Raw queries (intended for cross-contract queries)
-can check a given member address and the total weight. Smart queries (designed
-for client API) can do the same, and also query the admin address as well as
-paginate over all members.
+Besides tg4-based voting and non-voting participants membership, it also defines and
+implements DSO-related functionality for managing escrow deposits and redemptions,
+and for proposals voting, based on [CW3](https://github.com/CosmWasm/cosmwasm-plus/tree/master/packages/cw3).
 
 ## Init
 
-To create it, you must pass in a list of members, as well as an optional
-`admin`, if you wish it to be mutable.
+To create it, you must pass the DSO name, the escrow denomination,
+and the default voting quorum and threshold.
+As well as an optional `admin`, if you wish it to be mutable.
 
 ```rust
-pub struct InitMsg {
-    pub admin: Option<HumanAddr>,
-    pub members: Vec<Member>,
-}
-
-pub struct Member {
-    pub addr: HumanAddr,
-    pub weight: u64,
+pub struct InstantiateMsg {
+    /// The admin is the only account that can update the group state.
+    /// Omit it to make the group immutable.
+    pub admin: Option<String>,
+    /// DSO Name
+    pub name: String,
+    pub escrow_denom: String,
+    /// Voting period in days
+    pub voting_duration: u32,
+    /// Default voting quorum percentage (0-100)
+    pub quorum: u32,
+    /// Default voting threshold percentage (0-100)
+    pub threshold: u32,
 }
 ```
 
-Members are defined by an address and a weight. This is transformed
-and stored under their `CanonicalAddr`, in a format defined in
-[tg4 raw queries](../../packages/tg4/README.md#raw).
-
 Note that 0 *is an allowed weight*. This doesn't give any voting rights, but
-it does define this address is part of the group. This could be used in
-e.g. a KYC whitelist to say they are allowed, but cannot participate in
-decision-making.
+it does define this address as part of the group, as a non-voting participant.
+This could be used in e.g. a KYC whitelist, to grant non-voting participants
+specific permissions, but they cannot participate in decision-making.
 
 ## Messages
 
-Basic update messages, queries, and hooks are defined by the
+Basic update messages, and queries are defined by the
 [tg4 spec](../../packages/tg4/README.md). Please refer to it for more info.
 
-`tg4-group` adds one message to control the group membership:
+`tgrade-dso` add messages to:
+
+- Control the group membership:
 
 `UpdateMembers{add, remove}` - takes a membership diff and adds/updates the
 members, as well as removing any provided addresses. If an address is on both
 lists, it will be removed. If it appears multiple times in `add`, only the
 last occurrence will be used.
+Non-voting participants can be added with zero weight.
+This message is for testing purposes only, as all the group operations and update
+changes will be done through multisig voting.
 
+- Deposit and redeem funds in escrow.
+
+- Create proposals, and allow voting them:
+
+This is similar functionality to [CW3](https://github.com/CosmWasm/cosmwasm-plus/tree/master/packages/cw3),
+but specific to DSOs.
+All voting and non-voting member updates (additions and removals),
+voting member slashing, as well as permissions assignment and revocation for
+non-voting participants, must be done through voting.
+
+- Define permissions, and allow voting to assign permissions to
+non-voting participants.
+  
+- Close the DSO.
+This implies redeeming all the funds, and removing / blocking the DSO so that
+it cannot be accessed anymore.
