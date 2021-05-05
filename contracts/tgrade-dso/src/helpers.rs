@@ -7,14 +7,14 @@ use tg4::{Member, Tg4Contract};
 
 use crate::msg::ExecuteMsg;
 
-/// Tg4GroupContract is a wrapper around Tg4Contract that provides a lot of helpers
-/// for working with tg4-group contracts.
+/// TgDsoContract is a wrapper around Tg4Contract that provides a helpers
+/// for working with tgrade-dso contracts.
 ///
-/// It extends Tg4Contract to add the extra calls from tg4-group.
+/// It extends Tg4Contract to add the extra calls from tgrade-dso.
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
-pub struct Tg4GroupContract(pub Tg4Contract);
+pub struct TgDsoContract(pub Tg4Contract);
 
-impl Deref for Tg4GroupContract {
+impl Deref for TgDsoContract {
     type Target = Tg4Contract;
 
     fn deref(&self) -> &Self::Target {
@@ -22,9 +22,9 @@ impl Deref for Tg4GroupContract {
     }
 }
 
-impl Tg4GroupContract {
+impl TgDsoContract {
     pub fn new(addr: Addr) -> Self {
-        Tg4GroupContract(Tg4Contract(addr))
+        TgDsoContract(Tg4Contract(addr))
     }
 
     fn encode_msg(&self, msg: ExecuteMsg) -> StdResult<CosmosMsg> {
