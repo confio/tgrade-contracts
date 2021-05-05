@@ -6,6 +6,12 @@ use tg4::TOTAL_KEY;
 pub const ADMIN: Admin = Admin::new("admin");
 pub const HOOKS: Hooks = Hooks::new("tg4-hooks");
 
+pub const NAME: Item<String> = Item::new("name");
+pub const DENOM: Item<String> = Item::new("denom");
+pub const DURATION: Item<u32> = Item::new("duration");
+pub const QUORUM: Item<u32> = Item::new("quorum");
+pub const THRESHOLD: Item<u32> = Item::new("threshold");
+
 pub const TOTAL: Item<u64> = Item::new(TOTAL_KEY);
 
 pub struct MemberIndexes<'a> {

@@ -13,10 +13,10 @@ use tg4::{
 
 use crate::error::ContractError;
 use crate::msg::{ExecuteMsg, InstantiateMsg, QueryMsg};
-use crate::state::{members, ADMIN, HOOKS, TOTAL};
+use crate::state::{members, ADMIN, DENOM, DURATION, HOOKS, NAME, QUORUM, THRESHOLD, TOTAL};
 
 // version info for migration info
-const CONTRACT_NAME: &str = "crates.io:tg4-group";
+const CONTRACT_NAME: &str = "crates.io:tgrade-dso";
 const CONTRACT_VERSION: &str = env!("CARGO_PKG_VERSION");
 
 // Note, you can use StdResult in some functions where you do not
@@ -24,12 +24,20 @@ const CONTRACT_VERSION: &str = env!("CARGO_PKG_VERSION");
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn instantiate(
     deps: DepsMut,
-    env: Env,
+    _env: Env,
     _info: MessageInfo,
     msg: InstantiateMsg,
 ) -> Result<Response, ContractError> {
     set_contract_version(deps.storage, CONTRACT_NAME, CONTRACT_VERSION)?;
-    create(deps, msg.admin, msg.members, env.block.height)?;
+    create(
+        deps,
+        msg.admin,
+        msg.name,
+        msg.escrow_denom,
+        msg.voting_duration,
+        msg.quorum,
+        msg.threshold,
+    )?;
     Ok(Response::default())
 }
 
@@ -38,21 +46,33 @@ pub fn instantiate(
 pub fn create(
     mut deps: DepsMut,
     admin: Option<String>,
-    members_list: Vec<Member>,
-    height: u64,
+    name: String,
+    escrow_denom: String,
+    voting_duration: u32,
+    quorum: u32,
+    threshold: u32,
 ) -> Result<(), ContractError> {
     let admin_addr = admin
         .map(|admin| deps.api.addr_validate(&admin))
         .transpose()?;
     ADMIN.set(deps.branch(), admin_addr)?;
 
-    let mut total = 0u64;
-    for member in members_list.into_iter() {
-        total += member.weight;
-        let member_addr = deps.api.addr_validate(&member.addr)?;
-        members().save(deps.storage, &member_addr, &member.weight, height)?;
-    }
-    TOTAL.save(deps.storage, &total)?;
+    // TODO: non empty check
+    NAME.save(deps.storage, &name)?;
+
+    // TODO: non empty check
+    DENOM.save(deps.storage, &escrow_denom)?;
+
+    // TODO: consistency check (>0 , <= MAX_DURATION (define))
+    DURATION.save(deps.storage, &voting_duration)?;
+
+    // TODO: consistency check (>0 , <100)
+    QUORUM.save(deps.storage, &quorum)?;
+
+    // TODO: consistency check (>0 , <100)
+    THRESHOLD.save(deps.storage, &threshold)?;
+
+    TOTAL.save(deps.storage, &0)?;
 
     Ok(())
 }
