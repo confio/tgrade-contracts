@@ -9,7 +9,15 @@ pub struct InstantiateMsg {
     /// The admin is the only account that can update the group state.
     /// Omit it to make the group immutable.
     pub admin: Option<String>,
-    pub members: Vec<Member>,
+    /// DSO Name
+    pub name: String,
+    pub escrow_denom: String,
+    /// Voting period in days
+    pub voting_duration: u32,
+    /// Default voting quorum percentage (0-100)
+    pub quorum: u32,
+    /// Default voting threshold percentage (0-100)
+    pub threshold: u32,
 }
 
 #[derive(Serialize, Deserialize, Clone, PartialEq, JsonSchema, Debug)]
@@ -17,8 +25,8 @@ pub struct InstantiateMsg {
 pub enum ExecuteMsg {
     /// Change the admin
     UpdateAdmin { admin: Option<String> },
-    /// apply a diff to the existing members.
-    /// remove is applied after add, so if an address is in both, it is removed
+    /// Apply a diff to the existing members.
+    /// Remove is applied after add, so if an address is in both, it is removed
     UpdateMembers {
         remove: Vec<String>,
         add: Vec<Member>,
