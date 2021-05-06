@@ -1,12 +1,11 @@
 use serde::{Deserialize, Serialize};
 
 use cosmwasm_std::Addr;
-use cw_controllers::{Admin, Hooks};
+use cw_controllers::Admin;
 use cw_storage_plus::{Index, IndexList, IndexedSnapshotMap, Item, MultiIndex, Strategy, U64Key};
 use tg4::TOTAL_KEY;
 
 pub const ADMIN: Admin = Admin::new("admin");
-pub const HOOKS: Hooks = Hooks::new("tg4-hooks");
 
 pub const DSO_DENOM: &str = "utgd";
 
