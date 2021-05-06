@@ -43,6 +43,7 @@ pub fn instantiate(
 
 // create is the instantiation logic with set_contract_version removed so it can more
 // easily be imported in other contracts
+#[allow(clippy::too_many_arguments)]
 pub fn create(
     mut deps: DepsMut,
     env: &Env,
