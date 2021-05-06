@@ -56,21 +56,7 @@ pub fn create(
     quorum: u32,
     threshold: u32,
 ) -> Result<(), ContractError> {
-    if name.trim().is_empty() {
-        return Err(ContractError::EmptyName {});
-    }
-
-    if quorum == 0 || quorum > 100 {
-        return Err(ContractError::InvalidQuorum(quorum));
-    }
-
-    if threshold == 0 || threshold > 100 {
-        return Err(ContractError::InvalidThreshold(threshold));
-    }
-
-    if escrow_amount == 0 {
-        return Err(ContractError::InvalidEscrow(escrow_amount));
-    }
+    validate(&name, escrow_amount, quorum, threshold)?;
 
     let admin_addr = admin
         .map(|admin| deps.api.addr_validate(&admin))
@@ -100,6 +86,30 @@ pub fn create(
         },
     )?;
 
+    Ok(())
+}
+
+pub fn validate(
+    name: &String,
+    escrow_amount: u128,
+    quorum: u32,
+    threshold: u32,
+) -> Result<(), ContractError> {
+    if name.trim().is_empty() {
+        return Err(ContractError::EmptyName {});
+    }
+
+    if quorum == 0 || quorum > 100 {
+        return Err(ContractError::InvalidQuorum(quorum));
+    }
+
+    if threshold == 0 || threshold > 100 {
+        return Err(ContractError::InvalidThreshold(threshold));
+    }
+
+    if escrow_amount == 0 {
+        return Err(ContractError::InvalidEscrow(escrow_amount));
+    }
     Ok(())
 }
 
