@@ -6,10 +6,7 @@ use cosmwasm_std::{
 use cw0::maybe_addr;
 use cw2::set_contract_version;
 use cw_storage_plus::{Bound, PrimaryKey, U64Key};
-use tg4::{
-    Member, MemberChangedHookMsg, MemberDiff, MemberListResponse, MemberResponse,
-    TotalWeightResponse,
-};
+use tg4::{Member, MemberChangedHookMsg, MemberListResponse, MemberResponse, TotalWeightResponse};
 
 use crate::error::ContractError;
 use crate::msg::{ExecuteMsg, InstantiateMsg, QueryMsg};
@@ -154,41 +151,21 @@ pub fn execute_update_members(
 
 // the logic from execute_update_members extracted for easier import
 pub fn update_members(
-    deps: DepsMut,
-    height: u64,
-    sender: Addr,
-    to_add: Vec<Member>,
-    to_remove: Vec<String>,
+    _deps: DepsMut,
+    _height: u64,
+    _sender: Addr,
+    _to_add: Vec<Member>,
+    _to_remove: Vec<String>,
 ) -> Result<MemberChangedHookMsg, ContractError> {
-    ADMIN.assert_admin(deps.as_ref(), &sender)?;
-
-    let mut total = TOTAL.load(deps.storage)?;
-    let mut diffs: Vec<MemberDiff> = vec![];
-
-    // add all new members and update total
-    for add in to_add.into_iter() {
-        let add_addr = deps.api.addr_validate(&add.addr)?;
-        members().update(deps.storage, &add_addr, height, |old| -> StdResult<_> {
-            total -= old.unwrap_or_default();
-            total += add.weight;
-            diffs.push(MemberDiff::new(add.addr, old, Some(add.weight)));
-            Ok(add.weight)
-        })?;
-    }
-
-    for remove in to_remove.into_iter() {
-        let remove_addr = deps.api.addr_validate(&remove)?;
-        let old = members().may_load(deps.storage, &remove_addr)?;
-        // Only process this if they were actually in the list before
-        if let Some(weight) = old {
-            diffs.push(MemberDiff::new(remove, Some(weight), None));
-            total -= weight;
-            members().remove(deps.storage, &remove_addr, height)?;
-        }
-    }
-
-    TOTAL.save(deps.storage, &total)?;
-    Ok(MemberChangedHookMsg { diffs })
+    /* TODO:
+       - This can be implemented as an "admin" message in one PR, then via voting in a second.
+       - For non-voting (0 weight) members, cw4-group update_members() logic is correct.
+       - For voting (1 weight) members, they need to be marked as "allowed to vote 1" and "escrow 0".
+       They should have 0 weight for now. Once they pay escrow, they get bumped to 1 weight.
+       - We currently need to reject any members with weight > 1 (return error) until that
+       is specified in the DSO requirements.
+    */
+    unimplemented!()
 }
 
 #[cfg_attr(not(feature = "library"), entry_point)]
