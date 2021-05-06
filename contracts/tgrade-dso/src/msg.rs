@@ -15,10 +15,13 @@ pub struct InstantiateMsg {
     /// The required escrow amount, in the default denom (TGD)
     pub escrow_amount: u128,
     /// Voting period in days
+    //FIXME?: Change to Duration
     pub voting_period: u32,
     /// Default voting quorum percentage (0-100)
+    //FIXME: Change to Decimal
     pub quorum: u32,
     /// Default voting threshold percentage (0-100)
+    //FIXME: Change to Decimal
     pub threshold: u32,
 }
 
