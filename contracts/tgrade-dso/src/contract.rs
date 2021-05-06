@@ -258,7 +258,7 @@ fn list_members_by_weight(
 mod tests {
     use super::*;
     use cosmwasm_std::testing::{mock_dependencies, mock_env, mock_info};
-    use cosmwasm_std::{coin, from_slice, Storage, Uint128};
+    use cosmwasm_std::{coin, from_slice, Storage};
     use cw0::PaymentError;
     use tg4::{member_key, TOTAL_KEY};
 
@@ -267,8 +267,6 @@ mod tests {
     const DSO_NAME: &str = "test_dso";
     const ESCROW_FUNDS: u128 = 1_000_000;
 
-    const USER1: &str = "somebody";
-    const USER2: &str = "else";
     const USER3: &str = "funny";
 
     fn do_instantiate(deps: DepsMut, info: MessageInfo) -> Result<Response, ContractError> {
@@ -286,7 +284,7 @@ mod tests {
     #[test]
     fn instantiation_no_funds() {
         let mut deps = mock_dependencies(&[]);
-        let info = mock_info("creator", &[]);
+        let info = mock_info(INIT_ADMIN, &[]);
         let res = do_instantiate(deps.as_mut(), info);
 
         // should fail (no funds)
@@ -300,7 +298,7 @@ mod tests {
     #[test]
     fn instantiation_some_funds() {
         let mut deps = mock_dependencies(&[]);
-        let info = mock_info("creator", &[coin(1u128, "utgd")]);
+        let info = mock_info(INIT_ADMIN, &[coin(1u128, "utgd")]);
 
         do_instantiate(deps.as_mut(), info).unwrap();
 
@@ -315,7 +313,7 @@ mod tests {
     #[test]
     fn instantiation_enough_funds() {
         let mut deps = mock_dependencies(&[]);
-        let info = mock_info("creator", &[coin(ESCROW_FUNDS, "utgd")]);
+        let info = mock_info(INIT_ADMIN, &[coin(ESCROW_FUNDS, "utgd")]);
 
         do_instantiate(deps.as_mut(), info).unwrap();
 
@@ -324,81 +322,34 @@ mod tests {
         assert_eq!(1, res.weight);
     }
 
-    // #[test]
+    #[test]
     fn try_member_queries() {
         let mut deps = mock_dependencies(&[]);
-        let info = mock_info("creator", &[coin(ESCROW_FUNDS, "utgd")]);
+        let info = mock_info(INIT_ADMIN, &[coin(ESCROW_FUNDS, "utgd")]);
         do_instantiate(deps.as_mut(), info).unwrap();
 
-        let member1 = query_member(deps.as_ref(), USER1.into(), None).unwrap();
-        assert_eq!(member1.weight, Some(11));
+        // TODO: Add members when update_members is working
 
-        let member2 = query_member(deps.as_ref(), USER2.into(), None).unwrap();
-        assert_eq!(member2.weight, Some(6));
-
-        let member3 = query_member(deps.as_ref(), USER3.into(), None).unwrap();
-        assert_eq!(member3.weight, None);
-
-        let members = list_members(deps.as_ref(), None, None).unwrap();
-        assert_eq!(members.members.len(), 2);
         // assert the set is proper
         let members = list_members(deps.as_ref(), None, None).unwrap().members;
-        assert_eq!(members.len(), 2);
-        // Assert the set is proper
-        assert_eq!(
-            members,
-            vec![
-                Member {
-                    addr: USER2.into(),
-                    weight: 6
-                },
-                Member {
-                    addr: USER1.into(),
-                    weight: 11
-                },
-            ]
-        );
-
-        // Test pagination / limits
-        let members = list_members(deps.as_ref(), None, Some(1)).unwrap().members;
         assert_eq!(members.len(), 1);
         // Assert the set is proper
         assert_eq!(
             members,
             vec![Member {
-                addr: USER2.into(),
-                weight: 6
+                addr: INIT_ADMIN.into(),
+                weight: 1
             },]
         );
-
-        // Next page
-        let start_after = Some(members[0].addr.clone());
-        let members = list_members(deps.as_ref(), start_after, Some(1))
-            .unwrap()
-            .members;
-        assert_eq!(members.len(), 1);
-        // Assert the set is proper
-        assert_eq!(
-            members,
-            vec![Member {
-                addr: USER1.into(),
-                weight: 11
-            },]
-        );
-
-        // Assert there's no more
-        let start_after = Some(members[0].addr.clone());
-        let members = list_members(deps.as_ref(), start_after, Some(1))
-            .unwrap()
-            .members;
-        assert_eq!(members.len(), 0);
     }
 
-    // #[test]
+    #[test]
     fn try_list_members_by_weight() {
         let mut deps = mock_dependencies(&[]);
-        let info = mock_info("creator", &[coin(ESCROW_FUNDS, "utgd")]);
+        let info = mock_info(INIT_ADMIN, &[coin(ESCROW_FUNDS, "utgd")]);
         do_instantiate(deps.as_mut(), info).unwrap();
+
+        // TODO: Add members when update_members is working
 
         let members = list_members_by_weight(deps.as_ref(), None, None)
             .unwrap()
@@ -422,25 +373,12 @@ mod tests {
         assert_eq!(
             members,
             vec![Member {
-                addr: USER1.into(),
-                weight: 11
+                addr: INIT_ADMIN.into(),
+                weight: 1
             },]
         );
 
-        // Next page
-        let start_after = Some(members[0].clone());
-        let members = list_members_by_weight(deps.as_ref(), start_after, None)
-            .unwrap()
-            .members;
-        assert_eq!(members.len(), 1);
-        // Assert the set is proper
-        assert_eq!(
-            members,
-            vec![Member {
-                addr: USER2.into(),
-                weight: 6
-            },]
-        );
+        // TODO: Test next page here, when more members
 
         // Assert there's no more
         let start_after = Some(members[0].clone());
@@ -450,22 +388,22 @@ mod tests {
         assert_eq!(members.len(), 0);
     }
 
-    // #[test]
+    #[test]
     fn raw_queries_work() {
         // add will over-write and remove have no effect
-        let info = mock_info("creator", &[coin(ESCROW_FUNDS, "utgd")]);
+        let info = mock_info(INIT_ADMIN, &[coin(ESCROW_FUNDS, "utgd")]);
         let mut deps = mock_dependencies(&[]);
         do_instantiate(deps.as_mut(), info).unwrap();
 
         // get total from raw key
         let total_raw = deps.storage.get(TOTAL_KEY.as_bytes()).unwrap();
         let total: u64 = from_slice(&total_raw).unwrap();
-        assert_eq!(17, total);
+        assert_eq!(1, total);
 
         // get member votes from raw key
-        let member2_raw = deps.storage.get(&member_key(USER2)).unwrap();
-        let member2: u64 = from_slice(&member2_raw).unwrap();
-        assert_eq!(6, member2);
+        let member1_raw = deps.storage.get(&member_key(INIT_ADMIN)).unwrap();
+        let member1: u64 = from_slice(&member1_raw).unwrap();
+        assert_eq!(1, member1);
 
         // and execute misses
         let member3_raw = deps.storage.get(&member_key(USER3));
