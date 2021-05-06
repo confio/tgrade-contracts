@@ -66,7 +66,7 @@ pub fn create(
     // Store sender as initial member, and define its weight / state
     // based on init_funds
     let amount = cw0::must_pay(&info, DSO_DENOM)?;
-    let weight = (amount.u128() / escrow_amount) as u64;
+    let weight = (amount.u128() >= escrow_amount) as u64;
     members().save(deps.storage, &info.sender, &weight, env.block.height)?;
 
     TOTAL.save(deps.storage, &weight)?;
