@@ -123,11 +123,6 @@ pub fn execute(
 ) -> Result<Response, ContractError> {
     let api = deps.api;
     match msg {
-        ExecuteMsg::UpdateAdmin { admin } => Ok(ADMIN.execute_update_admin(
-            deps,
-            info,
-            admin.map(|admin| api.addr_validate(&admin)).transpose()?,
-        )?),
         ExecuteMsg::UpdateMembers { add, remove } => {
             execute_update_members(deps, env, info, add, remove)
         }
