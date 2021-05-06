@@ -79,19 +79,8 @@ pub fn create(
 
     // Store sender as initial member, and define its weight / state
     // based on init_funds
-    let amount = match info.funds.len() {
-        0 => Ok(0u128),
-        1 => {
-            let amount = info.funds[0].amount.u128();
-            if info.funds[0].denom == DSO_DENOM {
-                Ok(amount)
-            } else {
-                Err(ContractError::WrongDenom(DSO_DENOM.to_string()))
-            }
-        }
-        _ => Err(ContractError::ExtraDenoms(DSO_DENOM.to_string())),
-    }?;
-    let weight = (amount / escrow_amount) as u64;
+    let amount = cw0::must_pay(&info, DSO_DENOM)?;
+    let weight = (amount.u128() / escrow_amount) as u64;
     members().save(deps.storage, &info.sender, &weight, env.block.height)?;
 
     TOTAL.save(deps.storage, &weight)?;

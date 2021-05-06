@@ -1,6 +1,7 @@
 use cosmwasm_std::StdError;
 use thiserror::Error;
 
+use cw0::PaymentError;
 use cw_controllers::{AdminError, HookError};
 
 #[derive(Error, Debug, PartialEq)]
@@ -29,9 +30,6 @@ pub enum ContractError {
     #[error("Invalid escrow amount: {0}")]
     InvalidEscrow(u128),
 
-    #[error("Wrong funds denomination. Must send '{0}' for escrow")]
-    WrongDenom(String),
-
-    #[error("Sent unsupported denoms, must send only '{0}' for escrow")]
-    ExtraDenoms(String),
+    #[error("{0}")]
+    Payment(#[from] PaymentError),
 }

@@ -8,7 +8,7 @@ use tg4::TOTAL_KEY;
 pub const ADMIN: Admin = Admin::new("admin");
 pub const HOOKS: Hooks = Hooks::new("tg4-hooks");
 
-pub const DSO_DENOM: &str = "TGD";
+pub const DSO_DENOM: &str = "utgd";
 
 #[derive(Serialize, Deserialize, Clone, PartialEq, Debug)]
 pub struct Dso {
