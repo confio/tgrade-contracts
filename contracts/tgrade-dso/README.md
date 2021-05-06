@@ -21,9 +21,10 @@ pub struct InstantiateMsg {
     pub admin: Option<String>,
     /// DSO Name
     pub name: String,
-    pub escrow_denom: String,
+    /// The required escrow amount, in the default denom (TGD)
+    pub escrow_amount: u128,
     /// Voting period in days
-    pub voting_duration: u32,
+    pub voting_period: u32,
     /// Default voting quorum percentage (0-100)
     pub quorum: u32,
     /// Default voting threshold percentage (0-100)
@@ -63,9 +64,6 @@ All voting and non-voting member updates (additions and removals),
 voting member slashing, as well as permissions assignment and revocation for
 non-voting participants, must be done through voting.
 
-- Define permissions, and allow voting to assign permissions to
-non-voting participants.
-  
 - Close the DSO.
 This implies redeeming all the funds, and removing / blocking the DSO so that
 it cannot be accessed anymore.
