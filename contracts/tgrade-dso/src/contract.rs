@@ -1,8 +1,8 @@
 #[cfg(not(feature = "library"))]
 use cosmwasm_std::entry_point;
 use cosmwasm_std::{
-    attr, to_binary, Addr, Binary, Deps, DepsMut, Env, MessageInfo, Order, Response, StdResult,
-    Uint128,
+    attr, to_binary, Addr, Binary, Decimal, Deps, DepsMut, Env, MessageInfo, Order, Response,
+    StdResult, Uint128,
 };
 use cw0::maybe_addr;
 use cw2::set_contract_version;
@@ -35,8 +35,8 @@ pub fn instantiate(
         msg.name,
         msg.escrow_amount,
         msg.voting_period,
-        msg.quorum,
-        msg.threshold,
+        &msg.quorum,
+        &msg.threshold,
     )?;
     Ok(Response::default())
 }
@@ -52,10 +52,10 @@ pub fn create(
     name: String,
     escrow_amount: u128,
     voting_period: u32,
-    quorum: u32,
-    threshold: u32,
+    quorum: &Decimal,
+    threshold: &Decimal,
 ) -> Result<(), ContractError> {
-    validate(&name, escrow_amount, quorum, threshold)?;
+    validate(&name, escrow_amount, *quorum, *threshold)?;
 
     let admin_addr = admin
         .map(|admin| deps.api.addr_validate(&admin))
@@ -82,8 +82,8 @@ pub fn create(
             name,
             escrow_amount: Uint128(escrow_amount),
             voting_period,
-            quorum,
-            threshold,
+            quorum: *quorum,
+            threshold: *threshold,
         },
     )?;
 
@@ -93,18 +93,20 @@ pub fn create(
 pub fn validate(
     name: &str,
     escrow_amount: u128,
-    quorum: u32,
-    threshold: u32,
+    quorum: Decimal,
+    threshold: Decimal,
 ) -> Result<(), ContractError> {
     if name.trim().is_empty() {
         return Err(ContractError::EmptyName {});
     }
+    let zero = Decimal::from_ratio(0u8, 1u8);
+    let hundred = Decimal::from_ratio(100u8, 1u8);
 
-    if quorum == 0 || quorum > 100 {
+    if quorum == zero || quorum > hundred {
         return Err(ContractError::InvalidQuorum(quorum));
     }
 
-    if threshold == 0 || threshold > 100 {
+    if threshold == zero || threshold > hundred {
         return Err(ContractError::InvalidThreshold(threshold));
     }
 
@@ -278,8 +280,8 @@ mod tests {
             name: DSO_NAME.to_string(),
             escrow_amount: ESCROW_FUNDS,
             voting_period: 14,
-            quorum: 50,
-            threshold: 50,
+            quorum: Decimal::from_ratio(50u8, 1u8),
+            threshold: Decimal::from_ratio(50u8, 1u8),
         };
         instantiate(deps, mock_env(), info, msg)
     }

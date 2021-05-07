@@ -1,6 +1,6 @@
 use serde::{Deserialize, Serialize};
 
-use cosmwasm_std::{Addr, Uint128};
+use cosmwasm_std::{Addr, Decimal, Uint128};
 use cw_controllers::Admin;
 use cw_storage_plus::{Index, IndexList, IndexedSnapshotMap, Item, MultiIndex, Strategy, U64Key};
 use tg4::TOTAL_KEY;
@@ -14,8 +14,8 @@ pub struct Dso {
     pub name: String,
     pub escrow_amount: Uint128,
     pub voting_period: u32,
-    pub quorum: u32,
-    pub threshold: u32,
+    pub quorum: Decimal,
+    pub threshold: Decimal,
 }
 
 pub const DSO: Item<Dso> = Item::new("dso");

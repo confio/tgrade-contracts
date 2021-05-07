@@ -1,4 +1,4 @@
-use cosmwasm_std::StdError;
+use cosmwasm_std::{Decimal, StdError};
 use thiserror::Error;
 
 use cw0::PaymentError;
@@ -19,10 +19,10 @@ pub enum ContractError {
     EmptyName {},
 
     #[error("Invalid voting quorum percentage: {0}")]
-    InvalidQuorum(u32),
+    InvalidQuorum(Decimal),
 
     #[error("Invalid voting threshold percentage: {0}")]
-    InvalidThreshold(u32),
+    InvalidThreshold(Decimal),
 
     #[error("Insufficient escrow amount: {0}")]
     InsufficientFunds(u128),

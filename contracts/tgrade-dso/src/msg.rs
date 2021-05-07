@@ -1,6 +1,7 @@
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
+use cosmwasm_std::Decimal;
 use tg4::Member;
 
 #[derive(Serialize, Deserialize, Clone, PartialEq, JsonSchema, Debug)]
@@ -18,11 +19,9 @@ pub struct InstantiateMsg {
     //FIXME?: Change to Duration
     pub voting_period: u32,
     /// Default voting quorum percentage (0-100)
-    //FIXME: Change to Decimal
-    pub quorum: u32,
+    pub quorum: Decimal,
     /// Default voting threshold percentage (0-100)
-    //FIXME: Change to Decimal
-    pub threshold: u32,
+    pub threshold: Decimal,
 }
 
 #[derive(Serialize, Deserialize, Clone, PartialEq, JsonSchema, Debug)]
