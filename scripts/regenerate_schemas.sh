@@ -1,0 +1,11 @@
+#!/bin/bash
+set -o errexit -o nounset -o pipefail
+command -v shellcheck > /dev/null && shellcheck "$0"
+
+for contract in contracts/*; do
+  (cd "$contract"; cargo schema; cd -)
+done
+
+for package in packages/*; do
+  (cd "$package"; cargo schema; cd -)
+done
