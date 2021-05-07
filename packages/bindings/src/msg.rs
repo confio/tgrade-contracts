@@ -53,7 +53,7 @@ pub enum HooksMsg {
     /// contracts registered here are allowed to call ExecuteGovProposal{}
     /// (Any privileged contract *can* register, but this means you must explicitly request permission before sending such a message)
     RegisterGovProposalExecutor {},
-    UnegisterGovProposalExecutor {},
+    UnregisterGovProposalExecutor {},
 }
 
 /// See https://github.com/tendermint/tendermint/blob/v0.34.8/proto/tendermint/abci/types.proto#L282-L289
