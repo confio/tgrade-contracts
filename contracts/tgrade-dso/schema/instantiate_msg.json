@@ -1,0 +1,49 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "InstantiateMsg",
+  "type": "object",
+  "required": [
+    "escrow_amount",
+    "name",
+    "quorum",
+    "threshold",
+    "voting_period"
+  ],
+  "properties": {
+    "admin": {
+      "description": "The admin is the only account that can update the group state. Omit it to make the group immutable.",
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "escrow_amount": {
+      "description": "The required escrow amount, in the default denom (TGD)",
+      "type": "integer",
+      "format": "uint128",
+      "minimum": 0.0
+    },
+    "name": {
+      "description": "DSO Name",
+      "type": "string"
+    },
+    "quorum": {
+      "description": "Default voting quorum percentage (0-100)",
+      "type": "integer",
+      "format": "uint32",
+      "minimum": 0.0
+    },
+    "threshold": {
+      "description": "Default voting threshold percentage (0-100)",
+      "type": "integer",
+      "format": "uint32",
+      "minimum": 0.0
+    },
+    "voting_period": {
+      "description": "Voting period in days",
+      "type": "integer",
+      "format": "uint32",
+      "minimum": 0.0
+    }
+  }
+}
