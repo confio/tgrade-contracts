@@ -5,7 +5,7 @@ use cosmwasm_std::{
 use crate::error::ContractError;
 use crate::msg::{ExecuteMsg, InstantiateMsg, OwnerResponse, QueryMsg};
 use crate::state::{Config, CONFIG};
-use tgrade_bindings::{GovProposal, TgradeMsg};
+use tgrade_bindings::{GovProposal, HooksMsg, PrivilegeChangeMsg, TgradeMsg, TgradeSudoMsg};
 
 // Note, you can use StdResult in some functions where you do not
 // make use of the custom errors
@@ -88,6 +88,37 @@ fn query_owner(deps: Deps) -> StdResult<OwnerResponse> {
     Ok(OwnerResponse {
         owner: config.owner.into(),
     })
+}
+
+#[cfg_attr(not(feature = "library"), entry_point)]
+pub fn sudo(
+    deps: DepsMut,
+    _env: Env,
+    msg: TgradeSudoMsg,
+) -> Result<Response<TgradeMsg>, ContractError> {
+    match msg {
+        TgradeSudoMsg::PrivilegeChange(change) => Ok(privilege_change(deps, change)),
+        _ => Err(ContractError::UnknownSudoType {}),
+    }
+}
+
+fn privilege_change(_deps: DepsMut, change: PrivilegeChangeMsg) -> Response<TgradeMsg> {
+    match change {
+        PrivilegeChangeMsg::Promoted {} => {
+            let msg = TgradeMsg::Hooks(HooksMsg::RegisterGovProposalExecutor {});
+            Response {
+                messages: vec![msg.into()],
+                ..Response::default()
+            }
+        }
+        PrivilegeChangeMsg::Demoted {} => {
+            let msg = TgradeMsg::Hooks(HooksMsg::UnregisterGovProposalExecutor {});
+            Response {
+                messages: vec![msg.into()],
+                ..Response::default()
+            }
+        }
+    }
 }
 
 #[cfg(test)]
