@@ -23,3 +23,25 @@ along with a `checksums.txt` file.
 If you hit any issues there and want to debug, you can try to run the
 following in each contract dir:
 `RUSTFLAGS="-C link-arg=-s" cargo build --release --target=wasm32-unknown-unknown --locked`
+
+## Creating a new contract
+
+You can start with [cosmwasm-template](https://github.com/CosmWasm/cosmwasm-template) as a basis:
+
+```bash
+cd contracts
+cargo generate --git https://github.com/CosmWasm/cosmwasm-template.git --name CONTRACT_NAME
+cd CONTRACT_NAME
+
+# remove unneeded files
+rm -rf .circleci .github .git
+rm .cargo-ok .editorconfig .gitignore rustfmt.toml 
+rm Developing.md Importing.md Publishing.md LICENSE NOTICE
+
+git add .
+```
+
+Then add it to CI, by editing `.circleci/config.yml`. Just copy the `contract_tgrade_dso` section and
+rename it, pointing to your new contract.
+
+Finally, update `Cargo.toml` to use the current version used by all other contracts in this repo.
