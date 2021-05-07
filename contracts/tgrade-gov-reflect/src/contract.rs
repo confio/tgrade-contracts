@@ -125,13 +125,13 @@ fn privilege_change(_deps: DepsMut, change: PrivilegeChangeMsg) -> Response<Tgra
 mod tests {
     use super::*;
     use cosmwasm_std::testing::{mock_dependencies, mock_env, mock_info};
-    use cosmwasm_std::{coins, from_binary};
+    use cosmwasm_std::{coins, from_binary, BankMsg, Uint128};
 
     #[test]
     fn proper_initialization() {
         let mut deps = mock_dependencies(&[]);
 
-        let msg = InstantiateMsg { count: 17 };
+        let msg = InstantiateMsg {};
         let info = mock_info("creator", &coins(1000, "earth"));
 
         // we can just call .unwrap() to assert this was a success
@@ -139,55 +139,97 @@ mod tests {
         assert_eq!(0, res.messages.len());
 
         // it worked, let's query the state
-        let res = query(deps.as_ref(), mock_env(), QueryMsg::GetCount {}).unwrap();
-        let value: CountResponse = from_binary(&res).unwrap();
-        assert_eq!(17, value.count);
+        let res = query(deps.as_ref(), mock_env(), QueryMsg::Owner {}).unwrap();
+        let value: OwnerResponse = from_binary(&res).unwrap();
+        assert_eq!("creator", value.owner);
     }
 
     #[test]
-    fn increment() {
-        let mut deps = mock_dependencies(&coins(2, "token"));
+    fn reflect_messages() {
+        let mut deps = mock_dependencies(&[]);
+        let creator = "admin";
 
-        let msg = InstantiateMsg { count: 17 };
-        let info = mock_info("creator", &coins(2, "token"));
-        let _res = instantiate(deps.as_mut(), mock_env(), info, msg).unwrap();
+        let msg = InstantiateMsg {};
+        let info = mock_info(creator, &[]);
+        instantiate(deps.as_mut(), mock_env(), info, msg).unwrap();
 
-        // beneficiary can release it
-        let info = mock_info("anyone", &coins(2, "token"));
-        let msg = ExecuteMsg::Increment {};
-        let _res = execute(deps.as_mut(), mock_env(), info, msg).unwrap();
+        // let's make some messages
+        let bank = BankMsg::Send {
+            to_address: "someone".to_string(),
+            amount: coins(1000, "utgd"),
+        };
+        let tgrade = TgradeMsg::MintTokens {
+            denom: "btc".to_string(),
+            amount: Uint128(777777),
+            recipient: "winner".to_string(),
+        };
+        let msgs = vec![bank.into(), tgrade.into()];
+        let info = mock_info(creator, &[]);
+        let msg = ExecuteMsg::Execute { msgs: msgs.clone() };
+        let res = execute(deps.as_mut(), mock_env(), info, msg).unwrap();
 
-        // should increase counter by 1
-        let res = query(deps.as_ref(), mock_env(), QueryMsg::GetCount {}).unwrap();
-        let value: CountResponse = from_binary(&res).unwrap();
-        assert_eq!(18, value.count);
+        assert_eq!(res.messages.len(), msgs.len());
+        assert_eq!(res.messages, msgs);
     }
 
     #[test]
-    fn reset() {
-        let mut deps = mock_dependencies(&coins(2, "token"));
+    fn reflect_proposal() {
+        let mut deps = mock_dependencies(&[]);
+        let creator = "admin";
 
-        let msg = InstantiateMsg { count: 17 };
-        let info = mock_info("creator", &coins(2, "token"));
-        let _res = instantiate(deps.as_mut(), mock_env(), info, msg).unwrap();
+        let msg = InstantiateMsg {};
+        let info = mock_info(creator, &[]);
+        instantiate(deps.as_mut(), mock_env(), info, msg).unwrap();
 
-        // beneficiary can release it
-        let unauth_info = mock_info("anyone", &coins(2, "token"));
-        let msg = ExecuteMsg::Reset { count: 5 };
-        let res = execute(deps.as_mut(), mock_env(), unauth_info, msg);
-        match res {
-            Err(ContractError::Unauthorized {}) => {}
-            _ => panic!("Must return unauthorized error"),
+        // prepare a governance proposal
+        let title = "Promotion for Johnny Boy!";
+        let description = "He's a good boy, let's give him root access :)";
+        let proposal = GovProposal::PromoteToPrivilegedContract {
+            contract: "johnny".to_string(),
+        };
+        let expected: CosmosMsg<TgradeMsg> = TgradeMsg::ExecuteGovProposal {
+            title: title.to_string(),
+            description: description.to_string(),
+            proposal: proposal.clone(),
         }
+        .into();
 
-        // only the original creator can reset the counter
-        let auth_info = mock_info("creator", &coins(2, "token"));
-        let msg = ExecuteMsg::Reset { count: 5 };
-        let _res = execute(deps.as_mut(), mock_env(), auth_info, msg).unwrap();
-
-        // should now be 5
-        let res = query(deps.as_ref(), mock_env(), QueryMsg::GetCount {}).unwrap();
-        let value: CountResponse = from_binary(&res).unwrap();
-        assert_eq!(5, value.count);
+        let info = mock_info(creator, &[]);
+        let msg = ExecuteMsg::Proposal {
+            title: title.to_string(),
+            description: description.to_string(),
+            proposal,
+        };
+        let res = execute(deps.as_mut(), mock_env(), info, msg).unwrap();
+        assert_eq!(res.messages.len(), 1);
+        assert_eq!(&res.messages[0], &expected);
     }
+
+    // #[test]
+    // fn reset() {
+    //     let mut deps = mock_dependencies(&coins(2, "token"));
+    //
+    //     let msg = InstantiateMsg { count: 17 };
+    //     let info = mock_info("creator", &coins(2, "token"));
+    //     let _res = instantiate(deps.as_mut(), mock_env(), info, msg).unwrap();
+    //
+    //     // beneficiary can release it
+    //     let unauth_info = mock_info("anyone", &coins(2, "token"));
+    //     let msg = ExecuteMsg::Reset { count: 5 };
+    //     let res = execute(deps.as_mut(), mock_env(), unauth_info, msg);
+    //     match res {
+    //         Err(ContractError::Unauthorized {}) => {}
+    //         _ => panic!("Must return unauthorized error"),
+    //     }
+    //
+    //     // only the original creator can reset the counter
+    //     let auth_info = mock_info("creator", &coins(2, "token"));
+    //     let msg = ExecuteMsg::Reset { count: 5 };
+    //     let _res = execute(deps.as_mut(), mock_env(), auth_info, msg).unwrap();
+    //
+    //     // should now be 5
+    //     let res = query(deps.as_ref(), mock_env(), QueryMsg::GetCount {}).unwrap();
+    //     let value: CountResponse = from_binary(&res).unwrap();
+    //     assert_eq!(5, value.count);
+    // }
 }
