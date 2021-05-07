@@ -1,10 +1,11 @@
 use cosmwasm_std::{
-    entry_point, to_binary, Binary, Deps, DepsMut, Env, MessageInfo, Response, StdResult,
+    entry_point, to_binary, Binary, CosmosMsg, Deps, DepsMut, Env, MessageInfo, Response, StdResult,
 };
 
 use crate::error::ContractError;
-use crate::msg::{CountResponse, ExecuteMsg, InstantiateMsg, QueryMsg};
-use crate::state::{config, config_read, State};
+use crate::msg::{ExecuteMsg, InstantiateMsg, OwnerResponse, QueryMsg};
+use crate::state::{Config, CONFIG};
+use tgrade_bindings::{GovProposal, TgradeMsg};
 
 // Note, you can use StdResult in some functions where you do not
 // make use of the custom errors
@@ -13,14 +14,10 @@ pub fn instantiate(
     deps: DepsMut,
     _env: Env,
     info: MessageInfo,
-    msg: InstantiateMsg,
+    _msg: InstantiateMsg,
 ) -> Result<Response, ContractError> {
-    let state = State {
-        count: msg.count,
-        owner: info.sender,
-    };
-    config(deps.storage).save(&state)?;
-
+    let cfg = Config { owner: info.sender };
+    CONFIG.save(deps.storage, &cfg)?;
     Ok(Response::default())
 }
 
@@ -31,43 +28,66 @@ pub fn execute(
     _env: Env,
     info: MessageInfo,
     msg: ExecuteMsg,
-) -> Result<Response, ContractError> {
+) -> Result<Response<TgradeMsg>, ContractError> {
     match msg {
-        ExecuteMsg::Increment {} => try_increment(deps),
-        ExecuteMsg::Reset { count } => try_reset(deps, info, count),
+        ExecuteMsg::Execute { msgs } => execute_execute(deps, info, msgs),
+        ExecuteMsg::Proposal {
+            title,
+            description,
+            proposal,
+        } => execute_proposal(deps, info, title, description, proposal),
     }
 }
 
-pub fn try_increment(deps: DepsMut) -> Result<Response, ContractError> {
-    config(deps.storage).update(|mut state| -> Result<_, ContractError> {
-        state.count += 1;
-        Ok(state)
-    })?;
-
-    Ok(Response::default())
+pub fn execute_execute(
+    deps: DepsMut,
+    info: MessageInfo,
+    messages: Vec<CosmosMsg<TgradeMsg>>,
+) -> Result<Response<TgradeMsg>, ContractError> {
+    let config = CONFIG.load(deps.storage)?;
+    if info.sender != config.owner {
+        return Err(ContractError::Unauthorized {});
+    }
+    Ok(Response {
+        messages,
+        ..Response::default()
+    })
 }
 
-pub fn try_reset(deps: DepsMut, info: MessageInfo, count: i32) -> Result<Response, ContractError> {
-    config(deps.storage).update(|mut state| -> Result<_, ContractError> {
-        if info.sender != state.owner {
-            return Err(ContractError::Unauthorized {});
-        }
-        state.count = count;
-        Ok(state)
-    })?;
-    Ok(Response::default())
+pub fn execute_proposal(
+    deps: DepsMut,
+    info: MessageInfo,
+    title: String,
+    description: String,
+    proposal: GovProposal,
+) -> Result<Response<TgradeMsg>, ContractError> {
+    let config = CONFIG.load(deps.storage)?;
+    if info.sender != config.owner {
+        return Err(ContractError::Unauthorized {});
+    }
+    let msg = TgradeMsg::ExecuteGovProposal {
+        title,
+        description,
+        proposal,
+    };
+    Ok(Response {
+        messages: vec![msg.into()],
+        ..Response::default()
+    })
 }
 
 #[entry_point]
 pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
     match msg {
-        QueryMsg::GetCount {} => to_binary(&query_count(deps)?),
+        QueryMsg::Owner {} => to_binary(&query_owner(deps)?),
     }
 }
 
-fn query_count(deps: Deps) -> StdResult<CountResponse> {
-    let state = config_read(deps.storage).load()?;
-    Ok(CountResponse { count: state.count })
+fn query_owner(deps: Deps) -> StdResult<OwnerResponse> {
+    let config = CONFIG.load(deps.storage)?;
+    Ok(OwnerResponse {
+        owner: config.owner.into(),
+    })
 }
 
 #[cfg(test)]

@@ -1,14 +1,13 @@
 {
   "$schema": "http://json-schema.org/draft-07/schema#",
-  "title": "CountResponse",
+  "title": "OwnerResponse",
   "type": "object",
   "required": [
-    "count"
+    "owner"
   ],
   "properties": {
-    "count": {
-      "type": "integer",
-      "format": "int32"
+    "owner": {
+      "type": "string"
     }
   }
 }
