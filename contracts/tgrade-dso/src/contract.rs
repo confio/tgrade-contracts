@@ -35,8 +35,8 @@ pub fn instantiate(
         msg.name,
         msg.escrow_amount,
         msg.voting_period,
-        &msg.quorum,
-        &msg.threshold,
+        msg.quorum,
+        msg.threshold,
     )?;
     Ok(Response::default())
 }
@@ -52,10 +52,10 @@ pub fn create(
     name: String,
     escrow_amount: u128,
     voting_period: u32,
-    quorum: &Decimal,
-    threshold: &Decimal,
+    quorum: Decimal,
+    threshold: Decimal,
 ) -> Result<(), ContractError> {
-    validate(&name, escrow_amount, *quorum, *threshold)?;
+    validate(&name, escrow_amount, quorum, threshold)?;
 
     let admin_addr = admin
         .map(|admin| deps.api.addr_validate(&admin))
@@ -82,8 +82,8 @@ pub fn create(
             name,
             escrow_amount: Uint128(escrow_amount),
             voting_period,
-            quorum: *quorum,
-            threshold: *threshold,
+            quorum,
+            threshold,
         },
     )?;
 
