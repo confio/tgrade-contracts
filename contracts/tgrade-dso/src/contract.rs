@@ -99,8 +99,8 @@ pub fn validate(
     if name.trim().is_empty() {
         return Err(ContractError::EmptyName {});
     }
-    let zero = Decimal::from_ratio(0u8, 1u8);
-    let hundred = Decimal::from_ratio(100u8, 1u8);
+    let zero = Decimal::percent(0);
+    let hundred = Decimal::percent(100);
 
     if quorum == zero || quorum > hundred {
         return Err(ContractError::InvalidQuorum(quorum));
@@ -280,8 +280,8 @@ mod tests {
             name: DSO_NAME.to_string(),
             escrow_amount: ESCROW_FUNDS,
             voting_period: 14,
-            quorum: Decimal::from_ratio(50u8, 1u8),
-            threshold: Decimal::from_ratio(50u8, 1u8),
+            quorum: Decimal::percent(40),
+            threshold: Decimal::percent(60),
         };
         instantiate(deps, mock_env(), info, msg)
     }
