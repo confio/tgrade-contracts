@@ -64,8 +64,11 @@ pub fn create(
 
     // Store sender as initial member, and define its weight / state
     // based on init_funds
-    let amount = cw0::must_pay(&info, DSO_DENOM)?;
-    let weight = (amount.u128() >= escrow_amount) as u64;
+    let amount = cw0::must_pay(&info, DSO_DENOM)?.u128();
+    if amount < escrow_amount {
+        return Err(ContractError::InsufficientFunds(amount));
+    }
+    let weight = 1;
     members().save(deps.storage, &info.sender, &weight, env.block.height)?;
 
     TOTAL.save(deps.storage, &weight)?;
@@ -73,7 +76,6 @@ pub fn create(
     // TODO: Put sender funds in escrow
 
     // Create DSO
-    // FIXME: Already existing check / avoid re-creation
     DSO.save(
         deps.storage,
         &Dso {
@@ -107,7 +109,7 @@ pub fn validate(
     }
 
     if escrow_amount == 0 {
-        return Err(ContractError::InvalidEscrow(escrow_amount));
+        return Err(ContractError::InsufficientFunds(escrow_amount));
     }
     Ok(())
 }
@@ -301,14 +303,11 @@ mod tests {
         let mut deps = mock_dependencies(&[]);
         let info = mock_info(INIT_ADMIN, &[coin(1u128, "utgd")]);
 
-        do_instantiate(deps.as_mut(), info).unwrap();
+        let res = do_instantiate(deps.as_mut(), info);
 
-        let res = ADMIN.query_admin(deps.as_ref()).unwrap();
-        assert_eq!(Some(INIT_ADMIN.into()), res.admin);
-
-        // succeeds, weight = 0 (not enough funds)
-        let res = query_total_weight(deps.as_ref()).unwrap();
-        assert_eq!(0, res.weight);
+        // should fail (not enough funds)
+        assert!(res.is_err());
+        assert_eq!(res.err(), Some(ContractError::InsufficientFunds(1)));
     }
 
     #[test]
