@@ -1,6 +1,22 @@
 [workspace]
 members = ["packages/*", "contracts/*"]
 
+[profile.release.package.tg4-group]
+codegen-units = 1
+incremental = false
+
+[profile.release.package.tg4-stake]
+codegen-units = 1
+incremental = false
+
+[profile.release.package.tgrade-dso]
+codegen-units = 1
+incremental = false
+
+[profile.release.package.tgrade-gov-reflect]
+codegen-units = 1
+incremental = false
+
 [profile.release.package.tgrade-valset]
 codegen-units = 1
 incremental = false
