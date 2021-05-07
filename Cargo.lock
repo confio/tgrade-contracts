@@ -598,6 +598,19 @@ dependencies = [
 ]
 
 [[package]]
+name = "tgrade-gov-reflect"
+version = "0.1.0"
+dependencies = [
+ "cosmwasm-schema",
+ "cosmwasm-std",
+ "cw-storage-plus",
+ "schemars",
+ "serde",
+ "tgrade-bindings",
+ "thiserror",
+]
+
+[[package]]
 name = "tgrade-valset"
 version = "0.1.0"
 dependencies = [
