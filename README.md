@@ -38,6 +38,9 @@ rm -rf .circleci .github .git
 rm .cargo-ok .editorconfig .gitignore rustfmt.toml 
 rm Developing.md Importing.md Publishing.md LICENSE NOTICE
 
+# regenerate schema for CI tests
+cargo schema
+
 git add .
 ```
 
