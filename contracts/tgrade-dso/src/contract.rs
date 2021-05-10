@@ -187,6 +187,12 @@ pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
         QueryMsg::ListMembersByWeight { start_after, limit } => {
             to_binary(&list_members_by_weight(deps, start_after, limit)?)
         }
+        QueryMsg::ListVotingMembers { start_after, limit } => {
+            to_binary(&list_voting_members(deps, start_after, limit)?)
+        }
+        QueryMsg::ListNonVotingMembers { start_after, limit } => {
+            to_binary(&list_non_voting_members(deps, start_after, limit)?)
+        }
         QueryMsg::TotalWeight {} => to_binary(&query_total_weight(deps)?),
         QueryMsg::Admin {} => to_binary(&ADMIN.query_admin(deps)?),
     }
@@ -221,6 +227,57 @@ fn list_members(
 
     let members: StdResult<Vec<_>> = members()
         .range(deps.storage, start, None, Order::Ascending)
+        .take(limit)
+        .map(|item| {
+            let (key, weight) = item?;
+            Ok(Member {
+                addr: String::from_utf8(key)?,
+                weight,
+            })
+        })
+        .collect();
+
+    Ok(MemberListResponse { members: members? })
+}
+
+fn list_voting_members(
+    deps: Deps,
+    start_after: Option<String>,
+    limit: Option<u32>,
+) -> StdResult<MemberListResponse> {
+    let limit = limit.unwrap_or(DEFAULT_LIMIT).min(MAX_LIMIT) as usize;
+    let addr = maybe_addr(deps.api, start_after)?;
+    let start = addr.map(|addr| Bound::exclusive(addr.as_ref()));
+
+    let escrow_amount = DSO.load(deps.storage)?.escrow_amount;
+
+    let members: StdResult<Vec<_>> = ESCROW
+        .range(deps.storage, start, None, Order::Ascending)
+        .take(limit)
+        .map(|item| {
+            let (key, amount) = item?;
+            Ok(Member {
+                addr: String::from_utf8(key)?,
+                weight: (amount >= escrow_amount) as u64,
+            })
+        })
+        .collect();
+
+    Ok(MemberListResponse { members: members? })
+}
+
+fn list_non_voting_members(
+    deps: Deps,
+    start_after: Option<String>,
+    limit: Option<u32>,
+) -> StdResult<MemberListResponse> {
+    let limit = limit.unwrap_or(DEFAULT_LIMIT).min(MAX_LIMIT) as usize;
+    let start = start_after.map(|m| Bound::exclusive((U64Key::from(0), m.as_str()).joined_key()));
+    let end = Some(Bound::exclusive((U64Key::from(1), "").joined_key()));
+    let members: StdResult<Vec<_>> = members()
+        .idx
+        .weight
+        .range(deps.storage, start, end, Order::Ascending)
         .take(limit)
         .map(|item| {
             let (key, weight) = item?;
