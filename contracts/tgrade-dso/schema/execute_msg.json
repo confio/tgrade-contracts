@@ -3,13 +3,36 @@
   "title": "ExecuteMsg",
   "anyOf": [
     {
-      "description": "Apply a diff to the existing members. Remove is applied after add, so if an address is in both, it is removed",
       "type": "object",
       "required": [
-        "update_members"
+        "add_voting_members"
       ],
       "properties": {
-        "update_members": {
+        "add_voting_members": {
+          "type": "object",
+          "required": [
+            "voters"
+          ],
+          "properties": {
+            "voters": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            }
+          }
+        }
+      },
+      "additionalProperties": false
+    },
+    {
+      "description": "Apply a diff to the existing non-voting members. Remove is applied after add, so if an address is in both, it is removed",
+      "type": "object",
+      "required": [
+        "update_non_voting_members"
+      ],
+      "properties": {
+        "update_non_voting_members": {
           "type": "object",
           "required": [
             "add",
@@ -19,7 +42,7 @@
             "add": {
               "type": "array",
               "items": {
-                "$ref": "#/definitions/Member"
+                "type": "string"
               }
             },
             "remove": {
@@ -33,25 +56,5 @@
       },
       "additionalProperties": false
     }
-  ],
-  "definitions": {
-    "Member": {
-      "description": "A group member has a weight associated with them. This may all be equal, or may have meaning in the app that makes use of the group (eg. voting power)",
-      "type": "object",
-      "required": [
-        "addr",
-        "weight"
-      ],
-      "properties": {
-        "addr": {
-          "type": "string"
-        },
-        "weight": {
-          "type": "integer",
-          "format": "uint64",
-          "minimum": 0.0
-        }
-      }
-    }
-  }
+  ]
 }
