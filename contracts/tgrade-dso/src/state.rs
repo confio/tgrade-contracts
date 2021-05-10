@@ -2,7 +2,9 @@ use serde::{Deserialize, Serialize};
 
 use cosmwasm_std::{Addr, Decimal, Uint128};
 use cw_controllers::Admin;
-use cw_storage_plus::{Index, IndexList, IndexedSnapshotMap, Item, MultiIndex, Strategy, U64Key};
+use cw_storage_plus::{
+    Index, IndexList, IndexedSnapshotMap, Item, Map, MultiIndex, Strategy, U64Key,
+};
 use tg4::TOTAL_KEY;
 
 pub const ADMIN: Admin = Admin::new("admin");
@@ -56,3 +58,5 @@ pub fn members<'a>() -> IndexedSnapshotMap<'a, &'a Addr, u64, MemberIndexes<'a>>
         indexes,
     )
 }
+
+pub const ESCROW: Map<&Addr, Uint128> = Map::new("escrow");

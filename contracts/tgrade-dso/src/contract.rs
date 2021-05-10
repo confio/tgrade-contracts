@@ -11,7 +11,7 @@ use tg4::{Member, MemberChangedHookMsg, MemberListResponse, MemberResponse, Tota
 
 use crate::error::ContractError;
 use crate::msg::{ExecuteMsg, InstantiateMsg, QueryMsg};
-use crate::state::{members, Dso, ADMIN, DSO, DSO_DENOM, TOTAL};
+use crate::state::{members, Dso, ADMIN, DSO, DSO_DENOM, ESCROW, TOTAL};
 
 // version info for migration info
 const CONTRACT_NAME: &str = "crates.io:tgrade-dso";
@@ -68,12 +68,12 @@ pub fn create(
     if amount < escrow_amount {
         return Err(ContractError::InsufficientFunds(amount));
     }
+    // Put sender funds in escrow
+    ESCROW.save(deps.storage, &info.sender, &Uint128(amount))?;
+
     let weight = 1;
     members().save(deps.storage, &info.sender, &weight, env.block.height)?;
-
     TOTAL.save(deps.storage, &weight)?;
-
-    // TODO: Put sender funds in escrow
 
     // Create DSO
     DSO.save(
