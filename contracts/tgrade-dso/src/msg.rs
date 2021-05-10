@@ -27,11 +27,14 @@ pub struct InstantiateMsg {
 #[derive(Serialize, Deserialize, Clone, PartialEq, JsonSchema, Debug)]
 #[serde(rename_all = "snake_case")]
 pub enum ExecuteMsg {
-    /// Apply a diff to the existing members.
+    AddVotingMembers {
+        voters: Vec<String>,
+    },
+    /// Apply a diff to the existing non-voting members.
     /// Remove is applied after add, so if an address is in both, it is removed
-    UpdateMembers {
+    UpdateNonVotingMembers {
         remove: Vec<String>,
-        add: Vec<Member>,
+        add: Vec<String>,
     },
 }
 

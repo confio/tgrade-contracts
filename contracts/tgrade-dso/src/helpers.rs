@@ -3,7 +3,7 @@ use serde::{Deserialize, Serialize};
 use std::ops::Deref;
 
 use cosmwasm_std::{to_binary, Addr, CosmosMsg, StdResult, WasmMsg};
-use tg4::{Member, Tg4Contract};
+use tg4::Tg4Contract;
 
 use crate::msg::ExecuteMsg;
 
@@ -36,8 +36,12 @@ impl TgDsoContract {
         .into())
     }
 
-    pub fn update_members(&self, remove: Vec<String>, add: Vec<Member>) -> StdResult<CosmosMsg> {
-        let msg = ExecuteMsg::UpdateMembers { remove, add };
+    pub fn update_non_voting_members(
+        &self,
+        remove: Vec<String>,
+        add: Vec<String>,
+    ) -> StdResult<CosmosMsg> {
+        let msg = ExecuteMsg::UpdateNonVotingMembers { remove, add };
         self.encode_msg(msg)
     }
 }

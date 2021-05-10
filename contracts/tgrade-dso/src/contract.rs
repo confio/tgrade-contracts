@@ -7,7 +7,10 @@ use cosmwasm_std::{
 use cw0::maybe_addr;
 use cw2::set_contract_version;
 use cw_storage_plus::{Bound, PrimaryKey, U64Key};
-use tg4::{Member, MemberChangedHookMsg, MemberListResponse, MemberResponse, TotalWeightResponse};
+use tg4::{
+    Member, MemberChangedHookMsg, MemberDiff, MemberListResponse, MemberResponse,
+    TotalWeightResponse,
+};
 
 use crate::error::ContractError;
 use crate::msg::{ExecuteMsg, InstantiateMsg, QueryMsg};
@@ -124,29 +127,39 @@ pub fn execute(
     info: MessageInfo,
     msg: ExecuteMsg,
 ) -> Result<Response, ContractError> {
+    /* TODO:
+       - For voting (1 weight) members, they need to be marked as "allowed to vote 1" and "escrow 0".
+       They should have 0 weight for now. Once they pay escrow, they get bumped to 1 weight.
+       - We currently need to reject any members with weight > 1 (return error) until that
+       is specified in the DSO requirements.
+    */
     match msg {
-        ExecuteMsg::UpdateMembers { add, remove } => {
-            execute_update_members(deps, env, info, add, remove)
+        ExecuteMsg::AddVotingMembers { voters } => {
+            execute_add_voting_members(deps, env, info, voters)
+        }
+        ExecuteMsg::UpdateNonVotingMembers { add, remove } => {
+            execute_update_non_voting_members(deps, env, info, add, remove)
         }
     }
 }
 
-pub fn execute_update_members(
+pub fn execute_update_non_voting_members(
     mut deps: DepsMut,
     env: Env,
     info: MessageInfo,
-    add: Vec<Member>,
+    add: Vec<String>,
     remove: Vec<String>,
 ) -> Result<Response, ContractError> {
     let attributes = vec![
-        attr("action", "update_members"),
+        attr("action", "update_non_voting_members"),
         attr("added", add.len()),
         attr("removed", remove.len()),
         attr("sender", &info.sender),
     ];
 
     // make the local update
-    let _diff = update_members(deps.branch(), env.block.height, info.sender, add, remove)?;
+    let _diff =
+        update_non_voting_members(deps.branch(), env.block.height, info.sender, add, remove)?;
     Ok(Response {
         submessages: vec![],
         messages: vec![],
@@ -155,23 +168,61 @@ pub fn execute_update_members(
     })
 }
 
-// the logic from execute_update_members extracted for easier import
-pub fn update_members(
-    _deps: DepsMut,
-    _height: u64,
-    _sender: Addr,
-    _to_add: Vec<Member>,
-    _to_remove: Vec<String>,
-) -> Result<MemberChangedHookMsg, ContractError> {
-    /* TODO:
-       - This can be implemented as an "admin" message in one PR, then via voting in a second.
-       - For non-voting (0 weight) members, cw4-group update_members() logic is correct.
-       - For voting (1 weight) members, they need to be marked as "allowed to vote 1" and "escrow 0".
-       They should have 0 weight for now. Once they pay escrow, they get bumped to 1 weight.
-       - We currently need to reject any members with weight > 1 (return error) until that
-       is specified in the DSO requirements.
-    */
+pub fn execute_add_voting_members(
+    mut _deps: DepsMut,
+    _env: Env,
+    info: MessageInfo,
+    add: Vec<String>,
+) -> Result<Response, ContractError> {
+    let _attributes = vec![
+        attr("action", "add_voting_members"),
+        attr("added", add.len()),
+        attr("sender", &info.sender),
+    ];
     unimplemented!()
+}
+
+// The logic from execute_update_non_voting_members extracted for easier import
+pub fn update_non_voting_members(
+    deps: DepsMut,
+    height: u64,
+    sender: Addr,
+    to_add: Vec<String>,
+    to_remove: Vec<String>,
+) -> Result<MemberChangedHookMsg, ContractError> {
+    // TODO: Implement auth via voting
+    ADMIN.assert_admin(deps.as_ref(), &sender)?;
+
+    let mut diffs: Vec<MemberDiff> = vec![];
+
+    // Add all new (non-voting) members
+    for add in to_add.into_iter() {
+        let add_addr = deps.api.addr_validate(&add)?;
+        members().update(deps.storage, &add_addr, height, |old| -> StdResult<_> {
+            // If the member already exists, the update for that member is ignored
+            if let Some(weight) = old {
+                Ok(weight)
+            } else {
+                diffs.push(MemberDiff::new(add, None, Some(0)));
+                Ok(0)
+            }
+        })?;
+    }
+
+    // Remove non-voting members
+    for remove in to_remove.into_iter() {
+        let remove_addr = deps.api.addr_validate(&remove)?;
+        let old = members().may_load(deps.storage, &remove_addr)?;
+        // Only process this if they are actually in the list (as a non-voting member)
+        if let Some(weight) = old {
+            // If the member isn't a non-voting member, the removal of that member is ignored
+            if weight == 0 {
+                diffs.push(MemberDiff::new(remove, Some(0), None));
+                members().remove(deps.storage, &remove_addr, height)?;
+            }
+        }
+    }
+    Ok(MemberChangedHookMsg { diffs })
 }
 
 #[cfg_attr(not(feature = "library"), entry_point)]
