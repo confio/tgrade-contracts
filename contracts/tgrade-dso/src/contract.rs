@@ -308,7 +308,7 @@ fn list_voting_members(
         .map(|item| {
             let (key, amount) = item?;
             Ok(Member {
-                addr: String::from_utf8(key)?,
+                addr: unsafe { String::from_utf8_unchecked(key) },
                 weight: (amount >= escrow_amount) as u64,
             })
         })
