@@ -29,7 +29,7 @@
       "additionalProperties": false
     },
     {
-      "description": "Returns MembersListResponse",
+      "description": "Returns MembersListResponse, for all (voting and non-voting) members",
       "type": "object",
       "required": [
         "list_members"
@@ -58,7 +58,65 @@
       "additionalProperties": false
     },
     {
-      "description": "Returns MembersListResponse, sorted by weight descending",
+      "description": "Returns MembersListResponse, weight > 0 means active voting member, 0 means pending (not enough escrow)",
+      "type": "object",
+      "required": [
+        "list_voting_members"
+      ],
+      "properties": {
+        "list_voting_members": {
+          "type": "object",
+          "properties": {
+            "limit": {
+              "type": [
+                "integer",
+                "null"
+              ],
+              "format": "uint32",
+              "minimum": 0.0
+            },
+            "start_after": {
+              "type": [
+                "string",
+                "null"
+              ]
+            }
+          }
+        }
+      },
+      "additionalProperties": false
+    },
+    {
+      "description": "Returns MembersListResponse, only weight == 0 members",
+      "type": "object",
+      "required": [
+        "list_non_voting_members"
+      ],
+      "properties": {
+        "list_non_voting_members": {
+          "type": "object",
+          "properties": {
+            "limit": {
+              "type": [
+                "integer",
+                "null"
+              ],
+              "format": "uint32",
+              "minimum": 0.0
+            },
+            "start_after": {
+              "type": [
+                "string",
+                "null"
+              ]
+            }
+          }
+        }
+      },
+      "additionalProperties": false
+    },
+    {
+      "description": "Returns MembersListResponse, for all members, sorted by weight descending",
       "type": "object",
       "required": [
         "list_members_by_weight"
