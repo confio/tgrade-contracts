@@ -309,7 +309,7 @@ fn list_voting_members(
             let (key, amount) = item?;
             Ok(Member {
                 addr: unsafe { String::from_utf8_unchecked(key) },
-                weight: (amount >= escrow_amount) as u64,
+                weight: if amount >= escrow_amount { 1 } else { 0 },
             })
         })
         .collect();
