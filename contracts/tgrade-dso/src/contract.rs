@@ -127,12 +127,6 @@ pub fn execute(
     info: MessageInfo,
     msg: ExecuteMsg,
 ) -> Result<Response, ContractError> {
-    /* TODO:
-       - For voting (1 weight) members, they need to be marked as "allowed to vote 1" and "escrow 0".
-       They should have 0 weight for now. Once they pay escrow, they get bumped to 1 weight.
-       - We currently need to reject any members with weight > 1 (return error) until that
-       is specified in the DSO requirements.
-    */
     match msg {
         ExecuteMsg::AddVotingMembers { voters } => {
             execute_add_voting_members(deps, env, info, voters)
