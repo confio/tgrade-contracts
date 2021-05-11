@@ -169,17 +169,51 @@ pub fn execute_update_non_voting_members(
 }
 
 pub fn execute_add_voting_members(
-    mut _deps: DepsMut,
-    _env: Env,
+    mut deps: DepsMut,
+    env: Env,
     info: MessageInfo,
     add: Vec<String>,
 ) -> Result<Response, ContractError> {
-    let _attributes = vec![
+    let attributes = vec![
         attr("action", "add_voting_members"),
         attr("added", add.len()),
         attr("sender", &info.sender),
     ];
-    unimplemented!()
+
+    // make the local additions
+    let _diff = add_voting_members(deps.branch(), env.block.height, info.sender, add)?;
+    Ok(Response {
+        submessages: vec![],
+        messages: vec![],
+        attributes,
+        data: None,
+    })
+}
+
+pub fn add_voting_members(
+    deps: DepsMut,
+    height: u64,
+    sender: Addr,
+    to_add: Vec<String>,
+) -> Result<MemberChangedHookMsg, ContractError> {
+    // TODO: Implement auth via voting
+    ADMIN.assert_admin(deps.as_ref(), &sender)?;
+
+    let mut diffs: Vec<MemberDiff> = vec![];
+
+    // Add all new voting members
+    for add in to_add.into_iter() {
+        let add_addr = deps.api.addr_validate(&add)?;
+        let old = members().may_load(deps.storage, &add_addr)?;
+        // Only add the member if it does not already exist
+        if old.is_none() {
+            members().save(deps.storage, &add_addr, &1, height)?;
+            // Create member entry in escrow (with no funds)
+            ESCROW.save(deps.storage, &add_addr, &Uint128::zero())?;
+            diffs.push(MemberDiff::new(add, None, Some(1)));
+        }
+    }
+    Ok(MemberChangedHookMsg { diffs })
 }
 
 // The logic from execute_update_non_voting_members extracted for easier import
@@ -195,7 +229,7 @@ pub fn update_non_voting_members(
 
     let mut diffs: Vec<MemberDiff> = vec![];
 
-    // Add all new (non-voting) members
+    // Add all new non-voting members
     for add in to_add.into_iter() {
         let add_addr = deps.api.addr_validate(&add)?;
         members().update(deps.storage, &add_addr, height, |old| -> StdResult<_> {
