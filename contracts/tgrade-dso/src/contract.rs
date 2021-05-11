@@ -232,15 +232,12 @@ pub fn update_non_voting_members(
     // Add all new non-voting members
     for add in to_add.into_iter() {
         let add_addr = deps.api.addr_validate(&add)?;
-        members().update(deps.storage, &add_addr, height, |old| -> StdResult<_> {
-            // If the member already exists, the update for that member is ignored
-            if let Some(weight) = old {
-                Ok(weight)
-            } else {
-                diffs.push(MemberDiff::new(add, None, Some(0)));
-                Ok(0)
-            }
-        })?;
+        let old = members().may_load(deps.storage, &add_addr)?;
+        // If the member already exists, the update for that member is ignored
+        if old.is_none() {
+            members().save(deps.storage, &add_addr, &0, height)?;
+            diffs.push(MemberDiff::new(add, None, Some(0)));
+        }
     }
 
     // Remove non-voting members
@@ -251,8 +248,8 @@ pub fn update_non_voting_members(
         if let Some(weight) = old {
             // If the member isn't a non-voting member, the removal of that member is ignored
             if weight == 0 {
-                diffs.push(MemberDiff::new(remove, Some(0), None));
                 members().remove(deps.storage, &remove_addr, height)?;
+                diffs.push(MemberDiff::new(remove, Some(0), None));
             }
         }
     }
