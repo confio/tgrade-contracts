@@ -14,11 +14,13 @@ use tg4::{
 
 use crate::error::ContractError;
 use crate::msg::{ExecuteMsg, InstantiateMsg, QueryMsg};
-use crate::state::{members, Dso, ADMIN, DSO, DSO_DENOM, ESCROW, TOTAL};
+use crate::state::{members, Dso, ADMIN, DSO, ESCROW, TOTAL};
 
 // version info for migration info
 const CONTRACT_NAME: &str = "crates.io:tgrade-dso";
 const CONTRACT_VERSION: &str = env!("CARGO_PKG_VERSION");
+
+pub const DSO_DENOM: &str = "utgd";
 
 // Note, you can use StdResult in some functions where you do not
 // make use of the custom errors
@@ -307,7 +309,7 @@ fn list_members(
         .map(|item| {
             let (key, weight) = item?;
             Ok(Member {
-                addr: String::from_utf8(key)?,
+                addr: unsafe { String::from_utf8_unchecked(key) },
                 weight,
             })
         })
@@ -358,7 +360,7 @@ fn list_non_voting_members(
         .map(|item| {
             let (key, weight) = item?;
             Ok(Member {
-                addr: String::from_utf8(key)?,
+                addr: unsafe { String::from_utf8_unchecked(key) },
                 weight,
             })
         })
@@ -383,7 +385,7 @@ fn list_members_by_weight(
         .map(|item| {
             let (key, weight) = item?;
             Ok(Member {
-                addr: String::from_utf8(key)?,
+                addr: unsafe { String::from_utf8_unchecked(key) },
                 weight,
             })
         })

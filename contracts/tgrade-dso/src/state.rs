@@ -9,8 +9,6 @@ use tg4::TOTAL_KEY;
 
 pub const ADMIN: Admin = Admin::new("admin");
 
-pub const DSO_DENOM: &str = "utgd";
-
 #[derive(Serialize, Deserialize, Clone, PartialEq, Debug)]
 pub struct Dso {
     pub name: String,
