@@ -195,20 +195,24 @@ pub fn add_voting_members(
     // TODO: Implement auth via voting
     ADMIN.assert_admin(deps.as_ref(), &sender)?;
 
+    let mut total = TOTAL.load(deps.storage)?;
     let mut diffs: Vec<MemberDiff> = vec![];
 
-    // Add all new voting members
+    // Add all new voting members and update total
     for add in to_add.into_iter() {
         let add_addr = deps.api.addr_validate(&add)?;
         let old = members().may_load(deps.storage, &add_addr)?;
         // Only add the member if it does not already exist
         if old.is_none() {
             members().save(deps.storage, &add_addr, &1, height)?;
+            total += 1;
             // Create member entry in escrow (with no funds)
             ESCROW.save(deps.storage, &add_addr, &Uint128::zero())?;
             diffs.push(MemberDiff::new(add, None, Some(1)));
         }
     }
+
+    TOTAL.save(deps.storage, &total)?;
     Ok(MemberChangedHookMsg { diffs })
 }
 
@@ -398,8 +402,9 @@ fn list_members_by_weight(
 mod tests {
     use super::*;
     use cosmwasm_std::testing::{mock_dependencies, mock_env, mock_info};
-    use cosmwasm_std::{coin, from_slice, Storage};
+    use cosmwasm_std::{coin, from_slice, Api, OwnedDeps, Querier, Storage};
     use cw0::PaymentError;
+    use cw_controllers::AdminError;
     use tg4::{member_key, TOTAL_KEY};
 
     const INIT_ADMIN: &str = "juan";
@@ -407,7 +412,12 @@ mod tests {
     const DSO_NAME: &str = "test_dso";
     const ESCROW_FUNDS: u128 = 1_000_000;
 
-    const USER3: &str = "funny";
+    const VOTING1: &str = "miles";
+    const VOTING2: &str = "john";
+    const VOTING3: &str = "julian";
+    const NONVOTING1: &str = "bill";
+    const NONVOTING2: &str = "paul";
+    const NONVOTING3: &str = "jimmy";
 
     fn do_instantiate(deps: DepsMut, info: MessageInfo) -> Result<Response, ContractError> {
         let msg = InstantiateMsg {
@@ -419,6 +429,81 @@ mod tests {
             threshold: Decimal::percent(60),
         };
         instantiate(deps, mock_env(), info, msg)
+    }
+
+    fn assert_voting<S: Storage, A: Api, Q: Querier>(
+        deps: &OwnedDeps<S, A, Q>,
+        voting0_weight: Option<u64>,
+        voting1_weight: Option<u64>,
+        voting2_weight: Option<u64>,
+        voting3_weight: Option<u64>,
+        height: Option<u64>,
+    ) {
+        let voting0 = query_member(deps.as_ref(), INIT_ADMIN.into(), height).unwrap();
+        assert_eq!(voting0.weight, voting0_weight);
+
+        let voting1 = query_member(deps.as_ref(), VOTING1.into(), height).unwrap();
+        assert_eq!(voting1.weight, voting1_weight);
+
+        let voting2 = query_member(deps.as_ref(), VOTING2.into(), height).unwrap();
+        assert_eq!(voting2.weight, voting2_weight);
+
+        let voting3 = query_member(deps.as_ref(), VOTING3.into(), height).unwrap();
+        assert_eq!(voting3.weight, voting3_weight);
+
+        // this is only valid if we are not doing a historical query
+        if height.is_none() {
+            // compute expected metrics
+            let weights = vec![
+                voting0_weight,
+                voting1_weight,
+                voting2_weight,
+                voting3_weight,
+            ];
+            let sum: u64 = weights.iter().map(|x| x.unwrap_or_default()).sum();
+            let count = weights.iter().filter(|x| x.is_some()).count();
+
+            let members = list_voting_members(deps.as_ref(), None, None)
+                .unwrap()
+                .members;
+            assert_eq!(count, members.len());
+
+            let total = query_total_weight(deps.as_ref()).unwrap();
+            assert_eq!(sum, total.weight);
+        }
+    }
+
+    fn assert_nonvoting<S: Storage, A: Api, Q: Querier>(
+        deps: &OwnedDeps<S, A, Q>,
+        nonvoting1_weight: Option<u64>,
+        nonvoting2_weight: Option<u64>,
+        nonvoting3_weight: Option<u64>,
+        height: Option<u64>,
+    ) {
+        let nonvoting1 = query_member(deps.as_ref(), NONVOTING1.into(), height).unwrap();
+        assert_eq!(nonvoting1.weight, nonvoting1_weight);
+
+        let nonvoting2 = query_member(deps.as_ref(), NONVOTING2.into(), height).unwrap();
+        assert_eq!(nonvoting2.weight, nonvoting2_weight);
+
+        let nonvoting3 = query_member(deps.as_ref(), NONVOTING3.into(), height).unwrap();
+        assert_eq!(nonvoting3.weight, nonvoting3_weight);
+
+        // this is only valid if we are not doing a historical query
+        if height.is_none() {
+            // compute expected metrics
+            let weights = vec![nonvoting1_weight, nonvoting2_weight, nonvoting3_weight];
+            let count = weights.iter().filter(|x| x.is_some()).count();
+
+            let nonvoting = list_non_voting_members(deps.as_ref(), None, None)
+                .unwrap()
+                .members;
+            assert_eq!(count, nonvoting.len());
+
+            // Just confirm all non-voting members weights are zero
+            let total: u64 = nonvoting.iter().map(|m| m.weight).sum();
+            assert_eq!(total, 0);
+        }
     }
 
     #[test]
@@ -455,29 +540,96 @@ mod tests {
         do_instantiate(deps.as_mut(), info).unwrap();
 
         // succeeds, weight = 1
-        let res = query_total_weight(deps.as_ref()).unwrap();
-        assert_eq!(1, res.weight);
+        let total = query_total_weight(deps.as_ref()).unwrap();
+        assert_eq!(1, total.weight);
     }
 
     #[test]
-    fn try_member_queries() {
+    fn test_add_voting_members() {
         let mut deps = mock_dependencies(&[]);
         let info = mock_info(INIT_ADMIN, &[coin(ESCROW_FUNDS, "utgd")]);
         do_instantiate(deps.as_mut(), info).unwrap();
 
-        // TODO: Add members when update_members is working
+        // assert the voting set is proper
+        assert_voting(&deps, Some(1), None, None, None, None);
 
-        // assert the set is proper
-        let members = list_members(deps.as_ref(), None, None).unwrap().members;
-        assert_eq!(members.len(), 1);
-        // Assert the set is proper
-        assert_eq!(
-            members,
-            vec![Member {
-                addr: INIT_ADMIN.into(),
-                weight: 1
-            },]
-        );
+        // Add a couple voting members
+        let add = vec![VOTING3.into(), VOTING1.into()];
+
+        // Non-admin cannot update
+        let height = mock_env().block.height;
+        let err = add_voting_members(
+            deps.as_mut(),
+            height + 5,
+            Addr::unchecked(VOTING1),
+            add.clone(),
+        )
+        .unwrap_err();
+        assert_eq!(err, AdminError::NotAdmin {}.into());
+
+        // Confirm the original values from instantiate
+        assert_voting(&deps, Some(1), None, None, None, None);
+
+        // Admin updates properly
+        add_voting_members(deps.as_mut(), height + 10, Addr::unchecked(INIT_ADMIN), add).unwrap();
+
+        // Updated properly
+        assert_voting(&deps, Some(1), Some(1), None, Some(1), None);
+    }
+
+    #[test]
+    fn test_update_nonvoting_members() {
+        let mut deps = mock_dependencies(&[]);
+        let info = mock_info(INIT_ADMIN, &[coin(ESCROW_FUNDS, "utgd")]);
+        do_instantiate(deps.as_mut(), info).unwrap();
+
+        // assert the non-voting set is proper
+        assert_nonvoting(&deps, None, None, None, None);
+
+        // Add non-voting members
+        let add = vec![NONVOTING1.into(), NONVOTING2.into()];
+        let remove = vec![];
+
+        // Non-admin cannot update
+        let height = mock_env().block.height;
+        let err = update_non_voting_members(
+            deps.as_mut(),
+            height + 5,
+            Addr::unchecked(VOTING1),
+            add.clone(),
+            remove.clone(),
+        )
+        .unwrap_err();
+        assert_eq!(err, AdminError::NotAdmin {}.into());
+
+        // Admin updates properly
+        update_non_voting_members(
+            deps.as_mut(),
+            height + 10,
+            Addr::unchecked(INIT_ADMIN),
+            add,
+            remove,
+        )
+        .unwrap();
+
+        // assert the non-voting set is updated
+        assert_nonvoting(&deps, Some(0), Some(0), None, None);
+
+        // Add another non-voting member, and remove one
+        let add = vec![NONVOTING3.into()];
+        let remove = vec![NONVOTING2.into()];
+
+        update_non_voting_members(
+            deps.as_mut(),
+            height + 11,
+            Addr::unchecked(INIT_ADMIN),
+            add,
+            remove,
+        )
+        .unwrap();
+
+        // assert the non-voting set is updated
+        assert_nonvoting(&deps, Some(0), None, Some(0), None);
     }
 
     #[test]
@@ -543,7 +695,7 @@ mod tests {
         assert_eq!(1, member1);
 
         // and execute misses
-        let member3_raw = deps.storage.get(&member_key(USER3));
+        let member3_raw = deps.storage.get(&member_key(VOTING3));
         assert_eq!(None, member3_raw);
     }
 }
