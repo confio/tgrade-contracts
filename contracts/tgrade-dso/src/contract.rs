@@ -638,19 +638,59 @@ mod tests {
         let info = mock_info(INIT_ADMIN, &[coin(ESCROW_FUNDS, "utgd")]);
         do_instantiate(deps.as_mut(), info).unwrap();
 
-        // TODO: Add members when update_members is working
+        let height = mock_env().block.height;
+        // Add voting members
+        let add = vec![VOTING1.into(), VOTING2.into(), VOTING3.into()];
+        add_voting_members(deps.as_mut(), height + 1, Addr::unchecked(INIT_ADMIN), add).unwrap();
+
+        // Add non-voting members
+        let add = vec![NONVOTING1.into(), NONVOTING2.into(), NONVOTING3.into()];
+        update_non_voting_members(
+            deps.as_mut(),
+            height + 2,
+            Addr::unchecked(INIT_ADMIN),
+            add,
+            vec![],
+        )
+        .unwrap();
 
         let members = list_members_by_weight(deps.as_ref(), None, None)
             .unwrap()
             .members;
-        assert_eq!(members.len(), 1);
-        // Assert the set is sorted by (descending) weight
+        assert_eq!(members.len(), 1 + 3 + 3);
+        // Assert the set is sorted by (descending) weight (and addr)
         assert_eq!(
             members,
-            vec![Member {
-                addr: INIT_ADMIN.into(),
-                weight: 1
-            },]
+            vec![
+                Member {
+                    addr: "miles".into(),
+                    weight: 1
+                },
+                Member {
+                    addr: "julian".into(),
+                    weight: 1
+                },
+                Member {
+                    addr: "juan".into(),
+                    weight: 1
+                },
+                Member {
+                    addr: "john".into(),
+                    weight: 1
+                },
+                Member {
+                    addr: "paul".into(),
+                    weight: 0
+                },
+                Member {
+                    addr: "jimmy".into(),
+                    weight: 0
+                },
+                Member {
+                    addr: "bill".into(),
+                    weight: 0
+                },
+            ]
         );
 
         // Test pagination / limits
@@ -662,15 +702,49 @@ mod tests {
         assert_eq!(
             members,
             vec![Member {
-                addr: INIT_ADMIN.into(),
+                addr: "miles".into(),
                 weight: 1
             },]
         );
 
-        // TODO: Test next page here, when more members
+        // Test next page
+        let members = list_members_by_weight(deps.as_ref(), Some(members[0].clone()), None)
+            .unwrap()
+            .members;
+        assert_eq!(members.len(), 6);
+        // Assert the set is proper
+        assert_eq!(
+            members,
+            vec![
+                Member {
+                    addr: "julian".into(),
+                    weight: 1
+                },
+                Member {
+                    addr: "juan".into(),
+                    weight: 1
+                },
+                Member {
+                    addr: "john".into(),
+                    weight: 1
+                },
+                Member {
+                    addr: "paul".into(),
+                    weight: 0
+                },
+                Member {
+                    addr: "jimmy".into(),
+                    weight: 0
+                },
+                Member {
+                    addr: "bill".into(),
+                    weight: 0
+                },
+            ]
+        );
 
         // Assert there's no more
-        let start_after = Some(members[0].clone());
+        let start_after = Some(members[5].clone());
         let members = list_members_by_weight(deps.as_ref(), start_after, Some(1))
             .unwrap()
             .members;
@@ -690,9 +764,9 @@ mod tests {
         assert_eq!(1, total);
 
         // get member votes from raw key
-        let member1_raw = deps.storage.get(&member_key(INIT_ADMIN)).unwrap();
-        let member1: u64 = from_slice(&member1_raw).unwrap();
-        assert_eq!(1, member1);
+        let member0_raw = deps.storage.get(&member_key(INIT_ADMIN)).unwrap();
+        let member0: u64 = from_slice(&member0_raw).unwrap();
+        assert_eq!(1, member0);
 
         // and execute misses
         let member3_raw = deps.storage.get(&member_key(VOTING3));
