@@ -24,6 +24,9 @@ pub enum ContractError {
     #[error("Invalid voting threshold percentage: {0}")]
     InvalidThreshold(Decimal),
 
+    #[error("No funds provided")]
+    NoFunds,
+
     #[error("Insufficient escrow amount: {0}")]
     InsufficientFunds(u128),
 

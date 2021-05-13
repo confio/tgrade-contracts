@@ -1,8 +1,8 @@
 #[cfg(not(feature = "library"))]
 use cosmwasm_std::entry_point;
 use cosmwasm_std::{
-    attr, to_binary, Addr, Binary, Decimal, Deps, DepsMut, Env, MessageInfo, Order, Response,
-    StdResult, Uint128,
+    attr, coin, to_binary, Addr, BankMsg, Binary, CosmosMsg, Decimal, Deps, DepsMut, Env,
+    MessageInfo, Order, Response, StdResult, Uint128,
 };
 use cw0::maybe_addr;
 use cw2::set_contract_version;
@@ -136,6 +136,8 @@ pub fn execute(
         ExecuteMsg::UpdateNonVotingMembers { add, remove } => {
             execute_update_non_voting_members(deps, env, info, add, remove)
         }
+        ExecuteMsg::TopUp {} => execute_top_up(deps, info),
+        ExecuteMsg::Refund { amount } => execute_refund(deps, info, amount),
     }
 }
 
@@ -184,6 +186,83 @@ pub fn execute_add_voting_members(
         attributes,
         data: None,
     })
+}
+
+pub fn execute_top_up(deps: DepsMut, info: MessageInfo) -> Result<Response, ContractError> {
+    // This fails is no escrow there
+    let mut escrow = ESCROW.load(deps.storage, &info.sender)?;
+    let amount = cw0::must_pay(&info, DSO_DENOM)?;
+
+    // Top-up
+    escrow += amount;
+
+    // And save
+    ESCROW.save(deps.storage, &info.sender, &escrow)?;
+
+    // Update weight not needed / dynamic
+
+    let res = Response {
+        attributes: vec![attr("action", "top_up")],
+        ..Response::default()
+    };
+    Ok(res)
+}
+
+pub fn execute_refund(
+    deps: DepsMut,
+    info: MessageInfo,
+    amount: Option<Uint128>,
+) -> Result<Response, ContractError> {
+    // This fails is no escrow there
+    let escrow = ESCROW.load(deps.storage, &info.sender)?;
+
+    // Compute the maximum amount that can be refund
+    let escrow_amount = DSO.load(deps.storage)?.escrow_amount;
+    let mut max_refund = escrow;
+    if max_refund >= escrow_amount {
+        max_refund = max_refund.checked_sub(escrow_amount).unwrap();
+    };
+
+    // Refund the maximum by default, or the requested amount (if possible)
+    let refund = match amount {
+        None => max_refund,
+        Some(amount) => {
+            if amount > max_refund {
+                return Err(ContractError::InsufficientFunds(amount.u128()));
+            }
+            amount
+        }
+    };
+
+    // Update remaining escrow
+    ESCROW.save(
+        deps.storage,
+        &info.sender,
+        &escrow.checked_sub(refund).unwrap(),
+    )?;
+
+    // Refund tokens
+    let messages = send_tokens(&info.sender, &refund);
+
+    let attributes = vec![attr("action", "refund"), attr("amount", refund)];
+    Ok(Response {
+        submessages: vec![],
+        messages,
+        attributes,
+        data: None,
+    })
+}
+
+fn send_tokens(to: &Addr, amount: &Uint128) -> Vec<CosmosMsg> {
+    if amount.is_zero() {
+        vec![]
+    } else {
+        vec![BankMsg::Send {
+            to_address: to.into(),
+            amount: vec![coin(amount.u128(), DSO_DENOM)],
+        }
+        .into()]
+    }
 }
 
 pub fn add_voting_members(

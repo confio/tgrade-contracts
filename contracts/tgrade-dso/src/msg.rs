@@ -36,6 +36,10 @@ pub enum ExecuteMsg {
         remove: Vec<String>,
         add: Vec<String>,
     },
+    TopUp {},
+    Refund {
+        amount: Option<Uint128>,
+    },
 }
 
 #[derive(Serialize, Deserialize, Clone, PartialEq, JsonSchema, Debug)]
