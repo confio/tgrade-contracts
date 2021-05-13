@@ -176,6 +176,27 @@
         }
       },
       "additionalProperties": false
+    },
+    {
+      "description": "Returns EscrowResponse",
+      "type": "object",
+      "required": [
+        "escrow"
+      ],
+      "properties": {
+        "escrow": {
+          "type": "object",
+          "required": [
+            "addr"
+          ],
+          "properties": {
+            "addr": {
+              "type": "string"
+            }
+          }
+        }
+      },
+      "additionalProperties": false
     }
   ],
   "definitions": {
