@@ -13,7 +13,7 @@ use tg4::{
 };
 
 use crate::error::ContractError;
-use crate::msg::{ExecuteMsg, InstantiateMsg, QueryMsg};
+use crate::msg::{EscrowResponse, ExecuteMsg, InstantiateMsg, QueryMsg};
 use crate::state::{members, Dso, ADMIN, DSO, ESCROW, TOTAL};
 
 // version info for migration info
@@ -263,6 +263,7 @@ pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
             addr,
             at_height: height,
         } => to_binary(&query_member(deps, addr, height)?),
+        QueryMsg::Escrow { addr } => to_binary(&query_escrow(deps, addr)?),
         QueryMsg::ListMembers { start_after, limit } => {
             to_binary(&list_members(deps, start_after, limit)?)
         }
@@ -292,6 +293,19 @@ fn query_member(deps: Deps, addr: String, height: Option<u64>) -> StdResult<Memb
         None => members().may_load(deps.storage, &addr),
     }?;
     Ok(MemberResponse { weight })
+}
+
+fn query_escrow(deps: Deps, addr: String) -> StdResult<EscrowResponse> {
+    let addr = deps.api.addr_validate(&addr)?;
+    let escrow = ESCROW.may_load(deps.storage, &addr)?;
+    // FIXME? Avoid this load by storing `authorized` in ESCROW
+    let escrow_amount = DSO.load(deps.storage)?.escrow_amount;
+    let authorized = escrow.map_or(false, |amount| amount >= escrow_amount);
+
+    Ok(EscrowResponse {
+        amount: escrow,
+        authorized,
+    })
 }
 
 // settings for pagination

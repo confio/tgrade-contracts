@@ -1,7 +1,7 @@
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
-use cosmwasm_std::Decimal;
+use cosmwasm_std::{Decimal, Uint128};
 use tg4::Member;
 
 #[derive(Serialize, Deserialize, Clone, PartialEq, JsonSchema, Debug)]
@@ -70,4 +70,12 @@ pub enum QueryMsg {
         addr: String,
         at_height: Option<u64>,
     },
+    /// Returns EscrowResponse
+    Escrow { addr: String },
+}
+
+#[derive(Serialize, Deserialize, Clone, PartialEq, JsonSchema, Debug)]
+pub struct EscrowResponse {
+    pub amount: Option<Uint128>,
+    pub authorized: bool,
 }
