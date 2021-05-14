@@ -14,7 +14,7 @@ use tg4::{
 
 use crate::error::ContractError;
 use crate::msg::{EscrowResponse, ExecuteMsg, InstantiateMsg, QueryMsg};
-use crate::state::{members, Dso, ADMIN, DSO, ESCROW, TOTAL};
+use crate::state::{members, Dso, ADMIN, DSO, ESCROWS, TOTAL};
 
 // version info for migration info
 const CONTRACT_NAME: &str = "crates.io:tgrade-dso";
@@ -74,7 +74,7 @@ pub fn create(
         return Err(ContractError::InsufficientFunds(amount));
     }
     // Put sender funds in escrow
-    ESCROW.save(deps.storage, &info.sender, &Uint128(amount))?;
+    ESCROWS.save(deps.storage, &info.sender, &Uint128(amount))?;
 
     let weight = 1;
     members().save(deps.storage, &info.sender, &weight, env.block.height)?;
@@ -190,14 +190,14 @@ pub fn execute_add_voting_members(
 
 pub fn execute_top_up(deps: DepsMut, info: MessageInfo) -> Result<Response, ContractError> {
     // This fails is no escrow there
-    let mut escrow = ESCROW.load(deps.storage, &info.sender)?;
+    let mut escrow = ESCROWS.load(deps.storage, &info.sender)?;
     let amount = cw0::must_pay(&info, DSO_DENOM)?;
 
     // Top-up
     escrow += amount;
 
     // And save
-    ESCROW.save(deps.storage, &info.sender, &escrow)?;
+    ESCROWS.save(deps.storage, &info.sender, &escrow)?;
 
     // Update weight not needed / dynamic
 
@@ -214,7 +214,7 @@ pub fn execute_refund(
     amount: Option<Uint128>,
 ) -> Result<Response, ContractError> {
     // This fails is no escrow there
-    let escrow = ESCROW.load(deps.storage, &info.sender)?;
+    let escrow = ESCROWS.load(deps.storage, &info.sender)?;
 
     // Compute the maximum amount that can be refund
     let escrow_amount = DSO.load(deps.storage)?.escrow_amount;
@@ -235,7 +235,7 @@ pub fn execute_refund(
     };
 
     // Update remaining escrow
-    ESCROW.save(
+    ESCROWS.save(
         deps.storage,
         &info.sender,
         &escrow.checked_sub(refund).unwrap(),
@@ -286,7 +286,7 @@ pub fn add_voting_members(
             members().save(deps.storage, &add_addr, &1, height)?;
             total += 1;
             // Create member entry in escrow (with no funds)
-            ESCROW.save(deps.storage, &add_addr, &Uint128::zero())?;
+            ESCROWS.save(deps.storage, &add_addr, &Uint128::zero())?;
             diffs.push(MemberDiff::new(add, None, Some(1)));
         }
     }
@@ -376,9 +376,10 @@ fn query_member(deps: Deps, addr: String, height: Option<u64>) -> StdResult<Memb
 
 fn query_escrow(deps: Deps, addr: String) -> StdResult<EscrowResponse> {
     let addr = deps.api.addr_validate(&addr)?;
-    let escrow = ESCROW.may_load(deps.storage, &addr)?;
+    let escrow = ESCROWS.may_load(deps.storage, &addr)?;
     // FIXME? Avoid this load by storing `authorized` in ESCROW
     let escrow_amount = DSO.load(deps.storage)?.escrow_amount;
+    // FIXME? Chnage to authorized_weight
     let authorized = escrow.map_or(false, |amount| amount >= escrow_amount);
 
     Ok(EscrowResponse {
@@ -426,7 +427,7 @@ fn list_voting_members(
 
     let escrow_amount = DSO.load(deps.storage)?.escrow_amount;
 
-    let members: StdResult<Vec<_>> = ESCROW
+    let members: StdResult<Vec<_>> = ESCROWS
         .range(deps.storage, start, None, Order::Ascending)
         .take(limit)
         .map(|item| {
@@ -494,6 +495,7 @@ fn list_members_by_weight(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::state::escrow_key;
     use cosmwasm_std::testing::{mock_dependencies, mock_env, mock_info};
     use cosmwasm_std::{coin, from_slice, Api, OwnedDeps, Querier, Storage};
     use cw0::PaymentError;
@@ -846,7 +848,6 @@ mod tests {
 
     #[test]
     fn raw_queries_work() {
-        // add will over-write and remove have no effect
         let info = mock_info(INIT_ADMIN, &[coin(ESCROW_FUNDS, "utgd")]);
         let mut deps = mock_dependencies(&[]);
         do_instantiate(deps.as_mut(), info).unwrap();
@@ -864,5 +865,10 @@ mod tests {
         // and execute misses
         let member3_raw = deps.storage.get(&member_key(VOTING3));
         assert_eq!(None, member3_raw);
+
+        // get escrow amount from raw key
+        let member0_escrow_raw = deps.storage.get(&escrow_key(INIT_ADMIN)).unwrap();
+        let member0_escrow: Uint128 = from_slice(&member0_escrow_raw).unwrap();
+        assert_eq!(ESCROW_FUNDS, member0_escrow.u128());
     }
 }

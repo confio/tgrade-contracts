@@ -57,4 +57,13 @@ pub fn members<'a>() -> IndexedSnapshotMap<'a, &'a Addr, u64, MemberIndexes<'a>>
     )
 }
 
-pub const ESCROW: Map<&Addr, Uint128> = Map::new("escrow");
+pub const ESCROWS_KEY: &str = "escrows";
+pub const ESCROWS: Map<&Addr, Uint128> = Map::new(ESCROWS_KEY);
+
+/// escrow_key is meant for raw queries for one member escrow, given address
+pub fn escrow_key(address: &str) -> Vec<u8> {
+    // FIXME: Inlined here to avoid storage-plus import
+    let mut key = [b"\x00", &[ESCROWS_KEY.len() as u8], ESCROWS_KEY.as_bytes()].concat();
+    key.extend_from_slice(address.as_bytes());
+    key
+}
