@@ -379,7 +379,7 @@ fn query_escrow(deps: Deps, addr: String) -> StdResult<EscrowResponse> {
     let escrow = ESCROWS.may_load(deps.storage, &addr)?;
     // FIXME? Avoid this load by storing `authorized` in ESCROW
     let escrow_amount = DSO.load(deps.storage)?.escrow_amount;
-    // FIXME? Chnage to authorized_weight
+    // FIXME? Change to authorized_weight
     let authorized = escrow.map_or(false, |amount| amount >= escrow_amount);
 
     Ok(EscrowResponse {
@@ -495,9 +495,10 @@ fn list_members_by_weight(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::error::ContractError::Std;
     use crate::state::escrow_key;
     use cosmwasm_std::testing::{mock_dependencies, mock_env, mock_info};
-    use cosmwasm_std::{coin, from_slice, Api, OwnedDeps, Querier, Storage};
+    use cosmwasm_std::{coin, from_slice, Api, OwnedDeps, Querier, StdError, Storage};
     use cw0::PaymentError;
     use cw_controllers::AdminError;
     use tg4::{member_key, TOTAL_KEY};
@@ -601,6 +602,42 @@ mod tests {
         }
     }
 
+    fn assert_escrow<S: Storage, A: Api, Q: Querier>(
+        deps: &OwnedDeps<S, A, Q>,
+        voting0_escrow: Option<u128>,
+        voting1_escrow: Option<u128>,
+        voting2_escrow: Option<u128>,
+        voting3_escrow: Option<u128>,
+    ) {
+        let escrow0 = query_escrow(deps.as_ref(), INIT_ADMIN.into()).unwrap();
+        assert_eq!(escrow0.amount, voting0_escrow.map(|e| e.into()));
+        assert_eq!(
+            escrow0.authorized,
+            voting0_escrow.map_or(false, |e| e >= ESCROW_FUNDS)
+        );
+
+        let escrow1 = query_escrow(deps.as_ref(), VOTING1.into()).unwrap();
+        assert_eq!(escrow1.amount, voting1_escrow.map(|e| e.into()));
+        assert_eq!(
+            escrow1.authorized,
+            voting1_escrow.map_or(false, |e| e >= ESCROW_FUNDS)
+        );
+
+        let escrow2 = query_escrow(deps.as_ref(), VOTING2.into()).unwrap();
+        assert_eq!(escrow2.amount, voting2_escrow.map(|e| e.into()));
+        assert_eq!(
+            escrow2.authorized,
+            voting2_escrow.map_or(false, |e| e >= ESCROW_FUNDS)
+        );
+
+        let escrow3 = query_escrow(deps.as_ref(), VOTING3.into()).unwrap();
+        assert_eq!(escrow3.amount, voting3_escrow.map(|e| e.into()));
+        assert_eq!(
+            escrow3.authorized,
+            voting3_escrow.map_or(false, |e| e >= ESCROW_FUNDS)
+        );
+    }
+
     #[test]
     fn instantiation_no_funds() {
         let mut deps = mock_dependencies(&[]);
@@ -670,6 +707,168 @@ mod tests {
 
         // Updated properly
         assert_voting(&deps, Some(1), Some(1), None, Some(1), None);
+    }
+
+    #[test]
+    fn test_escrows() {
+        let mut deps = mock_dependencies(&[]);
+        let info = mock_info(INIT_ADMIN, &[coin(ESCROW_FUNDS, "utgd")]);
+        do_instantiate(deps.as_mut(), info).unwrap();
+
+        // Assert the voting set is proper
+        assert_voting(&deps, Some(1), None, None, None, None);
+
+        let height = mock_env().block.height;
+        // Add a couple voting members
+        let add = vec![VOTING1.into(), VOTING2.into()];
+        add_voting_members(deps.as_mut(), height + 1, Addr::unchecked(INIT_ADMIN), add).unwrap();
+
+        // Updated properly
+        assert_voting(&deps, Some(1), Some(1), Some(1), None, None);
+
+        // Check escrows are proper
+        assert_escrow(&deps, Some(ESCROW_FUNDS), Some(0), Some(0), None);
+
+        // First voting member tops-up with enough funds
+        let info = mock_info(VOTING1, &[coin(ESCROW_FUNDS, "utgd")]);
+        let _res = execute_top_up(deps.as_mut(), info).unwrap();
+
+        // Check escrows / auths are updated
+        assert_escrow(&deps, Some(ESCROW_FUNDS), Some(ESCROW_FUNDS), Some(0), None);
+
+        // Second voting member tops-up but without enough funds
+        let info = mock_info(VOTING2, &[coin(ESCROW_FUNDS - 1, "utgd")]);
+        let _res = execute_top_up(deps.as_mut(), info).unwrap();
+
+        // Check escrows / auths are updated / proper
+        assert_escrow(
+            &deps,
+            Some(ESCROW_FUNDS),
+            Some(ESCROW_FUNDS),
+            Some(ESCROW_FUNDS - 1),
+            None,
+        );
+
+        // Second voting member adds more than enough funds
+        let info = mock_info(VOTING2, &[coin(ESCROW_FUNDS, "utgd")]);
+        let res = execute_top_up(deps.as_mut(), info).unwrap();
+        assert_eq!(
+            res,
+            Response {
+                submessages: vec![],
+                messages: vec![],
+                attributes: vec![attr("action", "top_up")],
+                data: None,
+            }
+        );
+
+        // Check escrows / auths are updated / proper
+        assert_escrow(
+            &deps,
+            Some(ESCROW_FUNDS),
+            Some(ESCROW_FUNDS),
+            Some(ESCROW_FUNDS * 2 - 1),
+            None,
+        );
+
+        // Second voting member reclaims some funds
+        let info = mock_info(VOTING2, &[]);
+        let res = execute_refund(deps.as_mut(), info, Some(10u128.into())).unwrap();
+        assert_eq!(
+            res,
+            Response {
+                submessages: vec![],
+                messages: vec![CosmosMsg::Bank(BankMsg::Send {
+                    to_address: VOTING2.into(),
+                    amount: vec![coin(10, DSO_DENOM)]
+                })],
+                attributes: vec![attr("action", "refund"), attr("amount", "10")],
+                data: None,
+            }
+        );
+
+        // Check escrows / auths are updated / proper
+        assert_escrow(
+            &deps,
+            Some(ESCROW_FUNDS),
+            Some(ESCROW_FUNDS),
+            Some(ESCROW_FUNDS * 2 - 1 - 10),
+            None,
+        );
+
+        // Second voting member reclaims all possible funds
+        let info = mock_info(VOTING2, &[]);
+        let _res = execute_refund(deps.as_mut(), info, None).unwrap();
+
+        // Check escrows / auths are updated / proper
+        assert_escrow(
+            &deps,
+            Some(ESCROW_FUNDS),
+            Some(ESCROW_FUNDS),
+            Some(ESCROW_FUNDS),
+            None,
+        );
+
+        // Third "member" (not added yet) tries to top-up
+        let info = mock_info(VOTING3, &[coin(ESCROW_FUNDS, "utgd")]);
+        let res = execute_top_up(deps.as_mut(), info);
+        assert!(res.is_err());
+        assert_eq!(
+            res.err().unwrap(),
+            Std(StdError::NotFound {
+                kind: "cosmwasm_std::math::uint128::Uint128".into(),
+            },)
+        );
+
+        // Third "member" (not added yet) tries to refund
+        let info = mock_info(VOTING3, &[]);
+        let res = execute_refund(deps.as_mut(), info, None);
+        assert!(res.is_err());
+        assert_eq!(
+            res.err().unwrap(),
+            Std(StdError::NotFound {
+                kind: "cosmwasm_std::math::uint128::Uint128".into(),
+            },)
+        );
+
+        // Third member is added
+        let add = vec![VOTING3.into()];
+        add_voting_members(deps.as_mut(), height + 2, Addr::unchecked(INIT_ADMIN), add).unwrap();
+
+        // Third member tops-up with less than enough funds
+        let info = mock_info(VOTING3, &[coin(ESCROW_FUNDS - 1, "utgd")]);
+        let _res = execute_top_up(deps.as_mut(), info).unwrap();
+
+        // Check escrows / auths are updated / proper
+        assert_escrow(
+            &deps,
+            Some(ESCROW_FUNDS),
+            Some(ESCROW_FUNDS),
+            Some(ESCROW_FUNDS),
+            Some(ESCROW_FUNDS - 1),
+        );
+
+        // Third member tries to refund more than he has
+        let info = mock_info(VOTING3, &[]);
+        let res = execute_refund(deps.as_mut(), info, Some(ESCROW_FUNDS.into()));
+        assert!(res.is_err());
+        assert_eq!(
+            res.err().unwrap(),
+            ContractError::InsufficientFunds(ESCROW_FUNDS)
+        );
+
+        // Third member refunds all of its funds
+        let info = mock_info(VOTING3, &[]);
+        let _res = execute_refund(deps.as_mut(), info, Some((ESCROW_FUNDS - 1).into())).unwrap();
+
+        // Check escrows / auths are updated / proper
+        assert_escrow(
+            &deps,
+            Some(ESCROW_FUNDS),
+            Some(ESCROW_FUNDS),
+            Some(ESCROW_FUNDS),
+            Some(0),
+        );
     }
 
     #[test]
