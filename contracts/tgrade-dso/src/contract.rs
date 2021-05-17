@@ -137,7 +137,7 @@ pub fn execute(
             execute_update_non_voting_members(deps, env, info, add, remove)
         }
         ExecuteMsg::DepositEscrow {} => execute_deposit_escrow(deps, info),
-        ExecuteMsg::Refund { amount } => execute_refund(deps, info, amount),
+        ExecuteMsg::ReturnEscrow { amount } => execute_return_escrow(deps, info, amount),
     }
 }
 
@@ -208,7 +208,7 @@ pub fn execute_deposit_escrow(deps: DepsMut, info: MessageInfo) -> Result<Respon
     Ok(res)
 }
 
-pub fn execute_refund(
+pub fn execute_return_escrow(
     deps: DepsMut,
     info: MessageInfo,
     amount: Option<Uint128>,
@@ -749,7 +749,7 @@ mod tests {
 
         // Second voting member reclaims some funds
         let info = mock_info(VOTING2, &[]);
-        let res = execute_refund(deps.as_mut(), info, Some(10u128.into())).unwrap();
+        let res = execute_return_escrow(deps.as_mut(), info, Some(10u128.into())).unwrap();
         assert_eq!(
             res,
             Response {
@@ -774,7 +774,7 @@ mod tests {
 
         // Second voting member reclaims all possible funds
         let info = mock_info(VOTING2, &[]);
-        let _res = execute_refund(deps.as_mut(), info, None).unwrap();
+        let _res = execute_return_escrow(deps.as_mut(), info, None).unwrap();
 
         // Check escrows / auths are updated / proper
         assert_escrow(
@@ -798,7 +798,7 @@ mod tests {
 
         // Third "member" (not added yet) tries to refund
         let info = mock_info(VOTING3, &[]);
-        let res = execute_refund(deps.as_mut(), info, None);
+        let res = execute_return_escrow(deps.as_mut(), info, None);
         assert!(res.is_err());
         assert_eq!(
             res.err().unwrap(),
@@ -826,7 +826,7 @@ mod tests {
 
         // Third member tries to refund more than he has
         let info = mock_info(VOTING3, &[]);
-        let res = execute_refund(deps.as_mut(), info, Some(ESCROW_FUNDS.into()));
+        let res = execute_return_escrow(deps.as_mut(), info, Some(ESCROW_FUNDS.into()));
         assert!(res.is_err());
         assert_eq!(
             res.err().unwrap(),
@@ -835,7 +835,8 @@ mod tests {
 
         // Third member refunds all of its funds
         let info = mock_info(VOTING3, &[]);
-        let _res = execute_refund(deps.as_mut(), info, Some((ESCROW_FUNDS - 1).into())).unwrap();
+        let _res =
+            execute_return_escrow(deps.as_mut(), info, Some((ESCROW_FUNDS - 1).into())).unwrap();
 
         // Check escrows / auths are updated / proper
         assert_escrow(

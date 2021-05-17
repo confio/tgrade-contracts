@@ -36,7 +36,7 @@ pub enum ExecuteMsg {
         add: Vec<String>,
     },
     DepositEscrow {},
-    Refund {
+    ReturnEscrow {
         amount: Option<Uint128>,
     },
 }
