@@ -32,4 +32,7 @@ pub enum ContractError {
 
     #[error("{0}")]
     Payment(#[from] PaymentError),
+
+    #[error("Trying to remove a voting member: {0}")]
+    VotingMember(String),
 }

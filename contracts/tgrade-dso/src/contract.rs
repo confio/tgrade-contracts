@@ -335,10 +335,12 @@ pub fn add_remove_non_voting_members(
         let old = members().may_load(deps.storage, &remove_addr)?;
         // Only process this if they are actually in the list (as a non-voting member)
         if let Some(weight) = old {
-            // If the member isn't a non-voting member, the removal of that member is ignored
+            // If the member isn't a non-voting member, an error is returned
             if weight == 0 {
                 members().remove(deps.storage, &remove_addr, height)?;
                 diffs.push(MemberDiff::new(remove, Some(0), None));
+            } else {
+                return Err(ContractError::VotingMember(remove));
             }
         }
     }
