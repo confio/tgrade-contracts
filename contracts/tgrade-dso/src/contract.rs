@@ -134,14 +134,14 @@ pub fn execute(
             execute_add_voting_members(deps, env, info, voters)
         }
         ExecuteMsg::AddRemoveNonVotingMembers { add, remove } => {
-            execute_update_non_voting_members(deps, env, info, add, remove)
+            execute_add_remove_non_voting_members(deps, env, info, add, remove)
         }
         ExecuteMsg::DepositEscrow {} => execute_deposit_escrow(deps, &env, info),
         ExecuteMsg::ReturnEscrow { amount } => execute_return_escrow(deps, info, amount),
     }
 }
 
-pub fn execute_update_non_voting_members(
+pub fn execute_add_remove_non_voting_members(
     mut deps: DepsMut,
     env: Env,
     info: MessageInfo,
@@ -149,7 +149,7 @@ pub fn execute_update_non_voting_members(
     remove: Vec<String>,
 ) -> Result<Response, ContractError> {
     let attributes = vec![
-        attr("action", "update_non_voting_members"),
+        attr("action", "add_remove_non_voting_members"),
         attr("added", add.len()),
         attr("removed", remove.len()),
         attr("sender", &info.sender),
@@ -157,7 +157,7 @@ pub fn execute_update_non_voting_members(
 
     // make the local update
     let _diff =
-        update_non_voting_members(deps.branch(), env.block.height, info.sender, add, remove)?;
+        add_remove_non_voting_members(deps.branch(), env.block.height, info.sender, add, remove)?;
     Ok(Response {
         submessages: vec![],
         messages: vec![],
@@ -207,7 +207,7 @@ pub fn execute_deposit_escrow(
     TOTAL.update::<_, ContractError>(deps.storage, |old| Ok(old + VOTING_WEIGHT))?;
 
     let res = Response {
-        attributes: vec![attr("action", "top_up")],
+        attributes: vec![attr("action", "deposit_escrow")],
         ..Response::default()
     };
     Ok(res)
@@ -239,7 +239,7 @@ pub fn execute_return_escrow(
         }
     };
 
-    let attributes = vec![attr("action", "refund"), attr("amount", refund)];
+    let attributes = vec![attr("action", "return_escrow"), attr("amount", refund)];
     if refund.is_zero() {
         return Ok(Response {
             submessages: vec![],
@@ -306,7 +306,7 @@ pub fn add_voting_members(
 }
 
 // The logic from execute_update_non_voting_members extracted for easier import
-pub fn update_non_voting_members(
+pub fn add_remove_non_voting_members(
     deps: DepsMut,
     height: u64,
     sender: Addr,
@@ -744,7 +744,7 @@ mod tests {
             Response {
                 submessages: vec![],
                 messages: vec![],
-                attributes: vec![attr("action", "top_up")],
+                attributes: vec![attr("action", "deposit_escrow")],
                 data: None,
             }
         );
@@ -769,7 +769,7 @@ mod tests {
                     to_address: VOTING2.into(),
                     amount: vec![coin(10, DSO_DENOM)]
                 })],
-                attributes: vec![attr("action", "refund"), attr("amount", "10")],
+                attributes: vec![attr("action", "return_escrow"), attr("amount", "10")],
                 data: None,
             }
         );
@@ -874,7 +874,7 @@ mod tests {
 
         // Non-admin cannot update
         let height = mock_env().block.height;
-        let err = update_non_voting_members(
+        let err = add_remove_non_voting_members(
             deps.as_mut(),
             height + 5,
             Addr::unchecked(VOTING1),
@@ -885,7 +885,7 @@ mod tests {
         assert_eq!(err, AdminError::NotAdmin {}.into());
 
         // Admin updates properly
-        update_non_voting_members(
+        add_remove_non_voting_members(
             deps.as_mut(),
             height + 10,
             Addr::unchecked(INIT_ADMIN),
@@ -901,7 +901,7 @@ mod tests {
         let add = vec![NONVOTING3.into()];
         let remove = vec![NONVOTING2.into()];
 
-        update_non_voting_members(
+        add_remove_non_voting_members(
             deps.as_mut(),
             height + 11,
             Addr::unchecked(INIT_ADMIN),
