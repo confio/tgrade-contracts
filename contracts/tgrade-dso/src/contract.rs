@@ -136,7 +136,7 @@ pub fn execute(
         ExecuteMsg::AddRemoveNonVotingMembers { add, remove } => {
             execute_update_non_voting_members(deps, env, info, add, remove)
         }
-        ExecuteMsg::TopUp {} => execute_top_up(deps, info),
+        ExecuteMsg::DepositEscrow {} => execute_deposit_escrow(deps, info),
         ExecuteMsg::Refund { amount } => execute_refund(deps, info, amount),
     }
 }
@@ -188,7 +188,7 @@ pub fn execute_add_voting_members(
     })
 }
 
-pub fn execute_top_up(deps: DepsMut, info: MessageInfo) -> Result<Response, ContractError> {
+pub fn execute_deposit_escrow(deps: DepsMut, info: MessageInfo) -> Result<Response, ContractError> {
     // This fails is no escrow there
     let mut escrow = ESCROWS.load(deps.storage, &info.sender)?;
     let amount = cw0::must_pay(&info, DSO_DENOM)?;
@@ -707,14 +707,14 @@ mod tests {
 
         // First voting member tops-up with enough funds
         let info = mock_info(VOTING1, &[coin(ESCROW_FUNDS, "utgd")]);
-        let _res = execute_top_up(deps.as_mut(), info).unwrap();
+        let _res = execute_deposit_escrow(deps.as_mut(), info).unwrap();
 
         // Check escrows / auths are updated
         assert_escrow(&deps, Some(ESCROW_FUNDS), Some(ESCROW_FUNDS), Some(0), None);
 
         // Second voting member tops-up but without enough funds
         let info = mock_info(VOTING2, &[coin(ESCROW_FUNDS - 1, "utgd")]);
-        let _res = execute_top_up(deps.as_mut(), info).unwrap();
+        let _res = execute_deposit_escrow(deps.as_mut(), info).unwrap();
 
         // Check escrows / auths are updated / proper
         assert_escrow(
@@ -727,7 +727,7 @@ mod tests {
 
         // Second voting member adds more than enough funds
         let info = mock_info(VOTING2, &[coin(ESCROW_FUNDS, "utgd")]);
-        let res = execute_top_up(deps.as_mut(), info).unwrap();
+        let res = execute_deposit_escrow(deps.as_mut(), info).unwrap();
         assert_eq!(
             res,
             Response {
@@ -787,7 +787,7 @@ mod tests {
 
         // Third "member" (not added yet) tries to top-up
         let info = mock_info(VOTING3, &[coin(ESCROW_FUNDS, "utgd")]);
-        let res = execute_top_up(deps.as_mut(), info);
+        let res = execute_deposit_escrow(deps.as_mut(), info);
         assert!(res.is_err());
         assert_eq!(
             res.err().unwrap(),
@@ -813,7 +813,7 @@ mod tests {
 
         // Third member tops-up with less than enough funds
         let info = mock_info(VOTING3, &[coin(ESCROW_FUNDS - 1, "utgd")]);
-        let _res = execute_top_up(deps.as_mut(), info).unwrap();
+        let _res = execute_deposit_escrow(deps.as_mut(), info).unwrap();
 
         // Check escrows / auths are updated / proper
         assert_escrow(
