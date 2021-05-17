@@ -116,39 +116,6 @@
       "additionalProperties": false
     },
     {
-      "description": "Returns MembersListResponse, for all members, sorted by weight descending",
-      "type": "object",
-      "required": [
-        "list_members_by_weight"
-      ],
-      "properties": {
-        "list_members_by_weight": {
-          "type": "object",
-          "properties": {
-            "limit": {
-              "type": [
-                "integer",
-                "null"
-              ],
-              "format": "uint32",
-              "minimum": 0.0
-            },
-            "start_after": {
-              "anyOf": [
-                {
-                  "$ref": "#/definitions/Member"
-                },
-                {
-                  "type": "null"
-                }
-              ]
-            }
-          }
-        }
-      },
-      "additionalProperties": false
-    },
-    {
       "description": "Returns MemberResponse",
       "type": "object",
       "required": [
@@ -198,25 +165,5 @@
       },
       "additionalProperties": false
     }
-  ],
-  "definitions": {
-    "Member": {
-      "description": "A group member has a weight associated with them. This may all be equal, or may have meaning in the app that makes use of the group (eg. voting power)",
-      "type": "object",
-      "required": [
-        "addr",
-        "weight"
-      ],
-      "properties": {
-        "addr": {
-          "type": "string"
-        },
-        "weight": {
-          "type": "integer",
-          "format": "uint64",
-          "minimum": 0.0
-        }
-      }
-    }
-  }
+  ]
 }

@@ -29,10 +29,10 @@
       "description": "Apply a diff to the existing non-voting members. Remove is applied after add, so if an address is in both, it is removed",
       "type": "object",
       "required": [
-        "update_non_voting_members"
+        "add_remove_non_voting_members"
       ],
       "properties": {
-        "update_non_voting_members": {
+        "add_remove_non_voting_members": {
           "type": "object",
           "required": [
             "add",
@@ -59,10 +59,10 @@
     {
       "type": "object",
       "required": [
-        "top_up"
+        "deposit_escrow"
       ],
       "properties": {
-        "top_up": {
+        "deposit_escrow": {
           "type": "object"
         }
       },
@@ -71,10 +71,10 @@
     {
       "type": "object",
       "required": [
-        "refund"
+        "return_escrow"
       ],
       "properties": {
-        "refund": {
+        "return_escrow": {
           "type": "object",
           "properties": {
             "amount": {
