@@ -13,7 +13,7 @@ pub struct InstantiateMsg {
     pub admin: Option<String>,
     /// DSO Name
     pub name: String,
-    /// The required escrow amount, in the default denom (TGD)
+    /// The required escrow amount, in the default denom (utgd)
     pub escrow_amount: u128,
     /// Voting period in days
     //FIXME?: Change to Duration
