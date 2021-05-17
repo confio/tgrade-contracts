@@ -6,7 +6,7 @@ use cosmwasm_std::{
 };
 use cw0::maybe_addr;
 use cw2::set_contract_version;
-use cw_storage_plus::{Bound, PrimaryKey, U64Key};
+use cw_storage_plus::{Bound, U64Key};
 use tg4::{
     Member, MemberChangedHookMsg, MemberDiff, MemberListResponse, MemberResponse,
     TotalWeightResponse,
@@ -459,12 +459,12 @@ fn list_non_voting_members(
     limit: Option<u32>,
 ) -> StdResult<MemberListResponse> {
     let limit = limit.unwrap_or(DEFAULT_LIMIT).min(MAX_LIMIT) as usize;
-    let start = start_after.map(|m| Bound::exclusive((U64Key::from(0), m.as_str()).joined_key()));
-    let end = Some(Bound::exclusive((U64Key::from(1), "").joined_key()));
+    let start = start_after.map(|m| Bound::exclusive(m.as_str()));
     let members: StdResult<Vec<_>> = members()
         .idx
         .weight
-        .range(deps.storage, start, end, Order::Ascending)
+        .prefix(U64Key::from(0))
+        .range(deps.storage, start, None, Order::Ascending)
         .take(limit)
         .map(|item| {
             let (key, weight) = item?;
