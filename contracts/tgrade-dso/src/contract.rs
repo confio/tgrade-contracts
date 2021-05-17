@@ -70,12 +70,12 @@ pub fn create(
 
     // Store sender as initial member, and define its weight / state
     // based on init_funds
-    let amount = cw0::must_pay(&info, DSO_DENOM)?.u128();
-    if amount < escrow_amount {
-        return Err(ContractError::InsufficientFunds(amount));
+    let amount = cw0::must_pay(&info, DSO_DENOM)?;
+    if amount.u128() < escrow_amount {
+        return Err(ContractError::InsufficientFunds(amount.u128()));
     }
     // Put sender funds in escrow
-    ESCROWS.save(deps.storage, &info.sender, &Uint128(amount))?;
+    ESCROWS.save(deps.storage, &info.sender, &amount)?;
 
     members().save(deps.storage, &info.sender, &VOTING_WEIGHT, env.block.height)?;
     TOTAL.save(deps.storage, &VOTING_WEIGHT)?;
