@@ -386,9 +386,7 @@ fn query_member(deps: Deps, addr: String, height: Option<u64>) -> StdResult<Memb
 fn query_escrow(deps: Deps, addr: String) -> StdResult<EscrowResponse> {
     let addr = deps.api.addr_validate(&addr)?;
     let escrow = ESCROWS.may_load(deps.storage, &addr)?;
-    // FIXME? Avoid this load by storing `authorized` in ESCROW
     let escrow_amount = DSO.load(deps.storage)?.escrow_amount;
-    // FIXME? Change to authorized_weight
     let authorized = escrow.map_or(false, |amount| amount >= escrow_amount);
 
     Ok(EscrowResponse {
