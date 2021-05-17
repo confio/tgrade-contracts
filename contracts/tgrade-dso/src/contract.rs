@@ -21,6 +21,7 @@ const CONTRACT_NAME: &str = "crates.io:tgrade-dso";
 const CONTRACT_VERSION: &str = env!("CARGO_PKG_VERSION");
 
 pub const DSO_DENOM: &str = "utgd";
+pub const VOTING_WEIGHT: u64 = 1;
 
 // Note, you can use StdResult in some functions where you do not
 // make use of the custom errors
@@ -76,9 +77,8 @@ pub fn create(
     // Put sender funds in escrow
     ESCROWS.save(deps.storage, &info.sender, &Uint128(amount))?;
 
-    let weight = 1;
-    members().save(deps.storage, &info.sender, &weight, env.block.height)?;
-    TOTAL.save(deps.storage, &weight)?;
+    members().save(deps.storage, &info.sender, &VOTING_WEIGHT, env.block.height)?;
+    TOTAL.save(deps.storage, &VOTING_WEIGHT)?;
 
     // Create DSO
     DSO.save(
@@ -283,11 +283,11 @@ pub fn add_voting_members(
         let old = members().may_load(deps.storage, &add_addr)?;
         // Only add the member if it does not already exist
         if old.is_none() {
-            members().save(deps.storage, &add_addr, &1, height)?;
-            total += 1;
+            members().save(deps.storage, &add_addr, &VOTING_WEIGHT, height)?;
+            total += VOTING_WEIGHT;
             // Create member entry in escrow (with no funds)
             ESCROWS.save(deps.storage, &add_addr, &Uint128::zero())?;
-            diffs.push(MemberDiff::new(add, None, Some(1)));
+            diffs.push(MemberDiff::new(add, None, Some(VOTING_WEIGHT)));
         }
     }
 
@@ -434,7 +434,11 @@ fn list_voting_members(
             let (key, amount) = item?;
             Ok(Member {
                 addr: unsafe { String::from_utf8_unchecked(key) },
-                weight: if amount >= escrow_amount { 1 } else { 0 },
+                weight: if amount >= escrow_amount {
+                    VOTING_WEIGHT
+                } else {
+                    0
+                },
             })
         })
         .collect();
