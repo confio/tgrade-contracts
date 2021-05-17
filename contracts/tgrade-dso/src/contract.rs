@@ -234,6 +234,16 @@ pub fn execute_return_escrow(
         }
     };
 
+    let attributes = vec![attr("action", "refund"), attr("amount", refund)];
+    if refund.is_zero() {
+        return Ok(Response {
+            submessages: vec![],
+            messages: vec![],
+            attributes,
+            data: None,
+        });
+    }
+
     // Update remaining escrow
     ESCROWS.save(
         deps.storage,
@@ -244,7 +254,6 @@ pub fn execute_return_escrow(
     // Refund tokens
     let messages = send_tokens(&info.sender, &refund);
 
-    let attributes = vec![attr("action", "refund"), attr("amount", refund)];
     Ok(Response {
         submessages: vec![],
         messages,
