@@ -41,7 +41,7 @@ impl TgDsoContract {
         remove: Vec<String>,
         add: Vec<String>,
     ) -> StdResult<CosmosMsg> {
-        let msg = ExecuteMsg::UpdateNonVotingMembers { remove, add };
+        let msg = ExecuteMsg::AddRemoveNonVotingMembers { remove, add };
         self.encode_msg(msg)
     }
 }

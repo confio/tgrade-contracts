@@ -32,7 +32,7 @@ pub enum ExecuteMsg {
     },
     /// Apply a diff to the existing non-voting members.
     /// Remove is applied after add, so if an address is in both, it is removed
-    UpdateNonVotingMembers {
+    AddRemoveNonVotingMembers {
         remove: Vec<String>,
         add: Vec<String>,
     },

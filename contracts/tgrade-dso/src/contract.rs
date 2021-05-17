@@ -133,7 +133,7 @@ pub fn execute(
         ExecuteMsg::AddVotingMembers { voters } => {
             execute_add_voting_members(deps, env, info, voters)
         }
-        ExecuteMsg::UpdateNonVotingMembers { add, remove } => {
+        ExecuteMsg::AddRemoveNonVotingMembers { add, remove } => {
             execute_update_non_voting_members(deps, env, info, add, remove)
         }
         ExecuteMsg::TopUp {} => execute_top_up(deps, info),
