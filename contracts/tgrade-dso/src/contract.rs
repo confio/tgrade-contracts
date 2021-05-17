@@ -289,7 +289,7 @@ pub fn add_voting_members(
     // Add all new voting members and update total
     for add in to_add.into_iter() {
         let add_addr = deps.api.addr_validate(&add)?;
-        let old = members().may_load(deps.storage, &add_addr)?;
+        let old = ESCROWS.may_load(deps.storage, &add_addr)?;
         // Only add the member if it does not already exist
         if old.is_none() {
             members().save(deps.storage, &add_addr, &VOTING_WEIGHT, height)?;
