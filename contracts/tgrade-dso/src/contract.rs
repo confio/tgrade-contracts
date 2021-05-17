@@ -346,9 +346,6 @@ pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
         QueryMsg::ListMembers { start_after, limit } => {
             to_binary(&list_members(deps, start_after, limit)?)
         }
-        QueryMsg::ListMembersByWeight { start_after, limit } => {
-            to_binary(&list_members_by_weight(deps, start_after, limit)?)
-        }
         QueryMsg::ListVotingMembers { start_after, limit } => {
             to_binary(&list_voting_members(deps, start_after, limit)?)
         }
@@ -458,31 +455,6 @@ fn list_non_voting_members(
         .idx
         .weight
         .range(deps.storage, start, end, Order::Ascending)
-        .take(limit)
-        .map(|item| {
-            let (key, weight) = item?;
-            Ok(Member {
-                addr: unsafe { String::from_utf8_unchecked(key) },
-                weight,
-            })
-        })
-        .collect();
-
-    Ok(MemberListResponse { members: members? })
-}
-
-fn list_members_by_weight(
-    deps: Deps,
-    start_after: Option<Member>,
-    limit: Option<u32>,
-) -> StdResult<MemberListResponse> {
-    let limit = limit.unwrap_or(DEFAULT_LIMIT).min(MAX_LIMIT) as usize;
-    let start = start_after
-        .map(|m| Bound::exclusive((U64Key::from(m.weight), m.addr.as_str()).joined_key()));
-    let members: StdResult<Vec<_>> = members()
-        .idx
-        .weight
-        .range(deps.storage, None, start, Order::Descending)
         .take(limit)
         .map(|item| {
             let (key, weight) = item?;
@@ -928,125 +900,6 @@ mod tests {
 
         // assert the non-voting set is updated
         assert_nonvoting(&deps, Some(0), None, Some(0), None);
-    }
-
-    #[test]
-    fn try_list_members_by_weight() {
-        let mut deps = mock_dependencies(&[]);
-        let info = mock_info(INIT_ADMIN, &[coin(ESCROW_FUNDS, "utgd")]);
-        do_instantiate(deps.as_mut(), info).unwrap();
-
-        let height = mock_env().block.height;
-        // Add voting members
-        let add = vec![VOTING1.into(), VOTING2.into(), VOTING3.into()];
-        add_voting_members(deps.as_mut(), height + 1, Addr::unchecked(INIT_ADMIN), add).unwrap();
-
-        // Add non-voting members
-        let add = vec![NONVOTING1.into(), NONVOTING2.into(), NONVOTING3.into()];
-        update_non_voting_members(
-            deps.as_mut(),
-            height + 2,
-            Addr::unchecked(INIT_ADMIN),
-            add,
-            vec![],
-        )
-        .unwrap();
-
-        let members = list_members_by_weight(deps.as_ref(), None, None)
-            .unwrap()
-            .members;
-        assert_eq!(members.len(), 1 + 3 + 3);
-        // Assert the set is sorted by (descending) weight (and addr)
-        assert_eq!(
-            members,
-            vec![
-                Member {
-                    addr: "miles".into(),
-                    weight: 1
-                },
-                Member {
-                    addr: "julian".into(),
-                    weight: 1
-                },
-                Member {
-                    addr: "juan".into(),
-                    weight: 1
-                },
-                Member {
-                    addr: "john".into(),
-                    weight: 1
-                },
-                Member {
-                    addr: "paul".into(),
-                    weight: 0
-                },
-                Member {
-                    addr: "jimmy".into(),
-                    weight: 0
-                },
-                Member {
-                    addr: "bill".into(),
-                    weight: 0
-                },
-            ]
-        );
-
-        // Test pagination / limits
-        let members = list_members_by_weight(deps.as_ref(), None, Some(1))
-            .unwrap()
-            .members;
-        assert_eq!(members.len(), 1);
-        // Assert the set is proper
-        assert_eq!(
-            members,
-            vec![Member {
-                addr: "miles".into(),
-                weight: 1
-            },]
-        );
-
-        // Test next page
-        let members = list_members_by_weight(deps.as_ref(), Some(members[0].clone()), None)
-            .unwrap()
-            .members;
-        assert_eq!(members.len(), 6);
-        // Assert the set is proper
-        assert_eq!(
-            members,
-            vec![
-                Member {
-                    addr: "julian".into(),
-                    weight: 1
-                },
-                Member {
-                    addr: "juan".into(),
-                    weight: 1
-                },
-                Member {
-                    addr: "john".into(),
-                    weight: 1
-                },
-                Member {
-                    addr: "paul".into(),
-                    weight: 0
-                },
-                Member {
-                    addr: "jimmy".into(),
-                    weight: 0
-                },
-                Member {
-                    addr: "bill".into(),
-                    weight: 0
-                },
-            ]
-        );
-
-        // Assert there's no more
-        let start_after = Some(members[5].clone());
-        let members = list_members_by_weight(deps.as_ref(), start_after, Some(1))
-            .unwrap()
-            .members;
-        assert_eq!(members.len(), 0);
     }
 
     #[test]

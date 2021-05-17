@@ -2,7 +2,6 @@ use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
 use cosmwasm_std::{Decimal, Uint128};
-use tg4::Member;
 
 #[derive(Serialize, Deserialize, Clone, PartialEq, JsonSchema, Debug)]
 #[serde(rename_all = "snake_case")]
@@ -62,11 +61,6 @@ pub enum QueryMsg {
     /// Returns MembersListResponse, only weight == 0 members
     ListNonVotingMembers {
         start_after: Option<String>,
-        limit: Option<u32>,
-    },
-    /// Returns MembersListResponse, for all members, sorted by weight descending
-    ListMembersByWeight {
-        start_after: Option<Member>,
         limit: Option<u32>,
     },
     /// Returns MemberResponse
