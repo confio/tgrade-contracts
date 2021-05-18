@@ -194,17 +194,17 @@ pub fn execute_deposit_escrow(
     info: MessageInfo,
 ) -> Result<Response, ContractError> {
     // This fails is no escrow there
-    let mut escrow = ESCROWS.load(deps.storage, &info.sender)?;
+    let escrow = ESCROWS.load(deps.storage, &info.sender)?;
+
     let amount = cw0::must_pay(&info, DSO_DENOM)?;
+    ESCROWS.save(deps.storage, &info.sender, &(escrow + amount))?;
 
-    escrow += amount;
-    ESCROWS.save(deps.storage, &info.sender, &escrow)?;
-
-    // Update weight
-    members().save(deps.storage, &info.sender, &VOTING_WEIGHT, env.block.height)?;
-
-    // And update total
-    TOTAL.update::<_, ContractError>(deps.storage, |old| Ok(old + VOTING_WEIGHT))?;
+    // Update weights and total only if there are now enough funds
+    let escrow_amount = DSO.load(deps.storage)?.escrow_amount;
+    if escrow < escrow_amount && escrow + amount >= escrow_amount {
+        members().save(deps.storage, &info.sender, &VOTING_WEIGHT, env.block.height)?;
+        TOTAL.update::<_, ContractError>(deps.storage, |original| Ok(original + VOTING_WEIGHT))?;
+    }
 
     let res = Response {
         attributes: vec![attr("action", "deposit_escrow")],
