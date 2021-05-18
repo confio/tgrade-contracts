@@ -913,6 +913,16 @@ mod tests {
     }
 
     #[test]
+    fn test_initial_nonvoting_members() {
+        let mut deps = mock_dependencies(&[]);
+        let info = mock_info(INIT_ADMIN, &[coin(ESCROW_FUNDS, "utgd")]);
+        // even handle duplicates ignoring the copy
+        let initial = vec![NONVOTING1.into(), NONVOTING3.into(), NONVOTING1.into()];
+        do_instantiate(deps.as_mut(), info, initial).unwrap();
+        assert_nonvoting(&deps, Some(0), None, Some(0), None);
+    }
+
+    #[test]
     fn test_update_nonvoting_members() {
         let mut deps = mock_dependencies(&[]);
         let info = mock_info(INIT_ADMIN, &[coin(ESCROW_FUNDS, "utgd")]);
