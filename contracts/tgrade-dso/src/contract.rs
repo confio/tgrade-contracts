@@ -6,7 +6,7 @@ use cosmwasm_std::{
 };
 use cw0::maybe_addr;
 use cw2::set_contract_version;
-use cw_storage_plus::{Bound, U64Key};
+use cw_storage_plus::{Bound, PrimaryKey, U64Key};
 use tg4::{
     Member, MemberChangedHookMsg, MemberDiff, MemberListResponse, MemberResponse,
     TotalWeightResponse,
@@ -430,22 +430,18 @@ fn list_voting_members(
 ) -> StdResult<MemberListResponse> {
     let limit = limit.unwrap_or(DEFAULT_LIMIT).min(MAX_LIMIT) as usize;
     let addr = maybe_addr(deps.api, start_after)?;
-    let start = addr.map(|addr| Bound::exclusive(addr.as_ref()));
+    let start = addr.map(|a| Bound::exclusive((U64Key::from(1), a.as_str()).joined_key()));
 
-    let escrow_amount = DSO.load(deps.storage)?.escrow_amount;
-
-    let members: StdResult<Vec<_>> = ESCROWS
+    let members: StdResult<Vec<_>> = members()
+        .idx
+        .weight
         .range(deps.storage, start, None, Order::Ascending)
         .take(limit)
         .map(|item| {
-            let (key, amount) = item?;
+            let (key, weight) = item?;
             Ok(Member {
                 addr: unsafe { String::from_utf8_unchecked(key) },
-                weight: if amount >= escrow_amount {
-                    VOTING_WEIGHT
-                } else {
-                    0
-                },
+                weight,
             })
         })
         .collect();
