@@ -429,8 +429,7 @@ fn list_voting_members(
     limit: Option<u32>,
 ) -> StdResult<MemberListResponse> {
     let limit = limit.unwrap_or(DEFAULT_LIMIT).min(MAX_LIMIT) as usize;
-    let addr = maybe_addr(deps.api, start_after)?;
-    let start = addr.map(|a| Bound::exclusive((U64Key::from(1), a.as_str()).joined_key()));
+    let start = start_after.map(|sa| Bound::exclusive((U64Key::from(1), sa.as_str()).joined_key()));
 
     let members: StdResult<Vec<_>> = members()
         .idx
@@ -455,7 +454,7 @@ fn list_non_voting_members(
     limit: Option<u32>,
 ) -> StdResult<MemberListResponse> {
     let limit = limit.unwrap_or(DEFAULT_LIMIT).min(MAX_LIMIT) as usize;
-    let start = start_after.map(|m| Bound::exclusive(m.as_str()));
+    let start = start_after.map(|sa| Bound::exclusive(sa.as_str()));
     let members: StdResult<Vec<_>> = members()
         .idx
         .weight
