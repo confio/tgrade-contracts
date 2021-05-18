@@ -35,14 +35,15 @@ pub fn instantiate(
     set_contract_version(deps.storage, CONTRACT_NAME, CONTRACT_VERSION)?;
     create(
         deps,
-        &env,
-        &info,
+        env,
+        info,
         msg.admin,
         msg.name,
         msg.escrow_amount,
         msg.voting_period,
         msg.quorum,
         msg.threshold,
+        msg.initial_members,
     )?;
     Ok(Response::default())
 }
@@ -52,14 +53,15 @@ pub fn instantiate(
 #[allow(clippy::too_many_arguments)]
 pub fn create(
     mut deps: DepsMut,
-    env: &Env,
-    info: &MessageInfo,
+    env: Env,
+    info: MessageInfo,
     admin: Option<String>,
     name: String,
     escrow_amount: u128,
     voting_period: u32,
     quorum: Decimal,
     threshold: Decimal,
+    initial_members: Vec<String>,
 ) -> Result<(), ContractError> {
     validate(&name, escrow_amount, quorum, threshold)?;
 
@@ -91,6 +93,9 @@ pub fn create(
             threshold,
         },
     )?;
+
+    // add all members
+    execute_add_remove_non_voting_members(deps, env, info, initial_members, vec![])?;
 
     Ok(())
 }
@@ -496,7 +501,11 @@ mod tests {
     const NONVOTING2: &str = "paul";
     const NONVOTING3: &str = "jimmy";
 
-    fn do_instantiate(deps: DepsMut, info: MessageInfo) -> Result<Response, ContractError> {
+    fn do_instantiate(
+        deps: DepsMut,
+        info: MessageInfo,
+        initial_members: Vec<String>,
+    ) -> Result<Response, ContractError> {
         let msg = InstantiateMsg {
             admin: Some(INIT_ADMIN.into()),
             name: DSO_NAME.to_string(),
@@ -504,6 +513,7 @@ mod tests {
             voting_period: 14,
             quorum: Decimal::percent(40),
             threshold: Decimal::percent(60),
+            initial_members,
         };
         instantiate(deps, mock_env(), info, msg)
     }
@@ -623,7 +633,7 @@ mod tests {
     fn instantiation_no_funds() {
         let mut deps = mock_dependencies(&[]);
         let info = mock_info(INIT_ADMIN, &[]);
-        let res = do_instantiate(deps.as_mut(), info);
+        let res = do_instantiate(deps.as_mut(), info, vec![]);
 
         // should fail (no funds)
         assert!(res.is_err());
@@ -638,7 +648,7 @@ mod tests {
         let mut deps = mock_dependencies(&[]);
         let info = mock_info(INIT_ADMIN, &[coin(1u128, "utgd")]);
 
-        let res = do_instantiate(deps.as_mut(), info);
+        let res = do_instantiate(deps.as_mut(), info, vec![]);
 
         // should fail (not enough funds)
         assert!(res.is_err());
@@ -650,7 +660,7 @@ mod tests {
         let mut deps = mock_dependencies(&[]);
         let info = mock_info(INIT_ADMIN, &[coin(ESCROW_FUNDS, "utgd")]);
 
-        do_instantiate(deps.as_mut(), info).unwrap();
+        do_instantiate(deps.as_mut(), info, vec![]).unwrap();
 
         // succeeds, weight = 1
         let total = query_total_weight(deps.as_ref()).unwrap();
@@ -661,7 +671,7 @@ mod tests {
     fn test_add_voting_members() {
         let mut deps = mock_dependencies(&[]);
         let info = mock_info(INIT_ADMIN, &[coin(ESCROW_FUNDS, "utgd")]);
-        do_instantiate(deps.as_mut(), info).unwrap();
+        do_instantiate(deps.as_mut(), info, vec![]).unwrap();
 
         // assert the voting set is proper
         assert_voting(&deps, Some(1), None, None, None, None);
@@ -694,7 +704,7 @@ mod tests {
     fn test_escrows() {
         let mut deps = mock_dependencies(&[]);
         let info = mock_info(INIT_ADMIN, &[coin(ESCROW_FUNDS, "utgd")]);
-        do_instantiate(deps.as_mut(), info).unwrap();
+        do_instantiate(deps.as_mut(), info, vec![]).unwrap();
 
         // Assert the voting set is proper
         assert_voting(&deps, Some(1), None, None, None, None);
@@ -906,7 +916,7 @@ mod tests {
     fn test_update_nonvoting_members() {
         let mut deps = mock_dependencies(&[]);
         let info = mock_info(INIT_ADMIN, &[coin(ESCROW_FUNDS, "utgd")]);
-        do_instantiate(deps.as_mut(), info).unwrap();
+        do_instantiate(deps.as_mut(), info, vec![]).unwrap();
 
         // assert the non-voting set is proper
         assert_nonvoting(&deps, None, None, None, None);
@@ -961,7 +971,7 @@ mod tests {
     fn raw_queries_work() {
         let info = mock_info(INIT_ADMIN, &[coin(ESCROW_FUNDS, "utgd")]);
         let mut deps = mock_dependencies(&[]);
-        do_instantiate(deps.as_mut(), info).unwrap();
+        do_instantiate(deps.as_mut(), info, vec![]).unwrap();
 
         // get total from raw key
         let total_raw = deps.storage.get(TOTAL_KEY.as_bytes()).unwrap();

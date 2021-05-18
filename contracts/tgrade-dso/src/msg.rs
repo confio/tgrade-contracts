@@ -21,6 +21,8 @@ pub struct InstantiateMsg {
     pub quorum: Decimal,
     /// Default voting threshold percentage (0-100)
     pub threshold: Decimal,
+    /// List of non-voting members to be added to the DSO upon creation
+    pub initial_members: Vec<String>,
 }
 
 #[derive(Serialize, Deserialize, Clone, PartialEq, JsonSchema, Debug)]

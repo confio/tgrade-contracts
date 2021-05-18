@@ -4,6 +4,7 @@
   "type": "object",
   "required": [
     "escrow_amount",
+    "initial_members",
     "name",
     "quorum",
     "threshold",
@@ -22,6 +23,13 @@
       "type": "integer",
       "format": "uint128",
       "minimum": 0.0
+    },
+    "initial_members": {
+      "description": "List of non-voting members to be added to the DSO upon creation",
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
     },
     "name": {
       "description": "DSO Name",
