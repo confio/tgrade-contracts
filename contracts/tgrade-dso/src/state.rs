@@ -2,12 +2,12 @@ use serde::{Deserialize, Serialize};
 
 use cosmwasm_std::{Addr, Decimal, Uint128};
 use cw_controllers::Admin;
-use cw_storage_plus::{Index, IndexList, IndexedSnapshotMap, Item, MultiIndex, Strategy, U64Key};
+use cw_storage_plus::{
+    Index, IndexList, IndexedSnapshotMap, Item, Map, MultiIndex, Strategy, U64Key,
+};
 use tg4::TOTAL_KEY;
 
 pub const ADMIN: Admin = Admin::new("admin");
-
-pub const DSO_DENOM: &str = "utgd";
 
 #[derive(Serialize, Deserialize, Clone, PartialEq, Debug)]
 pub struct Dso {
@@ -55,4 +55,15 @@ pub fn members<'a>() -> IndexedSnapshotMap<'a, &'a Addr, u64, MemberIndexes<'a>>
         Strategy::EveryBlock,
         indexes,
     )
+}
+
+pub const ESCROWS_KEY: &str = "escrows";
+pub const ESCROWS: Map<&Addr, Uint128> = Map::new(ESCROWS_KEY);
+
+/// escrow_key is meant for raw queries for one member escrow, given address
+pub fn escrow_key(address: &str) -> Vec<u8> {
+    // FIXME: Inlined here to avoid storage-plus import
+    let mut key = [b"\x00", &[ESCROWS_KEY.len() as u8], ESCROWS_KEY.as_bytes()].concat();
+    key.extend_from_slice(address.as_bytes());
+    key
 }

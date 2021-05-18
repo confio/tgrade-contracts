@@ -24,9 +24,15 @@ pub enum ContractError {
     #[error("Invalid voting threshold percentage: {0}")]
     InvalidThreshold(Decimal),
 
+    #[error("No funds provided")]
+    NoFunds,
+
     #[error("Insufficient escrow amount: {0}")]
     InsufficientFunds(u128),
 
     #[error("{0}")]
     Payment(#[from] PaymentError),
+
+    #[error("Trying to remove a voting member: {0}")]
+    VotingMember(String),
 }

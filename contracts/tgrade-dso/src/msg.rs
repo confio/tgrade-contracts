@@ -1,8 +1,7 @@
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
-use cosmwasm_std::Decimal;
-use tg4::Member;
+use cosmwasm_std::{Decimal, Uint128};
 
 #[derive(Serialize, Deserialize, Clone, PartialEq, JsonSchema, Debug)]
 #[serde(rename_all = "snake_case")]
@@ -13,7 +12,7 @@ pub struct InstantiateMsg {
     pub admin: Option<String>,
     /// DSO Name
     pub name: String,
-    /// The required escrow amount, in the default denom (TGD)
+    /// The required escrow amount, in the default denom (utgd)
     pub escrow_amount: u128,
     /// Voting period in days
     //FIXME?: Change to Duration
@@ -27,11 +26,18 @@ pub struct InstantiateMsg {
 #[derive(Serialize, Deserialize, Clone, PartialEq, JsonSchema, Debug)]
 #[serde(rename_all = "snake_case")]
 pub enum ExecuteMsg {
-    /// Apply a diff to the existing members.
+    AddVotingMembers {
+        voters: Vec<String>,
+    },
+    /// Apply a diff to the existing non-voting members.
     /// Remove is applied after add, so if an address is in both, it is removed
-    UpdateMembers {
+    AddRemoveNonVotingMembers {
         remove: Vec<String>,
-        add: Vec<Member>,
+        add: Vec<String>,
+    },
+    DepositEscrow {},
+    ReturnEscrow {
+        amount: Option<Uint128>,
     },
 }
 
@@ -42,14 +48,19 @@ pub enum QueryMsg {
     Admin {},
     /// Return TotalWeightResponse
     TotalWeight {},
-    /// Returns MembersListResponse
+    /// Returns MembersListResponse, for all (voting and non-voting) members
     ListMembers {
         start_after: Option<String>,
         limit: Option<u32>,
     },
-    /// Returns MembersListResponse, sorted by weight descending
-    ListMembersByWeight {
-        start_after: Option<Member>,
+    /// Returns MembersListResponse, weight > 0 means active voting member, 0 means pending (not enough escrow)
+    ListVotingMembers {
+        start_after: Option<String>,
+        limit: Option<u32>,
+    },
+    /// Returns MembersListResponse, only weight == 0 members
+    ListNonVotingMembers {
+        start_after: Option<String>,
         limit: Option<u32>,
     },
     /// Returns MemberResponse
@@ -57,4 +68,12 @@ pub enum QueryMsg {
         addr: String,
         at_height: Option<u64>,
     },
+    /// Returns EscrowResponse
+    Escrow { addr: String },
+}
+
+#[derive(Serialize, Deserialize, Clone, PartialEq, JsonSchema, Debug)]
+pub struct EscrowResponse {
+    pub amount: Option<Uint128>,
+    pub authorized: bool,
 }
