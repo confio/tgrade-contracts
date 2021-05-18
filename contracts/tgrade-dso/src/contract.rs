@@ -720,6 +720,9 @@ mod tests {
         let info = mock_info(VOTING1, &[coin(ESCROW_FUNDS, "utgd")]);
         let _res = execute_deposit_escrow(deps.as_mut(), &env, info).unwrap();
 
+        // Updated properly
+        assert_voting(&deps, Some(1), Some(1), Some(0), None, None);
+
         // Check escrows / auths are updated
         assert_escrow(&deps, Some(ESCROW_FUNDS), Some(ESCROW_FUNDS), Some(0), None);
 
@@ -735,6 +738,8 @@ mod tests {
             Some(ESCROW_FUNDS - 1),
             None,
         );
+        // (Not) updated properly
+        assert_voting(&deps, Some(1), Some(1), Some(0), None, None);
 
         // Second voting member adds more than enough funds
         let info = mock_info(VOTING2, &[coin(ESCROW_FUNDS, "utgd")]);
@@ -748,6 +753,9 @@ mod tests {
                 data: None,
             }
         );
+
+        // Updated properly
+        assert_voting(&deps, Some(1), Some(1), Some(1), None, None);
 
         // Check escrows / auths are updated / proper
         assert_escrow(
@@ -774,6 +782,9 @@ mod tests {
             }
         );
 
+        // (Not) updated properly
+        assert_voting(&deps, Some(1), Some(1), Some(1), None, None);
+
         // Check escrows / auths are updated / proper
         assert_escrow(
             &deps,
@@ -786,6 +797,9 @@ mod tests {
         // Second voting member reclaims all possible funds
         let info = mock_info(VOTING2, &[]);
         let _res = execute_return_escrow(deps.as_mut(), info, None).unwrap();
+
+        // (Not) updated properly
+        assert_voting(&deps, Some(1), Some(1), Some(1), None, None);
 
         // Check escrows / auths are updated / proper
         assert_escrow(
@@ -826,6 +840,9 @@ mod tests {
         let info = mock_info(VOTING3, &[coin(ESCROW_FUNDS - 1, "utgd")]);
         let _res = execute_deposit_escrow(deps.as_mut(), &env, info).unwrap();
 
+        // Updated properly
+        assert_voting(&deps, Some(1), Some(1), Some(1), Some(0), None);
+
         // Check escrows / auths are updated / proper
         assert_escrow(
             &deps,
@@ -844,10 +861,16 @@ mod tests {
             ContractError::InsufficientFunds(ESCROW_FUNDS)
         );
 
+        // (Not) updated properly
+        assert_voting(&deps, Some(1), Some(1), Some(1), Some(0), None);
+
         // Third member refunds all of its funds
         let info = mock_info(VOTING3, &[]);
         let _res =
             execute_return_escrow(deps.as_mut(), info, Some((ESCROW_FUNDS - 1).into())).unwrap();
+
+        // (Not) updated properly
+        assert_voting(&deps, Some(1), Some(1), Some(1), Some(0), None);
 
         // Check escrows / auths are updated / proper
         assert_escrow(
