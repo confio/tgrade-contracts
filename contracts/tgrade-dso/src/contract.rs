@@ -741,8 +741,8 @@ mod tests {
         // (Not) updated properly
         assert_voting(&deps, Some(1), Some(1), Some(0), None, None);
 
-        // Second voting member adds more than enough funds
-        let info = mock_info(VOTING2, &[coin(ESCROW_FUNDS, "utgd")]);
+        // Second voting member adds just enough funds
+        let info = mock_info(VOTING2, &[coin(1, "utgd")]);
         let res = execute_deposit_escrow(deps.as_mut(), &env, info).unwrap();
         assert_eq!(
             res,
@@ -755,6 +755,31 @@ mod tests {
         );
 
         // Updated properly
+        assert_voting(&deps, Some(1), Some(1), Some(1), None, None);
+
+        // Check escrows / auths are updated / proper
+        assert_escrow(
+            &deps,
+            Some(ESCROW_FUNDS),
+            Some(ESCROW_FUNDS),
+            Some(ESCROW_FUNDS),
+            None,
+        );
+
+        // Second voting member adds more than enough funds
+        let info = mock_info(VOTING2, &[coin(ESCROW_FUNDS - 1, "utgd")]);
+        let res = execute_deposit_escrow(deps.as_mut(), &env, info).unwrap();
+        assert_eq!(
+            res,
+            Response {
+                submessages: vec![],
+                messages: vec![],
+                attributes: vec![attr("action", "deposit_escrow")],
+                data: None,
+            }
+        );
+
+        // (Not) updated properly
         assert_voting(&deps, Some(1), Some(1), Some(1), None, None);
 
         // Check escrows / auths are updated / proper
