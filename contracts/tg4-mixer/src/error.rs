@@ -11,9 +11,6 @@ pub enum ContractError {
     #[error("{0}")]
     Hook(#[from] HookError),
 
-    #[error("{0}")]
-    Admin(#[from] AdminError),
-
     #[error("Unauthorized")]
     Unauthorized {},
 }

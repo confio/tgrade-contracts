@@ -1,11 +1,17 @@
 use cosmwasm_std::Addr;
 use cw_controllers::{Admin, Hooks};
 use cw_storage_plus::{Index, IndexList, IndexedSnapshotMap, Item, MultiIndex, Strategy, U64Key};
-use tg4::TOTAL_KEY;
+use tg4::{Tg4Contract, TOTAL_KEY};
 
-pub const ADMIN: Admin = Admin::new("admin");
 pub const HOOKS: Hooks = Hooks::new("tg4-hooks");
 
+#[derive(Serialize, Deserialize, Clone, PartialEq, Debug)]
+pub struct Groups {
+    pub left: Tg4Contract,
+    pub right: Tg4Contract,
+}
+
+pub const GROUPS: Item<Groups> = Item::new("groups");
 pub const TOTAL: Item<u64> = Item::new(TOTAL_KEY);
 
 pub struct MemberIndexes<'a> {
