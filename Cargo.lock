@@ -565,6 +565,22 @@ dependencies = [
 ]
 
 [[package]]
+name = "tg4-mixer"
+version = "0.1.2"
+dependencies = [
+ "cosmwasm-schema",
+ "cosmwasm-std",
+ "cw-controllers",
+ "cw-storage-plus",
+ "cw0",
+ "cw2",
+ "schemars",
+ "serde",
+ "tg4",
+ "thiserror",
+]
+
+[[package]]
 name = "tg4-stake"
 version = "0.1.2"
 dependencies = [

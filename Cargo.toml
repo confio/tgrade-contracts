@@ -5,6 +5,10 @@ members = ["packages/*", "contracts/*"]
 codegen-units = 1
 incremental = false
 
+[profile.release.package.tg4-mixer]
+codegen-units = 1
+incremental = false
+
 [profile.release.package.tg4-stake]
 codegen-units = 1
 incremental = false
