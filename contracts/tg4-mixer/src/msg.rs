@@ -17,6 +17,11 @@ pub struct InstantiateMsg {
 pub enum ExecuteMsg {
     /// This handles a callback from one of the linked groups
     MemberChangedHook(MemberChangedHookMsg),
+    /// Add a new hook to be informed of all membership changes.
+    /// TODO: must be used by a pre-authorization
+    AddHook { addr: String },
+    /// Remove a hook. Must be called by the contract being removed
+    RemoveHook { addr: String },
 }
 
 #[derive(Serialize, Deserialize, Clone, PartialEq, JsonSchema, Debug)]
