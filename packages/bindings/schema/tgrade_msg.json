@@ -297,19 +297,6 @@
           "additionalProperties": false
         },
         {
-          "description": "Allows raw bytes (if client and wasmd are aware of something the contract is not) Like CosmosMsg::Stargate but for the governance router, not normal router",
-          "type": "object",
-          "required": [
-            "raw_proto_proposal"
-          ],
-          "properties": {
-            "raw_proto_proposal": {
-              "$ref": "#/definitions/ProtoAny"
-            }
-          },
-          "additionalProperties": false
-        },
-        {
           "description": "Updates the matching client to set a new trusted header. This can be used by governance to restore a client that has timed out or forked or otherwise broken. See https://github.com/cosmos/cosmos-sdk/blob/v0.42.3/proto/ibc/core/client/v1/client.proto#L36-L49",
           "type": "object",
           "required": [
