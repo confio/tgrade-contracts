@@ -13,7 +13,7 @@ use tg4::{
 };
 
 use crate::error::ContractError;
-use crate::msg::{EscrowResponse, ExecuteMsg, InstantiateMsg, QueryMsg};
+use crate::msg::{DsoResponse, EscrowResponse, ExecuteMsg, InstantiateMsg, QueryMsg};
 use crate::state::{members, Dso, ADMIN, DSO, ESCROWS, TOTAL};
 
 // version info for migration info
@@ -35,14 +35,15 @@ pub fn instantiate(
     set_contract_version(deps.storage, CONTRACT_NAME, CONTRACT_VERSION)?;
     create(
         deps,
-        &env,
-        &info,
+        env,
+        info,
         msg.admin,
         msg.name,
         msg.escrow_amount,
         msg.voting_period,
         msg.quorum,
         msg.threshold,
+        msg.initial_members,
     )?;
     Ok(Response::default())
 }
@@ -52,14 +53,15 @@ pub fn instantiate(
 #[allow(clippy::too_many_arguments)]
 pub fn create(
     mut deps: DepsMut,
-    env: &Env,
-    info: &MessageInfo,
+    env: Env,
+    info: MessageInfo,
     admin: Option<String>,
     name: String,
-    escrow_amount: u128,
+    escrow_amount: Uint128,
     voting_period: u32,
     quorum: Decimal,
     threshold: Decimal,
+    initial_members: Vec<String>,
 ) -> Result<(), ContractError> {
     validate(&name, escrow_amount, quorum, threshold)?;
 
@@ -71,7 +73,7 @@ pub fn create(
     // Store sender as initial member, and define its weight / state
     // based on init_funds
     let amount = cw0::must_pay(&info, DSO_DENOM)?;
-    if amount.u128() < escrow_amount {
+    if amount < escrow_amount {
         return Err(ContractError::InsufficientFunds(amount.u128()));
     }
     // Put sender funds in escrow
@@ -85,19 +87,22 @@ pub fn create(
         deps.storage,
         &Dso {
             name,
-            escrow_amount: Uint128(escrow_amount),
+            escrow_amount,
             voting_period,
             quorum,
             threshold,
         },
     )?;
 
+    // add all members
+    execute_add_remove_non_voting_members(deps, env, info, initial_members, vec![])?;
+
     Ok(())
 }
 
 pub fn validate(
     name: &str,
-    escrow_amount: u128,
+    escrow_amount: Uint128,
     quorum: Decimal,
     threshold: Decimal,
 ) -> Result<(), ContractError> {
@@ -115,8 +120,8 @@ pub fn validate(
         return Err(ContractError::InvalidThreshold(threshold));
     }
 
-    if escrow_amount == 0 {
-        return Err(ContractError::InsufficientFunds(escrow_amount));
+    if escrow_amount.is_zero() {
+        return Err(ContractError::InsufficientFunds(escrow_amount.u128()));
     }
     Ok(())
 }
@@ -365,6 +370,7 @@ pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
             to_binary(&list_non_voting_members(deps, start_after, limit)?)
         }
         QueryMsg::TotalWeight {} => to_binary(&query_total_weight(deps)?),
+        QueryMsg::Dso {} => to_binary(&query_dso(deps)?),
         QueryMsg::Admin {} => to_binary(&ADMIN.query_admin(deps)?),
     }
 }
@@ -372,6 +378,23 @@ pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
 fn query_total_weight(deps: Deps) -> StdResult<TotalWeightResponse> {
     let weight = TOTAL.load(deps.storage)?;
     Ok(TotalWeightResponse { weight })
+}
+
+fn query_dso(deps: Deps) -> StdResult<DsoResponse> {
+    let Dso {
+        name,
+        escrow_amount,
+        voting_period,
+        quorum,
+        threshold,
+    } = DSO.load(deps.storage)?;
+    Ok(DsoResponse {
+        name,
+        escrow_amount,
+        voting_period,
+        quorum,
+        threshold,
+    })
 }
 
 fn query_member(deps: Deps, addr: String, height: Option<u64>) -> StdResult<MemberResponse> {
@@ -479,7 +502,7 @@ mod tests {
     use crate::error::ContractError::Std;
     use crate::state::escrow_key;
     use cosmwasm_std::testing::{mock_dependencies, mock_env, mock_info};
-    use cosmwasm_std::{coin, from_slice, Api, OwnedDeps, Querier, StdError, Storage};
+    use cosmwasm_std::{coin, coins, from_slice, Api, Coin, OwnedDeps, Querier, StdError, Storage};
     use cw0::PaymentError;
     use cw_controllers::AdminError;
     use tg4::{member_key, TOTAL_KEY};
@@ -496,14 +519,23 @@ mod tests {
     const NONVOTING2: &str = "paul";
     const NONVOTING3: &str = "jimmy";
 
-    fn do_instantiate(deps: DepsMut, info: MessageInfo) -> Result<Response, ContractError> {
+    fn escrow_funds() -> Vec<Coin> {
+        coins(ESCROW_FUNDS, "utgd")
+    }
+
+    fn do_instantiate(
+        deps: DepsMut,
+        info: MessageInfo,
+        initial_members: Vec<String>,
+    ) -> Result<Response, ContractError> {
         let msg = InstantiateMsg {
             admin: Some(INIT_ADMIN.into()),
             name: DSO_NAME.to_string(),
-            escrow_amount: ESCROW_FUNDS,
+            escrow_amount: Uint128(ESCROW_FUNDS),
             voting_period: 14,
             quorum: Decimal::percent(40),
             threshold: Decimal::percent(60),
+            initial_members,
         };
         instantiate(deps, mock_env(), info, msg)
     }
@@ -591,28 +623,28 @@ mod tests {
         voting3_escrow: Option<u128>,
     ) {
         let escrow0 = query_escrow(deps.as_ref(), INIT_ADMIN.into()).unwrap();
-        assert_eq!(escrow0.amount, voting0_escrow.map(|e| e.into()));
+        assert_eq!(escrow0.amount, voting0_escrow.map(Uint128));
         assert_eq!(
             escrow0.authorized,
             voting0_escrow.map_or(false, |e| e >= ESCROW_FUNDS)
         );
 
         let escrow1 = query_escrow(deps.as_ref(), VOTING1.into()).unwrap();
-        assert_eq!(escrow1.amount, voting1_escrow.map(|e| e.into()));
+        assert_eq!(escrow1.amount, voting1_escrow.map(Uint128));
         assert_eq!(
             escrow1.authorized,
             voting1_escrow.map_or(false, |e| e >= ESCROW_FUNDS)
         );
 
         let escrow2 = query_escrow(deps.as_ref(), VOTING2.into()).unwrap();
-        assert_eq!(escrow2.amount, voting2_escrow.map(|e| e.into()));
+        assert_eq!(escrow2.amount, voting2_escrow.map(Uint128));
         assert_eq!(
             escrow2.authorized,
             voting2_escrow.map_or(false, |e| e >= ESCROW_FUNDS)
         );
 
         let escrow3 = query_escrow(deps.as_ref(), VOTING3.into()).unwrap();
-        assert_eq!(escrow3.amount, voting3_escrow.map(|e| e.into()));
+        assert_eq!(escrow3.amount, voting3_escrow.map(Uint128));
         assert_eq!(
             escrow3.authorized,
             voting3_escrow.map_or(false, |e| e >= ESCROW_FUNDS)
@@ -623,7 +655,7 @@ mod tests {
     fn instantiation_no_funds() {
         let mut deps = mock_dependencies(&[]);
         let info = mock_info(INIT_ADMIN, &[]);
-        let res = do_instantiate(deps.as_mut(), info);
+        let res = do_instantiate(deps.as_mut(), info, vec![]);
 
         // should fail (no funds)
         assert!(res.is_err());
@@ -638,7 +670,7 @@ mod tests {
         let mut deps = mock_dependencies(&[]);
         let info = mock_info(INIT_ADMIN, &[coin(1u128, "utgd")]);
 
-        let res = do_instantiate(deps.as_mut(), info);
+        let res = do_instantiate(deps.as_mut(), info, vec![]);
 
         // should fail (not enough funds)
         assert!(res.is_err());
@@ -648,20 +680,31 @@ mod tests {
     #[test]
     fn instantiation_enough_funds() {
         let mut deps = mock_dependencies(&[]);
-        let info = mock_info(INIT_ADMIN, &[coin(ESCROW_FUNDS, "utgd")]);
+        let info = mock_info(INIT_ADMIN, &escrow_funds());
 
-        do_instantiate(deps.as_mut(), info).unwrap();
+        do_instantiate(deps.as_mut(), info, vec![]).unwrap();
 
         // succeeds, weight = 1
         let total = query_total_weight(deps.as_ref()).unwrap();
         assert_eq!(1, total.weight);
+
+        // ensure dso query works
+        let expected = DsoResponse {
+            name: DSO_NAME.to_string(),
+            escrow_amount: Uint128(ESCROW_FUNDS),
+            voting_period: 14,
+            quorum: Decimal::percent(40),
+            threshold: Decimal::percent(60),
+        };
+        let dso = query_dso(deps.as_ref()).unwrap();
+        assert_eq!(dso, expected);
     }
 
     #[test]
     fn test_add_voting_members() {
         let mut deps = mock_dependencies(&[]);
-        let info = mock_info(INIT_ADMIN, &[coin(ESCROW_FUNDS, "utgd")]);
-        do_instantiate(deps.as_mut(), info).unwrap();
+        let info = mock_info(INIT_ADMIN, &escrow_funds());
+        do_instantiate(deps.as_mut(), info, vec![]).unwrap();
 
         // assert the voting set is proper
         assert_voting(&deps, Some(1), None, None, None, None);
@@ -693,8 +736,8 @@ mod tests {
     #[test]
     fn test_escrows() {
         let mut deps = mock_dependencies(&[]);
-        let info = mock_info(INIT_ADMIN, &[coin(ESCROW_FUNDS, "utgd")]);
-        do_instantiate(deps.as_mut(), info).unwrap();
+        let info = mock_info(INIT_ADMIN, &escrow_funds());
+        do_instantiate(deps.as_mut(), info, vec![]).unwrap();
 
         // Assert the voting set is proper
         assert_voting(&deps, Some(1), None, None, None, None);
@@ -712,7 +755,7 @@ mod tests {
         assert_escrow(&deps, Some(ESCROW_FUNDS), Some(0), Some(0), None);
 
         // First voting member tops-up with enough funds
-        let info = mock_info(VOTING1, &[coin(ESCROW_FUNDS, "utgd")]);
+        let info = mock_info(VOTING1, &escrow_funds());
         let _res = execute_deposit_escrow(deps.as_mut(), &env, info).unwrap();
 
         // Updated properly
@@ -831,7 +874,7 @@ mod tests {
         );
 
         // Third "member" (not added yet) tries to top-up
-        let info = mock_info(VOTING3, &[coin(ESCROW_FUNDS, "utgd")]);
+        let info = mock_info(VOTING3, &escrow_funds());
         let res = execute_deposit_escrow(deps.as_mut(), &env, info);
         assert!(res.is_err());
         assert_eq!(
@@ -903,10 +946,20 @@ mod tests {
     }
 
     #[test]
+    fn test_initial_nonvoting_members() {
+        let mut deps = mock_dependencies(&[]);
+        let info = mock_info(INIT_ADMIN, &escrow_funds());
+        // even handle duplicates ignoring the copy
+        let initial = vec![NONVOTING1.into(), NONVOTING3.into(), NONVOTING1.into()];
+        do_instantiate(deps.as_mut(), info, initial).unwrap();
+        assert_nonvoting(&deps, Some(0), None, Some(0), None);
+    }
+
+    #[test]
     fn test_update_nonvoting_members() {
         let mut deps = mock_dependencies(&[]);
-        let info = mock_info(INIT_ADMIN, &[coin(ESCROW_FUNDS, "utgd")]);
-        do_instantiate(deps.as_mut(), info).unwrap();
+        let info = mock_info(INIT_ADMIN, &escrow_funds());
+        do_instantiate(deps.as_mut(), info, vec![]).unwrap();
 
         // assert the non-voting set is proper
         assert_nonvoting(&deps, None, None, None, None);
@@ -959,9 +1012,9 @@ mod tests {
 
     #[test]
     fn raw_queries_work() {
-        let info = mock_info(INIT_ADMIN, &[coin(ESCROW_FUNDS, "utgd")]);
+        let info = mock_info(INIT_ADMIN, &escrow_funds());
         let mut deps = mock_dependencies(&[]);
-        do_instantiate(deps.as_mut(), info).unwrap();
+        do_instantiate(deps.as_mut(), info, vec![]).unwrap();
 
         // get total from raw key
         let total_raw = deps.storage.get(TOTAL_KEY.as_bytes()).unwrap();

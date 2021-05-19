@@ -16,6 +16,19 @@
       "additionalProperties": false
     },
     {
+      "description": "Return DsoResponse",
+      "type": "object",
+      "required": [
+        "dso"
+      ],
+      "properties": {
+        "dso": {
+          "type": "object"
+        }
+      },
+      "additionalProperties": false
+    },
+    {
       "description": "Return TotalWeightResponse",
       "type": "object",
       "required": [

@@ -13,7 +13,7 @@ pub struct InstantiateMsg {
     /// DSO Name
     pub name: String,
     /// The required escrow amount, in the default denom (utgd)
-    pub escrow_amount: u128,
+    pub escrow_amount: Uint128,
     /// Voting period in days
     //FIXME?: Change to Duration
     pub voting_period: u32,
@@ -21,6 +21,8 @@ pub struct InstantiateMsg {
     pub quorum: Decimal,
     /// Default voting threshold percentage (0-100)
     pub threshold: Decimal,
+    /// List of non-voting members to be added to the DSO upon creation
+    pub initial_members: Vec<String>,
 }
 
 #[derive(Serialize, Deserialize, Clone, PartialEq, JsonSchema, Debug)]
@@ -46,6 +48,8 @@ pub enum ExecuteMsg {
 pub enum QueryMsg {
     /// Return AdminResponse
     Admin {},
+    /// Return DsoResponse
+    Dso {},
     /// Return TotalWeightResponse
     TotalWeight {},
     /// Returns MembersListResponse, for all (voting and non-voting) members
@@ -76,4 +80,19 @@ pub enum QueryMsg {
 pub struct EscrowResponse {
     pub amount: Option<Uint128>,
     pub authorized: bool,
+}
+
+#[derive(Serialize, Deserialize, Clone, PartialEq, JsonSchema, Debug)]
+pub struct DsoResponse {
+    /// DSO Name
+    pub name: String,
+    /// The required escrow amount, in the default denom (utgd)
+    pub escrow_amount: Uint128,
+    /// Voting period in days
+    //FIXME?: Change to Duration
+    pub voting_period: u32,
+    /// Default voting quorum percentage (0-100)
+    pub quorum: Decimal,
+    /// Default voting threshold percentage (0-100)
+    pub threshold: Decimal,
 }

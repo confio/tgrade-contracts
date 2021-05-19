@@ -1,23 +1,15 @@
 {
   "$schema": "http://json-schema.org/draft-07/schema#",
-  "title": "InstantiateMsg",
+  "title": "DsoResponse",
   "type": "object",
   "required": [
     "escrow_amount",
-    "initial_members",
     "name",
     "quorum",
     "threshold",
     "voting_period"
   ],
   "properties": {
-    "admin": {
-      "description": "The admin is the only account that can update the group state. Omit it to make the group immutable.",
-      "type": [
-        "string",
-        "null"
-      ]
-    },
     "escrow_amount": {
       "description": "The required escrow amount, in the default denom (utgd)",
       "allOf": [
@@ -25,13 +17,6 @@
           "$ref": "#/definitions/Uint128"
         }
       ]
-    },
-    "initial_members": {
-      "description": "List of non-voting members to be added to the DSO upon creation",
-      "type": "array",
-      "items": {
-        "type": "string"
-      }
     },
     "name": {
       "description": "DSO Name",
