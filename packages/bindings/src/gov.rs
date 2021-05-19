@@ -30,9 +30,6 @@ pub enum GovProposal {
     /// Defines a proposal to change one or more parameters.
     /// See https://github.com/cosmos/cosmos-sdk/blob/v0.42.3/proto/cosmos/params/v1beta1/params.proto#L9-L27
     ChangeParams(Vec<ParamChange>),
-    /// Allows raw bytes (if client and wasmd are aware of something the contract is not)
-    /// Like CosmosMsg::Stargate but for the governance router, not normal router
-    RawProtoProposal(ProtoAny),
     /// Updates the matching client to set a new trusted header.
     /// This can be used by governance to restore a client that has timed out or forked or otherwise broken.
     /// See https://github.com/cosmos/cosmos-sdk/blob/v0.42.3/proto/ibc/core/client/v1/client.proto#L36-L49
