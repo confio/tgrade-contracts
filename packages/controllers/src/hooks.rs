@@ -164,34 +164,32 @@ mod test {
         assert_count(deps.as_ref(), 0);
 
         // add a new hook
-        let foo = Addr::unchecked("foo");
-        HOOKS.add_hook(deps.as_mut().storage, foo.clone()).unwrap();
+        let first = Addr::unchecked("first");
+        HOOKS
+            .add_hook(deps.as_mut().storage, first.clone())
+            .unwrap();
         assert_count(deps.as_ref(), 1);
 
         // cannot add twice
         let err = HOOKS
-            .add_hook(deps.as_mut().storage, foo.clone())
+            .add_hook(deps.as_mut().storage, first.clone())
             .unwrap_err();
         assert_eq!(err, HookError::HookAlreadyRegistered {});
         assert_count(deps.as_ref(), 1);
 
         // add a different hook
         let bar = Addr::unchecked("bar");
-        HOOKS.add_hook(deps.as_mut().storage, bar.clone()).unwrap();
+        HOOKS.add_hook(deps.as_mut().storage, bar).unwrap();
         assert_count(deps.as_ref(), 2);
 
         // cannot remove a non-registered hook
         let boom = Addr::unchecked("boom");
-        let err = HOOKS
-            .remove_hook(deps.as_mut().storage, boom.clone())
-            .unwrap_err();
+        let err = HOOKS.remove_hook(deps.as_mut().storage, boom).unwrap_err();
         assert_eq!(err, HookError::HookNotRegistered {});
         assert_count(deps.as_ref(), 2);
 
         // can remove one of the existing hooks
-        HOOKS
-            .remove_hook(deps.as_mut().storage, foo.clone())
-            .unwrap();
+        HOOKS.remove_hook(deps.as_mut().storage, first).unwrap();
         assert_count(deps.as_ref(), 1);
     }
 
@@ -226,13 +224,13 @@ mod test {
     fn execute_methods() {
         let mut deps = mock_dependencies(&[]);
 
-        let foo = Addr::unchecked("foo");
+        let first = Addr::unchecked("first");
         let bar = Addr::unchecked("bar");
 
         // cannot add without preauth
         let anyone = mock_info("anyone", &[]);
         let err = HOOKS
-            .execute_add_hook(deps.as_mut(), anyone.clone(), foo.clone())
+            .execute_add_hook(deps.as_mut(), anyone.clone(), first.clone())
             .unwrap_err();
         assert_eq!(err, HookError::NoPreauth {});
         assert_count(deps.as_ref(), 0);
@@ -240,27 +238,27 @@ mod test {
         // set preauth, can add
         HOOKS.set_preauth(deps.as_mut().storage, 1).unwrap();
         HOOKS
-            .execute_add_hook(deps.as_mut(), anyone.clone(), foo.clone())
+            .execute_add_hook(deps.as_mut(), anyone.clone(), first.clone())
             .unwrap();
         assert_count(deps.as_ref(), 1);
 
         // cannot add second (preauth used)
         let err = HOOKS
-            .execute_add_hook(deps.as_mut(), anyone.clone(), bar.clone())
+            .execute_add_hook(deps.as_mut(), anyone.clone(), bar)
             .unwrap_err();
         assert_eq!(err, HookError::NoPreauth {});
         assert_count(deps.as_ref(), 1);
 
         // cannot remove other
         let err = HOOKS
-            .execute_remove_hook(deps.as_mut(), anyone.clone(), foo.clone())
+            .execute_remove_hook(deps.as_mut(), anyone, first.clone())
             .unwrap_err();
         assert_eq!(err, HookError::OnlyRemoveSelf {});
         assert_count(deps.as_ref(), 1);
 
         // can remove self
         HOOKS
-            .execute_remove_hook(deps.as_mut(), mock_info("foo", &[]), foo.clone())
+            .execute_remove_hook(deps.as_mut(), mock_info("first", &[]), first)
             .unwrap();
         assert_count(deps.as_ref(), 0);
     }
