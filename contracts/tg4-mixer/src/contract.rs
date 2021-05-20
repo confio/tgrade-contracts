@@ -38,6 +38,9 @@ pub fn instantiate(
     let groups = Groups { left, right };
     GROUPS.save(deps.storage, &groups)?;
 
+    // TODO: add hooks to listen for all changes
+
+    // calculate initial state from current members on both sides
     initialize_members(deps, groups, env.block.height)?;
 
     // TODO: what events to return here?
@@ -271,6 +274,197 @@ fn list_members_by_weight(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use cosmwasm_std::testing::{mock_env, MockApi, MockStorage};
+    use cosmwasm_std::{coins, Addr, Empty, Uint128};
+    use cw0::Duration;
+    use cw20::Denom;
+    use cw_multi_test::{next_block, App, Contract, ContractWrapper, SimpleBank};
+
+    const STAKE_DENOM: &str = "utgd";
+    const OWNER: &str = "owner";
+    const VOTER1: &str = "voter0001";
+    const VOTER2: &str = "voter0002";
+    const VOTER3: &str = "voter0003";
+    const VOTER4: &str = "voter0004";
+    const VOTER5: &str = "voter0005";
+
+    fn member<T: Into<String>>(addr: T, weight: u64) -> cw4::Member {
+        cw4::Member {
+            addr: addr.into(),
+            weight,
+        }
+    }
+
+    pub fn contract_mixer() -> Box<dyn Contract<Empty>> {
+        let contract = ContractWrapper::new(
+            crate::contract::execute,
+            crate::contract::instantiate,
+            crate::contract::query,
+        );
+        Box::new(contract)
+    }
+
+    pub fn contract_group() -> Box<dyn Contract<Empty>> {
+        let contract = ContractWrapper::new(
+            cw4_group::contract::execute,
+            cw4_group::contract::instantiate,
+            cw4_group::contract::query,
+        );
+        Box::new(contract)
+    }
+
+    pub fn contract_staking() -> Box<dyn Contract<Empty>> {
+        let contract = ContractWrapper::new(
+            cw4_stake::contract::execute,
+            cw4_stake::contract::instantiate,
+            cw4_stake::contract::query,
+        );
+        Box::new(contract)
+    }
+
+    fn mock_app() -> App {
+        let env = mock_env();
+        let api = Box::new(MockApi::default());
+        let bank = SimpleBank {};
+
+        App::new(api, env.block, bank, || Box::new(MockStorage::new()))
+    }
+
+    // uploads code and returns address of group contract
+    fn instantiate_group(app: &mut App, members: Vec<cw4::Member>) -> Addr {
+        let group_id = app.store_code(contract_group());
+        let msg = cw4_group::msg::InstantiateMsg {
+            admin: Some(OWNER.into()),
+            members,
+        };
+        app.instantiate_contract(group_id, Addr::unchecked(OWNER), &msg, &[], "group")
+            .unwrap()
+    }
+
+    // uploads code and returns address of group contract
+    fn instantiate_staking(app: &mut App, stakers: Vec<cw4::Member>) -> Addr {
+        let group_id = app.store_code(contract_staking());
+        let msg = cw4_stake::msg::InstantiateMsg {
+            denom: Denom::Native(STAKE_DENOM.into()),
+            tokens_per_weight: Uint128(1),
+            min_bond: Uint128(1),
+            unbonding_period: Duration::Time(3600),
+            admin: Some(OWNER.into()),
+        };
+        let contract = app
+            .instantiate_contract(group_id, Addr::unchecked(OWNER), &msg, &[], "staking")
+            .unwrap();
+
+        // stake any needed tokens
+        for staker in stakers {
+            // give them a balance
+            let balance = coins(staker.weight as u128, STAKE_DENOM);
+            let caller = Addr::unchecked(staker.addr);
+            app.set_bank_balance(&caller, balance.clone()).unwrap();
+
+            // they stake to the contract
+            let msg = cw4_stake::msg::ExecuteMsg::Bond {};
+            app.execute_contract(caller.clone(), contract.clone(), &msg, &balance)
+                .unwrap();
+        }
+
+        contract
+    }
+
+    fn instantiate_mixer(app: &mut App, left: &Addr, right: &Addr) -> Addr {
+        let flex_id = app.store_code(contract_mixer());
+        let msg = crate::msg::InstantiateMsg {
+            left_group: left.to_string(),
+            right_group: right.to_string(),
+        };
+        app.instantiate_contract(flex_id, Addr::unchecked(OWNER), &msg, &[], "mixer")
+            .unwrap()
+    }
+
+    /// this will set up all 3 contracts contracts, instantiating the group with
+    /// all the constant members, setting the staking contract with a definable set of stakers,
+    /// and connectioning them all to the mixer.
+    ///
+    /// Returns (mixer address, group address, staking address).
+    fn setup_test_case(app: &mut App, stakers: Vec<cw4::Member>) -> (Addr, Addr, Addr) {
+        // 1. Instantiate group contract with members (and OWNER as admin)
+        let members = vec![
+            member(OWNER, 0),
+            member(VOTER1, 100),
+            member(VOTER2, 200),
+            member(VOTER3, 300),
+            member(VOTER4, 400),
+            member(VOTER5, 500),
+        ];
+        let group_addr = instantiate_group(app, members);
+        app.update_block(next_block);
+
+        // 2. set up staking contract
+        let stake_addr = instantiate_staking(app, stakers);
+        app.update_block(next_block);
+
+        // 3. Set up mixer backed by these two groups
+        let mixer_addr = instantiate_mixer(app, &group_addr, &stake_addr);
+        app.update_block(next_block);
+
+        (mixer_addr, group_addr, stake_addr)
+    }
+
+    fn check_membership(
+        app: &App,
+        mixer_addr: &Addr,
+        owner: Option<u64>,
+        voter1: Option<u64>,
+        voter2: Option<u64>,
+        voter3: Option<u64>,
+        voter4: Option<u64>,
+        voter5: Option<u64>,
+    ) {
+        let weight = |addr: &str| -> Option<u64> {
+            let o: MemberResponse = app
+                .wrap()
+                .query_wasm_smart(
+                    mixer_addr,
+                    &QueryMsg::Member {
+                        addr: addr.into(),
+                        at_height: None,
+                    },
+                )
+                .unwrap();
+            o.weight
+        };
+
+        assert_eq!(weight(OWNER), owner);
+        assert_eq!(weight(VOTER1), voter1);
+        assert_eq!(weight(VOTER2), voter2);
+        assert_eq!(weight(VOTER3), voter3);
+        assert_eq!(weight(VOTER4), voter4);
+        assert_eq!(weight(VOTER5), voter5);
+    }
+
+    #[test]
+    fn basic_init() {
+        let mut app = mock_app();
+        let stakers = vec![
+            member(OWNER, 88888888888), // 0 weight -> 0 mixed
+            member(VOTER1, 10000),      // 10000 stake, 100 weight -> 1000 mixed
+            member(VOTER3, 7500),       // 7500 stake, 300 weight -> 1500 mixed
+        ];
+
+        let (mixer_addr, _, _) = setup_test_case(&mut app, stakers.clone());
+
+        // query the membership values
+        check_membership(
+            &app,
+            &mixer_addr,
+            Some(0),
+            Some(1000),
+            None,
+            Some(1500),
+            None,
+            None,
+        );
+    }
 
     #[test]
     fn mixer_works() {
@@ -289,4 +483,6 @@ mod tests {
         let err = mixer_fn(very_big, very_big).unwrap_err();
         assert_eq!(err, ContractError::WeightOverflow {});
     }
+
+    // TODO: multi-test to init!
 }
