@@ -9,7 +9,7 @@ workflows:
       - contract_tgrade_gov_reflect
       - contract_tgrade_valset
       - package_bindings
-      - package_contollers
+      - package_controllers
       - package_tg4
   build:
     jobs:
