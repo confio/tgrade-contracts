@@ -93,9 +93,11 @@ impl<'a> Hooks<'a> {
         info: MessageInfo,
         addr: Addr,
     ) -> Result<Response, HookError> {
-        self.preauth.update::<_, HookError>(deps.storage, |val| {
-            val.checked_sub(1).ok_or(HookError::NoPreauth {})
-        })?;
+        // ensure we have the auths
+        let auths = self.preauth.may_load(deps.storage)?.unwrap_or_default();
+        let auths = auths.checked_sub(1).ok_or(HookError::NoPreauth {})?;
+        self.preauth.save(deps.storage, &auths)?;
+
         self.add_hook(deps.storage, addr.clone())?;
 
         let attributes = vec![
@@ -146,7 +148,7 @@ impl<'a> Hooks<'a> {
 #[cfg(test)]
 mod test {
     use super::*;
-    use cosmwasm_std::testing::mock_dependencies;
+    use cosmwasm_std::testing::{mock_dependencies, mock_info};
     use cosmwasm_std::{coins, BankMsg};
 
     const HOOKS: Hooks = Hooks::new("hooks", "preauth");
@@ -218,5 +220,48 @@ mod test {
             }
             _ => panic!("bad message"),
         }
+    }
+
+    #[test]
+    fn execute_methods() {
+        let mut deps = mock_dependencies(&[]);
+
+        let foo = Addr::unchecked("foo");
+        let bar = Addr::unchecked("bar");
+
+        // cannot add without preauth
+        let anyone = mock_info("anyone", &[]);
+        let err = HOOKS
+            .execute_add_hook(deps.as_mut(), anyone.clone(), foo.clone())
+            .unwrap_err();
+        assert_eq!(err, HookError::NoPreauth {});
+        assert_count(deps.as_ref(), 0);
+
+        // set preauth, can add
+        HOOKS.set_preauth(deps.as_mut().storage, 1).unwrap();
+        HOOKS
+            .execute_add_hook(deps.as_mut(), anyone.clone(), foo.clone())
+            .unwrap();
+        assert_count(deps.as_ref(), 1);
+
+        // cannot add second (preauth used)
+        let err = HOOKS
+            .execute_add_hook(deps.as_mut(), anyone.clone(), bar.clone())
+            .unwrap_err();
+        assert_eq!(err, HookError::NoPreauth {});
+        assert_count(deps.as_ref(), 1);
+
+        // cannot remove other
+        let err = HOOKS
+            .execute_remove_hook(deps.as_mut(), anyone.clone(), foo.clone())
+            .unwrap_err();
+        assert_eq!(err, HookError::OnlyRemoveSelf {});
+        assert_count(deps.as_ref(), 1);
+
+        // can remove self
+        HOOKS
+            .execute_remove_hook(deps.as_mut(), mock_info("foo", &[]), foo.clone())
+            .unwrap();
+        assert_count(deps.as_ref(), 0);
     }
 }
