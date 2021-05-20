@@ -577,6 +577,7 @@ dependencies = [
  "cw20",
  "schemars",
  "serde",
+ "tg-controllers",
  "tg4",
  "thiserror",
 ]

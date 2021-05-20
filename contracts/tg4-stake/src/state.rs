@@ -4,11 +4,12 @@ use serde::{Deserialize, Serialize};
 use cosmwasm_std::{Addr, Uint128};
 use cw0::Duration;
 use cw20::Denom;
-use cw_controllers::{Admin, Claims, Hooks};
+use cw_controllers::{Admin, Claims};
 use cw_storage_plus::{
     Index, IndexList, IndexedSnapshotMap, Item, Map, MultiIndex, SnapshotMap, Strategy, U64Key,
 };
 use tg4::TOTAL_KEY;
+use tg_controllers::{Hooks, Preauth};
 
 pub const CLAIMS: Claims = Claims::new("claims");
 
@@ -23,6 +24,7 @@ pub struct Config {
 
 pub const ADMIN: Admin = Admin::new("admin");
 pub const HOOKS: Hooks = Hooks::new("tg4-hooks");
+pub const PREAUTH: Preauth = Preauth::new("tg4-preauth");
 pub const CONFIG: Item<Config> = Item::new("config");
 pub const TOTAL: Item<u64> = Item::new(TOTAL_KEY);
 

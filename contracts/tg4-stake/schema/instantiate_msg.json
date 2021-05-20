@@ -26,6 +26,14 @@
     "min_bond": {
       "$ref": "#/definitions/Uint128"
     },
+    "preauths": {
+      "type": [
+        "integer",
+        "null"
+      ],
+      "format": "uint64",
+      "minimum": 0.0
+    },
     "tokens_per_weight": {
       "$ref": "#/definitions/Uint128"
     },

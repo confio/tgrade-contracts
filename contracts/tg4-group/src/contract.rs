@@ -628,13 +628,7 @@ mod tests {
         // anyone can add the first one, until preauth is consume
         assert_eq!(1, PREAUTH.get_auth(&deps.storage).unwrap());
         let user_info = mock_info(USER1, &[]);
-        let _ = execute(
-            deps.as_mut(),
-            mock_env(),
-            user_info,
-            add_msg.clone(),
-        )
-        .unwrap();
+        let _ = execute(deps.as_mut(), mock_env(), user_info, add_msg.clone()).unwrap();
         let hooks = HOOKS.list_hooks(&deps.storage).unwrap();
         assert_eq!(hooks, vec![contract1.clone()]);
 
