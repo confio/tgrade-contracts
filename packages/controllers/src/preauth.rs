@@ -52,22 +52,22 @@ mod test {
         let mut storage = MockStorage::new();
 
         // start and cannot consume
-        assert_eq!(PREAUTH.get_auth(&mut storage).unwrap(), 0);
+        assert_eq!(PREAUTH.get_auth(&storage).unwrap(), 0);
         let err = PREAUTH.use_auth(&mut storage).unwrap_err();
         assert_eq!(err, PreauthError::NoPreauth {});
 
         // add one and use it (only once)
         PREAUTH.add_auth(&mut storage).unwrap();
-        assert_eq!(PREAUTH.get_auth(&mut storage).unwrap(), 1);
+        assert_eq!(PREAUTH.get_auth(&storage).unwrap(), 1);
         PREAUTH.use_auth(&mut storage).unwrap();
-        assert_eq!(PREAUTH.get_auth(&mut storage).unwrap(), 0);
+        assert_eq!(PREAUTH.get_auth(&storage).unwrap(), 0);
         let err = PREAUTH.use_auth(&mut storage).unwrap_err();
         assert_eq!(err, PreauthError::NoPreauth {});
 
         // set to a higher value
         PREAUTH.set_auth(&mut storage, 27).unwrap();
-        assert_eq!(PREAUTH.get_auth(&mut storage).unwrap(), 27);
+        assert_eq!(PREAUTH.get_auth(&storage).unwrap(), 27);
         PREAUTH.use_auth(&mut storage).unwrap();
-        assert_eq!(PREAUTH.get_auth(&mut storage).unwrap(), 26);
+        assert_eq!(PREAUTH.get_auth(&storage).unwrap(), 26);
     }
 }
