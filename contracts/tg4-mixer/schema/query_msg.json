@@ -3,19 +3,6 @@
   "title": "QueryMsg",
   "anyOf": [
     {
-      "description": "Return AdminResponse",
-      "type": "object",
-      "required": [
-        "admin"
-      ],
-      "properties": {
-        "admin": {
-          "type": "object"
-        }
-      },
-      "additionalProperties": false
-    },
-    {
       "description": "Return TotalWeightResponse",
       "type": "object",
       "required": [
@@ -127,6 +114,19 @@
       ],
       "properties": {
         "hooks": {
+          "type": "object"
+        }
+      },
+      "additionalProperties": false
+    },
+    {
+      "description": "Which contracts we are listening to",
+      "type": "object",
+      "required": [
+        "groups"
+      ],
+      "properties": {
+        "groups": {
           "type": "object"
         }
       },

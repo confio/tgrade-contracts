@@ -1,22 +1,24 @@
 #[cfg(not(feature = "library"))]
 use cosmwasm_std::entry_point;
 use cosmwasm_std::{
-    attr, to_binary, Addr, Binary, Deps, DepsMut, Env, MessageInfo, Order, Response, StdResult,
+    to_binary, Binary, Deps, DepsMut, Env, MessageInfo, Order, Response, StdResult,
 };
 use cw0::maybe_addr;
 use cw2::set_contract_version;
 use cw_storage_plus::{Bound, PrimaryKey, U64Key};
+use integer_sqrt::IntegerSquareRoot;
+
 use tg4::{
-    Member, MemberChangedHookMsg, MemberDiff, MemberListResponse, MemberResponse,
+    Member, MemberChangedHookMsg, MemberListResponse, MemberResponse, Tg4Contract,
     TotalWeightResponse,
 };
 
 use crate::error::ContractError;
-use crate::msg::{ExecuteMsg, InstantiateMsg, QueryMsg};
-use crate::state::{members, ADMIN, HOOKS, TOTAL};
+use crate::msg::{ExecuteMsg, GroupsResponse, InstantiateMsg, QueryMsg};
+use crate::state::{members, Groups, GROUPS, HOOKS, TOTAL};
 
 // version info for migration info
-const CONTRACT_NAME: &str = "crates.io:tg4-group";
+const CONTRACT_NAME: &str = "crates.io:tg4-mixer";
 const CONTRACT_VERSION: &str = env!("CARGO_PKG_VERSION");
 
 // Note, you can use StdResult in some functions where you do not
@@ -29,32 +31,60 @@ pub fn instantiate(
     msg: InstantiateMsg,
 ) -> Result<Response, ContractError> {
     set_contract_version(deps.storage, CONTRACT_NAME, CONTRACT_VERSION)?;
-    create(deps, msg.admin, msg.members, env.block.height)?;
+
+    // validate the two input groups and save
+    let left = verify_tg4_input(deps.as_ref(), &msg.left_group)?;
+    let right = verify_tg4_input(deps.as_ref(), &msg.right_group)?;
+    let groups = Groups { left, right };
+    GROUPS.save(deps.storage, &groups)?;
+
+    initialize_members(deps, groups, env.block.height)?;
+
+    // TODO: what events to return here?
     Ok(Response::default())
 }
 
-// create is the instantiation logic with set_contract_version removed so it can more
-// easily be imported in other contracts
-pub fn create(
-    mut deps: DepsMut,
-    admin: Option<String>,
-    members_list: Vec<Member>,
-    height: u64,
-) -> Result<(), ContractError> {
-    let admin_addr = admin
-        .map(|admin| deps.api.addr_validate(&admin))
-        .transpose()?;
-    ADMIN.set(deps.branch(), admin_addr)?;
+fn verify_tg4_input(deps: Deps, addr: &str) -> Result<Tg4Contract, ContractError> {
+    let contract = Tg4Contract(deps.api.addr_validate(addr)?);
+    if contract.list_members(&deps.querier, None, Some(1)).is_err() {
+        return Err(ContractError::NotTg4(addr.into()));
+    };
+    Ok(contract)
+}
 
+const QUERY_LIMIT: Option<u32> = Some(30);
+
+fn initialize_members(deps: DepsMut, groups: Groups, height: u64) -> Result<(), ContractError> {
     let mut total = 0u64;
-    for member in members_list.into_iter() {
-        total += member.weight;
-        let member_addr = deps.api.addr_validate(&member.addr)?;
-        members().save(deps.storage, &member_addr, &member.weight, height)?;
+    // we query all members of left group - for each non-None value, we check the value of right group and mix it.
+    // Either as None means "not a member"
+    let mut batch = groups.left.list_members(&deps.querier, None, QUERY_LIMIT)?;
+    while !batch.is_empty() {
+        let last = Some(batch.last().unwrap().addr.clone());
+        // check it's weigth in the other group, and calculate/save the mixed weight if in both
+        for member in batch.into_iter() {
+            let addr = deps.api.addr_validate(&member.addr)?;
+            let other = groups.right.is_member(&deps.querier, &addr)?;
+            if let Some(right) = other {
+                let weight = mixer_fn(member.weight, right)?;
+                total += weight;
+                members().save(deps.storage, &addr, &weight, height)?;
+            }
+        }
+        // and get the next page
+        batch = groups.left.list_members(&deps.querier, last, QUERY_LIMIT)?;
     }
     TOTAL.save(deps.storage, &total)?;
-
     Ok(())
+}
+
+// FIXME: improve this, make this more flexible
+/// This takes a geometric mean of the two sqrt(left * right) using integer math
+fn mixer_fn(left: u64, right: u64) -> Result<u64, ContractError> {
+    let mult = left
+        .checked_mul(left * right)
+        .ok_or(ContractError::WeightOverflow {})?;
+    Ok(mult.integer_sqrt())
 }
 
 // And declare a custom Error variant for the ones where you will want to make use of it
@@ -65,89 +95,84 @@ pub fn execute(
     info: MessageInfo,
     msg: ExecuteMsg,
 ) -> Result<Response, ContractError> {
-    let api = deps.api;
     match msg {
-        ExecuteMsg::UpdateAdmin { admin } => Ok(ADMIN.execute_update_admin(
-            deps,
-            info,
-            admin.map(|admin| api.addr_validate(&admin)).transpose()?,
-        )?),
-        ExecuteMsg::UpdateMembers { add, remove } => {
-            execute_update_members(deps, env, info, add, remove)
+        ExecuteMsg::MemberChangedHook(changes) => execute_member_changed(deps, env, info, changes),
+        ExecuteMsg::AddHook { addr: _ } => {
+            Err(ContractError::Unimplemented {})
+            // Ok(HOOKS.execute_add_hook(&ADMIN, deps, info, api.addr_validate(&addr)?)?)
         }
-        ExecuteMsg::AddHook { addr } => {
-            Ok(HOOKS.execute_add_hook(&ADMIN, deps, info, api.addr_validate(&addr)?)?)
-        }
-        ExecuteMsg::RemoveHook { addr } => {
-            Ok(HOOKS.execute_remove_hook(&ADMIN, deps, info, api.addr_validate(&addr)?)?)
+        ExecuteMsg::RemoveHook { addr: _ } => {
+            Err(ContractError::Unimplemented {})
+            // Ok(HOOKS.execute_remove_hook(&ADMIN, deps, info, api.addr_validate(&addr)?)?)
         }
     }
 }
 
-pub fn execute_update_members(
-    mut deps: DepsMut,
-    env: Env,
-    info: MessageInfo,
-    add: Vec<Member>,
-    remove: Vec<String>,
+pub fn execute_member_changed(
+    _deps: DepsMut,
+    _env: Env,
+    _info: MessageInfo,
+    _changes: MemberChangedHookMsg,
 ) -> Result<Response, ContractError> {
-    let attributes = vec![
-        attr("action", "update_members"),
-        attr("added", add.len()),
-        attr("removed", remove.len()),
-        attr("sender", &info.sender),
-    ];
+    Err(ContractError::Unimplemented {})
 
-    // make the local update
-    let diff = update_members(deps.branch(), env.block.height, info.sender, add, remove)?;
-    // call all registered hooks
-    let messages = HOOKS.prepare_hooks(deps.storage, |h| diff.clone().into_cosmos_msg(h))?;
-    Ok(Response {
-        submessages: vec![],
-        messages,
-        attributes,
-        data: None,
-    })
+    // let attributes = vec![
+    //     attr("action", "update_members"),
+    //     attr("added", add.len()),
+    //     attr("removed", remove.len()),
+    //     attr("sender", &info.sender),
+    // ];
+    //
+    // // make the local update
+    // let diff = update_members(deps.branch(), env.block.height, info.sender, add, remove)?;
+    // // call all registered hooks
+    // let messages = HOOKS.prepare_hooks(deps.storage, |h| diff.clone().into_cosmos_msg(h))?;
+    // Ok(Response {
+    //     submessages: vec![],
+    //     messages,
+    //     attributes,
+    //     data: None,
+    // })
 }
 
-// the logic from execute_update_members extracted for easier import
-pub fn update_members(
-    deps: DepsMut,
-    height: u64,
-    sender: Addr,
-    to_add: Vec<Member>,
-    to_remove: Vec<String>,
-) -> Result<MemberChangedHookMsg, ContractError> {
-    ADMIN.assert_admin(deps.as_ref(), &sender)?;
-
-    let mut total = TOTAL.load(deps.storage)?;
-    let mut diffs: Vec<MemberDiff> = vec![];
-
-    // add all new members and update total
-    for add in to_add.into_iter() {
-        let add_addr = deps.api.addr_validate(&add.addr)?;
-        members().update(deps.storage, &add_addr, height, |old| -> StdResult<_> {
-            total -= old.unwrap_or_default();
-            total += add.weight;
-            diffs.push(MemberDiff::new(add.addr, old, Some(add.weight)));
-            Ok(add.weight)
-        })?;
-    }
-
-    for remove in to_remove.into_iter() {
-        let remove_addr = deps.api.addr_validate(&remove)?;
-        let old = members().may_load(deps.storage, &remove_addr)?;
-        // Only process this if they were actually in the list before
-        if let Some(weight) = old {
-            diffs.push(MemberDiff::new(remove, Some(weight), None));
-            total -= weight;
-            members().remove(deps.storage, &remove_addr, height)?;
-        }
-    }
-
-    TOTAL.save(deps.storage, &total)?;
-    Ok(MemberChangedHookMsg { diffs })
-}
+// // the logic from execute_update_members extracted for easier import
+// pub fn update_members(
+//     deps: DepsMut,
+//     height: u64,
+//     sender: Addr,
+//     to_add: Vec<Member>,
+//     to_remove: Vec<String>,
+// ) -> Result<MemberChangedHookMsg, ContractError> {
+//     ADMIN.assert_admin(deps.as_ref(), &sender)?;
+//
+//     let mut total = TOTAL.load(deps.storage)?;
+//     let mut diffs: Vec<MemberDiff> = vec![];
+//
+//     // add all new members and update total
+//     for add in to_add.into_iter() {
+//         let add_addr = deps.api.addr_validate(&add.addr)?;
+//         members().update(deps.storage, &add_addr, height, |old| -> StdResult<_> {
+//             total -= old.unwrap_or_default();
+//             total += add.weight;
+//             diffs.push(MemberDiff::new(add.addr, old, Some(add.weight)));
+//             Ok(add.weight)
+//         })?;
+//     }
+//
+//     for remove in to_remove.into_iter() {
+//         let remove_addr = deps.api.addr_validate(&remove)?;
+//         let old = members().may_load(deps.storage, &remove_addr)?;
+//         // Only process this if they were actually in the list before
+//         if let Some(weight) = old {
+//             diffs.push(MemberDiff::new(remove, Some(weight), None));
+//             total -= weight;
+//             members().remove(deps.storage, &remove_addr, height)?;
+//         }
+//     }
+//
+//     TOTAL.save(deps.storage, &total)?;
+//     Ok(MemberChangedHookMsg { diffs })
+// }
 
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
@@ -163,14 +188,22 @@ pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
             to_binary(&list_members_by_weight(deps, start_after, limit)?)
         }
         QueryMsg::TotalWeight {} => to_binary(&query_total_weight(deps)?),
-        QueryMsg::Admin {} => to_binary(&ADMIN.query_admin(deps)?),
         QueryMsg::Hooks {} => to_binary(&HOOKS.query_hooks(deps)?),
+        QueryMsg::Groups {} => to_binary(&query_groups(deps)?),
     }
 }
 
 fn query_total_weight(deps: Deps) -> StdResult<TotalWeightResponse> {
     let weight = TOTAL.load(deps.storage)?;
     Ok(TotalWeightResponse { weight })
+}
+
+fn query_groups(deps: Deps) -> StdResult<GroupsResponse> {
+    let groups = GROUPS.load(deps.storage)?;
+    Ok(GroupsResponse {
+        left: groups.left.0.into(),
+        right: groups.right.0.into(),
+    })
 }
 
 fn query_member(deps: Deps, addr: String, height: Option<u64>) -> StdResult<MemberResponse> {

@@ -1,5 +1,7 @@
 use cosmwasm_std::Addr;
-use cw_controllers::{Admin, Hooks};
+use serde::{Deserialize, Serialize};
+
+use cw_controllers::Hooks;
 use cw_storage_plus::{Index, IndexList, IndexedSnapshotMap, Item, MultiIndex, Strategy, U64Key};
 use tg4::{Tg4Contract, TOTAL_KEY};
 

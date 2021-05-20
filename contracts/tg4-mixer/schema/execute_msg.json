@@ -3,59 +3,20 @@
   "title": "ExecuteMsg",
   "anyOf": [
     {
-      "description": "Change the admin",
+      "description": "This handles a callback from one of the linked groups",
       "type": "object",
       "required": [
-        "update_admin"
+        "member_changed_hook"
       ],
       "properties": {
-        "update_admin": {
-          "type": "object",
-          "properties": {
-            "admin": {
-              "type": [
-                "string",
-                "null"
-              ]
-            }
-          }
+        "member_changed_hook": {
+          "$ref": "#/definitions/MemberChangedHookMsg"
         }
       },
       "additionalProperties": false
     },
     {
-      "description": "apply a diff to the existing members. remove is applied after add, so if an address is in both, it is removed",
-      "type": "object",
-      "required": [
-        "update_members"
-      ],
-      "properties": {
-        "update_members": {
-          "type": "object",
-          "required": [
-            "add",
-            "remove"
-          ],
-          "properties": {
-            "add": {
-              "type": "array",
-              "items": {
-                "$ref": "#/definitions/Member"
-              }
-            },
-            "remove": {
-              "type": "array",
-              "items": {
-                "type": "string"
-              }
-            }
-          }
-        }
-      },
-      "additionalProperties": false
-    },
-    {
-      "description": "Add a new hook to be informed of all membership changes. Must be called by Admin",
+      "description": "Add a new hook to be informed of all membership changes. TODO: must be used by a pre-authorization",
       "type": "object",
       "required": [
         "add_hook"
@@ -76,7 +37,7 @@
       "additionalProperties": false
     },
     {
-      "description": "Remove a hook. Must be called by Admin",
+      "description": "Remove a hook. Must be called by the contract being removed",
       "type": "object",
       "required": [
         "remove_hook"
@@ -98,19 +59,44 @@
     }
   ],
   "definitions": {
-    "Member": {
-      "description": "A group member has a weight associated with them. This may all be equal, or may have meaning in the app that makes use of the group (eg. voting power)",
+    "MemberChangedHookMsg": {
+      "description": "MemberChangedHookMsg should be de/serialized under `MemberChangedHook()` variant in a ExecuteMsg. This contains a list of all diffs on the given transaction.",
       "type": "object",
       "required": [
-        "addr",
-        "weight"
+        "diffs"
       ],
       "properties": {
-        "addr": {
+        "diffs": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/MemberDiff"
+          }
+        }
+      }
+    },
+    "MemberDiff": {
+      "description": "MemberDiff shows the old and new states for a given tg4 member They cannot both be None. old = None, new = Some -> Insert old = Some, new = Some -> Update old = Some, new = None -> Delete",
+      "type": "object",
+      "required": [
+        "key"
+      ],
+      "properties": {
+        "key": {
           "type": "string"
         },
-        "weight": {
-          "type": "integer",
+        "new": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "format": "uint64",
+          "minimum": 0.0
+        },
+        "old": {
+          "type": [
+            "integer",
+            "null"
+          ],
           "format": "uint64",
           "minimum": 0.0
         }
