@@ -609,52 +609,6 @@ mod tests {
         assert_users(&deps, None, Some(6), Some(5), None);
     }
 
-    //
-    // #[test]
-    // fn execute_methods() {
-    //     let mut deps = mock_dependencies(&[]);
-    //
-    //     let first = Addr::unchecked("first");
-    //     let bar = Addr::unchecked("bar");
-    //
-    //     // cannot add without preauth
-    //     let anyone = mock_info("anyone", &[]);
-    //     let err = HOOKS
-    //         .execute_add_hook(deps.as_mut(), anyone.clone(), first.clone())
-    //         .unwrap_err();
-    //     assert_eq!(err, HookError::NoPreauth {});
-    //     assert_count(deps.as_ref(), 0);
-    //
-    //     // set preauth, can add
-    //     HOOKS.set_preauth(deps.as_mut().storage, 1).unwrap();
-    //     HOOKS
-    //         .execute_add_hook(deps.as_mut(), anyone.clone(), first.clone())
-    //         .unwrap();
-    //     assert_count(deps.as_ref(), 1);
-    //
-    //     // cannot add second (preauth used)
-    //     let err = HOOKS
-    //         .execute_add_hook(deps.as_mut(), anyone.clone(), bar)
-    //         .unwrap_err();
-    //     assert_eq!(err, HookError::NoPreauth {});
-    //     assert_count(deps.as_ref(), 1);
-    //
-    //     // cannot remove other
-    //     let err = HOOKS
-    //         .execute_remove_hook(deps.as_mut(), anyone, first.clone())
-    //         .unwrap_err();
-    //     assert_eq!(err, HookError::OnlyRemoveSelf {});
-    //     assert_count(deps.as_ref(), 1);
-    //
-    //     // can remove self
-    //     HOOKS
-    //         .execute_remove_hook(deps.as_mut(), mock_info("first", &[]), first)
-    //         .unwrap();
-    //     assert_count(deps.as_ref(), 0);
-    // }
-    //
-    //
-    // /// TODO: use preauth not admin
     #[test]
     fn add_remove_hooks() {
         // add will over-write and remove have no effect
@@ -677,7 +631,7 @@ mod tests {
         let _ = execute(
             deps.as_mut(),
             mock_env(),
-            user_info.clone(),
+            user_info,
             add_msg.clone(),
         )
         .unwrap();
