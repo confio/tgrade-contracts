@@ -143,4 +143,80 @@ impl<'a> Hooks<'a> {
     }
 }
 
-// TODO: add test coverage
+#[cfg(test)]
+mod test {
+    use super::*;
+    use cosmwasm_std::testing::mock_dependencies;
+    use cosmwasm_std::{coins, BankMsg};
+
+    const HOOKS: Hooks = Hooks::new("hooks", "preauth");
+
+    fn assert_count(deps: Deps, expected: usize) {
+        let res = HOOKS.query_hooks(deps).unwrap();
+        assert_eq!(res.hooks.len(), expected);
+    }
+
+    #[test]
+    fn add_and_remove_hooks() {
+        let mut deps = mock_dependencies(&[]);
+        assert_count(deps.as_ref(), 0);
+
+        // add a new hook
+        let foo = Addr::unchecked("foo");
+        HOOKS.add_hook(deps.as_mut().storage, foo.clone()).unwrap();
+        assert_count(deps.as_ref(), 1);
+
+        // cannot add twice
+        let err = HOOKS
+            .add_hook(deps.as_mut().storage, foo.clone())
+            .unwrap_err();
+        assert_eq!(err, HookError::HookAlreadyRegistered {});
+        assert_count(deps.as_ref(), 1);
+
+        // add a different hook
+        let bar = Addr::unchecked("bar");
+        HOOKS.add_hook(deps.as_mut().storage, bar.clone()).unwrap();
+        assert_count(deps.as_ref(), 2);
+
+        // cannot remove a non-registered hook
+        let boom = Addr::unchecked("boom");
+        let err = HOOKS
+            .remove_hook(deps.as_mut().storage, boom.clone())
+            .unwrap_err();
+        assert_eq!(err, HookError::HookNotRegistered {});
+        assert_count(deps.as_ref(), 2);
+
+        // can remove one of the existing hooks
+        HOOKS
+            .remove_hook(deps.as_mut().storage, foo.clone())
+            .unwrap();
+        assert_count(deps.as_ref(), 1);
+    }
+
+    #[test]
+    fn prepare_hook() {
+        let payout = |addr: Addr| {
+            Ok(BankMsg::Send {
+                to_address: addr.into(),
+                amount: coins(12345, "bonus"),
+            }
+            .into())
+        };
+        let mut deps = mock_dependencies(&[]);
+        let storage = deps.as_mut().storage;
+
+        HOOKS.add_hook(storage, Addr::unchecked("some")).unwrap();
+        HOOKS.add_hook(storage, Addr::unchecked("one")).unwrap();
+
+        let mut msgs = HOOKS.prepare_hooks(storage, payout).unwrap();
+        assert_eq!(msgs.len(), 2);
+        // get the last message
+        match msgs.pop().unwrap() {
+            CosmosMsg::Bank(BankMsg::Send { to_address, amount }) => {
+                assert_eq!(to_address.as_str(), "one");
+                assert_eq!(amount, coins(12345, "bonus"));
+            }
+            _ => panic!("bad message"),
+        }
+    }
+}
