@@ -76,10 +76,10 @@ pub fn execute(
             execute_update_members(deps, env, info, add, remove)
         }
         ExecuteMsg::AddHook { addr } => {
-            Ok(HOOKS.execute_add_hook(&ADMIN, deps, info, api.addr_validate(&addr)?)?)
+            Ok(HOOKS.execute_add_hook(deps, info, api.addr_validate(&addr)?)?)
         }
         ExecuteMsg::RemoveHook { addr } => {
-            Ok(HOOKS.execute_remove_hook(&ADMIN, deps, info, api.addr_validate(&addr)?)?)
+            Ok(HOOKS.execute_remove_hook(deps, info, api.addr_validate(&addr)?)?)
         }
     }
 }
@@ -240,8 +240,9 @@ mod tests {
     use super::*;
     use cosmwasm_std::testing::{mock_dependencies, mock_env, mock_info};
     use cosmwasm_std::{from_slice, Api, OwnedDeps, Querier, Storage};
-    use cw_controllers::{AdminError, HookError};
+    use cw_controllers::AdminError;
     use tg4::{member_key, TOTAL_KEY};
+    use tg_controllers::HookError;
 
     const INIT_ADMIN: &str = "juan";
     const USER1: &str = "somebody";
@@ -547,6 +548,7 @@ mod tests {
         assert_users(&deps, None, Some(6), Some(5), None);
     }
 
+    /// TODO: use preauth not admin
     #[test]
     fn add_remove_hooks() {
         // add will over-write and remove have no effect

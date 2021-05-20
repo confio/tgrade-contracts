@@ -1,5 +1,5 @@
 [package]
-name = "controllers"
+name = "tg-controllers"
 version = "0.1.2"
 authors = ["Ethan Frey <ethanfrey@users.noreply.github.com>"]
 edition = "2018"
