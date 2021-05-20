@@ -7,13 +7,14 @@ use cw0::maybe_addr;
 use cw2::set_contract_version;
 use cw_storage_plus::{Bound, PrimaryKey, U64Key};
 use tg4::{
-    Member, MemberChangedHookMsg, MemberDiff, MemberListResponse, MemberResponse,
+    HooksResponse, Member, MemberChangedHookMsg, MemberDiff, MemberListResponse, MemberResponse,
     TotalWeightResponse,
 };
+use tg_controllers::response_attrs;
 
 use crate::error::ContractError;
-use crate::msg::{ExecuteMsg, InstantiateMsg, QueryMsg};
-use crate::state::{members, ADMIN, HOOKS, TOTAL};
+use crate::msg::{ExecuteMsg, InstantiateMsg, PreauthResponse, QueryMsg};
+use crate::state::{members, ADMIN, HOOKS, PREAUTH, TOTAL};
 
 // version info for migration info
 const CONTRACT_NAME: &str = "crates.io:tg4-group";
@@ -29,7 +30,13 @@ pub fn instantiate(
     msg: InstantiateMsg,
 ) -> Result<Response, ContractError> {
     set_contract_version(deps.storage, CONTRACT_NAME, CONTRACT_VERSION)?;
-    create(deps, msg.admin, msg.members, env.block.height)?;
+    create(
+        deps,
+        msg.admin,
+        msg.members,
+        msg.preauths.unwrap_or_default(),
+        env.block.height,
+    )?;
     Ok(Response::default())
 }
 
@@ -39,12 +46,15 @@ pub fn create(
     mut deps: DepsMut,
     admin: Option<String>,
     members_list: Vec<Member>,
+    preauths: u64,
     height: u64,
 ) -> Result<(), ContractError> {
     let admin_addr = admin
         .map(|admin| deps.api.addr_validate(&admin))
         .transpose()?;
     ADMIN.set(deps.branch(), admin_addr)?;
+
+    PREAUTH.set_auth(deps.storage, preauths)?;
 
     let mut total = 0u64;
     for member in members_list.into_iter() {
@@ -75,13 +85,53 @@ pub fn execute(
         ExecuteMsg::UpdateMembers { add, remove } => {
             execute_update_members(deps, env, info, add, remove)
         }
-        ExecuteMsg::AddHook { addr } => {
-            Ok(HOOKS.execute_add_hook(deps, info, api.addr_validate(&addr)?)?)
-        }
-        ExecuteMsg::RemoveHook { addr } => {
-            Ok(HOOKS.execute_remove_hook(deps, info, api.addr_validate(&addr)?)?)
-        }
+        ExecuteMsg::AddHook { addr } => execute_add_hook(deps, info, addr),
+        ExecuteMsg::RemoveHook { addr } => execute_remove_hook(deps, info, addr),
     }
+}
+
+pub fn execute_add_hook(
+    deps: DepsMut,
+    info: MessageInfo,
+    hook: String,
+) -> Result<Response, ContractError> {
+    // custom guard: using a preauth OR being admin
+    if !ADMIN.is_admin(deps.as_ref(), &info.sender)? {
+        PREAUTH.use_auth(deps.storage)?;
+    }
+
+    // add the hook
+    HOOKS.add_hook(deps.storage, deps.api.addr_validate(&hook)?)?;
+
+    // response
+    let attributes = vec![
+        attr("action", "add_hook"),
+        attr("hook", hook),
+        attr("sender", info.sender),
+    ];
+    Ok(response_attrs(attributes))
+}
+
+pub fn execute_remove_hook(
+    deps: DepsMut,
+    info: MessageInfo,
+    hook: String,
+) -> Result<Response, ContractError> {
+    // custom guard: self-removal OR being admin
+    if info.sender != hook && !ADMIN.is_admin(deps.as_ref(), &info.sender)? {
+        return Err(ContractError::Unauthorized {});
+    }
+
+    // remove the hook
+    HOOKS.remove_hook(deps.storage, deps.api.addr_validate(&hook)?)?;
+
+    // response
+    let attributes = vec![
+        attr("action", "remove_hook"),
+        attr("hook", hook),
+        attr("sender", info.sender),
+    ];
+    Ok(response_attrs(attributes))
 }
 
 pub fn execute_update_members(
@@ -164,7 +214,14 @@ pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
         }
         QueryMsg::TotalWeight {} => to_binary(&query_total_weight(deps)?),
         QueryMsg::Admin {} => to_binary(&ADMIN.query_admin(deps)?),
-        QueryMsg::Hooks {} => to_binary(&HOOKS.query_hooks(deps)?),
+        QueryMsg::Hooks {} => {
+            let hooks = HOOKS.list_hooks(deps.storage)?;
+            to_binary(&HooksResponse { hooks })
+        }
+        QueryMsg::Preauths {} => {
+            let preauths = PREAUTH.get_auth(deps.storage)?;
+            to_binary(&PreauthResponse { preauths })
+        }
     }
 }
 
@@ -242,7 +299,7 @@ mod tests {
     use cosmwasm_std::{from_slice, Api, OwnedDeps, Querier, Storage};
     use cw_controllers::AdminError;
     use tg4::{member_key, TOTAL_KEY};
-    use tg_controllers::HookError;
+    use tg_controllers::{HookError, PreauthError};
 
     const INIT_ADMIN: &str = "juan";
     const USER1: &str = "somebody";
@@ -262,6 +319,7 @@ mod tests {
                     weight: 6,
                 },
             ],
+            preauths: Some(1),
         };
         let info = mock_info("creator", &[]);
         instantiate(deps, mock_env(), info, msg).unwrap();
@@ -278,6 +336,9 @@ mod tests {
 
         let res = query_total_weight(deps.as_ref()).unwrap();
         assert_eq!(17, res.weight);
+
+        let preauths = PREAUTH.get_auth(&deps.storage).unwrap();
+        assert_eq!(1, preauths);
     }
 
     #[test]
@@ -548,15 +609,60 @@ mod tests {
         assert_users(&deps, None, Some(6), Some(5), None);
     }
 
-    /// TODO: use preauth not admin
+    //
+    // #[test]
+    // fn execute_methods() {
+    //     let mut deps = mock_dependencies(&[]);
+    //
+    //     let first = Addr::unchecked("first");
+    //     let bar = Addr::unchecked("bar");
+    //
+    //     // cannot add without preauth
+    //     let anyone = mock_info("anyone", &[]);
+    //     let err = HOOKS
+    //         .execute_add_hook(deps.as_mut(), anyone.clone(), first.clone())
+    //         .unwrap_err();
+    //     assert_eq!(err, HookError::NoPreauth {});
+    //     assert_count(deps.as_ref(), 0);
+    //
+    //     // set preauth, can add
+    //     HOOKS.set_preauth(deps.as_mut().storage, 1).unwrap();
+    //     HOOKS
+    //         .execute_add_hook(deps.as_mut(), anyone.clone(), first.clone())
+    //         .unwrap();
+    //     assert_count(deps.as_ref(), 1);
+    //
+    //     // cannot add second (preauth used)
+    //     let err = HOOKS
+    //         .execute_add_hook(deps.as_mut(), anyone.clone(), bar)
+    //         .unwrap_err();
+    //     assert_eq!(err, HookError::NoPreauth {});
+    //     assert_count(deps.as_ref(), 1);
+    //
+    //     // cannot remove other
+    //     let err = HOOKS
+    //         .execute_remove_hook(deps.as_mut(), anyone, first.clone())
+    //         .unwrap_err();
+    //     assert_eq!(err, HookError::OnlyRemoveSelf {});
+    //     assert_count(deps.as_ref(), 1);
+    //
+    //     // can remove self
+    //     HOOKS
+    //         .execute_remove_hook(deps.as_mut(), mock_info("first", &[]), first)
+    //         .unwrap();
+    //     assert_count(deps.as_ref(), 0);
+    // }
+    //
+    //
+    // /// TODO: use preauth not admin
     #[test]
     fn add_remove_hooks() {
         // add will over-write and remove have no effect
         let mut deps = mock_dependencies(&[]);
         do_instantiate(deps.as_mut());
 
-        let hooks = HOOKS.query_hooks(deps.as_ref()).unwrap();
-        assert!(hooks.hooks.is_empty());
+        let hooks = HOOKS.list_hooks(&deps.storage).unwrap();
+        assert!(hooks.is_empty());
 
         let contract1 = String::from("hook1");
         let contract2 = String::from("hook2");
@@ -565,7 +671,21 @@ mod tests {
             addr: contract1.clone(),
         };
 
-        // non-admin cannot add hook
+        // anyone can add the first one, until preauth is consume
+        assert_eq!(1, PREAUTH.get_auth(&deps.storage).unwrap());
+        let user_info = mock_info(USER1, &[]);
+        let _ = execute(
+            deps.as_mut(),
+            mock_env(),
+            user_info.clone(),
+            add_msg.clone(),
+        )
+        .unwrap();
+        let hooks = HOOKS.list_hooks(&deps.storage).unwrap();
+        assert_eq!(hooks, vec![contract1.clone()]);
+
+        // non-admin cannot add hook without preauth
+        assert_eq!(0, PREAUTH.get_auth(&deps.storage).unwrap());
         let user_info = mock_info(USER1, &[]);
         let err = execute(
             deps.as_mut(),
@@ -574,34 +694,23 @@ mod tests {
             add_msg.clone(),
         )
         .unwrap_err();
-        assert_eq!(err, HookError::Admin(AdminError::NotAdmin {}).into());
-
-        // admin can add it, and it appears in the query
-        let admin_info = mock_info(INIT_ADMIN, &[]);
-        let _ = execute(
-            deps.as_mut(),
-            mock_env(),
-            admin_info.clone(),
-            add_msg.clone(),
-        )
-        .unwrap();
-        let hooks = HOOKS.query_hooks(deps.as_ref()).unwrap();
-        assert_eq!(hooks.hooks, vec![contract1.clone()]);
+        assert_eq!(err, PreauthError::NoPreauth {}.into());
 
         // cannot remove a non-registered contract
+        let admin_info = mock_info(INIT_ADMIN, &[]);
         let remove_msg = ExecuteMsg::RemoveHook {
             addr: contract2.clone(),
         };
         let err = execute(deps.as_mut(), mock_env(), admin_info.clone(), remove_msg).unwrap_err();
         assert_eq!(err, HookError::HookNotRegistered {}.into());
 
-        // add second contract
+        // admin can second contract, and it appears in the query
         let add_msg2 = ExecuteMsg::AddHook {
             addr: contract2.clone(),
         };
-        let _ = execute(deps.as_mut(), mock_env(), admin_info.clone(), add_msg2).unwrap();
-        let hooks = HOOKS.query_hooks(deps.as_ref()).unwrap();
-        assert_eq!(hooks.hooks, vec![contract1.clone(), contract2.clone()]);
+        execute(deps.as_mut(), mock_env(), admin_info.clone(), add_msg2).unwrap();
+        let hooks = HOOKS.list_hooks(&deps.storage).unwrap();
+        assert_eq!(hooks, vec![contract1.clone(), contract2.clone()]);
 
         // cannot re-add an existing contract
         let err = execute(deps.as_mut(), mock_env(), admin_info.clone(), add_msg).unwrap_err();
@@ -610,12 +719,19 @@ mod tests {
         // non-admin cannot remove
         let remove_msg = ExecuteMsg::RemoveHook { addr: contract1 };
         let err = execute(deps.as_mut(), mock_env(), user_info, remove_msg.clone()).unwrap_err();
-        assert_eq!(err, HookError::Admin(AdminError::NotAdmin {}).into());
+        assert_eq!(err, ContractError::Unauthorized {});
 
         // remove the original
-        let _ = execute(deps.as_mut(), mock_env(), admin_info, remove_msg).unwrap();
-        let hooks = HOOKS.query_hooks(deps.as_ref()).unwrap();
-        assert_eq!(hooks.hooks, vec![contract2]);
+        execute(deps.as_mut(), mock_env(), admin_info, remove_msg).unwrap();
+        let hooks = HOOKS.list_hooks(&deps.storage).unwrap();
+        assert_eq!(hooks, vec![contract2.clone()]);
+
+        // contract can self-remove
+        let contract_info = mock_info(&contract2, &[]);
+        let remove_msg2 = ExecuteMsg::RemoveHook { addr: contract2 };
+        execute(deps.as_mut(), mock_env(), contract_info, remove_msg2).unwrap();
+        let hooks = HOOKS.list_hooks(&deps.storage).unwrap();
+        assert_eq!(hooks, Vec::<String>::new());
     }
 
     #[test]
@@ -623,8 +739,8 @@ mod tests {
         let mut deps = mock_dependencies(&[]);
         do_instantiate(deps.as_mut());
 
-        let hooks = HOOKS.query_hooks(deps.as_ref()).unwrap();
-        assert!(hooks.hooks.is_empty());
+        let hooks = HOOKS.list_hooks(&deps.storage).unwrap();
+        assert!(hooks.is_empty());
 
         let contract1 = String::from("hook1");
         let contract2 = String::from("hook2");

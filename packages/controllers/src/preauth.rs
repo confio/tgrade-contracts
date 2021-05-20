@@ -24,7 +24,7 @@ impl<'a> Preauth<'a> {
         self.0.save(storage, &count)
     }
 
-    pub fn get_auth(&self, storage: &mut dyn Storage) -> Result<u64, StdError> {
+    pub fn get_auth(&self, storage: &dyn Storage) -> Result<u64, StdError> {
         Ok(self.0.may_load(storage)?.unwrap_or_default())
     }
 

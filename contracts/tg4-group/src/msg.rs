@@ -10,6 +10,7 @@ pub struct InstantiateMsg {
     /// Omit it to make the group immutable.
     pub admin: Option<String>,
     pub members: Vec<Member>,
+    pub preauths: Option<u64>,
 }
 
 #[derive(Serialize, Deserialize, Clone, PartialEq, JsonSchema, Debug)]
@@ -53,4 +54,11 @@ pub enum QueryMsg {
     },
     /// Shows all registered hooks. Returns HooksResponse.
     Hooks {},
+    /// Return the current number of preauths. Returns PreauthResponse.
+    Preauths {},
+}
+
+#[derive(Serialize, Deserialize, Clone, PartialEq, JsonSchema, Debug)]
+pub struct PreauthResponse {
+    pub preauths: u64,
 }

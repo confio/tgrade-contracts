@@ -2,7 +2,7 @@ use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
 
-use cosmwasm_std::{Addr, CosmosMsg, Deps, StdError, StdResult, Storage};
+use cosmwasm_std::{Addr, CosmosMsg, StdError, StdResult, Storage};
 use cw_storage_plus::Item;
 
 // this is copied from cw4
@@ -55,8 +55,8 @@ impl<'a> Hooks<'a> {
         Ok(self.0.save(storage, &hooks)?)
     }
 
-    pub fn list_hooks(&self, deps: Deps) -> StdResult<Vec<String>> {
-        let hooks = self.0.may_load(deps.storage)?.unwrap_or_default();
+    pub fn list_hooks(&self, storage: &dyn Storage) -> StdResult<Vec<String>> {
+        let hooks = self.0.may_load(storage)?.unwrap_or_default();
         Ok(hooks.into_iter().map(String::from).collect())
     }
 
@@ -72,58 +72,18 @@ impl<'a> Hooks<'a> {
             .map(prep)
             .collect()
     }
-
-    // pub fn execute_add_hook(
-    //     &self,
-    //     deps: DepsMut,
-    //     info: MessageInfo,
-    //     addr: Addr,
-    // ) -> Result<Response, HookError> {
-    //     self.add_hook(deps.storage, addr.clone())?;
-    //
-    //     let attributes = vec![
-    //         attr("action", "add_hook"),
-    //         attr("hook", addr),
-    //         attr("sender", info.sender),
-    //     ];
-    //     Ok(Response {
-    //         submessages: vec![],
-    //         messages: vec![],
-    //         attributes,
-    //         data: None,
-    //     })
-    // }
-    //
-    // pub fn execute_remove_hook(
-    //     &self,
-    //     deps: DepsMut,
-    //     info: MessageInfo,
-    //     addr: Addr,
-    // ) -> Result<Response, HookError> {
-    //     // only self-unregister
-    //     if info.sender != addr {
-    //         return Err(HookError::OnlyRemoveSelf {});
-    //     }
-    //     self.remove_hook(deps.storage, addr.clone())?;
-    //
-    //     let attributes = vec![
-    //         attr("action", "remove_hook"),
-    //         attr("hook", addr),
-    //         attr("sender", info.sender),
-    //     ];
-    // }
 }
 
 #[cfg(test)]
 mod test {
     use super::*;
-    use cosmwasm_std::testing::{mock_dependencies};
-    use cosmwasm_std::{coins, BankMsg};
+    use cosmwasm_std::testing::mock_dependencies;
+    use cosmwasm_std::{coins, BankMsg, Deps};
 
     const HOOKS: Hooks = Hooks::new("hooks");
 
     fn assert_count(deps: Deps, expected: usize) {
-        let hooks = HOOKS.list_hooks(deps).unwrap();
+        let hooks = HOOKS.list_hooks(deps.storage).unwrap();
         assert_eq!(hooks.len(), expected);
     }
 
@@ -188,47 +148,4 @@ mod test {
             _ => panic!("bad message"),
         }
     }
-    //
-    // #[test]
-    // fn execute_methods() {
-    //     let mut deps = mock_dependencies(&[]);
-    //
-    //     let first = Addr::unchecked("first");
-    //     let bar = Addr::unchecked("bar");
-    //
-    //     // cannot add without preauth
-    //     let anyone = mock_info("anyone", &[]);
-    //     let err = HOOKS
-    //         .execute_add_hook(deps.as_mut(), anyone.clone(), first.clone())
-    //         .unwrap_err();
-    //     assert_eq!(err, HookError::NoPreauth {});
-    //     assert_count(deps.as_ref(), 0);
-    //
-    //     // set preauth, can add
-    //     HOOKS.set_preauth(deps.as_mut().storage, 1).unwrap();
-    //     HOOKS
-    //         .execute_add_hook(deps.as_mut(), anyone.clone(), first.clone())
-    //         .unwrap();
-    //     assert_count(deps.as_ref(), 1);
-    //
-    //     // cannot add second (preauth used)
-    //     let err = HOOKS
-    //         .execute_add_hook(deps.as_mut(), anyone.clone(), bar)
-    //         .unwrap_err();
-    //     assert_eq!(err, HookError::NoPreauth {});
-    //     assert_count(deps.as_ref(), 1);
-    //
-    //     // cannot remove other
-    //     let err = HOOKS
-    //         .execute_remove_hook(deps.as_mut(), anyone, first.clone())
-    //         .unwrap_err();
-    //     assert_eq!(err, HookError::OnlyRemoveSelf {});
-    //     assert_count(deps.as_ref(), 1);
-    //
-    //     // can remove self
-    //     HOOKS
-    //         .execute_remove_hook(deps.as_mut(), mock_info("first", &[]), first)
-    //         .unwrap();
-    //     assert_count(deps.as_ref(), 0);
-    // }
 }
