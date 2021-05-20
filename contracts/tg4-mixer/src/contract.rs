@@ -410,6 +410,7 @@ mod tests {
         (mixer_addr, group_addr, stake_addr)
     }
 
+    #[allow(clippy::too_many_arguments)]
     fn check_membership(
         app: &App,
         mixer_addr: &Addr,
@@ -451,7 +452,7 @@ mod tests {
             member(VOTER3, 7500),       // 7500 stake, 300 weight -> 1500 mixed
         ];
 
-        let (mixer_addr, _, _) = setup_test_case(&mut app, stakers.clone());
+        let (mixer_addr, _, _) = setup_test_case(&mut app, stakers);
 
         // query the membership values
         check_membership(
