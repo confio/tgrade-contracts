@@ -17,7 +17,6 @@ use tg4::{
 use crate::error::ContractError;
 use crate::msg::{ExecuteMsg, InstantiateMsg, PreauthResponse, QueryMsg, StakedResponse};
 use crate::state::{members, Config, ADMIN, CLAIMS, CONFIG, HOOKS, PREAUTH, STAKE, TOTAL};
-use tg_controllers::response_attrs;
 
 // version info for migration info
 const CONTRACT_NAME: &str = "crates.io:tg4-stake";
@@ -96,7 +95,10 @@ pub fn execute_add_hook(
         attr("hook", hook),
         attr("sender", info.sender),
     ];
-    Ok(response_attrs(attributes))
+    Ok(Response {
+        attributes,
+        ..Response::default()
+    })
 }
 
 pub fn execute_remove_hook(
@@ -118,7 +120,10 @@ pub fn execute_remove_hook(
         attr("hook", hook),
         attr("sender", info.sender),
     ];
-    Ok(response_attrs(attributes))
+    Ok(Response {
+        attributes,
+        ..Response::default()
+    })
 }
 
 pub fn execute_bond(

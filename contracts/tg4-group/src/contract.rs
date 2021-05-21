@@ -10,7 +10,6 @@ use tg4::{
     HooksResponse, Member, MemberChangedHookMsg, MemberDiff, MemberListResponse, MemberResponse,
     TotalWeightResponse,
 };
-use tg_controllers::response_attrs;
 
 use crate::error::ContractError;
 use crate::msg::{ExecuteMsg, InstantiateMsg, PreauthResponse, QueryMsg};
@@ -109,7 +108,10 @@ pub fn execute_add_hook(
         attr("hook", hook),
         attr("sender", info.sender),
     ];
-    Ok(response_attrs(attributes))
+    Ok(Response {
+        attributes,
+        ..Response::default()
+    })
 }
 
 pub fn execute_remove_hook(
@@ -131,7 +133,10 @@ pub fn execute_remove_hook(
         attr("hook", hook),
         attr("sender", info.sender),
     ];
-    Ok(response_attrs(attributes))
+    Ok(Response {
+        attributes,
+        ..Response::default()
+    })
 }
 
 pub fn execute_update_members(
