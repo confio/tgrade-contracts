@@ -1,0 +1,18 @@
+[package]
+name = "tg-controllers"
+version = "0.1.2"
+authors = ["Ethan Frey <ethanfrey@users.noreply.github.com>"]
+edition = "2018"
+description = "Tgrade Controllers: helpers for various contracts"
+repository = "https://github.com/confio/tgrade-contracts"
+homepage = "https://tgrade.finance"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+cosmwasm-std = { version = "0.14.0" }
+cw0 = { version = "0.6.1" }
+cw-storage-plus = { version = "0.6.1", features = ["iterator"] }
+schemars = "0.8.1"
+serde = { version = "1.0.103", default-features = false, features = ["derive"] }
+thiserror = { version = "1.0.21" }

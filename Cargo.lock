@@ -149,9 +149,9 @@ dependencies = [
 
 [[package]]
 name = "cw-storage-plus"
-version = "0.6.0"
+version = "0.6.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "9b427ab9149bbc8ef9535ba66ae3c6595215710b9e2081167517845e12d38013"
+checksum = "092adbbee256b6c5908cfeca0228c93fbdd31161246136081bb9ae8714b1cc45"
 dependencies = [
  "cosmwasm-std",
  "schemars",
@@ -160,9 +160,9 @@ dependencies = [
 
 [[package]]
 name = "cw0"
-version = "0.6.0"
+version = "0.6.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "f01bc344621abff70992710d6e30d4df48e57cc2de6f351cfd60967b815cb059"
+checksum = "b423f2df305b7c6341d5d99bee76f123830f440bd63309ffef0608926177fa14"
 dependencies = [
  "cosmwasm-std",
  "schemars",
@@ -526,6 +526,18 @@ dependencies = [
 ]
 
 [[package]]
+name = "tg-controllers"
+version = "0.1.2"
+dependencies = [
+ "cosmwasm-std",
+ "cw-storage-plus",
+ "cw0",
+ "schemars",
+ "serde",
+ "thiserror",
+]
+
+[[package]]
 name = "tg4"
 version = "0.1.2"
 dependencies = [
@@ -547,6 +559,7 @@ dependencies = [
  "cw2",
  "schemars",
  "serde",
+ "tg-controllers",
  "tg4",
  "thiserror",
 ]
@@ -564,6 +577,7 @@ dependencies = [
  "cw20",
  "schemars",
  "serde",
+ "tg-controllers",
  "tg4",
  "thiserror",
 ]

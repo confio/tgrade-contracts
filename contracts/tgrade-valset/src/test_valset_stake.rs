@@ -63,6 +63,7 @@ fn instantiate_stake(app: &mut App<TgradeMsg>) -> Addr {
         min_bond: Uint128(MIN_BOND),
         unbonding_period: Duration::Time(1234),
         admin: Some(STAKE_OWNER.into()),
+        preauths: None,
     };
     app.instantiate_contract(stake_id, Addr::unchecked(STAKE_OWNER), &msg, &[], "stake")
         .unwrap()

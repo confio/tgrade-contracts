@@ -17,6 +17,8 @@ pub struct InstantiateMsg {
 
     // admin can only add/remove hooks, not change other parameters
     pub admin: Option<String>,
+    // or you can simply pre-authorize a number of hooks (to be done in following messages)
+    pub preauths: Option<u64>,
 }
 
 #[derive(Serialize, Deserialize, Clone, PartialEq, JsonSchema, Debug)]
@@ -73,9 +75,16 @@ pub enum QueryMsg {
     },
     /// Shows all registered hooks. Returns HooksResponse.
     Hooks {},
+    /// Return the current number of preauths. Returns PreauthResponse.
+    Preauths {},
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct StakedResponse {
     pub stake: Coin,
+}
+
+#[derive(Serialize, Deserialize, Clone, PartialEq, JsonSchema, Debug)]
+pub struct PreauthResponse {
+    pub preauths: u64,
 }

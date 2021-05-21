@@ -412,6 +412,7 @@ mod test {
         let msg = tg4_group::msg::InstantiateMsg {
             admin: Some(GROUP_OWNER.into()),
             members: members(num_members),
+            preauths: None,
         };
         let owner = Addr::unchecked(GROUP_OWNER);
         app.instantiate_contract(group_id, owner, &msg, &[], "group")

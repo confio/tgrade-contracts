@@ -131,6 +131,19 @@
         }
       },
       "additionalProperties": false
+    },
+    {
+      "description": "Return the current number of preauths. Returns PreauthResponse.",
+      "type": "object",
+      "required": [
+        "preauths"
+      ],
+      "properties": {
+        "preauths": {
+          "type": "object"
+        }
+      },
+      "additionalProperties": false
     }
   ],
   "definitions": {
