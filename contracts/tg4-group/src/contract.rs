@@ -120,12 +120,13 @@ pub fn execute_remove_hook(
     hook: String,
 ) -> Result<Response, ContractError> {
     // custom guard: self-removal OR being admin
-    if info.sender != hook && !ADMIN.is_admin(deps.as_ref(), &info.sender)? {
+    let hook_addr = deps.api.addr_validate(&hook)?;
+    if info.sender != hook_addr && !ADMIN.is_admin(deps.as_ref(), &info.sender)? {
         return Err(ContractError::Unauthorized {});
     }
 
     // remove the hook
-    HOOKS.remove_hook(deps.storage, deps.api.addr_validate(&hook)?)?;
+    HOOKS.remove_hook(deps.storage, hook_addr)?;
 
     // response
     let attributes = vec![
