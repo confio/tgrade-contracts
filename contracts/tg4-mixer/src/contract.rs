@@ -288,8 +288,8 @@ mod tests {
     const VOTER4: &str = "voter0004";
     const VOTER5: &str = "voter0005";
 
-    fn member<T: Into<String>>(addr: T, weight: u64) -> cw4::Member {
-        cw4::Member {
+    fn member<T: Into<String>>(addr: T, weight: u64) -> Member {
+        Member {
             addr: addr.into(),
             weight,
         }
@@ -306,18 +306,18 @@ mod tests {
 
     pub fn contract_group() -> Box<dyn Contract<Empty>> {
         let contract = ContractWrapper::new(
-            cw4_group::contract::execute,
-            cw4_group::contract::instantiate,
-            cw4_group::contract::query,
+            tg4_group::contract::execute,
+            tg4_group::contract::instantiate,
+            tg4_group::contract::query,
         );
         Box::new(contract)
     }
 
     pub fn contract_staking() -> Box<dyn Contract<Empty>> {
         let contract = ContractWrapper::new(
-            cw4_stake::contract::execute,
-            cw4_stake::contract::instantiate,
-            cw4_stake::contract::query,
+            tg4_stake::contract::execute,
+            tg4_stake::contract::instantiate,
+            tg4_stake::contract::query,
         );
         Box::new(contract)
     }
@@ -331,25 +331,27 @@ mod tests {
     }
 
     // uploads code and returns address of group contract
-    fn instantiate_group(app: &mut App, members: Vec<cw4::Member>) -> Addr {
+    fn instantiate_group(app: &mut App, members: Vec<Member>) -> Addr {
         let group_id = app.store_code(contract_group());
-        let msg = cw4_group::msg::InstantiateMsg {
+        let msg = tg4_group::msg::InstantiateMsg {
             admin: Some(OWNER.into()),
             members,
+            preauths: Some(1),
         };
         app.instantiate_contract(group_id, Addr::unchecked(OWNER), &msg, &[], "group")
             .unwrap()
     }
 
     // uploads code and returns address of group contract
-    fn instantiate_staking(app: &mut App, stakers: Vec<cw4::Member>) -> Addr {
+    fn instantiate_staking(app: &mut App, stakers: Vec<Member>) -> Addr {
         let group_id = app.store_code(contract_staking());
-        let msg = cw4_stake::msg::InstantiateMsg {
+        let msg = tg4_stake::msg::InstantiateMsg {
             denom: Denom::Native(STAKE_DENOM.into()),
             tokens_per_weight: Uint128(1),
             min_bond: Uint128(1),
             unbonding_period: Duration::Time(3600),
             admin: Some(OWNER.into()),
+            preauths: Some(1),
         };
         let contract = app
             .instantiate_contract(group_id, Addr::unchecked(OWNER), &msg, &[], "staking")
@@ -363,7 +365,7 @@ mod tests {
             app.set_bank_balance(&caller, balance.clone()).unwrap();
 
             // they stake to the contract
-            let msg = cw4_stake::msg::ExecuteMsg::Bond {};
+            let msg = tg4_stake::msg::ExecuteMsg::Bond {};
             app.execute_contract(caller.clone(), contract.clone(), &msg, &balance)
                 .unwrap();
         }
@@ -386,7 +388,7 @@ mod tests {
     /// and connectioning them all to the mixer.
     ///
     /// Returns (mixer address, group address, staking address).
-    fn setup_test_case(app: &mut App, stakers: Vec<cw4::Member>) -> (Addr, Addr, Addr) {
+    fn setup_test_case(app: &mut App, stakers: Vec<Member>) -> (Addr, Addr, Addr) {
         // 1. Instantiate group contract with members (and OWNER as admin)
         let members = vec![
             member(OWNER, 0),
