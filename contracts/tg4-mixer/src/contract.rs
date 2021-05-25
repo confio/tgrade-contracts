@@ -355,7 +355,7 @@ mod tests {
         let msg = tg4_stake::msg::InstantiateMsg {
             denom: Denom::Native(STAKE_DENOM.into()),
             tokens_per_weight: Uint128(1),
-            min_bond: Uint128(1),
+            min_bond: Uint128(100),
             unbonding_period: Duration::Time(3600),
             admin: Some(OWNER.into()),
             preauths: Some(1),
@@ -473,6 +473,51 @@ mod tests {
             Some(1500),
             None,
             None,
+        );
+    }
+
+    #[test]
+    fn update_with_upstream_change() {
+        let mut app = mock_app();
+        let stakers = vec![
+            member(VOTER1, 10000), // 10000 stake, 100 weight -> 1000 mixed
+            member(VOTER3, 7500),  // 7500 stake, 300 weight -> 1500 mixed
+            member(VOTER5, 50),    // below stake threshold -> None
+        ];
+
+        let (mixer_addr, _, staker_addr) = setup_test_case(&mut app, stakers);
+
+        // query the membership values
+        check_membership(
+            &app,
+            &mixer_addr,
+            None,
+            Some(1000),
+            None,
+            Some(1500),
+            None,
+            None,
+        );
+
+        // stake some tokens, update the values
+        let balance = coins(450, STAKE_DENOM);
+        app.set_bank_balance(&Addr::unchecked(VOTER5), balance.clone())
+            .unwrap();
+        let msg = tg4_stake::msg::ExecuteMsg::Bond {};
+        app.execute_contract(Addr::unchecked(VOTER5), staker_addr.clone(), &msg, &balance)
+            .unwrap();
+
+        // check updated weights
+        check_membership(
+            &app,
+            &mixer_addr,
+            None,
+            Some(1000),
+            None,
+            Some(1500),
+            None,
+            // sqrt(500 * 500) = 500
+            Some(500),
         );
     }
 
