@@ -494,7 +494,7 @@ mod tests {
             member(VOTER5, 50),    // below stake threshold -> None
         ];
 
-        let (mixer_addr, _, staker_addr) = setup_test_case(&mut app, stakers);
+        let (mixer_addr, group_addr, staker_addr) = setup_test_case(&mut app, stakers);
 
         // query the membership values
         check_membership(
@@ -526,6 +526,39 @@ mod tests {
             Some(1500),
             None,
             // sqrt(500 * 500) = 500
+            Some(500),
+        );
+
+        // add, remove, and adjust member
+        // voter1 => None, voter2 => 300 (still mixed to None), voter3 => 1200 (mixed = 3000)
+        let msg = tg4_group::msg::ExecuteMsg::UpdateMembers {
+            remove: vec![VOTER1.into()],
+            add: vec![
+                Member {
+                    addr: VOTER2.into(),
+                    weight: 300,
+                },
+                Member {
+                    addr: VOTER3.into(),
+                    weight: 1200,
+                },
+            ],
+        };
+        app.execute_contract(Addr::unchecked(OWNER), group_addr.clone(), &msg, &[])
+            .unwrap();
+
+        // check updated weights
+        check_membership(
+            &app,
+            &mixer_addr,
+            None,
+            // Removed -> None
+            None,
+            // Changed, but other None -> None
+            None,
+            // Changed, other Some -> sqrt(1200 * 7500) = sqrt(9000000)
+            Some(3000),
+            None,
             Some(500),
         );
     }
