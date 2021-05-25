@@ -1,11 +1,12 @@
 use cosmwasm_std::Addr;
 use serde::{Deserialize, Serialize};
 
-use cw_controllers::Hooks;
 use cw_storage_plus::{Index, IndexList, IndexedSnapshotMap, Item, MultiIndex, Strategy, U64Key};
 use tg4::{Tg4Contract, TOTAL_KEY};
+use tg_controllers::{Hooks, Preauth};
 
 pub const HOOKS: Hooks = Hooks::new("tg4-hooks");
+pub const PREAUTH: Preauth = Preauth::new("tg4-preauth");
 
 #[derive(Serialize, Deserialize, Clone, PartialEq, Debug)]
 pub struct Groups {

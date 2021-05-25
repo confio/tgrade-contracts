@@ -594,7 +594,6 @@ version = "0.1.2"
 dependencies = [
  "cosmwasm-schema",
  "cosmwasm-std",
- "cw-controllers",
  "cw-multi-test",
  "cw-storage-plus",
  "cw0",
@@ -603,6 +602,7 @@ dependencies = [
  "integer-sqrt",
  "schemars",
  "serde",
+ "tg-controllers",
  "tg4",
  "tg4-group",
  "tg4-stake",

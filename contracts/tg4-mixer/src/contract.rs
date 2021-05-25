@@ -9,13 +9,13 @@ use cw_storage_plus::{Bound, PrimaryKey, U64Key};
 use integer_sqrt::IntegerSquareRoot;
 
 use tg4::{
-    Member, MemberChangedHookMsg, MemberDiff, MemberListResponse, MemberResponse, Tg4Contract,
-    TotalWeightResponse,
+    HooksResponse, Member, MemberChangedHookMsg, MemberDiff, MemberListResponse, MemberResponse,
+    Tg4Contract, TotalWeightResponse,
 };
 
 use crate::error::ContractError;
-use crate::msg::{ExecuteMsg, GroupsResponse, InstantiateMsg, QueryMsg};
-use crate::state::{members, Groups, GROUPS, HOOKS, TOTAL};
+use crate::msg::{ExecuteMsg, GroupsResponse, InstantiateMsg, PreauthResponse, QueryMsg};
+use crate::state::{members, Groups, GROUPS, HOOKS, PREAUTH, TOTAL};
 
 // version info for migration info
 const CONTRACT_NAME: &str = "crates.io:tg4-mixer";
@@ -31,6 +31,9 @@ pub fn instantiate(
     msg: InstantiateMsg,
 ) -> Result<Response, ContractError> {
     set_contract_version(deps.storage, CONTRACT_NAME, CONTRACT_VERSION)?;
+    if let Some(preauths) = msg.preauths {
+        PREAUTH.set_auth(deps.storage, preauths)?;
+    }
 
     // validate the two input groups and save
     let left = verify_tg4_input(deps.as_ref(), &msg.left_group)?;
@@ -107,14 +110,8 @@ pub fn execute(
 ) -> Result<Response, ContractError> {
     match msg {
         ExecuteMsg::MemberChangedHook(changes) => execute_member_changed(deps, env, info, changes),
-        ExecuteMsg::AddHook { addr: _ } => {
-            Err(ContractError::Unimplemented {})
-            // Ok(HOOKS.execute_add_hook(&ADMIN, deps, info, api.addr_validate(&addr)?)?)
-        }
-        ExecuteMsg::RemoveHook { addr: _ } => {
-            Err(ContractError::Unimplemented {})
-            // Ok(HOOKS.execute_remove_hook(&ADMIN, deps, info, api.addr_validate(&addr)?)?)
-        }
+        ExecuteMsg::AddHook { addr } => execute_add_hook(deps, info, addr),
+        ExecuteMsg::RemoveHook { addr } => execute_remove_hook(deps, info, addr),
     }
 }
 
@@ -193,6 +190,55 @@ pub fn update_members(
     Ok(MemberChangedHookMsg { diffs })
 }
 
+pub fn execute_add_hook(
+    deps: DepsMut,
+    info: MessageInfo,
+    hook: String,
+) -> Result<Response, ContractError> {
+    // custom guard: only preauth
+    PREAUTH.use_auth(deps.storage)?;
+
+    // add the hook
+    HOOKS.add_hook(deps.storage, deps.api.addr_validate(&hook)?)?;
+
+    // response
+    let attributes = vec![
+        attr("action", "add_hook"),
+        attr("hook", hook),
+        attr("sender", info.sender),
+    ];
+    Ok(Response {
+        attributes,
+        ..Response::default()
+    })
+}
+
+pub fn execute_remove_hook(
+    deps: DepsMut,
+    info: MessageInfo,
+    hook: String,
+) -> Result<Response, ContractError> {
+    // custom guard: only self-removal
+    let hook_addr = deps.api.addr_validate(&hook)?;
+    if info.sender != hook_addr {
+        return Err(ContractError::Unauthorized {});
+    }
+
+    // remove the hook
+    HOOKS.remove_hook(deps.storage, hook_addr)?;
+
+    // response
+    let attributes = vec![
+        attr("action", "remove_hook"),
+        attr("hook", hook),
+        attr("sender", info.sender),
+    ];
+    Ok(Response {
+        attributes,
+        ..Response::default()
+    })
+}
+
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
     match msg {
@@ -207,8 +253,15 @@ pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
             to_binary(&list_members_by_weight(deps, start_after, limit)?)
         }
         QueryMsg::TotalWeight {} => to_binary(&query_total_weight(deps)?),
-        QueryMsg::Hooks {} => to_binary(&HOOKS.query_hooks(deps)?),
         QueryMsg::Groups {} => to_binary(&query_groups(deps)?),
+        QueryMsg::Hooks {} => {
+            let hooks = HOOKS.list_hooks(deps.storage)?;
+            to_binary(&HooksResponse { hooks })
+        }
+        QueryMsg::Preauths {} => {
+            let preauths = PREAUTH.get_auth(deps.storage)?;
+            to_binary(&PreauthResponse { preauths })
+        }
     }
 }
 
@@ -394,6 +447,7 @@ mod tests {
         let msg = crate::msg::InstantiateMsg {
             left_group: left.to_string(),
             right_group: right.to_string(),
+            preauths: None,
         };
         app.instantiate_contract(flex_id, Addr::unchecked(OWNER), &msg, &[], "mixer")
             .unwrap()
@@ -513,7 +567,7 @@ mod tests {
         app.set_bank_balance(&Addr::unchecked(VOTER5), balance.clone())
             .unwrap();
         let msg = tg4_stake::msg::ExecuteMsg::Bond {};
-        app.execute_contract(Addr::unchecked(VOTER5), staker_addr.clone(), &msg, &balance)
+        app.execute_contract(Addr::unchecked(VOTER5), staker_addr, &msg, &balance)
             .unwrap();
 
         // check updated weights
@@ -544,7 +598,7 @@ mod tests {
                 },
             ],
         };
-        app.execute_contract(Addr::unchecked(OWNER), group_addr.clone(), &msg, &[])
+        app.execute_contract(Addr::unchecked(OWNER), group_addr, &msg, &[])
             .unwrap();
 
         // check updated weights

@@ -16,7 +16,7 @@
       "additionalProperties": false
     },
     {
-      "description": "Add a new hook to be informed of all membership changes. TODO: must be used by a pre-authorization",
+      "description": "Add a new hook to be informed of all membership changes.",
       "type": "object",
       "required": [
         "add_hook"

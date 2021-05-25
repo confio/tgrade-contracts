@@ -9,6 +9,8 @@ pub struct InstantiateMsg {
     pub left_group: String,
     /// The other group we feed to the mixer function
     pub right_group: String,
+    /// preauthorize some hooks on init (only way to add them)
+    pub preauths: Option<u64>,
     // TODO: configure mixer function here?
 }
 
@@ -18,7 +20,6 @@ pub enum ExecuteMsg {
     /// This handles a callback from one of the linked groups
     MemberChangedHook(MemberChangedHookMsg),
     /// Add a new hook to be informed of all membership changes.
-    /// TODO: must be used by a pre-authorization
     AddHook { addr: String },
     /// Remove a hook. Must be called by the contract being removed
     RemoveHook { addr: String },
@@ -48,6 +49,8 @@ pub enum QueryMsg {
     Hooks {},
     /// Which contracts we are listening to
     Groups {},
+    /// Return the current number of preauths. Returns PreauthResponse.
+    Preauths {},
 }
 
 /// Return the two groups we are listening to
@@ -55,4 +58,9 @@ pub enum QueryMsg {
 pub struct GroupsResponse {
     pub left: String,
     pub right: String,
+}
+
+#[derive(Serialize, Deserialize, Clone, PartialEq, JsonSchema, Debug)]
+pub struct PreauthResponse {
+    pub preauths: u64,
 }

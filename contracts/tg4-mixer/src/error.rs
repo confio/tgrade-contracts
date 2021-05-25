@@ -1,7 +1,6 @@
 use cosmwasm_std::StdError;
+use tg_controllers::{HookError, PreauthError};
 use thiserror::Error;
-
-use cw_controllers::HookError;
 
 #[derive(Error, Debug, PartialEq)]
 pub enum ContractError {
@@ -10,6 +9,9 @@ pub enum ContractError {
 
     #[error("{0}")]
     Hook(#[from] HookError),
+
+    #[error("{0}")]
+    Preauth(#[from] PreauthError),
 
     #[error("Unauthorized")]
     Unauthorized {},
