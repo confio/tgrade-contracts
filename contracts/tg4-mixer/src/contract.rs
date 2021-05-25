@@ -1,7 +1,7 @@
 #[cfg(not(feature = "library"))]
 use cosmwasm_std::entry_point;
 use cosmwasm_std::{
-    to_binary, Binary, Deps, DepsMut, Env, MessageInfo, Order, Response, StdResult,
+    attr, to_binary, Binary, Deps, DepsMut, Env, MessageInfo, Order, Response, StdResult,
 };
 use cw0::maybe_addr;
 use cw2::set_contract_version;
@@ -9,7 +9,7 @@ use cw_storage_plus::{Bound, PrimaryKey, U64Key};
 use integer_sqrt::IntegerSquareRoot;
 
 use tg4::{
-    Member, MemberChangedHookMsg, MemberListResponse, MemberResponse, Tg4Contract,
+    Member, MemberChangedHookMsg, MemberDiff, MemberListResponse, MemberResponse, Tg4Contract,
     TotalWeightResponse,
 };
 
@@ -119,70 +119,79 @@ pub fn execute(
 }
 
 pub fn execute_member_changed(
-    _deps: DepsMut,
-    _env: Env,
-    _info: MessageInfo,
-    _changes: MemberChangedHookMsg,
+    mut deps: DepsMut,
+    env: Env,
+    info: MessageInfo,
+    changes: MemberChangedHookMsg,
 ) -> Result<Response, ContractError> {
-    Err(ContractError::Unimplemented {})
+    let attributes = vec![
+        attr("action", "update_members"),
+        attr("changed", changes.diffs.len()),
+        attr("sender", &info.sender),
+    ];
 
-    // let attributes = vec![
-    //     attr("action", "update_members"),
-    //     attr("added", add.len()),
-    //     attr("removed", remove.len()),
-    //     attr("sender", &info.sender),
-    // ];
-    //
-    // // make the local update
-    // let diff = update_members(deps.branch(), env.block.height, info.sender, add, remove)?;
-    // // call all registered hooks
-    // let messages = HOOKS.prepare_hooks(deps.storage, |h| diff.clone().into_cosmos_msg(h))?;
-    // Ok(Response {
-    //     submessages: vec![],
-    //     messages,
-    //     attributes,
-    //     data: None,
-    // })
+    let groups = GROUPS.load(deps.storage)?;
+
+    // authorization check
+    let diff = if info.sender == groups.left.addr() {
+        update_members(deps.branch(), env.block.height, groups.right, changes.diffs)
+    } else if info.sender == groups.right.addr() {
+        update_members(deps.branch(), env.block.height, groups.left, changes.diffs)
+    } else {
+        Err(ContractError::Unauthorized {})
+    }?;
+
+    // call all registered hooks
+    let messages = HOOKS.prepare_hooks(deps.storage, |h| diff.clone().into_cosmos_msg(h))?;
+
+    Ok(Response {
+        submessages: vec![],
+        messages,
+        attributes,
+        data: None,
+    })
 }
 
-// // the logic from execute_update_members extracted for easier import
-// pub fn update_members(
-//     deps: DepsMut,
-//     height: u64,
-//     sender: Addr,
-//     to_add: Vec<Member>,
-//     to_remove: Vec<String>,
-// ) -> Result<MemberChangedHookMsg, ContractError> {
-//     ADMIN.assert_admin(deps.as_ref(), &sender)?;
-//
-//     let mut total = TOTAL.load(deps.storage)?;
-//     let mut diffs: Vec<MemberDiff> = vec![];
-//
-//     // add all new members and update total
-//     for add in to_add.into_iter() {
-//         let add_addr = deps.api.addr_validate(&add.addr)?;
-//         members().update(deps.storage, &add_addr, height, |old| -> StdResult<_> {
-//             total -= old.unwrap_or_default();
-//             total += add.weight;
-//             diffs.push(MemberDiff::new(add.addr, old, Some(add.weight)));
-//             Ok(add.weight)
-//         })?;
-//     }
-//
-//     for remove in to_remove.into_iter() {
-//         let remove_addr = deps.api.addr_validate(&remove)?;
-//         let old = members().may_load(deps.storage, &remove_addr)?;
-//         // Only process this if they were actually in the list before
-//         if let Some(weight) = old {
-//             diffs.push(MemberDiff::new(remove, Some(weight), None));
-//             total -= weight;
-//             members().remove(deps.storage, &remove_addr, height)?;
-//         }
-//     }
-//
-//     TOTAL.save(deps.storage, &total)?;
-//     Ok(MemberChangedHookMsg { diffs })
-// }
+// the logic from execute_update_members extracted for easier import
+pub fn update_members(
+    deps: DepsMut,
+    height: u64,
+    query_group: Tg4Contract,
+    changes: Vec<MemberDiff>,
+) -> Result<MemberChangedHookMsg, ContractError> {
+    let mut total = TOTAL.load(deps.storage)?;
+    let mut diffs: Vec<MemberDiff> = vec![];
+
+    // add all new members and update total
+    for change in changes {
+        let member_addr = deps.api.addr_validate(&change.key)?;
+        let mut new_weight: Option<u64> = None;
+        if let Some(x) = change.new {
+            if let Some(y) = query_group.is_member(&deps.querier, &member_addr)? {
+                // FIXME: we might need to swap x and y if function isn't symetric
+                new_weight = Some(mixer_fn(x, y)?);
+            }
+        };
+        let mems = members();
+
+        // update the total with changes
+        let prev_weight = mems.may_load(deps.storage, &member_addr)?;
+        total -= prev_weight.unwrap_or_default();
+        total += new_weight.unwrap_or_default();
+
+        // store the new value
+        match new_weight {
+            Some(x) => mems.save(deps.storage, &member_addr, &x, height)?,
+            None => mems.remove(deps.storage, &member_addr, height)?,
+        };
+
+        // return the diff
+        diffs.push(MemberDiff::new(member_addr, prev_weight, new_weight));
+    }
+
+    TOTAL.save(deps.storage, &total)?;
+    Ok(MemberChangedHookMsg { diffs })
+}
 
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
