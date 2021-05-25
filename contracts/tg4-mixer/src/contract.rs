@@ -38,13 +38,20 @@ pub fn instantiate(
     let groups = Groups { left, right };
     GROUPS.save(deps.storage, &groups)?;
 
-    // TODO: add hooks to listen for all changes
+    // add hooks to listen for all changes
+    let messages = vec![
+        groups.left.add_hook(&env.contract.address)?,
+        groups.right.add_hook(&env.contract.address)?,
+    ];
 
     // calculate initial state from current members on both sides
     initialize_members(deps, groups, env.block.height)?;
 
     // TODO: what events to return here?
-    Ok(Response::default())
+    Ok(Response {
+        messages,
+        ..Response::default()
+    })
 }
 
 fn verify_tg4_input(deps: Deps, addr: &str) -> Result<Tg4Contract, ContractError> {
