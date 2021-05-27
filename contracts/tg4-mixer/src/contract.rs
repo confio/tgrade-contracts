@@ -21,8 +21,6 @@ use crate::state::{members, Groups, GROUPS, HOOKS, PREAUTH, TOTAL};
 const CONTRACT_NAME: &str = "crates.io:tg4-mixer";
 const CONTRACT_VERSION: &str = env!("CARGO_PKG_VERSION");
 
-// Note, you can use StdResult in some functions where you do not
-// make use of the custom errors
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn instantiate(
     deps: DepsMut,
@@ -59,7 +57,7 @@ pub fn instantiate(
 
 fn verify_tg4_input(deps: Deps, addr: &str) -> Result<Tg4Contract, ContractError> {
     let contract = Tg4Contract(deps.api.addr_validate(addr)?);
-    if contract.list_members(&deps.querier, None, Some(1)).is_err() {
+    if !contract.is_tg4(&deps.querier) {
         return Err(ContractError::NotTg4(addr.into()));
     };
     Ok(contract)
@@ -74,9 +72,11 @@ fn initialize_members(deps: DepsMut, groups: Groups, height: u64) -> Result<(), 
     let mut batch = groups.left.list_members(&deps.querier, None, QUERY_LIMIT)?;
     while !batch.is_empty() {
         let last = Some(batch.last().unwrap().addr.clone());
-        // check it's weigth in the other group, and calculate/save the mixed weight if in both
+        // check it's weight in the other group, and calculate/save the mixed weight if in both
         for member in batch.into_iter() {
             let addr = deps.api.addr_validate(&member.addr)?;
+            // note that this is a *raw query* and therefore quite cheap compared to a *smart query*
+            // like calling `list_members` on the right side as well
             let other = groups.right.is_member(&deps.querier, &addr)?;
             if let Some(right) = other {
                 let weight = mixer_fn(member.weight, right)?;
@@ -100,7 +100,6 @@ fn mixer_fn(left: u64, right: u64) -> Result<u64, ContractError> {
     Ok(mult.integer_sqrt())
 }
 
-// And declare a custom Error variant for the ones where you will want to make use of it
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn execute(
     deps: DepsMut,
@@ -149,7 +148,7 @@ pub fn execute_member_changed(
     })
 }
 
-// the logic from execute_update_members extracted for easier import
+// the logic from execute_update_members extracted for easier re-usability
 pub fn update_members(
     deps: DepsMut,
     height: u64,
@@ -162,23 +161,24 @@ pub fn update_members(
     // add all new members and update total
     for change in changes {
         let member_addr = deps.api.addr_validate(&change.key)?;
-        let mut new_weight: Option<u64> = None;
-        if let Some(x) = change.new {
-            if let Some(y) = query_group.is_member(&deps.querier, &member_addr)? {
-                // FIXME: we might need to swap x and y if function isn't symetric
-                new_weight = Some(mixer_fn(x, y)?);
-            }
+        let new_weight = match change.new {
+            Some(x) => match query_group.is_member(&deps.querier, &member_addr)? {
+                Some(y) => Some(mixer_fn(x, y)?),
+                None => None,
+            },
+            None => None,
         };
         let mems = members();
 
-        // update the total with changes
+        // update the total with changes.
+        // to calculate this, we need to load the old weight before saving the new weight
         let prev_weight = mems.may_load(deps.storage, &member_addr)?;
         total -= prev_weight.unwrap_or_default();
         total += new_weight.unwrap_or_default();
 
         // store the new value
         match new_weight {
-            Some(x) => mems.save(deps.storage, &member_addr, &x, height)?,
+            Some(weight) => mems.save(deps.storage, &member_addr, &weight, height)?,
             None => mems.remove(deps.storage, &member_addr, height)?,
         };
 
@@ -306,7 +306,7 @@ fn list_members(
         .map(|item| {
             let (key, weight) = item?;
             Ok(Member {
-                addr: String::from_utf8(key)?,
+                addr: unsafe { String::from_utf8_unchecked(key) },
                 weight,
             })
         })
@@ -331,7 +331,7 @@ fn list_members_by_weight(
         .map(|item| {
             let (key, weight) = item?;
             Ok(Member {
-                addr: String::from_utf8(key)?,
+                addr: unsafe { String::from_utf8_unchecked(key) },
                 weight,
             })
         })

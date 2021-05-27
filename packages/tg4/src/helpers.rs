@@ -148,6 +148,12 @@ impl Tg4Contract {
         Ok(res.members)
     }
 
+    /// This will make some queires to ensure that the target contract is tg4-compatible.
+    /// It returns `true` iff it appears to be compatible.
+    pub fn is_tg4(&self, querier: &QuerierWrapper) -> bool {
+        self.list_members(querier, None, Some(1)).is_ok()
+    }
+
     /// Read the admin
     pub fn admin(&self, querier: &QuerierWrapper) -> StdResult<Option<String>> {
         let query = self.encode_smart_query(Tg4QueryMsg::Admin {})?;
