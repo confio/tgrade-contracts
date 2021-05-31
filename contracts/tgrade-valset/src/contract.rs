@@ -241,7 +241,9 @@ fn end_block(deps: DepsMut, env: Env) -> Result<Response, ContractError> {
     // check if needed and quit early if we didn't hit epoch boundary
     let mut epoch = EPOCH.load(deps.storage)?;
     let cur_epoch = env.block.time.nanos() / (1_000_000_000 * epoch.epoch_length);
-    if cur_epoch <= epoch.current_epoch {
+
+    let old_validators = VALIDATORS.load(deps.storage)?;
+    if cur_epoch <= epoch.current_epoch && !old_validators.is_empty(){ // todo: revisit this check for non initialized validators
         return Ok(Response::default());
     }
     // ensure to update this so we wait until next epoch to run this again
@@ -250,9 +252,8 @@ fn end_block(deps: DepsMut, env: Env) -> Result<Response, ContractError> {
 
     // calculate and store new validator set
     let validators = calculate_validators(deps.as_ref())?;
-    let old_validators = VALIDATORS.load(deps.storage)?;
-    VALIDATORS.save(deps.storage, &validators)?;
 
+    VALIDATORS.save(deps.storage, &validators)?;
     // determine the diff to send back to tendermint
     let diff = calculate_diff(validators, old_validators);
     let res = Response {

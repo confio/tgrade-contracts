@@ -50,9 +50,9 @@ impl InstantiateMsg {
         if self.scaling == Some(0) {
             return Err(ContractError::InvalidScaling {});
         }
-        if self.initial_keys.is_empty() {
-            return Err(ContractError::NoValidators {});
-        }
+        // if self.initial_keys.is_empty() {
+        //     return Err(ContractError::NoValidators {});
+        // }
         for op in self.initial_keys.iter() {
             op.validate()?
         }
