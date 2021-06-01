@@ -309,6 +309,11 @@ mod test {
             quorum: Decimal::percent(40),
             allow_end_early: true,
         };
+        let no_early_end = VotingRules {
+            allow_end_early: false,
+            ..early_end
+        };
+
         // all non-yes votes are counted for quorum
         let passing = Votes {
             yes: 7,
@@ -337,6 +342,10 @@ mod test {
             true,
             check_is_passed(early_end.clone(), passing.clone(), 30, true)
         );
+        assert_eq!(
+            true,
+            check_is_passed(no_early_end.clone(), passing.clone(), 30, true)
+        );
         // under quorum it is not passing (40% of 33 = 13.2 > 13)
         assert_eq!(
             false,
@@ -358,6 +367,11 @@ mod test {
             false,
             check_is_passed(early_end.clone(), passing.clone(), 30, false)
         );
+        // same for non-early end
+        assert_eq!(
+            false,
+            check_is_passed(no_early_end.clone(), passing.clone(), 30, false)
+        );
         assert_eq!(
             false,
             check_is_passed(
@@ -372,10 +386,25 @@ mod test {
             true,
             check_is_passed(early_end.clone(), passing.clone(), 14, false)
         );
+        // false with no early end
+        assert_eq!(
+            false,
+            check_is_passed(no_early_end.clone(), passing.clone(), 14, false)
+        );
         // all votes have been cast, some abstain
         assert_eq!(
             true,
-            check_is_passed(early_end.clone(), passes_ignoring_abstain, 17, false)
+            check_is_passed(
+                early_end.clone(),
+                passes_ignoring_abstain.clone(),
+                17,
+                false
+            )
+        );
+        // false with no early end
+        assert_eq!(
+            false,
+            check_is_passed(no_early_end.clone(), passes_ignoring_abstain, 17, false)
         );
         // 3 votes uncast, if they all vote no, we have 7 yes, 7 no+veto, 2 abstain (out of 16)
         assert_eq!(true, check_is_passed(early_end, passing, 16, false));
