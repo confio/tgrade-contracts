@@ -2,7 +2,7 @@
 use cosmwasm_std::entry_point;
 use cosmwasm_std::{
     attr, coin, to_binary, Addr, BankMsg, Binary, BlockInfo, CosmosMsg, Decimal, Deps, DepsMut,
-    Env, MessageInfo, Order, Response, StdResult, Uint128,
+    Env, MessageInfo, Order, Response, StdError, StdResult, Uint128,
 };
 use cw0::{maybe_addr, Expiration};
 use cw2::set_contract_version;
@@ -20,8 +20,9 @@ use crate::msg::{
 };
 use crate::state::{
     members, next_id, parse_id, Ballot, Dso, Proposal, ProposalContent, Votes, VotingRules, ADMIN,
-    BALLOTS, DSO, ESCROWS, PROPOSALS, TOTAL,
+    BALLOTS, BALLOTS_BY_VOTER, DSO, ESCROWS, PROPOSALS, TOTAL,
 };
+use std::convert::TryInto;
 
 // version info for migration info
 const CONTRACT_NAME: &str = "crates.io:tgrade-dso";
@@ -305,6 +306,7 @@ pub fn execute_propose(
         vote: Vote::Yes,
     };
     BALLOTS.save(deps.storage, (id.into(), &info.sender), &ballot)?;
+    BALLOTS_BY_VOTER.save(deps.storage, (&info.sender, id.into()), &ballot)?;
 
     Ok(Response {
         attributes: vec![
@@ -342,18 +344,19 @@ pub fn execute_vote(
         return Err(ContractError::Unauthorized {});
     }
 
+    if BALLOTS
+        .may_load(deps.storage, (proposal_id.into(), &info.sender))?
+        .is_some()
+    {
+        return Err(ContractError::AlreadyVoted {});
+    }
     // cast vote if no vote previously cast
-    BALLOTS.update(
-        deps.storage,
-        (proposal_id.into(), &info.sender),
-        |bal| match bal {
-            Some(_) => Err(ContractError::AlreadyVoted {}),
-            None => Ok(Ballot {
-                weight: vote_power,
-                vote,
-            }),
-        },
-    )?;
+    let ballot = Ballot {
+        weight: vote_power,
+        vote,
+    };
+    BALLOTS.save(deps.storage, (proposal_id.into(), &info.sender), &ballot)?;
+    BALLOTS_BY_VOTER.save(deps.storage, (&info.sender, proposal_id.into()), &ballot)?;
 
     // update vote tally
     prop.votes.add_vote(vote, vote_power);
@@ -815,32 +818,35 @@ fn list_votes_by_proposal(
 }
 
 fn list_votes_by_voter(
-    _deps: Deps,
-    _voter: String,
-    _start_before: Option<u64>,
-    _limit: Option<u32>,
+    deps: Deps,
+    voter: String,
+    start_before: Option<u64>,
+    limit: Option<u32>,
 ) -> StdResult<VoteListResponse> {
-    unimplemented!()
-    // let limit = limit.unwrap_or(DEFAULT_LIMIT).min(MAX_LIMIT) as usize;
-    // let addr = maybe_addr(deps.api, start_after)?;
-    // let start = addr.map(|addr| Bound::exclusive(addr.as_ref()));
-    //
-    // let votes: StdResult<Vec<_>> = BALLOTS
-    //     .prefix(proposal_id.into())
-    //     .range(deps.storage, start, None, Order::Ascending)
-    //     .take(limit)
-    //     .map(|item| {
-    //         let (voter, ballot) = item?;
-    //         Ok(VoteInfo {
-    //             proposal_id,
-    //             voter: String::from_utf8(voter)?,
-    //             vote: ballot.vote,
-    //             weight: ballot.weight,
-    //         })
-    //     })
-    //     .collect();
-    //
-    // Ok(VoteListResponse { votes: votes? })
+    let limit = limit.unwrap_or(DEFAULT_LIMIT).min(MAX_LIMIT) as usize;
+    let end = start_before.map(|addr| Bound::exclusive(U64Key::from(addr)));
+    let voter_addr = deps.api.addr_validate(&voter)?;
+
+    let votes: StdResult<Vec<_>> = BALLOTS_BY_VOTER
+        .prefix(&voter_addr)
+        .range(deps.storage, None, end, Order::Descending)
+        .take(limit)
+        .map(|item| {
+            let (key, ballot) = item?;
+            let proposal_id: u64 = match key[0..18].try_into() {
+                Ok(bytes) => Ok(u64::from_be_bytes(bytes)),
+                Err(_) => Err(StdError::generic_err("Corrupted db key")),
+            }?;
+            Ok(VoteInfo {
+                proposal_id,
+                voter: voter.clone(),
+                vote: ballot.vote,
+                weight: ballot.weight,
+            })
+        })
+        .collect();
+
+    Ok(VoteListResponse { votes: votes? })
 }
 
 #[cfg(test)]
