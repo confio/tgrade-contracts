@@ -378,8 +378,8 @@ pub fn execute_execute(
     proposal_id: u64,
 ) -> Result<Response, ContractError> {
     // anyone can trigger this if the vote passed
-
     let mut prop = PROPOSALS.load(deps.storage, proposal_id.into())?;
+
     // we allow execution even after the proposal "expiration" as long as all vote come in before
     // that point. If it was approved on time, it can be executed any time.
     if prop.status != Status::Passed {
@@ -808,7 +808,9 @@ mod tests {
     use crate::error::ContractError::Std;
     use crate::state::escrow_key;
     use cosmwasm_std::testing::{mock_dependencies, mock_env, mock_info};
-    use cosmwasm_std::{coin, coins, from_slice, Api, Coin, OwnedDeps, Querier, StdError, Storage};
+    use cosmwasm_std::{
+        coin, coins, from_slice, Api, Attribute, Coin, OwnedDeps, Querier, StdError, Storage,
+    };
     use cw0::PaymentError;
     use cw_controllers::AdminError;
     use tg4::{member_key, TOTAL_KEY};
@@ -1265,6 +1267,14 @@ mod tests {
         assert_nonvoting(&deps, Some(0), None, Some(0), None);
     }
 
+    fn parse_prop_id(attrs: &[Attribute]) -> u64 {
+        attrs
+            .iter()
+            .find(|attr| attr.key == "proposal_id")
+            .map(|attr| attr.value.parse().unwrap())
+            .unwrap()
+    }
+
     #[test]
     fn test_update_nonvoting_members() {
         let mut deps = mock_dependencies(&[]);
@@ -1274,24 +1284,75 @@ mod tests {
         // assert the non-voting set is proper
         assert_nonvoting(&deps, None, None, None, None);
 
-        // Add non-voting members
-        let add = vec![NONVOTING1.into(), NONVOTING2.into()];
-        let remove = vec![];
-        let height = mock_env().block.height;
+        // make a new proposal
+        let prop = ProposalContent::AddRemoveNonVotingMembers {
+            add: vec![NONVOTING1.into(), NONVOTING2.into()],
+            remove: vec![],
+        };
+        let msg = ExecuteMsg::Propose {
+            title: "Add participants".to_string(),
+            description: "These are my friends, KYC done".to_string(),
+            proposal: prop,
+        };
+        let mut env = mock_env();
+        env.block.height += 10;
+        let res = execute(deps.as_mut(), env.clone(), mock_info(INIT_ADMIN, &[]), msg).unwrap();
+        let proposal_id = parse_prop_id(&res.attributes);
 
-        // Admin updates properly
-        add_remove_non_voting_members(deps.as_mut(), height + 10, add, remove).unwrap();
+        // ensure it passed (already via principal voter)
+        let raw = query(
+            deps.as_ref(),
+            env.clone(),
+            QueryMsg::Proposal { proposal_id },
+        )
+        .unwrap();
+        let prop: ProposalResponse = from_slice(&raw).unwrap();
+        assert_eq!(prop.total_weight, 1);
+        assert_eq!(prop.status, Status::Passed);
+        assert_eq!(prop.id, 1);
+        assert_nonvoting(&deps, None, None, None, None);
 
-        // assert the non-voting set is updated
+        // anyone can execute it
+        // then assert the non-voting set is updated
+        env.block.height += 1;
+        execute(
+            deps.as_mut(),
+            env.clone(),
+            mock_info(NONVOTING1, &[]),
+            ExecuteMsg::Execute { proposal_id },
+        )
+        .unwrap();
         assert_nonvoting(&deps, Some(0), Some(0), None, None);
 
-        // Add another non-voting member, and remove one
-        let add = vec![NONVOTING3.into()];
-        let remove = vec![NONVOTING2.into()];
+        // try to update the same way... add one, remove one
+        let prop = ProposalContent::AddRemoveNonVotingMembers {
+            add: vec![NONVOTING3.into()],
+            remove: vec![NONVOTING2.into()],
+        };
+        let msg = ExecuteMsg::Propose {
+            title: "Update participants".to_string(),
+            description: "Typo in one of those addresses...".to_string(),
+            proposal: prop,
+        };
+        let mut env = mock_env();
+        env.block.height += 5;
+        let res = execute(deps.as_mut(), env.clone(), mock_info(INIT_ADMIN, &[]), msg).unwrap();
+        let proposal_id = parse_prop_id(&res.attributes);
 
-        add_remove_non_voting_members(deps.as_mut(), height + 11, add, remove).unwrap();
+        let prop = query_proposal(deps.as_ref(), env.clone(), proposal_id).unwrap();
+        assert_eq!(prop.status, Status::Passed);
+        assert_eq!(prop.id, proposal_id);
+        assert_eq!(prop.id, 2);
 
-        // assert the non-voting set is updated
+        // anyone can execute it
+        env.block.height += 1;
+        execute(
+            deps.as_mut(),
+            env.clone(),
+            mock_info(NONVOTING3, &[]),
+            ExecuteMsg::Execute { proposal_id },
+        )
+        .unwrap();
         assert_nonvoting(&deps, Some(0), None, Some(0), None);
     }
 
