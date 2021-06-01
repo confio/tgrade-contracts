@@ -121,7 +121,7 @@ pub fn validate(
         return Err(ContractError::InvalidQuorum(quorum));
     }
 
-    if threshold == zero || threshold > hundred {
+    if threshold < Decimal::percent(50) || threshold > hundred {
         return Err(ContractError::InvalidThreshold(threshold));
     }
 
