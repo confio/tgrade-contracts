@@ -1,11 +1,12 @@
 #[cfg(not(feature = "library"))]
 use cosmwasm_std::entry_point;
 use cosmwasm_std::{
-    attr, coin, to_binary, Addr, BankMsg, Binary, CosmosMsg, Decimal, Deps, DepsMut, Env,
-    MessageInfo, Order, Response, StdResult, Uint128,
+    attr, coin, to_binary, Addr, BankMsg, Binary, BlockInfo, CosmosMsg, Decimal, Deps, DepsMut,
+    Env, MessageInfo, Order, Response, StdResult, Uint128,
 };
 use cw0::{maybe_addr, Expiration};
 use cw2::set_contract_version;
+use cw3::{Status, Vote, VoteInfo, VoteListResponse, VoteResponse};
 use cw_storage_plus::{Bound, PrimaryKey, U64Key};
 use tg4::{
     Member, MemberChangedHookMsg, MemberDiff, MemberListResponse, MemberResponse,
@@ -13,12 +14,14 @@ use tg4::{
 };
 
 use crate::error::ContractError;
-use crate::msg::{DsoResponse, EscrowResponse, ExecuteMsg, InstantiateMsg, QueryMsg};
-use crate::state::{
-    members, next_id, Ballot, Dso, Proposal, ProposalContent, Votes, VotingRules, ADMIN, BALLOTS,
-    DSO, ESCROWS, PROPOSALS, TOTAL,
+use crate::msg::{
+    DsoResponse, EscrowResponse, ExecuteMsg, InstantiateMsg, ProposalListResponse,
+    ProposalResponse, QueryMsg,
 };
-use cw3::{Status, Vote};
+use crate::state::{
+    members, next_id, parse_id, Ballot, Dso, Proposal, ProposalContent, Votes, VotingRules, ADMIN,
+    BALLOTS, DSO, ESCROWS, PROPOSALS, TOTAL,
+};
 
 // version info for migration info
 const CONTRACT_NAME: &str = "crates.io:tgrade-dso";
@@ -541,7 +544,7 @@ pub fn add_remove_non_voting_members(
 }
 
 #[cfg_attr(not(feature = "library"), entry_point)]
-pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
+pub fn query(deps: Deps, env: Env, msg: QueryMsg) -> StdResult<Binary> {
     match msg {
         QueryMsg::Member {
             addr,
@@ -560,6 +563,20 @@ pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
         QueryMsg::TotalWeight {} => to_binary(&query_total_weight(deps)?),
         QueryMsg::Dso {} => to_binary(&query_dso(deps)?),
         QueryMsg::Admin {} => to_binary(&ADMIN.query_admin(deps)?),
+        QueryMsg::Proposal { proposal_id } => to_binary(&query_proposal(deps, env, proposal_id)?),
+        QueryMsg::Vote { proposal_id, voter } => to_binary(&query_vote(deps, proposal_id, voter)?),
+        QueryMsg::ListProposals { start_after, limit } => {
+            to_binary(&list_proposals(deps, env, start_after, limit)?)
+        }
+        QueryMsg::ReverseProposals {
+            start_before,
+            limit,
+        } => to_binary(&reverse_proposals(deps, env, start_before, limit)?),
+        QueryMsg::ListVotes {
+            proposal_id,
+            start_after,
+            limit,
+        } => to_binary(&list_votes(deps, proposal_id, start_after, limit)?),
     }
 }
 
@@ -678,6 +695,111 @@ fn list_non_voting_members(
         .collect();
 
     Ok(MemberListResponse { members: members? })
+}
+
+fn query_proposal(deps: Deps, env: Env, id: u64) -> StdResult<ProposalResponse> {
+    let prop = PROPOSALS.load(deps.storage, id.into())?;
+    let status = prop.current_status(&env.block);
+    Ok(ProposalResponse {
+        id,
+        title: prop.title,
+        description: prop.description,
+        proposal: prop.proposal,
+        status,
+        expires: prop.expires,
+        rules: prop.rules,
+        total_weight: prop.total_weight,
+    })
+}
+
+fn list_proposals(
+    deps: Deps,
+    env: Env,
+    start_after: Option<u64>,
+    limit: Option<u32>,
+) -> StdResult<ProposalListResponse> {
+    let limit = limit.unwrap_or(DEFAULT_LIMIT).min(MAX_LIMIT) as usize;
+    let start = start_after.map(Bound::exclusive_int);
+    let props: StdResult<Vec<_>> = PROPOSALS
+        .range(deps.storage, start, None, Order::Ascending)
+        .take(limit)
+        .map(|p| map_proposal(&env.block, p))
+        .collect();
+
+    Ok(ProposalListResponse { proposals: props? })
+}
+
+fn reverse_proposals(
+    deps: Deps,
+    env: Env,
+    start_before: Option<u64>,
+    limit: Option<u32>,
+) -> StdResult<ProposalListResponse> {
+    let limit = limit.unwrap_or(DEFAULT_LIMIT).min(MAX_LIMIT) as usize;
+    let end = start_before.map(Bound::exclusive_int);
+    let props: StdResult<Vec<_>> = PROPOSALS
+        .range(deps.storage, None, end, Order::Descending)
+        .take(limit)
+        .map(|p| map_proposal(&env.block, p))
+        .collect();
+
+    Ok(ProposalListResponse { proposals: props? })
+}
+
+fn map_proposal(
+    block: &BlockInfo,
+    item: StdResult<(Vec<u8>, Proposal)>,
+) -> StdResult<ProposalResponse> {
+    let (key, prop) = item?;
+    let status = prop.current_status(block);
+    Ok(ProposalResponse {
+        id: parse_id(&key)?,
+        title: prop.title,
+        description: prop.description,
+        proposal: prop.proposal,
+        status,
+        expires: prop.expires,
+        rules: prop.rules,
+        total_weight: prop.total_weight,
+    })
+}
+
+fn query_vote(deps: Deps, proposal_id: u64, voter: String) -> StdResult<VoteResponse> {
+    let voter_addr = deps.api.addr_validate(&voter)?;
+    let prop = BALLOTS.may_load(deps.storage, (proposal_id.into(), &voter_addr))?;
+    let vote = prop.map(|b| VoteInfo {
+        voter,
+        vote: b.vote,
+        weight: b.weight,
+    });
+    Ok(VoteResponse { vote })
+}
+
+fn list_votes(
+    deps: Deps,
+    proposal_id: u64,
+    start_after: Option<String>,
+    limit: Option<u32>,
+) -> StdResult<VoteListResponse> {
+    let limit = limit.unwrap_or(DEFAULT_LIMIT).min(MAX_LIMIT) as usize;
+    let addr = maybe_addr(deps.api, start_after)?;
+    let start = addr.map(|addr| Bound::exclusive(addr.as_ref()));
+
+    let votes: StdResult<Vec<_>> = BALLOTS
+        .prefix(proposal_id.into())
+        .range(deps.storage, start, None, Order::Ascending)
+        .take(limit)
+        .map(|item| {
+            let (voter, ballot) = item?;
+            Ok(VoteInfo {
+                voter: String::from_utf8(voter)?,
+                vote: ballot.vote,
+                weight: ballot.weight,
+            })
+        })
+        .collect();
+
+    Ok(VoteListResponse { votes: votes? })
 }
 
 #[cfg(test)]
