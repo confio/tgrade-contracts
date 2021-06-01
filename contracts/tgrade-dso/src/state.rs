@@ -404,7 +404,7 @@ mod test {
         // false with no early end
         assert_eq!(
             false,
-            check_is_passed(no_early_end.clone(), passes_ignoring_abstain, 17, false)
+            check_is_passed(no_early_end, passes_ignoring_abstain, 17, false)
         );
         // 3 votes uncast, if they all vote no, we have 7 yes, 7 no+veto, 2 abstain (out of 16)
         assert_eq!(true, check_is_passed(early_end, passing, 16, false));
