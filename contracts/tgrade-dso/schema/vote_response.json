@@ -25,14 +25,19 @@
       ]
     },
     "VoteInfo": {
-      "description": "Returns the vote (opinion as well as weight counted) as well as the address of the voter who submitted it",
       "type": "object",
       "required": [
+        "proposal_id",
         "vote",
         "voter",
         "weight"
       ],
       "properties": {
+        "proposal_id": {
+          "type": "integer",
+          "format": "uint64",
+          "minimum": 0.0
+        },
         "vote": {
           "$ref": "#/definitions/Vote"
         },

@@ -101,10 +101,16 @@ pub enum QueryMsg {
     },
     /// Returns VoteResponse
     Vote { proposal_id: u64, voter: String },
-    /// Returns VoteListResponse
-    ListVotes {
+    /// Returns VoteListResponse, paginate by voter address
+    ListVotesByProposal {
         proposal_id: u64,
         start_after: Option<String>,
+        limit: Option<u32>,
+    },
+    /// Returns VoteListResponse, paginate by proposal_id
+    ListVotesByVoter {
+        voter: String,
+        start_after: Option<u64>,
         limit: Option<u32>,
     },
 }
@@ -142,4 +148,22 @@ pub struct ProposalResponse {
 #[derive(Serialize, Deserialize, Clone, PartialEq, JsonSchema, Debug)]
 pub struct ProposalListResponse {
     pub proposals: Vec<ProposalResponse>,
+}
+
+#[derive(Serialize, Deserialize, Clone, PartialEq, JsonSchema, Debug)]
+pub struct VoteInfo {
+    pub voter: String,
+    pub vote: Vote,
+    pub proposal_id: u64,
+    pub weight: u64,
+}
+
+#[derive(Serialize, Deserialize, Clone, PartialEq, JsonSchema, Debug)]
+pub struct VoteListResponse {
+    pub votes: Vec<VoteInfo>,
+}
+
+#[derive(Serialize, Deserialize, Clone, PartialEq, JsonSchema, Debug)]
+pub struct VoteResponse {
+    pub vote: Option<VoteInfo>,
 }

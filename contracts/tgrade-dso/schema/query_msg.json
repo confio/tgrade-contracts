@@ -291,13 +291,13 @@
       "additionalProperties": false
     },
     {
-      "description": "Returns VoteListResponse",
+      "description": "Returns VoteListResponse, paginate by voter address",
       "type": "object",
       "required": [
-        "list_votes"
+        "list_votes_by_proposal"
       ],
       "properties": {
-        "list_votes": {
+        "list_votes_by_proposal": {
           "type": "object",
           "required": [
             "proposal_id"
@@ -321,6 +321,43 @@
                 "string",
                 "null"
               ]
+            }
+          }
+        }
+      },
+      "additionalProperties": false
+    },
+    {
+      "description": "Returns VoteListResponse, paginate by proposal_id",
+      "type": "object",
+      "required": [
+        "list_votes_by_voter"
+      ],
+      "properties": {
+        "list_votes_by_voter": {
+          "type": "object",
+          "required": [
+            "voter"
+          ],
+          "properties": {
+            "limit": {
+              "type": [
+                "integer",
+                "null"
+              ],
+              "format": "uint32",
+              "minimum": 0.0
+            },
+            "start_after": {
+              "type": [
+                "integer",
+                "null"
+              ],
+              "format": "uint64",
+              "minimum": 0.0
+            },
+            "voter": {
+              "type": "string"
             }
           }
         }

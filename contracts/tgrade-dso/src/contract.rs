@@ -6,7 +6,7 @@ use cosmwasm_std::{
 };
 use cw0::{maybe_addr, Expiration};
 use cw2::set_contract_version;
-use cw3::{Status, Vote, VoteInfo, VoteListResponse, VoteResponse};
+use cw3::{Status, Vote};
 use cw_storage_plus::{Bound, PrimaryKey, U64Key};
 use tg4::{
     Member, MemberChangedHookMsg, MemberDiff, MemberListResponse, MemberResponse,
@@ -16,7 +16,7 @@ use tg4::{
 use crate::error::ContractError;
 use crate::msg::{
     DsoResponse, EscrowResponse, ExecuteMsg, InstantiateMsg, ProposalListResponse,
-    ProposalResponse, QueryMsg,
+    ProposalResponse, QueryMsg, VoteInfo, VoteListResponse, VoteResponse,
 };
 use crate::state::{
     members, next_id, parse_id, Ballot, Dso, Proposal, ProposalContent, Votes, VotingRules, ADMIN,
@@ -572,11 +572,16 @@ pub fn query(deps: Deps, env: Env, msg: QueryMsg) -> StdResult<Binary> {
             start_before,
             limit,
         } => to_binary(&reverse_proposals(deps, env, start_before, limit)?),
-        QueryMsg::ListVotes {
+        QueryMsg::ListVotesByProposal {
             proposal_id,
             start_after,
             limit,
         } => to_binary(&list_votes(deps, proposal_id, start_after, limit)?),
+        QueryMsg::ListVotesByVoter {
+            voter: _,
+            start_after: _,
+            limit: _,
+        } => unimplemented!(),
     }
 }
 
@@ -768,6 +773,7 @@ fn query_vote(deps: Deps, proposal_id: u64, voter: String) -> StdResult<VoteResp
     let voter_addr = deps.api.addr_validate(&voter)?;
     let prop = BALLOTS.may_load(deps.storage, (proposal_id.into(), &voter_addr))?;
     let vote = prop.map(|b| VoteInfo {
+        proposal_id,
         voter,
         vote: b.vote,
         weight: b.weight,
@@ -792,6 +798,7 @@ fn list_votes(
         .map(|item| {
             let (voter, ballot) = item?;
             Ok(VoteInfo {
+                proposal_id,
                 voter: String::from_utf8(voter)?,
                 vote: ballot.vote,
                 weight: ballot.weight,

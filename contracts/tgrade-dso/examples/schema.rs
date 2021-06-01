@@ -3,11 +3,10 @@ use std::fs::create_dir_all;
 
 use cosmwasm_schema::{export_schema, export_schema_with_title, remove_schemas, schema_for};
 
-pub use cw3::{VoteListResponse, VoteResponse};
 pub use tg4::{AdminResponse, MemberListResponse, MemberResponse, TotalWeightResponse};
 pub use tgrade_dso::msg::{
     DsoResponse, EscrowResponse, ExecuteMsg, InstantiateMsg, ProposalListResponse,
-    ProposalResponse, QueryMsg,
+    ProposalResponse, QueryMsg, VoteListResponse, VoteResponse,
 };
 pub use tgrade_dso::state::ProposalContent;
 
