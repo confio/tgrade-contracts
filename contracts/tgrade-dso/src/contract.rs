@@ -1334,7 +1334,6 @@ mod tests {
             description: "Typo in one of those addresses...".to_string(),
             proposal: prop,
         };
-        let mut env = mock_env();
         env.block.height += 5;
         let res = execute(deps.as_mut(), env.clone(), mock_info(INIT_ADMIN, &[]), msg).unwrap();
         let proposal_id = parse_prop_id(&res.attributes);
@@ -1348,7 +1347,7 @@ mod tests {
         env.block.height += 1;
         execute(
             deps.as_mut(),
-            env.clone(),
+            env,
             mock_info(NONVOTING3, &[]),
             ExecuteMsg::Execute { proposal_id },
         )
