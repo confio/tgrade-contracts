@@ -1486,7 +1486,7 @@ mod tests {
         // execute it
         let res = execute(
             deps.as_mut(),
-            env.clone(),
+            env,
             mock_info(NONVOTING1, &[]),
             ExecuteMsg::Execute { proposal_id },
         )
