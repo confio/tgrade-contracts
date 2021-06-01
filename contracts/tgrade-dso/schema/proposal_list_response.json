@@ -211,9 +211,9 @@
           ]
         },
         "voting_period": {
-          "description": "Length of voting period in seconds",
+          "description": "Length of voting period in days",
           "type": "integer",
-          "format": "uint64",
+          "format": "uint32",
           "minimum": 0.0
         }
       }

@@ -24,8 +24,8 @@ pub struct Dso {
 
 #[derive(Serialize, Deserialize, Clone, PartialEq, Debug, JsonSchema)]
 pub struct VotingRules {
-    /// Length of voting period in seconds
-    pub voting_period: u64,
+    /// Length of voting period in days
+    pub voting_period: u32,
     /// quorum requirement (0.0-1.0)
     pub quorum: Decimal,
     /// threshold requirement (0.5-1.0)
@@ -37,7 +37,7 @@ pub struct VotingRules {
 impl VotingRules {
     pub fn apply_adjustments(&mut self, adjustments: VotingRulesAdjustments) {
         if let Some(voting_period) = adjustments.voting_period {
-            self.voting_period = voting_period as u64 * 86_400;
+            self.voting_period = voting_period;
         }
         if let Some(quorum) = adjustments.quorum {
             self.quorum = quorum;
@@ -48,6 +48,10 @@ impl VotingRules {
         if let Some(allow_end_early) = adjustments.allow_end_early {
             self.allow_end_early = allow_end_early;
         }
+    }
+
+    pub fn voting_period_sec(&self) -> u64 {
+        self.voting_period as u64 * 86_400
     }
 }
 

@@ -67,7 +67,7 @@ pub fn create(
     admin: Option<String>,
     name: String,
     escrow_amount: Uint128,
-    voting_period_days: u32,
+    voting_period: u32,
     quorum: Decimal,
     threshold: Decimal,
     allow_end_early: bool,
@@ -99,8 +99,7 @@ pub fn create(
             name,
             escrow_amount,
             rules: VotingRules {
-                // convert days to seconds
-                voting_period: voting_period_days as u64 * 86_400u64,
+                voting_period,
                 quorum,
                 threshold,
                 allow_end_early,
@@ -288,7 +287,7 @@ pub fn execute_propose(
         title,
         description,
         start_height: env.block.height,
-        expires: Expiration::AtTime(env.block.time.plus_seconds(dso.rules.voting_period)),
+        expires: Expiration::AtTime(env.block.time.plus_seconds(dso.rules.voting_period_sec())),
         proposal,
         status: Status::Open,
         votes: Votes::yes(vote_power),
@@ -1058,7 +1057,7 @@ mod tests {
             name: DSO_NAME.to_string(),
             escrow_amount: Uint128(ESCROW_FUNDS),
             rules: VotingRules {
-                voting_period: 14 * 86_400, // convert days to seconds
+                voting_period: 14, // days in all public interfaces
                 quorum: Decimal::percent(40),
                 threshold: Decimal::percent(60),
                 allow_end_early: true,
