@@ -20,7 +20,8 @@ use crate::msg::{
 };
 use crate::state::{
     members, next_id, parse_id, save_ballot, Ballot, Dso, Proposal, ProposalContent, Votes,
-    VotingRules, ADMIN, BALLOTS, BALLOTS_BY_VOTER, DSO, ESCROWS, PROPOSALS, TOTAL,
+    VotingRules, VotingRulesAdjustments, ADMIN, BALLOTS, BALLOTS_BY_VOTER, DSO, ESCROWS, PROPOSALS,
+    TOTAL,
 };
 
 // version info for migration info
@@ -443,6 +444,9 @@ pub fn proposal_execute(
         ProposalContent::AddRemoveNonVotingMembers { add, remove } => {
             proposal_add_remove_non_voting_members(deps, env, add, remove)
         }
+        ProposalContent::AdjustVotingRules(adjustments) => {
+            proposal_adjust_voting_rules(deps, env, adjustments)
+        }
     }
 }
 
@@ -460,6 +464,26 @@ pub fn proposal_add_remove_non_voting_members(
 
     // make the local update
     let _diff = add_remove_non_voting_members(deps, env.block.height, add, remove)?;
+    Ok(Response {
+        attributes,
+        ..Response::default()
+    })
+}
+
+pub fn proposal_adjust_voting_rules(
+    deps: DepsMut,
+    _env: Env,
+    adjustments: VotingRulesAdjustments,
+) -> Result<Response, ContractError> {
+    let mut attributes = adjustments.as_attributes();
+    attributes.push(attr("proposal", "adjust_voting_rules"));
+
+    DSO.update::<_, ContractError>(deps.storage, |mut dso| {
+        dso.rules.apply_adjustments(adjustments);
+        Ok(dso)
+    })?;
+
+    // make the local update
     Ok(Response {
         attributes,
         ..Response::default()

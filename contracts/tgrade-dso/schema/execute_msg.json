@@ -161,6 +161,10 @@
     }
   ],
   "definitions": {
+    "Decimal": {
+      "description": "A fixed-point decimal value with 18 fractional digits, i.e. Decimal(1_000_000_000_000_000_000) == 1.0\n\nThe greatest possible value that can be represented is 340282366920938463463.374607431768211455 (which is (2^128 - 1) / 10^18)",
+      "type": "string"
+    },
     "ProposalContent": {
       "anyOf": [
         {
@@ -193,6 +197,18 @@
             }
           },
           "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "required": [
+            "adjust_voting_rules"
+          ],
+          "properties": {
+            "adjust_voting_rules": {
+              "$ref": "#/definitions/VotingRulesAdjustments"
+            }
+          },
+          "additionalProperties": false
         }
       ]
     },
@@ -208,6 +224,49 @@
         "abstain",
         "veto"
       ]
+    },
+    "VotingRulesAdjustments": {
+      "type": "object",
+      "properties": {
+        "allow_end_early": {
+          "description": "If true, and absolute threshold and quorum are met, we can end before voting period finished",
+          "type": [
+            "boolean",
+            "null"
+          ]
+        },
+        "quorum": {
+          "description": "quorum requirement (0.0-1.0)",
+          "anyOf": [
+            {
+              "$ref": "#/definitions/Decimal"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "threshold": {
+          "description": "threshold requirement (0.5-1.0)",
+          "anyOf": [
+            {
+              "$ref": "#/definitions/Decimal"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "voting_period": {
+          "description": "Length of voting period in days",
+          "type": [
+            "integer",
+            "null"
+          ],
+          "format": "uint32",
+          "minimum": 0.0
+        }
+      }
     }
   }
 }
