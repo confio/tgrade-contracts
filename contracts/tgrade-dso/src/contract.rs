@@ -19,8 +19,8 @@ use crate::msg::{
     ProposalResponse, QueryMsg, VoteInfo, VoteListResponse, VoteResponse,
 };
 use crate::state::{
-    members, next_id, parse_id, Ballot, Dso, Proposal, ProposalContent, Votes, VotingRules, ADMIN,
-    BALLOTS, DSO, ESCROWS, PROPOSALS, TOTAL,
+    ballots, members, next_id, parse_id, Ballot, Dso, Proposal, ProposalContent, Votes,
+    VotingRules, ADMIN, DSO, ESCROWS, PROPOSALS, TOTAL,
 };
 
 // version info for migration info
@@ -304,7 +304,7 @@ pub fn execute_propose(
         weight: vote_power,
         vote: Vote::Yes,
     };
-    BALLOTS.save(deps.storage, (id.into(), &info.sender), &ballot)?;
+    ballots().save(deps.storage, (id.into(), &info.sender), &ballot)?;
 
     Ok(Response {
         attributes: vec![
@@ -343,7 +343,7 @@ pub fn execute_vote(
     }
 
     // cast vote if no vote previously cast
-    BALLOTS.update(
+    ballots().update(
         deps.storage,
         (proposal_id.into(), &info.sender),
         |bal| match bal {
@@ -576,12 +576,17 @@ pub fn query(deps: Deps, env: Env, msg: QueryMsg) -> StdResult<Binary> {
             proposal_id,
             start_after,
             limit,
-        } => to_binary(&list_votes(deps, proposal_id, start_after, limit)?),
+        } => to_binary(&list_votes_by_proposal(
+            deps,
+            proposal_id,
+            start_after,
+            limit,
+        )?),
         QueryMsg::ListVotesByVoter {
-            voter: _,
-            start_after: _,
-            limit: _,
-        } => unimplemented!(),
+            voter,
+            start_before,
+            limit,
+        } => to_binary(&list_votes_by_voter(deps, voter, start_before, limit)?),
     }
 }
 
@@ -771,7 +776,7 @@ fn map_proposal(
 
 fn query_vote(deps: Deps, proposal_id: u64, voter: String) -> StdResult<VoteResponse> {
     let voter_addr = deps.api.addr_validate(&voter)?;
-    let prop = BALLOTS.may_load(deps.storage, (proposal_id.into(), &voter_addr))?;
+    let prop = ballots().may_load(deps.storage, (proposal_id.into(), &voter_addr))?;
     let vote = prop.map(|b| VoteInfo {
         proposal_id,
         voter,
@@ -781,7 +786,7 @@ fn query_vote(deps: Deps, proposal_id: u64, voter: String) -> StdResult<VoteResp
     Ok(VoteResponse { vote })
 }
 
-fn list_votes(
+fn list_votes_by_proposal(
     deps: Deps,
     proposal_id: u64,
     start_after: Option<String>,
@@ -791,7 +796,7 @@ fn list_votes(
     let addr = maybe_addr(deps.api, start_after)?;
     let start = addr.map(|addr| Bound::exclusive(addr.as_ref()));
 
-    let votes: StdResult<Vec<_>> = BALLOTS
+    let votes: StdResult<Vec<_>> = ballots()
         .prefix(proposal_id.into())
         .range(deps.storage, start, None, Order::Ascending)
         .take(limit)
@@ -807,6 +812,35 @@ fn list_votes(
         .collect();
 
     Ok(VoteListResponse { votes: votes? })
+}
+
+fn list_votes_by_voter(
+    _deps: Deps,
+    _voter: String,
+    _start_before: Option<u64>,
+    _limit: Option<u32>,
+) -> StdResult<VoteListResponse> {
+    unimplemented!()
+    // let limit = limit.unwrap_or(DEFAULT_LIMIT).min(MAX_LIMIT) as usize;
+    // let addr = maybe_addr(deps.api, start_after)?;
+    // let start = addr.map(|addr| Bound::exclusive(addr.as_ref()));
+    //
+    // let votes: StdResult<Vec<_>> = ballots()
+    //     .prefix(proposal_id.into())
+    //     .range(deps.storage, start, None, Order::Ascending)
+    //     .take(limit)
+    //     .map(|item| {
+    //         let (voter, ballot) = item?;
+    //         Ok(VoteInfo {
+    //             proposal_id,
+    //             voter: String::from_utf8(voter)?,
+    //             vote: ballot.vote,
+    //             weight: ballot.weight,
+    //         })
+    //     })
+    //     .collect();
+    //
+    // Ok(VoteListResponse { votes: votes? })
 }
 
 #[cfg(test)]

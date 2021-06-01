@@ -107,10 +107,11 @@ pub enum QueryMsg {
         start_after: Option<String>,
         limit: Option<u32>,
     },
-    /// Returns VoteListResponse, paginate by proposal_id
+    /// Returns VoteListResponse, paginate by proposal_id.
+    /// Note this always returns most recent (highest proposal id to lowest)
     ListVotesByVoter {
         voter: String,
-        start_after: Option<u64>,
+        start_before: Option<u64>,
         limit: Option<u32>,
     },
 }
