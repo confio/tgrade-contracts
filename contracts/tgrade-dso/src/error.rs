@@ -35,4 +35,7 @@ pub enum ContractError {
 
     #[error("Trying to remove a voting member: {0}")]
     VotingMember(String),
+
+    #[error("TODO: remove when ready")]
+    Unimplemented {},
 }

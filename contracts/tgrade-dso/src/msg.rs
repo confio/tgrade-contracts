@@ -1,8 +1,9 @@
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
-use crate::state::VotingRules;
+use crate::state::{ProposalContent, VotingRules};
 use cosmwasm_std::{Decimal, Uint128};
+use cw3::Vote;
 
 #[derive(Serialize, Deserialize, Clone, PartialEq, JsonSchema, Debug)]
 #[serde(rename_all = "snake_case")]
@@ -34,15 +35,24 @@ pub enum ExecuteMsg {
     AddVotingMembers {
         voters: Vec<String>,
     },
-    /// Apply a diff to the existing non-voting members.
-    /// Remove is applied after add, so if an address is in both, it is removed
-    AddRemoveNonVotingMembers {
-        remove: Vec<String>,
-        add: Vec<String>,
-    },
     DepositEscrow {},
     ReturnEscrow {
         amount: Option<Uint128>,
+    },
+    Propose {
+        title: String,
+        description: String,
+        proposal: ProposalContent,
+    },
+    Vote {
+        proposal_id: u64,
+        vote: Vote,
+    },
+    Execute {
+        proposal_id: u64,
+    },
+    Close {
+        proposal_id: u64,
     },
 }
 

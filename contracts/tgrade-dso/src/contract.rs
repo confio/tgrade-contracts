@@ -143,11 +143,12 @@ pub fn execute(
         ExecuteMsg::AddVotingMembers { voters } => {
             execute_add_voting_members(deps, env, info, voters)
         }
-        ExecuteMsg::AddRemoveNonVotingMembers { add, remove } => {
-            execute_add_remove_non_voting_members(deps, env, info, add, remove)
-        }
+        // ExecuteMsg::AddRemoveNonVotingMembers { add, remove } => {
+        //     execute_add_remove_non_voting_members(deps, env, info, add, remove)
+        // }
         ExecuteMsg::DepositEscrow {} => execute_deposit_escrow(deps, &env, info),
         ExecuteMsg::ReturnEscrow { amount } => execute_return_escrow(deps, info, amount),
+        _ => Err(ContractError::Unimplemented {}),
     }
 }
 
