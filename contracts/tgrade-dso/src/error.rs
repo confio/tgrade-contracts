@@ -36,6 +36,24 @@ pub enum ContractError {
     #[error("Trying to remove a voting member: {0}")]
     VotingMember(String),
 
+    #[error("Proposal is not open")]
+    NotOpen {},
+
+    #[error("Proposal voting period has expired")]
+    Expired {},
+
+    #[error("Proposal must expire before you can close it")]
+    NotExpired {},
+
+    #[error("Already voted on this proposal")]
+    AlreadyVoted {},
+
+    #[error("Proposal must have passed and not yet been executed")]
+    WrongExecuteStatus {},
+
+    #[error("Cannot close completed or passed proposals")]
+    WrongCloseStatus {},
+
     #[error("TODO: remove when ready")]
     Unimplemented {},
 }

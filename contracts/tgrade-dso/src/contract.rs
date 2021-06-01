@@ -4,7 +4,7 @@ use cosmwasm_std::{
     attr, coin, to_binary, Addr, BankMsg, Binary, CosmosMsg, Decimal, Deps, DepsMut, Env,
     MessageInfo, Order, Response, StdResult, Uint128,
 };
-use cw0::maybe_addr;
+use cw0::{maybe_addr, Expiration};
 use cw2::set_contract_version;
 use cw_storage_plus::{Bound, PrimaryKey, U64Key};
 use tg4::{
@@ -14,7 +14,11 @@ use tg4::{
 
 use crate::error::ContractError;
 use crate::msg::{DsoResponse, EscrowResponse, ExecuteMsg, InstantiateMsg, QueryMsg};
-use crate::state::{members, Dso, VotingRules, ADMIN, DSO, ESCROWS, TOTAL};
+use crate::state::{
+    members, next_id, Ballot, Dso, Proposal, ProposalContent, Votes, VotingRules, ADMIN, BALLOTS,
+    DSO, ESCROWS, PROPOSALS, TOTAL,
+};
+use cw3::{Status, Vote};
 
 // version info for migration info
 const CONTRACT_NAME: &str = "crates.io:tgrade-dso";
@@ -59,7 +63,7 @@ pub fn create(
     admin: Option<String>,
     name: String,
     escrow_amount: Uint128,
-    voting_period: u32,
+    voting_period_days: u32,
     quorum: Decimal,
     threshold: Decimal,
     always_full_voting_period: bool,
@@ -91,7 +95,8 @@ pub fn create(
             name,
             escrow_amount,
             rules: VotingRules {
-                voting_period,
+                // convert days to seconds
+                voting_period: voting_period_days as u64 * 86_400u64,
                 quorum,
                 threshold,
                 allow_end_early: !always_full_voting_period,
@@ -100,7 +105,7 @@ pub fn create(
     )?;
 
     // add all members
-    execute_add_remove_non_voting_members(deps, env, info, initial_members, vec![])?;
+    add_remove_non_voting_members(deps, env.block.height, initial_members, vec![])?;
 
     Ok(())
 }
@@ -143,38 +148,17 @@ pub fn execute(
         ExecuteMsg::AddVotingMembers { voters } => {
             execute_add_voting_members(deps, env, info, voters)
         }
-        // ExecuteMsg::AddRemoveNonVotingMembers { add, remove } => {
-        //     execute_add_remove_non_voting_members(deps, env, info, add, remove)
-        // }
         ExecuteMsg::DepositEscrow {} => execute_deposit_escrow(deps, &env, info),
         ExecuteMsg::ReturnEscrow { amount } => execute_return_escrow(deps, info, amount),
-        _ => Err(ContractError::Unimplemented {}),
+        ExecuteMsg::Propose {
+            title,
+            description,
+            proposal,
+        } => execute_propose(deps, env, info, title, description, proposal),
+        ExecuteMsg::Vote { proposal_id, vote } => execute_vote(deps, env, info, proposal_id, vote),
+        ExecuteMsg::Execute { proposal_id } => execute_execute(deps, env, info, proposal_id),
+        ExecuteMsg::Close { proposal_id } => execute_close(deps, env, info, proposal_id),
     }
-}
-
-pub fn execute_add_remove_non_voting_members(
-    mut deps: DepsMut,
-    env: Env,
-    info: MessageInfo,
-    add: Vec<String>,
-    remove: Vec<String>,
-) -> Result<Response, ContractError> {
-    let attributes = vec![
-        attr("action", "add_remove_non_voting_members"),
-        attr("added", add.len()),
-        attr("removed", remove.len()),
-        attr("sender", &info.sender),
-    ];
-
-    // make the local update
-    let _diff =
-        add_remove_non_voting_members(deps.branch(), env.block.height, info.sender, add, remove)?;
-    Ok(Response {
-        submessages: vec![],
-        messages: vec![],
-        attributes,
-        data: None,
-    })
 }
 
 pub fn execute_add_voting_members(
@@ -278,6 +262,208 @@ pub fn execute_return_escrow(
     })
 }
 
+pub fn execute_propose(
+    deps: DepsMut,
+    env: Env,
+    info: MessageInfo,
+    title: String,
+    description: String,
+    proposal: ProposalContent,
+) -> Result<Response, ContractError> {
+    let dso = DSO.load(deps.storage)?;
+
+    // only voting members  can create a proposal
+    let vote_power = members()
+        .may_load(deps.storage, &info.sender)?
+        .unwrap_or_default();
+    if vote_power == 0 {
+        return Err(ContractError::Unauthorized {});
+    }
+
+    // create a proposal
+    let mut prop = Proposal {
+        title,
+        description,
+        start_height: env.block.height,
+        expires: Expiration::AtTime(env.block.time.plus_seconds(dso.rules.voting_period)),
+        proposal,
+        status: Status::Open,
+        votes: Votes::new(vote_power),
+        total_weight: TOTAL.load(deps.storage)?,
+        rules: dso.rules,
+    };
+    prop.update_status(&env.block);
+    let id = next_id(deps.storage)?;
+    PROPOSALS.save(deps.storage, id.into(), &prop)?;
+
+    // add the first yes vote from voter
+    let ballot = Ballot {
+        weight: vote_power,
+        vote: Vote::Yes,
+    };
+    BALLOTS.save(deps.storage, (id.into(), &info.sender), &ballot)?;
+
+    Ok(Response {
+        attributes: vec![
+            attr("action", "propose"),
+            attr("sender", info.sender),
+            attr("proposal_id", id),
+            attr("status", format!("{:?}", prop.status)),
+        ],
+        ..Response::default()
+    })
+}
+
+pub fn execute_vote(
+    deps: DepsMut,
+    env: Env,
+    info: MessageInfo,
+    proposal_id: u64,
+    vote: Vote,
+) -> Result<Response, ContractError> {
+    // ensure proposal exists and can be voted on
+    let mut prop = PROPOSALS.load(deps.storage, proposal_id.into())?;
+    if prop.status != Status::Open {
+        return Err(ContractError::NotOpen {});
+    }
+    if prop.expires.is_expired(&env.block) {
+        return Err(ContractError::Expired {});
+    }
+
+    // only members of the multisig can vote
+    // use a snapshot of "start of proposal"
+    let vote_power = members()
+        .may_load_at_height(deps.storage, &info.sender, prop.start_height)?
+        .unwrap_or_default();
+    if vote_power == 0 {
+        return Err(ContractError::Unauthorized {});
+    }
+
+    // cast vote if no vote previously cast
+    BALLOTS.update(
+        deps.storage,
+        (proposal_id.into(), &info.sender),
+        |bal| match bal {
+            Some(_) => Err(ContractError::AlreadyVoted {}),
+            None => Ok(Ballot {
+                weight: vote_power,
+                vote,
+            }),
+        },
+    )?;
+
+    // update vote tally
+    prop.votes.add_vote(vote, vote_power);
+    prop.update_status(&env.block);
+    PROPOSALS.save(deps.storage, proposal_id.into(), &prop)?;
+
+    Ok(Response {
+        attributes: vec![
+            attr("action", "vote"),
+            attr("sender", info.sender),
+            attr("proposal_id", proposal_id),
+            attr("status", format!("{:?}", prop.status)),
+        ],
+        ..Response::default()
+    })
+}
+
+pub fn execute_execute(
+    mut deps: DepsMut,
+    env: Env,
+    info: MessageInfo,
+    proposal_id: u64,
+) -> Result<Response, ContractError> {
+    // anyone can trigger this if the vote passed
+
+    let mut prop = PROPOSALS.load(deps.storage, proposal_id.into())?;
+    // we allow execution even after the proposal "expiration" as long as all vote come in before
+    // that point. If it was approved on time, it can be executed any time.
+    if prop.status != Status::Passed {
+        return Err(ContractError::WrongExecuteStatus {});
+    }
+
+    // set it to executed
+    prop.status = Status::Executed;
+    PROPOSALS.save(deps.storage, proposal_id.into(), &prop)?;
+
+    // execute the proposal
+    // TODO: better handling of return value??
+    let mut res = proposal_execute(deps.branch(), env, prop.proposal)?;
+
+    res.attributes.extend(vec![
+        attr("action", "execute"),
+        attr("sender", info.sender),
+        attr("proposal_id", proposal_id),
+    ]);
+    Ok(res)
+}
+
+pub fn execute_close(
+    deps: DepsMut,
+    env: Env,
+    info: MessageInfo,
+    proposal_id: u64,
+) -> Result<Response, ContractError> {
+    // anyone can trigger this if the vote passed
+
+    let mut prop = PROPOSALS.load(deps.storage, proposal_id.into())?;
+    if [Status::Executed, Status::Rejected, Status::Passed]
+        .iter()
+        .any(|x| *x == prop.status)
+    {
+        return Err(ContractError::WrongCloseStatus {});
+    }
+    if !prop.expires.is_expired(&env.block) {
+        return Err(ContractError::NotExpired {});
+    }
+
+    // set it to failed
+    prop.status = Status::Rejected;
+    PROPOSALS.save(deps.storage, proposal_id.into(), &prop)?;
+
+    Ok(Response {
+        attributes: vec![
+            attr("action", "close"),
+            attr("sender", info.sender),
+            attr("proposal_id", proposal_id),
+        ],
+        ..Response::default()
+    })
+}
+
+pub fn proposal_execute(
+    deps: DepsMut,
+    env: Env,
+    proposal: ProposalContent,
+) -> Result<Response, ContractError> {
+    match proposal {
+        ProposalContent::AddRemoveNonVotingMembers { add, remove } => {
+            proposal_add_remove_non_voting_members(deps, env, add, remove)
+        }
+    }
+}
+
+pub fn proposal_add_remove_non_voting_members(
+    deps: DepsMut,
+    env: Env,
+    add: Vec<String>,
+    remove: Vec<String>,
+) -> Result<Response, ContractError> {
+    let attributes = vec![
+        attr("proposal", "add_remove_non_voting_members"),
+        attr("added", add.len()),
+        attr("removed", remove.len()),
+    ];
+
+    // make the local update
+    let _diff = add_remove_non_voting_members(deps, env.block.height, add, remove)?;
+    Ok(Response {
+        attributes,
+        ..Response::default()
+    })
+}
+
 fn send_tokens(to: &Addr, amount: &Uint128) -> Vec<CosmosMsg> {
     if amount.is_zero() {
         vec![]
@@ -320,13 +506,9 @@ pub fn add_voting_members(
 pub fn add_remove_non_voting_members(
     deps: DepsMut,
     height: u64,
-    sender: Addr,
     to_add: Vec<String>,
     to_remove: Vec<String>,
 ) -> Result<MemberChangedHookMsg, ContractError> {
-    // TODO: Implement auth via voting
-    ADMIN.assert_admin(deps.as_ref(), &sender)?;
-
     let mut diffs: Vec<MemberDiff> = vec![];
 
     // Add all new non-voting members
@@ -696,7 +878,7 @@ mod tests {
             name: DSO_NAME.to_string(),
             escrow_amount: Uint128(ESCROW_FUNDS),
             rules: VotingRules {
-                voting_period: 14,
+                voting_period: 14 * 86_400, // convert days to seconds
                 quorum: Decimal::percent(40),
                 threshold: Decimal::percent(60),
                 allow_end_early: true,
@@ -973,28 +1155,10 @@ mod tests {
         // Add non-voting members
         let add = vec![NONVOTING1.into(), NONVOTING2.into()];
         let remove = vec![];
-
-        // Non-admin cannot update
         let height = mock_env().block.height;
-        let err = add_remove_non_voting_members(
-            deps.as_mut(),
-            height + 5,
-            Addr::unchecked(VOTING1),
-            add.clone(),
-            remove.clone(),
-        )
-        .unwrap_err();
-        assert_eq!(err, AdminError::NotAdmin {}.into());
 
         // Admin updates properly
-        add_remove_non_voting_members(
-            deps.as_mut(),
-            height + 10,
-            Addr::unchecked(INIT_ADMIN),
-            add,
-            remove,
-        )
-        .unwrap();
+        add_remove_non_voting_members(deps.as_mut(), height + 10, add, remove).unwrap();
 
         // assert the non-voting set is updated
         assert_nonvoting(&deps, Some(0), Some(0), None, None);
@@ -1003,14 +1167,7 @@ mod tests {
         let add = vec![NONVOTING3.into()];
         let remove = vec![NONVOTING2.into()];
 
-        add_remove_non_voting_members(
-            deps.as_mut(),
-            height + 11,
-            Addr::unchecked(INIT_ADMIN),
-            add,
-            remove,
-        )
-        .unwrap();
+        add_remove_non_voting_members(deps.as_mut(), height + 11, add, remove).unwrap();
 
         // assert the non-voting set is updated
         assert_nonvoting(&deps, Some(0), None, Some(0), None);

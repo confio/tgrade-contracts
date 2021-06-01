@@ -65,7 +65,7 @@
         "voting_period": {
           "description": "Length of voting period in seconds",
           "type": "integer",
-          "format": "uint32",
+          "format": "uint64",
           "minimum": 0.0
         }
       }

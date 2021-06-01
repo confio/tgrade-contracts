@@ -23,7 +23,7 @@ pub struct Dso {
 #[derive(Serialize, Deserialize, Clone, PartialEq, Debug, JsonSchema)]
 pub struct VotingRules {
     /// Length of voting period in seconds
-    pub voting_period: u32,
+    pub voting_period: u64,
     /// quorum requirement (0.0-1.0)
     pub quorum: Decimal,
     /// threshold requirement (0.5-1.0)
