@@ -833,7 +833,7 @@ fn list_votes_by_voter(
         .take(limit)
         .map(|item| {
             let (key, ballot) = item?;
-            let proposal_id: u64 = match key[0..18].try_into() {
+            let proposal_id: u64 = match key[0..8].try_into() {
                 Ok(bytes) => Ok(u64::from_be_bytes(bytes)),
                 Err(_) => Err(StdError::generic_err("Corrupted db key")),
             }?;
@@ -1400,6 +1400,42 @@ mod tests {
         )
         .unwrap();
         assert_nonvoting(&deps, Some(0), None, Some(0), None);
+
+        // list votes by proposal
+        let prop_2_votes = list_votes_by_proposal(deps.as_ref(), proposal_id, None, None).unwrap();
+        assert_eq!(prop_2_votes.votes.len(), 1);
+        assert_eq!(
+            &prop_2_votes.votes[0],
+            &VoteInfo {
+                voter: INIT_ADMIN.to_string(),
+                vote: Vote::Yes,
+                proposal_id,
+                weight: 1
+            }
+        );
+
+        // list votes by user
+        let admin_votes =
+            list_votes_by_voter(deps.as_ref(), INIT_ADMIN.into(), None, None).unwrap();
+        assert_eq!(admin_votes.votes.len(), 2);
+        assert_eq!(
+            &admin_votes.votes[0],
+            &VoteInfo {
+                voter: INIT_ADMIN.to_string(),
+                vote: Vote::Yes,
+                proposal_id,
+                weight: 1
+            }
+        );
+        assert_eq!(
+            &admin_votes.votes[1],
+            &VoteInfo {
+                voter: INIT_ADMIN.to_string(),
+                vote: Vote::Yes,
+                proposal_id: proposal_id - 1,
+                weight: 1
+            }
+        );
     }
 
     #[test]
