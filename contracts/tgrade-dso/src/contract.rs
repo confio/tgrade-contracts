@@ -19,8 +19,8 @@ use crate::msg::{
     ProposalResponse, QueryMsg, VoteInfo, VoteListResponse, VoteResponse,
 };
 use crate::state::{
-    ballots, members, next_id, parse_id, Ballot, Dso, Proposal, ProposalContent, Votes,
-    VotingRules, ADMIN, DSO, ESCROWS, PROPOSALS, TOTAL,
+    members, next_id, parse_id, Ballot, Dso, Proposal, ProposalContent, Votes, VotingRules, ADMIN,
+    BALLOTS, DSO, ESCROWS, PROPOSALS, TOTAL,
 };
 
 // version info for migration info
@@ -304,7 +304,7 @@ pub fn execute_propose(
         weight: vote_power,
         vote: Vote::Yes,
     };
-    ballots().save(deps.storage, (id.into(), &info.sender), &ballot)?;
+    BALLOTS.save(deps.storage, (id.into(), &info.sender), &ballot)?;
 
     Ok(Response {
         attributes: vec![
@@ -343,7 +343,7 @@ pub fn execute_vote(
     }
 
     // cast vote if no vote previously cast
-    ballots().update(
+    BALLOTS.update(
         deps.storage,
         (proposal_id.into(), &info.sender),
         |bal| match bal {
@@ -776,7 +776,7 @@ fn map_proposal(
 
 fn query_vote(deps: Deps, proposal_id: u64, voter: String) -> StdResult<VoteResponse> {
     let voter_addr = deps.api.addr_validate(&voter)?;
-    let prop = ballots().may_load(deps.storage, (proposal_id.into(), &voter_addr))?;
+    let prop = BALLOTS.may_load(deps.storage, (proposal_id.into(), &voter_addr))?;
     let vote = prop.map(|b| VoteInfo {
         proposal_id,
         voter,
@@ -796,7 +796,7 @@ fn list_votes_by_proposal(
     let addr = maybe_addr(deps.api, start_after)?;
     let start = addr.map(|addr| Bound::exclusive(addr.as_ref()));
 
-    let votes: StdResult<Vec<_>> = ballots()
+    let votes: StdResult<Vec<_>> = BALLOTS
         .prefix(proposal_id.into())
         .range(deps.storage, start, None, Order::Ascending)
         .take(limit)
@@ -825,7 +825,7 @@ fn list_votes_by_voter(
     // let addr = maybe_addr(deps.api, start_after)?;
     // let start = addr.map(|addr| Bound::exclusive(addr.as_ref()));
     //
-    // let votes: StdResult<Vec<_>> = ballots()
+    // let votes: StdResult<Vec<_>> = BALLOTS
     //     .prefix(proposal_id.into())
     //     .range(deps.storage, start, None, Order::Ascending)
     //     .take(limit)

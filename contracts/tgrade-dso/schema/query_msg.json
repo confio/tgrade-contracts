@@ -328,7 +328,7 @@
       "additionalProperties": false
     },
     {
-      "description": "Returns VoteListResponse, paginate by proposal_id",
+      "description": "Returns VoteListResponse, paginate by proposal_id. Note this always returns most recent (highest proposal id to lowest)",
       "type": "object",
       "required": [
         "list_votes_by_voter"
@@ -348,7 +348,7 @@
               "format": "uint32",
               "minimum": 0.0
             },
-            "start_after": {
+            "start_before": {
               "type": [
                 "integer",
                 "null"

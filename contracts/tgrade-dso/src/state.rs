@@ -6,7 +6,7 @@ use cw0::Expiration;
 use cw3::{Status, Vote};
 use cw_controllers::Admin;
 use cw_storage_plus::{
-    Index, IndexList, IndexedMap, IndexedSnapshotMap, Item, Map, MultiIndex, Strategy, U64Key,
+    Index, IndexList, IndexedSnapshotMap, Item, Map, MultiIndex, Strategy, U64Key,
 };
 use std::convert::TryInto;
 use tg4::TOTAL_KEY;
@@ -221,6 +221,7 @@ pub struct Ballot {
 pub const PROPOSAL_COUNT: Item<u64> = Item::new("proposal_count");
 
 // multiple-item map
+pub const BALLOTS: Map<(U64Key, &Addr), Ballot> = Map::new("votes");
 pub const PROPOSALS: Map<U64Key, Proposal> = Map::new("proposals");
 
 pub fn next_id(store: &mut dyn Storage) -> StdResult<u64> {
@@ -236,41 +237,6 @@ pub fn parse_id(data: &[u8]) -> StdResult<u64> {
             "Corrupted data found. 8 byte expected.",
         )),
     }
-}
-
-pub struct BallotIndexes<'a> {
-    // pk goes to second tuple element
-    // first element is voter address as string
-    pub proposal: MultiIndex<'a, (String, Vec<u8>), Ballot>,
-}
-
-impl<'a> IndexList<Ballot> for BallotIndexes<'a> {
-    fn get_indexes(&'_ self) -> Box<dyn Iterator<Item = &'_ dyn Index<Ballot>> + '_> {
-        let v: Vec<&dyn Index<Ballot>> = vec![&self.proposal];
-        Box::new(v.into_iter())
-    }
-}
-
-// pub const BALLOTS: Map<(U64Key, &Addr), Ballot> = Map::new("votes");
-pub fn ballots<'a>() -> IndexedMap<'a, (U64Key, &'a Addr), Ballot, BallotIndexes<'a>> {
-    let indexes = BallotIndexes {
-        proposal: MultiIndex::new(
-            // pull out the voter address from the primary key
-            |_ballot, k| {
-                // beginning of pk is length-prefixed U64Key
-                assert_eq!(k[0], 0);
-                assert_eq!(k[1], 8);
-                // 2-10 = proposal_id
-                // followed by non-length-prefixed voter address
-                let voter = String::from_utf8(k[10..].to_vec()).unwrap();
-                // let voter = unsafe { String::from_utf8_unchecked(k[10..].to_vec()) };
-                (voter, k)
-            },
-            "votes",
-            "votes__proposal",
-        ),
-    };
-    IndexedMap::new("votes", indexes)
 }
 
 #[cfg(test)]
