@@ -1,3 +1,4 @@
+use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
 use cosmwasm_std::{Addr, Decimal, Uint128};
@@ -13,9 +14,19 @@ pub const ADMIN: Admin = Admin::new("admin");
 pub struct Dso {
     pub name: String,
     pub escrow_amount: Uint128,
+    pub rules: VotingRules,
+}
+
+#[derive(Serialize, Deserialize, Clone, PartialEq, Debug, JsonSchema)]
+pub struct VotingRules {
+    /// Length of voting period in seconds
     pub voting_period: u32,
+    /// quorum requirement (0.0-1.0)
     pub quorum: Decimal,
+    /// threshold requirement (0.5-1.0)
     pub threshold: Decimal,
+    /// If true, and absolute threshold and quorum are met, we can end before voting period finished
+    pub allow_end_early: bool,
 }
 
 pub const DSO: Item<Dso> = Item::new("dso");

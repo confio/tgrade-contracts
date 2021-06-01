@@ -14,7 +14,7 @@ use tg4::{
 
 use crate::error::ContractError;
 use crate::msg::{DsoResponse, EscrowResponse, ExecuteMsg, InstantiateMsg, QueryMsg};
-use crate::state::{members, Dso, ADMIN, DSO, ESCROWS, TOTAL};
+use crate::state::{members, Dso, VotingRules, ADMIN, DSO, ESCROWS, TOTAL};
 
 // version info for migration info
 const CONTRACT_NAME: &str = "crates.io:tgrade-dso";
@@ -43,6 +43,7 @@ pub fn instantiate(
         msg.voting_period,
         msg.quorum,
         msg.threshold,
+        msg.always_full_voting_period.unwrap_or(false),
         msg.initial_members,
     )?;
     Ok(Response::default())
@@ -61,6 +62,7 @@ pub fn create(
     voting_period: u32,
     quorum: Decimal,
     threshold: Decimal,
+    always_full_voting_period: bool,
     initial_members: Vec<String>,
 ) -> Result<(), ContractError> {
     validate(&name, escrow_amount, quorum, threshold)?;
@@ -88,9 +90,12 @@ pub fn create(
         &Dso {
             name,
             escrow_amount,
-            voting_period,
-            quorum,
-            threshold,
+            rules: VotingRules {
+                voting_period,
+                quorum,
+                threshold,
+                allow_end_early: !always_full_voting_period,
+            },
         },
     )?;
 
@@ -384,16 +389,12 @@ fn query_dso(deps: Deps) -> StdResult<DsoResponse> {
     let Dso {
         name,
         escrow_amount,
-        voting_period,
-        quorum,
-        threshold,
+        rules,
     } = DSO.load(deps.storage)?;
     Ok(DsoResponse {
         name,
         escrow_amount,
-        voting_period,
-        quorum,
-        threshold,
+        rules,
     })
 }
 
@@ -535,6 +536,7 @@ mod tests {
             voting_period: 14,
             quorum: Decimal::percent(40),
             threshold: Decimal::percent(60),
+            always_full_voting_period: None,
             initial_members,
         };
         instantiate(deps, mock_env(), info, msg)
@@ -692,9 +694,12 @@ mod tests {
         let expected = DsoResponse {
             name: DSO_NAME.to_string(),
             escrow_amount: Uint128(ESCROW_FUNDS),
-            voting_period: 14,
-            quorum: Decimal::percent(40),
-            threshold: Decimal::percent(60),
+            rules: VotingRules {
+                voting_period: 14,
+                quorum: Decimal::percent(40),
+                threshold: Decimal::percent(60),
+                allow_end_early: true,
+            },
         };
         let dso = query_dso(deps.as_ref()).unwrap();
         assert_eq!(dso, expected);

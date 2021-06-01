@@ -1,6 +1,7 @@
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
+use crate::state::VotingRules;
 use cosmwasm_std::{Decimal, Uint128};
 
 #[derive(Serialize, Deserialize, Clone, PartialEq, JsonSchema, Debug)]
@@ -21,6 +22,8 @@ pub struct InstantiateMsg {
     pub quorum: Decimal,
     /// Default voting threshold percentage (0-100)
     pub threshold: Decimal,
+    /// Prohibit ending proposal voting early even if absolute threshold is met
+    pub always_full_voting_period: Option<bool>,
     /// List of non-voting members to be added to the DSO upon creation
     pub initial_members: Vec<String>,
 }
@@ -88,11 +91,5 @@ pub struct DsoResponse {
     pub name: String,
     /// The required escrow amount, in the default denom (utgd)
     pub escrow_amount: Uint128,
-    /// Voting period in days
-    //FIXME?: Change to Duration
-    pub voting_period: u32,
-    /// Default voting quorum percentage (0-100)
-    pub quorum: Decimal,
-    /// Default voting threshold percentage (0-100)
-    pub threshold: Decimal,
+    pub rules: VotingRules,
 }

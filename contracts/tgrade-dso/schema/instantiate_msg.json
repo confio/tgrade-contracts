@@ -18,6 +18,13 @@
         "null"
       ]
     },
+    "always_full_voting_period": {
+      "description": "Prohibit ending proposal voting early even if absolute threshold is met",
+      "type": [
+        "boolean",
+        "null"
+      ]
+    },
     "escrow_amount": {
       "description": "The required escrow amount, in the default denom (utgd)",
       "allOf": [
