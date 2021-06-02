@@ -111,5 +111,16 @@ meaning they will become a full voter once they have paid all escrow dues.
 
 ### Escrow Increased
 
-If the escrow is increased, many Voters may no longer have the minimum escrow. We hande this with a grace period to allow
-them to top-up before enforcing the new escrow. (TODO: how to model this?)
+If the escrow is increased, many Voters may no longer have the minimum escrow. We handle this with a grace period to allow
+them to top-up before enforcing the new escrow. Rather than add more states to capture *Voters* or *Pending, Paid Voters*
+who have paid the old escrow but not the new one, we will model it by a delay on the escrow.
+
+We have `required_escrow` and `pending_escrow`, which is an `Option` with a deadline and an amount. When setting a new
+escrow, the `pending_escrow` is set. We do not allow multiple pending escrows at once. The *CheckPending* trigger
+will be extended to check and apply a new escrow (and this is also automatically called upon proposal creation).
+In such a case, we will move `pending_escrow` to `required_escrow` and mark `pending_escrow` as `None`. We will also
+iterate over all *Voters* and demote those with insufficient escrow to *Pending Voters*.
+
+Since the "grace period" for *Batches* and the "grace period" to enable new escrow are the same, we don't add lots of
+special logic to handle *Paid, Pending Voters*. Rather they will use the `pending_escrow` if set when paying into their
+escrow. To avoid race conditions, we will *CheckPending* to upgrade to *Voters* before doing the escrow check.
