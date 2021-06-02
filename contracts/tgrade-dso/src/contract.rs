@@ -1623,5 +1623,17 @@ mod tests {
 
         let voting = list_voting_members(deps.as_ref(), None, None).unwrap();
         assert_eq!(voting.members.len(), 1);
+
+        let err = execute(
+            deps.as_mut(),
+            mock_env(),
+            mock_info(INIT_ADMIN, &[]),
+            ExecuteMsg::LeaveDso {},
+        )
+        .unwrap_err();
+        assert!(matches!(err, ContractError::VotingMember(_)));
+
+        let voting = list_voting_members(deps.as_ref(), None, None).unwrap();
+        assert_eq!(voting.members.len(), 1);
     }
 }
