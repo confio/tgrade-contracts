@@ -725,6 +725,7 @@ fn list_voting_members(
     let members: StdResult<Vec<_>> = members()
         .idx
         .weight
+        // Note: if we allow members to have a weight > 1, we must adjust, until then, this works well
         .prefix(U64Key::from(1))
         .range(deps.storage, start, None, Order::Ascending)
         .take(limit)
@@ -966,10 +967,22 @@ mod tests {
                 voting3_weight,
             ];
             let sum: u64 = weights.iter().map(|x| x.unwrap_or_default()).sum();
-            let count = weights.iter().filter(|x| x.is_some()).count();
 
+            let total_count = weights.iter().filter(|x| x.is_some()).count();
             let members = list_members(deps.as_ref(), None, None).unwrap().members;
-            assert_eq!(count, members.len());
+            assert_eq!(total_count, members.len());
+
+            let voting_count = weights.iter().filter(|x| x == &&Some(1)).count();
+            let voting = list_voting_members(deps.as_ref(), None, None)
+                .unwrap()
+                .members;
+            assert_eq!(voting_count, voting.len());
+
+            let non_voting_count = weights.iter().filter(|x| x == &&Some(0)).count();
+            let non_voting = list_non_voting_members(deps.as_ref(), None, None)
+                .unwrap()
+                .members;
+            assert_eq!(non_voting_count, non_voting.len());
 
             let total = query_total_weight(deps.as_ref()).unwrap();
             assert_eq!(sum, total.weight);
