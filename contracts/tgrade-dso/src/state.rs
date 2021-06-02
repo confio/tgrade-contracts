@@ -130,7 +130,7 @@ impl Votes {
     }
 
     /// create it with a yes vote for this much
-    pub fn new(init_weight: u64) -> Self {
+    pub fn yes(init_weight: u64) -> Self {
         Votes {
             yes: init_weight,
             no: 0,
@@ -222,8 +222,18 @@ pub const PROPOSAL_COUNT: Item<u64> = Item::new("proposal_count");
 
 // multiple-item map
 pub const BALLOTS: Map<(U64Key, &Addr), Ballot> = Map::new("votes");
-pub const BALLOTS_BY_VOTER: Map<(&Addr, U64Key), Ballot> = Map::new("votes");
+pub const BALLOTS_BY_VOTER: Map<(&Addr, U64Key), Ballot> = Map::new("votes_by_voter");
 pub const PROPOSALS: Map<U64Key, Proposal> = Map::new("proposals");
+
+pub fn save_ballot(
+    storage: &mut dyn Storage,
+    proposal_id: u64,
+    sender: &Addr,
+    ballot: &Ballot,
+) -> StdResult<()> {
+    BALLOTS.save(storage, (proposal_id.into(), sender), ballot)?;
+    BALLOTS_BY_VOTER.save(storage, (sender, proposal_id.into()), ballot)
+}
 
 pub fn next_id(store: &mut dyn Storage) -> StdResult<u64> {
     let id: u64 = PROPOSAL_COUNT.may_load(store)?.unwrap_or_default() + 1;
@@ -247,7 +257,7 @@ mod test {
 
     #[test]
     fn count_votes() {
-        let mut votes = Votes::new(5);
+        let mut votes = Votes::yes(5);
         votes.add_vote(Vote::No, 10);
         votes.add_vote(Vote::Veto, 20);
         votes.add_vote(Vote::Yes, 30);

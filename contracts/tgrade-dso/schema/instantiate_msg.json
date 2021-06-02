@@ -19,7 +19,7 @@
       ]
     },
     "always_full_voting_period": {
-      "description": "Prohibit ending proposal voting early even if absolute threshold is met",
+      "description": "Prohibit ending proposal voting early even if absolute threshold is met.",
       "type": [
         "boolean",
         "null"

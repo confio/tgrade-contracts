@@ -2,7 +2,7 @@
 use cosmwasm_std::entry_point;
 use cosmwasm_std::{
     attr, coin, to_binary, Addr, BankMsg, Binary, BlockInfo, CosmosMsg, Decimal, Deps, DepsMut,
-    Env, MessageInfo, Order, Response, StdError, StdResult, Uint128,
+    Env, MessageInfo, Order, Response, StdResult, Uint128,
 };
 use cw0::{maybe_addr, Expiration};
 use cw2::set_contract_version;
@@ -19,10 +19,9 @@ use crate::msg::{
     ProposalResponse, QueryMsg, VoteInfo, VoteListResponse, VoteResponse,
 };
 use crate::state::{
-    members, next_id, parse_id, Ballot, Dso, Proposal, ProposalContent, Votes, VotingRules, ADMIN,
-    BALLOTS, BALLOTS_BY_VOTER, DSO, ESCROWS, PROPOSALS, TOTAL,
+    members, next_id, parse_id, save_ballot, Ballot, Dso, Proposal, ProposalContent, Votes,
+    VotingRules, ADMIN, BALLOTS, BALLOTS_BY_VOTER, DSO, ESCROWS, PROPOSALS, TOTAL,
 };
-use std::convert::TryInto;
 
 // version info for migration info
 const CONTRACT_NAME: &str = "crates.io:tgrade-dso";
@@ -274,8 +273,6 @@ pub fn execute_propose(
     description: String,
     proposal: ProposalContent,
 ) -> Result<Response, ContractError> {
-    let dso = DSO.load(deps.storage)?;
-
     // only voting members  can create a proposal
     let vote_power = members()
         .may_load(deps.storage, &info.sender)?
@@ -285,6 +282,7 @@ pub fn execute_propose(
     }
 
     // create a proposal
+    let dso = DSO.load(deps.storage)?;
     let mut prop = Proposal {
         title,
         description,
@@ -292,7 +290,7 @@ pub fn execute_propose(
         expires: Expiration::AtTime(env.block.time.plus_seconds(dso.rules.voting_period)),
         proposal,
         status: Status::Open,
-        votes: Votes::new(vote_power),
+        votes: Votes::yes(vote_power),
         total_weight: TOTAL.load(deps.storage)?,
         rules: dso.rules,
     };
@@ -305,8 +303,7 @@ pub fn execute_propose(
         weight: vote_power,
         vote: Vote::Yes,
     };
-    BALLOTS.save(deps.storage, (id.into(), &info.sender), &ballot)?;
-    BALLOTS_BY_VOTER.save(deps.storage, (&info.sender, id.into()), &ballot)?;
+    save_ballot(deps.storage, id, &info.sender, &ballot)?;
 
     Ok(Response {
         attributes: vec![
@@ -355,8 +352,7 @@ pub fn execute_vote(
         weight: vote_power,
         vote,
     };
-    BALLOTS.save(deps.storage, (proposal_id.into(), &info.sender), &ballot)?;
-    BALLOTS_BY_VOTER.save(deps.storage, (&info.sender, proposal_id.into()), &ballot)?;
+    save_ballot(deps.storage, proposal_id, &info.sender, &ballot)?;
 
     // update vote tally
     prop.votes.add_vote(vote, vote_power);
@@ -807,7 +803,7 @@ fn list_votes_by_proposal(
             let (voter, ballot) = item?;
             Ok(VoteInfo {
                 proposal_id,
-                voter: String::from_utf8(voter)?,
+                voter: unsafe { String::from_utf8_unchecked(voter) },
                 vote: ballot.vote,
                 weight: ballot.weight,
             })
@@ -833,10 +829,7 @@ fn list_votes_by_voter(
         .take(limit)
         .map(|item| {
             let (key, ballot) = item?;
-            let proposal_id: u64 = match key[0..8].try_into() {
-                Ok(bytes) => Ok(u64::from_be_bytes(bytes)),
-                Err(_) => Err(StdError::generic_err("Corrupted db key")),
-            }?;
+            let proposal_id: u64 = parse_id(&key)?;
             Ok(VoteInfo {
                 proposal_id,
                 voter: voter.clone(),

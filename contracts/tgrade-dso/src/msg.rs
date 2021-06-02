@@ -23,7 +23,7 @@ pub struct InstantiateMsg {
     pub quorum: Decimal,
     /// Default voting threshold percentage (0-100)
     pub threshold: Decimal,
-    /// Prohibit ending proposal voting early even if absolute threshold is met
+    /// Prohibit ending proposal voting early even if absolute threshold is met.
     pub always_full_voting_period: Option<bool>,
     /// List of non-voting members to be added to the DSO upon creation
     pub initial_members: Vec<String>,
