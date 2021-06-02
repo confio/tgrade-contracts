@@ -443,25 +443,26 @@ pub fn execute_leave_dso(
         .may_load(deps.storage, &info.sender)?
         .ok_or(ContractError::NotAMember {})?;
 
-    let mut res = Response {
-        attributes: vec![attr("action", "leave_dso"), attr("sender", &info.sender)],
-        ..Response::default()
-    };
-
-    if voting == 0 {
-        // non-voting member... remove them and refund any escrow (a pending member who didn't pay it all in)
-        members().remove(deps.storage, &info.sender, env.block.height)?;
-        let escrow = ESCROWS.may_load(deps.storage, &info.sender)?;
-        if let Some(refund) = escrow {
-            ESCROWS.remove(deps.storage, &info.sender);
-            res.messages = send_tokens(&info.sender, &refund);
-        }
-    } else {
+    if voting > 0 {
         // voting member... this is a more complex situation, not yet implemented
         return Err(ContractError::VotingMember(info.sender.to_string()));
     }
 
-    Ok(res)
+    // non-voting member... remove them and refund any escrow (a pending member who didn't pay it all in)
+    members().remove(deps.storage, &info.sender, env.block.height)?;
+    let messages = match ESCROWS.may_load(deps.storage, &info.sender)? {
+        Some(refund) => {
+            ESCROWS.remove(deps.storage, &info.sender);
+            send_tokens(&info.sender, &refund)
+        }
+        None => vec![],
+    };
+
+    Ok(Response {
+        messages,
+        attributes: vec![attr("action", "leave_dso"), attr("sender", &info.sender)],
+        ..Response::default()
+    })
 }
 
 pub fn proposal_execute(
