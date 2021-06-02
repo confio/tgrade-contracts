@@ -3,6 +3,7 @@
   "title": "InstantiateMsg",
   "type": "object",
   "required": [
+    "allow_end_early",
     "escrow_amount",
     "initial_members",
     "name",
@@ -17,6 +18,10 @@
         "string",
         "null"
       ]
+    },
+    "allow_end_early": {
+      "description": "If true, and absolute threshold and quorum are met, we can end before voting period finished. (Recommended value: true, unless you have special needs)",
+      "type": "boolean"
     },
     "escrow_amount": {
       "description": "The required escrow amount, in the default denom (utgd)",

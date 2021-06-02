@@ -5,9 +5,7 @@
   "required": [
     "escrow_amount",
     "name",
-    "quorum",
-    "threshold",
-    "voting_period"
+    "rules"
   ],
   "properties": {
     "escrow_amount": {
@@ -22,27 +20,8 @@
       "description": "DSO Name",
       "type": "string"
     },
-    "quorum": {
-      "description": "Default voting quorum percentage (0-100)",
-      "allOf": [
-        {
-          "$ref": "#/definitions/Decimal"
-        }
-      ]
-    },
-    "threshold": {
-      "description": "Default voting threshold percentage (0-100)",
-      "allOf": [
-        {
-          "$ref": "#/definitions/Decimal"
-        }
-      ]
-    },
-    "voting_period": {
-      "description": "Voting period in days",
-      "type": "integer",
-      "format": "uint32",
-      "minimum": 0.0
+    "rules": {
+      "$ref": "#/definitions/VotingRules"
     }
   },
   "definitions": {
@@ -53,6 +32,43 @@
     "Uint128": {
       "description": "A thin wrapper around u128 that is using strings for JSON encoding/decoding, such that the full u128 range can be used for clients that convert JSON numbers to floats, like JavaScript and jq.\n\n# Examples\n\nUse `from` to create instances of this and `u128` to get the value out:\n\n``` # use cosmwasm_std::Uint128; let a = Uint128::from(123u128); assert_eq!(a.u128(), 123);\n\nlet b = Uint128::from(42u64); assert_eq!(b.u128(), 42);\n\nlet c = Uint128::from(70u32); assert_eq!(c.u128(), 70); ```",
       "type": "string"
+    },
+    "VotingRules": {
+      "type": "object",
+      "required": [
+        "allow_end_early",
+        "quorum",
+        "threshold",
+        "voting_period"
+      ],
+      "properties": {
+        "allow_end_early": {
+          "description": "If true, and absolute threshold and quorum are met, we can end before voting period finished",
+          "type": "boolean"
+        },
+        "quorum": {
+          "description": "quorum requirement (0.0-1.0)",
+          "allOf": [
+            {
+              "$ref": "#/definitions/Decimal"
+            }
+          ]
+        },
+        "threshold": {
+          "description": "threshold requirement (0.5-1.0)",
+          "allOf": [
+            {
+              "$ref": "#/definitions/Decimal"
+            }
+          ]
+        },
+        "voting_period": {
+          "description": "Length of voting period in seconds",
+          "type": "integer",
+          "format": "uint64",
+          "minimum": 0.0
+        }
+      }
     }
   }
 }

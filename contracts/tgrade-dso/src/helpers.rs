@@ -36,15 +36,6 @@ impl TgDsoContract {
         .into())
     }
 
-    pub fn add_remove_non_voting_members(
-        &self,
-        remove: Vec<String>,
-        add: Vec<String>,
-    ) -> StdResult<CosmosMsg> {
-        let msg = ExecuteMsg::AddRemoveNonVotingMembers { remove, add };
-        self.encode_msg(msg)
-    }
-
     pub fn add_voting_members(&self, voters: Vec<String>) -> StdResult<CosmosMsg> {
         let msg = ExecuteMsg::AddVotingMembers { voters };
         self.encode_msg(msg)
