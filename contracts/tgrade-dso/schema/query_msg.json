@@ -219,38 +219,14 @@
               "format": "uint32",
               "minimum": 0.0
             },
-            "start_after": {
+            "reverse": {
+              "description": "If you pass `reverse: true` it goes from newest proposal to oldest",
               "type": [
-                "integer",
+                "boolean",
                 "null"
-              ],
-              "format": "uint64",
-              "minimum": 0.0
-            }
-          }
-        }
-      },
-      "additionalProperties": false
-    },
-    {
-      "description": "Returns ProposalListResponse",
-      "type": "object",
-      "required": [
-        "reverse_proposals"
-      ],
-      "properties": {
-        "reverse_proposals": {
-          "type": "object",
-          "properties": {
-            "limit": {
-              "type": [
-                "integer",
-                "null"
-              ],
-              "format": "uint32",
-              "minimum": 0.0
+              ]
             },
-            "start_before": {
+            "start_after": {
               "type": [
                 "integer",
                 "null"

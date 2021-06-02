@@ -50,7 +50,7 @@ pub fn instantiate(
         msg.voting_period,
         msg.quorum,
         msg.threshold,
-        msg.always_full_voting_period.unwrap_or(false),
+        msg.allow_end_early,
         msg.initial_members,
     )?;
     Ok(Response::default())
@@ -69,7 +69,7 @@ pub fn create(
     voting_period_days: u32,
     quorum: Decimal,
     threshold: Decimal,
-    always_full_voting_period: bool,
+    allow_end_early: bool,
     initial_members: Vec<String>,
 ) -> Result<(), ContractError> {
     validate(&name, escrow_amount, quorum, threshold)?;
@@ -102,7 +102,7 @@ pub fn create(
                 voting_period: voting_period_days as u64 * 86_400u64,
                 quorum,
                 threshold,
-                allow_end_early: !always_full_voting_period,
+                allow_end_early,
             },
         },
     )?;
@@ -564,13 +564,17 @@ pub fn query(deps: Deps, env: Env, msg: QueryMsg) -> StdResult<Binary> {
         QueryMsg::Admin {} => to_binary(&ADMIN.query_admin(deps)?),
         QueryMsg::Proposal { proposal_id } => to_binary(&query_proposal(deps, env, proposal_id)?),
         QueryMsg::Vote { proposal_id, voter } => to_binary(&query_vote(deps, proposal_id, voter)?),
-        QueryMsg::ListProposals { start_after, limit } => {
-            to_binary(&list_proposals(deps, env, start_after, limit)?)
-        }
-        QueryMsg::ReverseProposals {
-            start_before,
+        QueryMsg::ListProposals {
+            start_after,
             limit,
-        } => to_binary(&reverse_proposals(deps, env, start_before, limit)?),
+            reverse,
+        } => to_binary(&list_proposals(
+            deps,
+            env,
+            start_after,
+            limit,
+            reverse.unwrap_or(false),
+        )?),
         QueryMsg::ListVotesByProposal {
             proposal_id,
             start_after,
@@ -726,28 +730,16 @@ fn list_proposals(
     env: Env,
     start_after: Option<u64>,
     limit: Option<u32>,
+    reverse: bool,
 ) -> StdResult<ProposalListResponse> {
     let limit = limit.unwrap_or(DEFAULT_LIMIT).min(MAX_LIMIT) as usize;
     let start = start_after.map(Bound::exclusive_int);
-    let props: StdResult<Vec<_>> = PROPOSALS
-        .range(deps.storage, start, None, Order::Ascending)
-        .take(limit)
-        .map(|p| map_proposal(&env.block, p))
-        .collect();
-
-    Ok(ProposalListResponse { proposals: props? })
-}
-
-fn reverse_proposals(
-    deps: Deps,
-    env: Env,
-    start_before: Option<u64>,
-    limit: Option<u32>,
-) -> StdResult<ProposalListResponse> {
-    let limit = limit.unwrap_or(DEFAULT_LIMIT).min(MAX_LIMIT) as usize;
-    let end = start_before.map(Bound::exclusive_int);
-    let props: StdResult<Vec<_>> = PROPOSALS
-        .range(deps.storage, None, end, Order::Descending)
+    let range = if reverse {
+        PROPOSALS.range(deps.storage, None, start, Order::Descending)
+    } else {
+        PROPOSALS.range(deps.storage, start, None, Order::Ascending)
+    };
+    let props: StdResult<Vec<_>> = range
         .take(limit)
         .map(|p| map_proposal(&env.block, p))
         .collect();
@@ -883,7 +875,7 @@ mod tests {
             voting_period: 14,
             quorum: Decimal::percent(40),
             threshold: Decimal::percent(60),
-            always_full_voting_period: None,
+            allow_end_early: true,
             initial_members,
         };
         instantiate(deps, mock_env(), info, msg)

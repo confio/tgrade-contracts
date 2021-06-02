@@ -23,8 +23,9 @@ pub struct InstantiateMsg {
     pub quorum: Decimal,
     /// Default voting threshold percentage (0-100)
     pub threshold: Decimal,
-    /// Prohibit ending proposal voting early even if absolute threshold is met.
-    pub always_full_voting_period: Option<bool>,
+    /// If true, and absolute threshold and quorum are met, we can end before voting period finished.
+    /// (Recommended value: true, unless you have special needs)
+    pub allow_end_early: bool,
     /// List of non-voting members to be added to the DSO upon creation
     pub initial_members: Vec<String>,
 }
@@ -93,11 +94,8 @@ pub enum QueryMsg {
     ListProposals {
         start_after: Option<u64>,
         limit: Option<u32>,
-    },
-    /// Returns ProposalListResponse
-    ReverseProposals {
-        start_before: Option<u64>,
-        limit: Option<u32>,
+        /// If you pass `reverse: true` it goes from newest proposal to oldest
+        reverse: Option<bool>,
     },
     /// Returns VoteResponse
     Vote { proposal_id: u64, voter: String },
