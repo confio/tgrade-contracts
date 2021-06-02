@@ -7,7 +7,7 @@ use cosmwasm_std::{
 use cw0::{maybe_addr, Expiration};
 use cw2::set_contract_version;
 use cw3::{Status, Vote};
-use cw_storage_plus::{Bound, PrimaryKey, U64Key};
+use cw_storage_plus::{Bound, U64Key};
 use tg4::{
     Member, MemberChangedHookMsg, MemberDiff, MemberListResponse, MemberResponse,
     TotalWeightResponse,
@@ -719,11 +719,12 @@ fn list_voting_members(
     limit: Option<u32>,
 ) -> StdResult<MemberListResponse> {
     let limit = limit.unwrap_or(DEFAULT_LIMIT).min(MAX_LIMIT) as usize;
-    let start = start_after.map(|sa| Bound::exclusive((U64Key::from(1), sa.as_str()).joined_key()));
+    let start = start_after.map(|sa| Bound::exclusive(sa.as_str()));
 
     let members: StdResult<Vec<_>> = members()
         .idx
         .weight
+        .prefix(U64Key::from(1))
         .range(deps.storage, start, None, Order::Ascending)
         .take(limit)
         .map(|item| {
@@ -966,9 +967,7 @@ mod tests {
             let sum: u64 = weights.iter().map(|x| x.unwrap_or_default()).sum();
             let count = weights.iter().filter(|x| x.is_some()).count();
 
-            let members = list_voting_members(deps.as_ref(), None, None)
-                .unwrap()
-                .members;
+            let members = list_members(deps.as_ref(), None, None).unwrap().members;
             assert_eq!(count, members.len());
 
             let total = query_total_weight(deps.as_ref()).unwrap();
@@ -1569,5 +1568,60 @@ mod tests {
         let member0_escrow_raw = deps.storage.get(&escrow_key(INIT_ADMIN)).unwrap();
         let member0_escrow: Uint128 = from_slice(&member0_escrow_raw).unwrap();
         assert_eq!(ESCROW_FUNDS, member0_escrow.u128());
+    }
+
+    #[test]
+    fn non_voting_can_leave() {
+        let mut deps = mock_dependencies(&[]);
+        let info = mock_info(INIT_ADMIN, &escrow_funds());
+
+        do_instantiate(
+            deps.as_mut(),
+            info,
+            vec![NONVOTING1.into(), NONVOTING2.into()],
+        )
+        .unwrap();
+
+        let non_voting = list_non_voting_members(deps.as_ref(), None, None).unwrap();
+        assert_eq!(non_voting.members.len(), 2);
+
+        execute(
+            deps.as_mut(),
+            mock_env(),
+            mock_info(NONVOTING2, &[]),
+            ExecuteMsg::LeaveDso {},
+        )
+        .unwrap();
+
+        let non_voting = list_non_voting_members(deps.as_ref(), None, None).unwrap();
+        assert_eq!(non_voting.members.len(), 1);
+        assert_eq!(NONVOTING1, &non_voting.members[0].addr)
+    }
+
+    // #[test]
+    // fn pending_voting_can_leave_with_refund() {
+    //     let mut deps = mock_dependencies(&[]);
+    //     let info = mock_info(INIT_ADMIN, &escrow_funds());
+    //
+    //     do_instantiate(deps.as_mut(), info, vec![NONVOTING1.into(), NONVOTING2.into()]).unwrap();
+    //
+    //     let non_voting = list_non_voting_members(deps.as_ref(), None, None).unwrap();
+    //     assert_eq!(non_voting.members.len(), 2);
+    // }
+
+    #[test]
+    fn voting_cannot_leave() {
+        let mut deps = mock_dependencies(&[]);
+        let info = mock_info(INIT_ADMIN, &escrow_funds());
+
+        do_instantiate(
+            deps.as_mut(),
+            info,
+            vec![NONVOTING1.into(), NONVOTING2.into()],
+        )
+        .unwrap();
+
+        let voting = list_voting_members(deps.as_ref(), None, None).unwrap();
+        assert_eq!(voting.members.len(), 1);
     }
 }
