@@ -1585,29 +1585,78 @@ mod tests {
         let non_voting = list_non_voting_members(deps.as_ref(), None, None).unwrap();
         assert_eq!(non_voting.members.len(), 2);
 
-        execute(
+        let res = execute(
             deps.as_mut(),
             mock_env(),
             mock_info(NONVOTING2, &[]),
             ExecuteMsg::LeaveDso {},
         )
         .unwrap();
+        assert_eq!(res.messages.len(), 0);
 
         let non_voting = list_non_voting_members(deps.as_ref(), None, None).unwrap();
         assert_eq!(non_voting.members.len(), 1);
         assert_eq!(NONVOTING1, &non_voting.members[0].addr)
     }
 
-    // #[test]
-    // fn pending_voting_can_leave_with_refund() {
-    //     let mut deps = mock_dependencies(&[]);
-    //     let info = mock_info(INIT_ADMIN, &escrow_funds());
-    //
-    //     do_instantiate(deps.as_mut(), info, vec![NONVOTING1.into(), NONVOTING2.into()]).unwrap();
-    //
-    //     let non_voting = list_non_voting_members(deps.as_ref(), None, None).unwrap();
-    //     assert_eq!(non_voting.members.len(), 2);
-    // }
+    #[test]
+    fn pending_voting_can_leave_with_refund() {
+        let mut deps = mock_dependencies(&[]);
+        let info = mock_info(INIT_ADMIN, &escrow_funds());
+
+        do_instantiate(
+            deps.as_mut(),
+            info,
+            vec![NONVOTING1.into(), NONVOTING2.into()],
+        )
+        .unwrap();
+
+        // pending member
+        add_voting_members(
+            deps.as_mut(),
+            mock_env().block.height,
+            Addr::unchecked(INIT_ADMIN),
+            vec![VOTING1.into()],
+        )
+        .unwrap();
+        // with too little escrow
+        execute(
+            deps.as_mut(),
+            mock_env(),
+            mock_info(VOTING1, &coins(50_000, "utgd")),
+            ExecuteMsg::DepositEscrow {},
+        )
+        .unwrap();
+
+        // ensure they are not a voting member
+        let voting = list_voting_members(deps.as_ref(), None, None).unwrap();
+        assert_eq!(voting.members.len(), 1);
+
+        // but are a non-voting member
+        let non_voting = list_non_voting_members(deps.as_ref(), None, None).unwrap();
+        assert_eq!(non_voting.members.len(), 3);
+
+        // they can request to leave and will get some tokens back
+        let res = execute(
+            deps.as_mut(),
+            mock_env(),
+            mock_info(VOTING1, &[]),
+            ExecuteMsg::LeaveDso {},
+        )
+        .unwrap();
+        assert_eq!(res.messages.len(), 1);
+        assert_eq!(
+            &res.messages[0],
+            &BankMsg::Send {
+                to_address: VOTING1.to_string(),
+                amount: coins(50_000, "utgd")
+            }
+            .into()
+        );
+
+        let non_voting = list_non_voting_members(deps.as_ref(), None, None).unwrap();
+        assert_eq!(non_voting.members.len(), 2);
+    }
 
     #[test]
     fn voting_cannot_leave() {
