@@ -7,7 +7,7 @@ use cosmwasm_std::{
 use cw0::{maybe_addr, Expiration};
 use cw2::set_contract_version;
 use cw3::{Status, Vote};
-use cw_storage_plus::{Bound, PrimaryKey, U64Key};
+use cw_storage_plus::{Bound, U64Key};
 use tg4::{
     Member, MemberChangedHookMsg, MemberDiff, MemberListResponse, MemberResponse,
     TotalWeightResponse,
@@ -161,6 +161,7 @@ pub fn execute(
         ExecuteMsg::Vote { proposal_id, vote } => execute_vote(deps, env, info, proposal_id, vote),
         ExecuteMsg::Execute { proposal_id } => execute_execute(deps, env, info, proposal_id),
         ExecuteMsg::Close { proposal_id } => execute_close(deps, env, info, proposal_id),
+        ExecuteMsg::LeaveDso {} => execute_leave_dso(deps, env, info),
     }
 }
 
@@ -433,6 +434,37 @@ pub fn execute_close(
     })
 }
 
+pub fn execute_leave_dso(
+    deps: DepsMut,
+    env: Env,
+    info: MessageInfo,
+) -> Result<Response, ContractError> {
+    let voting = members()
+        .may_load(deps.storage, &info.sender)?
+        .ok_or(ContractError::NotAMember {})?;
+
+    if voting > 0 {
+        // voting member... this is a more complex situation, not yet implemented
+        return Err(ContractError::VotingMember(info.sender.to_string()));
+    }
+
+    // non-voting member... remove them and refund any escrow (a pending member who didn't pay it all in)
+    members().remove(deps.storage, &info.sender, env.block.height)?;
+    let messages = match ESCROWS.may_load(deps.storage, &info.sender)? {
+        Some(refund) => {
+            ESCROWS.remove(deps.storage, &info.sender);
+            send_tokens(&info.sender, &refund)
+        }
+        None => vec![],
+    };
+
+    Ok(Response {
+        messages,
+        attributes: vec![attr("action", "leave_dso"), attr("sender", &info.sender)],
+        ..Response::default()
+    })
+}
+
 pub fn proposal_execute(
     deps: DepsMut,
     env: Env,
@@ -688,11 +720,13 @@ fn list_voting_members(
     limit: Option<u32>,
 ) -> StdResult<MemberListResponse> {
     let limit = limit.unwrap_or(DEFAULT_LIMIT).min(MAX_LIMIT) as usize;
-    let start = start_after.map(|sa| Bound::exclusive((U64Key::from(1), sa.as_str()).joined_key()));
+    let start = start_after.map(|sa| Bound::exclusive(sa.as_str()));
 
     let members: StdResult<Vec<_>> = members()
         .idx
         .weight
+        // Note: if we allow members to have a weight > 1, we must adjust, until then, this works well
+        .prefix(U64Key::from(1))
         .range(deps.storage, start, None, Order::Ascending)
         .take(limit)
         .map(|item| {
@@ -933,12 +967,22 @@ mod tests {
                 voting3_weight,
             ];
             let sum: u64 = weights.iter().map(|x| x.unwrap_or_default()).sum();
-            let count = weights.iter().filter(|x| x.is_some()).count();
 
-            let members = list_voting_members(deps.as_ref(), None, None)
+            let total_count = weights.iter().filter(|x| x.is_some()).count();
+            let members = list_members(deps.as_ref(), None, None).unwrap().members;
+            assert_eq!(total_count, members.len());
+
+            let voting_count = weights.iter().filter(|x| x == &&Some(1)).count();
+            let voting = list_voting_members(deps.as_ref(), None, None)
                 .unwrap()
                 .members;
-            assert_eq!(count, members.len());
+            assert_eq!(voting_count, voting.len());
+
+            let non_voting_count = weights.iter().filter(|x| x == &&Some(0)).count();
+            let non_voting = list_non_voting_members(deps.as_ref(), None, None)
+                .unwrap()
+                .members;
+            assert_eq!(non_voting_count, non_voting.len());
 
             let total = query_total_weight(deps.as_ref()).unwrap();
             assert_eq!(sum, total.weight);
@@ -1538,5 +1582,121 @@ mod tests {
         let member0_escrow_raw = deps.storage.get(&escrow_key(INIT_ADMIN)).unwrap();
         let member0_escrow: Uint128 = from_slice(&member0_escrow_raw).unwrap();
         assert_eq!(ESCROW_FUNDS, member0_escrow.u128());
+    }
+
+    #[test]
+    fn non_voting_can_leave() {
+        let mut deps = mock_dependencies(&[]);
+        let info = mock_info(INIT_ADMIN, &escrow_funds());
+
+        do_instantiate(
+            deps.as_mut(),
+            info,
+            vec![NONVOTING1.into(), NONVOTING2.into()],
+        )
+        .unwrap();
+
+        let non_voting = list_non_voting_members(deps.as_ref(), None, None).unwrap();
+        assert_eq!(non_voting.members.len(), 2);
+
+        let res = execute(
+            deps.as_mut(),
+            mock_env(),
+            mock_info(NONVOTING2, &[]),
+            ExecuteMsg::LeaveDso {},
+        )
+        .unwrap();
+        assert_eq!(res.messages.len(), 0);
+
+        let non_voting = list_non_voting_members(deps.as_ref(), None, None).unwrap();
+        assert_eq!(non_voting.members.len(), 1);
+        assert_eq!(NONVOTING1, &non_voting.members[0].addr)
+    }
+
+    #[test]
+    fn pending_voting_can_leave_with_refund() {
+        let mut deps = mock_dependencies(&[]);
+        let info = mock_info(INIT_ADMIN, &escrow_funds());
+
+        do_instantiate(
+            deps.as_mut(),
+            info,
+            vec![NONVOTING1.into(), NONVOTING2.into()],
+        )
+        .unwrap();
+
+        // pending member
+        add_voting_members(
+            deps.as_mut(),
+            mock_env().block.height,
+            Addr::unchecked(INIT_ADMIN),
+            vec![VOTING1.into()],
+        )
+        .unwrap();
+        // with too little escrow
+        execute(
+            deps.as_mut(),
+            mock_env(),
+            mock_info(VOTING1, &coins(50_000, "utgd")),
+            ExecuteMsg::DepositEscrow {},
+        )
+        .unwrap();
+
+        // ensure they are not a voting member
+        let voting = list_voting_members(deps.as_ref(), None, None).unwrap();
+        assert_eq!(voting.members.len(), 1);
+
+        // but are a non-voting member
+        let non_voting = list_non_voting_members(deps.as_ref(), None, None).unwrap();
+        assert_eq!(non_voting.members.len(), 3);
+
+        // they can request to leave and will get some tokens back
+        let res = execute(
+            deps.as_mut(),
+            mock_env(),
+            mock_info(VOTING1, &[]),
+            ExecuteMsg::LeaveDso {},
+        )
+        .unwrap();
+        assert_eq!(res.messages.len(), 1);
+        assert_eq!(
+            &res.messages[0],
+            &BankMsg::Send {
+                to_address: VOTING1.to_string(),
+                amount: coins(50_000, "utgd")
+            }
+            .into()
+        );
+
+        let non_voting = list_non_voting_members(deps.as_ref(), None, None).unwrap();
+        assert_eq!(non_voting.members.len(), 2);
+    }
+
+    #[test]
+    fn voting_cannot_leave() {
+        let mut deps = mock_dependencies(&[]);
+        let info = mock_info(INIT_ADMIN, &escrow_funds());
+
+        do_instantiate(
+            deps.as_mut(),
+            info,
+            vec![NONVOTING1.into(), NONVOTING2.into()],
+        )
+        .unwrap();
+
+        let voting = list_voting_members(deps.as_ref(), None, None).unwrap();
+        assert_eq!(voting.members.len(), 1);
+
+        let err = execute(
+            deps.as_mut(),
+            mock_env(),
+            mock_info(INIT_ADMIN, &[]),
+            ExecuteMsg::LeaveDso {},
+        )
+        .unwrap_err();
+        assert!(matches!(err, ContractError::VotingMember(_)));
+
+        let voting = list_voting_members(deps.as_ref(), None, None).unwrap();
+        assert_eq!(voting.members.len(), 1);
     }
 }

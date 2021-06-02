@@ -55,6 +55,8 @@ pub enum ExecuteMsg {
     Close {
         proposal_id: u64,
     },
+    /// This allows the caller to exit from the group
+    LeaveDso {},
 }
 
 #[derive(Serialize, Deserialize, Clone, PartialEq, JsonSchema, Debug)]
