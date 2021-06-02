@@ -158,6 +158,19 @@
         }
       },
       "additionalProperties": false
+    },
+    {
+      "description": "This allows the caller to exit from the group",
+      "type": "object",
+      "required": [
+        "leave_dso"
+      ],
+      "properties": {
+        "leave_dso": {
+          "type": "object"
+        }
+      },
+      "additionalProperties": false
     }
   ],
   "definitions": {

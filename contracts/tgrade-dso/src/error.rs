@@ -36,6 +36,9 @@ pub enum ContractError {
     #[error("Trying to remove a voting member: {0}")]
     VotingMember(String),
 
+    #[error("Caller is not a DSO member")]
+    NotAMember {},
+
     #[error("Proposal is not open")]
     NotOpen {},
 
