@@ -6,7 +6,7 @@ use cw0::Expiration;
 use cw3::{Status, Vote};
 use cw_controllers::Admin;
 use cw_storage_plus::{
-    Index, IndexList, IndexedSnapshotMap, Item, Map, MultiIndex, Strategy, U64Key,
+    Index, IndexList, IndexedSnapshotMap, Item, Map, MultiIndex, PrimaryKey, Strategy, U64Key,
 };
 use std::convert::TryInto;
 use tg4::TOTAL_KEY;
@@ -76,11 +76,7 @@ pub const ESCROWS: Map<&Addr, Uint128> = Map::new(ESCROWS_KEY);
 
 /// escrow_key is meant for raw queries for one member escrow, given address
 pub fn escrow_key(address: &str) -> Vec<u8> {
-    // TODO: can we simplify this now?
-    // FIXME: Inlined here to avoid storage-plus import
-    let mut key = [b"\x00", &[ESCROWS_KEY.len() as u8], ESCROWS_KEY.as_bytes()].concat();
-    key.extend_from_slice(address.as_bytes());
-    key
+    (ESCROWS_KEY, address).joined_key()
 }
 
 #[derive(Serialize, Deserialize, Clone, PartialEq, JsonSchema, Debug)]

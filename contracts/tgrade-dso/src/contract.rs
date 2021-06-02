@@ -325,7 +325,7 @@ pub fn execute_vote(
 ) -> Result<Response, ContractError> {
     // ensure proposal exists and can be voted on
     let mut prop = PROPOSALS.load(deps.storage, proposal_id.into())?;
-    if prop.status != Status::Open {
+    if prop.status != Status::Open && prop.status != Status::Passed {
         return Err(ContractError::NotOpen {});
     }
     if prop.expires.is_expired(&env.block) {
