@@ -50,7 +50,7 @@ impl VotingRules {
         }
     }
 
-    pub fn voting_period_sec(&self) -> u64 {
+    pub fn voting_period_secs(&self) -> u64 {
         self.voting_period as u64 * 86_400
     }
 }

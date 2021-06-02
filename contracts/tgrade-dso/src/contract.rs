@@ -287,7 +287,7 @@ pub fn execute_propose(
         title,
         description,
         start_height: env.block.height,
-        expires: Expiration::AtTime(env.block.time.plus_seconds(dso.rules.voting_period_sec())),
+        expires: Expiration::AtTime(env.block.time.plus_seconds(dso.rules.voting_period_secs())),
         proposal,
         status: Status::Open,
         votes: Votes::yes(vote_power),
