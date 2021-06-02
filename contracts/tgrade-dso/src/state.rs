@@ -1,7 +1,9 @@
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
-use cosmwasm_std::{Addr, BlockInfo, Decimal, StdError, StdResult, Storage, Uint128};
+use cosmwasm_std::{
+    attr, Addr, Attribute, BlockInfo, Decimal, StdError, StdResult, Storage, Uint128,
+};
 use cw0::Expiration;
 use cw3::{Status, Vote};
 use cw_controllers::Admin;
@@ -22,14 +24,66 @@ pub struct Dso {
 
 #[derive(Serialize, Deserialize, Clone, PartialEq, Debug, JsonSchema)]
 pub struct VotingRules {
-    /// Length of voting period in seconds
-    pub voting_period: u64,
+    /// Length of voting period in days
+    pub voting_period: u32,
     /// quorum requirement (0.0-1.0)
     pub quorum: Decimal,
     /// threshold requirement (0.5-1.0)
     pub threshold: Decimal,
     /// If true, and absolute threshold and quorum are met, we can end before voting period finished
     pub allow_end_early: bool,
+}
+
+impl VotingRules {
+    pub fn apply_adjustments(&mut self, adjustments: VotingRulesAdjustments) {
+        if let Some(voting_period) = adjustments.voting_period {
+            self.voting_period = voting_period;
+        }
+        if let Some(quorum) = adjustments.quorum {
+            self.quorum = quorum;
+        }
+        if let Some(threshold) = adjustments.threshold {
+            self.threshold = threshold;
+        }
+        if let Some(allow_end_early) = adjustments.allow_end_early {
+            self.allow_end_early = allow_end_early;
+        }
+    }
+
+    pub fn voting_period_secs(&self) -> u64 {
+        self.voting_period as u64 * 86_400
+    }
+}
+
+#[derive(Serialize, Deserialize, Clone, PartialEq, Debug, JsonSchema)]
+pub struct VotingRulesAdjustments {
+    /// Length of voting period in days
+    pub voting_period: Option<u32>,
+    /// quorum requirement (0.0-1.0)
+    pub quorum: Option<Decimal>,
+    /// threshold requirement (0.5-1.0)
+    pub threshold: Option<Decimal>,
+    /// If true, and absolute threshold and quorum are met, we can end before voting period finished
+    pub allow_end_early: Option<bool>,
+}
+
+impl VotingRulesAdjustments {
+    pub fn as_attributes(&self) -> Vec<Attribute> {
+        let mut res = vec![];
+        if let Some(voting_period) = self.voting_period {
+            res.push(attr("voting_period", voting_period));
+        }
+        if let Some(quorum) = self.quorum {
+            res.push(attr("quorum", quorum));
+        }
+        if let Some(threshold) = self.threshold {
+            res.push(attr("threshold", threshold));
+        }
+        if let Some(allow_end_early) = self.allow_end_early {
+            res.push(attr("allow_end_early", allow_end_early));
+        }
+        res
+    }
 }
 
 pub const DSO: Item<Dso> = Item::new("dso");
@@ -88,6 +142,7 @@ pub enum ProposalContent {
         remove: Vec<String>,
         add: Vec<String>,
     },
+    AdjustVotingRules(VotingRulesAdjustments),
 }
 
 #[derive(Serialize, Deserialize, Clone, PartialEq, JsonSchema, Debug)]

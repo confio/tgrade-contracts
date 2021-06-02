@@ -130,6 +130,18 @@
             }
           },
           "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "required": [
+            "adjust_voting_rules"
+          ],
+          "properties": {
+            "adjust_voting_rules": {
+              "$ref": "#/definitions/VotingRulesAdjustments"
+            }
+          },
+          "additionalProperties": false
         }
       ]
     },
@@ -185,9 +197,52 @@
           ]
         },
         "voting_period": {
-          "description": "Length of voting period in seconds",
+          "description": "Length of voting period in days",
           "type": "integer",
-          "format": "uint64",
+          "format": "uint32",
+          "minimum": 0.0
+        }
+      }
+    },
+    "VotingRulesAdjustments": {
+      "type": "object",
+      "properties": {
+        "allow_end_early": {
+          "description": "If true, and absolute threshold and quorum are met, we can end before voting period finished",
+          "type": [
+            "boolean",
+            "null"
+          ]
+        },
+        "quorum": {
+          "description": "quorum requirement (0.0-1.0)",
+          "anyOf": [
+            {
+              "$ref": "#/definitions/Decimal"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "threshold": {
+          "description": "threshold requirement (0.5-1.0)",
+          "anyOf": [
+            {
+              "$ref": "#/definitions/Decimal"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "voting_period": {
+          "description": "Length of voting period in days",
+          "type": [
+            "integer",
+            "null"
+          ],
+          "format": "uint32",
           "minimum": 0.0
         }
       }

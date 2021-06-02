@@ -20,7 +20,8 @@ use crate::msg::{
 };
 use crate::state::{
     members, next_id, parse_id, save_ballot, Ballot, Dso, Proposal, ProposalContent, Votes,
-    VotingRules, ADMIN, BALLOTS, BALLOTS_BY_VOTER, DSO, ESCROWS, PROPOSALS, TOTAL,
+    VotingRules, VotingRulesAdjustments, ADMIN, BALLOTS, BALLOTS_BY_VOTER, DSO, ESCROWS, PROPOSALS,
+    TOTAL,
 };
 
 // version info for migration info
@@ -66,7 +67,7 @@ pub fn create(
     admin: Option<String>,
     name: String,
     escrow_amount: Uint128,
-    voting_period_days: u32,
+    voting_period: u32,
     quorum: Decimal,
     threshold: Decimal,
     allow_end_early: bool,
@@ -98,8 +99,7 @@ pub fn create(
             name,
             escrow_amount,
             rules: VotingRules {
-                // convert days to seconds
-                voting_period: voting_period_days as u64 * 86_400u64,
+                voting_period,
                 quorum,
                 threshold,
                 allow_end_early,
@@ -287,7 +287,7 @@ pub fn execute_propose(
         title,
         description,
         start_height: env.block.height,
-        expires: Expiration::AtTime(env.block.time.plus_seconds(dso.rules.voting_period)),
+        expires: Expiration::AtTime(env.block.time.plus_seconds(dso.rules.voting_period_secs())),
         proposal,
         status: Status::Open,
         votes: Votes::yes(vote_power),
@@ -373,7 +373,7 @@ pub fn execute_vote(
 pub fn execute_execute(
     mut deps: DepsMut,
     env: Env,
-    info: MessageInfo,
+    _info: MessageInfo,
     proposal_id: u64,
 ) -> Result<Response, ContractError> {
     // anyone can trigger this if the vote passed
@@ -395,7 +395,6 @@ pub fn execute_execute(
 
     res.attributes.extend(vec![
         attr("action", "execute"),
-        attr("sender", info.sender),
         attr("proposal_id", proposal_id),
     ]);
     Ok(res)
@@ -443,6 +442,9 @@ pub fn proposal_execute(
         ProposalContent::AddRemoveNonVotingMembers { add, remove } => {
             proposal_add_remove_non_voting_members(deps, env, add, remove)
         }
+        ProposalContent::AdjustVotingRules(adjustments) => {
+            proposal_adjust_voting_rules(deps, env, adjustments)
+        }
     }
 }
 
@@ -460,6 +462,26 @@ pub fn proposal_add_remove_non_voting_members(
 
     // make the local update
     let _diff = add_remove_non_voting_members(deps, env.block.height, add, remove)?;
+    Ok(Response {
+        attributes,
+        ..Response::default()
+    })
+}
+
+pub fn proposal_adjust_voting_rules(
+    deps: DepsMut,
+    _env: Env,
+    adjustments: VotingRulesAdjustments,
+) -> Result<Response, ContractError> {
+    let mut attributes = adjustments.as_attributes();
+    attributes.push(attr("proposal", "adjust_voting_rules"));
+
+    DSO.update::<_, ContractError>(deps.storage, |mut dso| {
+        dso.rules.apply_adjustments(adjustments);
+        Ok(dso)
+    })?;
+
+    // make the local update
     Ok(Response {
         attributes,
         ..Response::default()
@@ -1034,7 +1056,7 @@ mod tests {
             name: DSO_NAME.to_string(),
             escrow_amount: Uint128(ESCROW_FUNDS),
             rules: VotingRules {
-                voting_period: 14 * 86_400, // convert days to seconds
+                voting_period: 14, // days in all public interfaces
                 quorum: Decimal::percent(40),
                 threshold: Decimal::percent(60),
                 allow_end_early: true,
@@ -1419,6 +1441,75 @@ mod tests {
                 vote: Vote::Yes,
                 proposal_id: proposal_id - 1,
                 weight: 1
+            }
+        );
+    }
+
+    #[test]
+    fn propose_new_voting_rules() {
+        let mut deps = mock_dependencies(&[]);
+        let info = mock_info(INIT_ADMIN, &escrow_funds());
+        do_instantiate(deps.as_mut(), info, vec![]).unwrap();
+
+        let rules = query_dso(deps.as_ref()).unwrap().rules;
+        assert_eq!(
+            rules,
+            VotingRules {
+                voting_period: 14,
+                quorum: Decimal::percent(40),
+                threshold: Decimal::percent(60),
+                allow_end_early: true,
+            }
+        );
+
+        // make a new proposal
+        let prop = ProposalContent::AdjustVotingRules(VotingRulesAdjustments {
+            voting_period: Some(7),
+            quorum: None,
+            threshold: Some(Decimal::percent(51)),
+            allow_end_early: Some(true),
+        });
+        let msg = ExecuteMsg::Propose {
+            title: "Streamline voting process".to_string(),
+            description: "Make some adjustments".to_string(),
+            proposal: prop,
+        };
+        let mut env = mock_env();
+        env.block.height += 10;
+        let res = execute(deps.as_mut(), env.clone(), mock_info(INIT_ADMIN, &[]), msg).unwrap();
+        let proposal_id = parse_prop_id(&res.attributes);
+
+        // ensure it passed (already via principal voter)
+        let prop = query_proposal(deps.as_ref(), env.clone(), proposal_id).unwrap();
+        assert_eq!(prop.status, Status::Passed);
+
+        // execute it
+        let res = execute(
+            deps.as_mut(),
+            env,
+            mock_info(NONVOTING1, &[]),
+            ExecuteMsg::Execute { proposal_id },
+        )
+        .unwrap();
+
+        // check the proper attributes returned
+        assert_eq!(res.attributes.len(), 6);
+        assert_eq!(&res.attributes[0], &attr("voting_period", "7"));
+        assert_eq!(&res.attributes[1], &attr("threshold", "0.51"));
+        assert_eq!(&res.attributes[2], &attr("allow_end_early", "true"));
+        assert_eq!(&res.attributes[3], &attr("proposal", "adjust_voting_rules"));
+        assert_eq!(&res.attributes[4], &attr("action", "execute"));
+        assert_eq!(&res.attributes[5], &attr("proposal_id", "1"));
+
+        // check the rules have been updated
+        let rules = query_dso(deps.as_ref()).unwrap().rules;
+        assert_eq!(
+            rules,
+            VotingRules {
+                voting_period: 7,
+                quorum: Decimal::percent(40),
+                threshold: Decimal::percent(51),
+                allow_end_early: true,
             }
         );
     }
