@@ -50,9 +50,6 @@ impl InstantiateMsg {
         if self.scaling == Some(0) {
             return Err(ContractError::InvalidScaling {});
         }
-        // if self.initial_keys.is_empty() {
-        //     return Err(ContractError::NoValidators {});
-        // }
         for op in self.initial_keys.iter() {
             op.validate()?
         }
@@ -195,11 +192,10 @@ mod test {
         let err = invalid.validate().unwrap_err();
         assert_eq!(err, ContractError::InvalidEpoch {});
 
-        // fails on no operators
-        let mut invalid = proper.clone();
-        invalid.initial_keys = vec![];
-        let err = invalid.validate().unwrap_err();
-        assert_eq!(err, ContractError::NoValidators {});
+        // allows no operators
+        let mut no_operators = proper.clone();
+        no_operators.initial_keys = vec![];
+        no_operators.validate().unwrap();
 
         // fails on invalid operator
         let mut invalid = proper;

@@ -3,8 +3,8 @@ use std::collections::BTreeSet;
 use std::convert::TryInto;
 
 use cosmwasm_std::{
-    entry_point, to_binary, Addr, Binary, Deps, DepsMut, Env, MessageInfo, Order, StdError,
-    StdResult, Timestamp,
+    entry_point, to_binary, Addr, Binary, BlockInfo, Deps, DepsMut, Env, MessageInfo, Order,
+    StdError, StdResult, Timestamp,
 };
 
 use cw0::maybe_addr;
@@ -237,13 +237,20 @@ fn privilege_change(_deps: DepsMut, change: PrivilegeChangeMsg) -> Response {
     }
 }
 
+/// returns true if this is an initial block, maybe part of InitGenesis processing,
+/// or other bootstrapping.
+fn is_genesis_block(block: &BlockInfo) -> bool {
+    // not sure if this will manifest as height 0 or 1, so treat them both as startup
+    // this will force re-calculation on the end_block, no issues in startup.
+    block.height < 2
+}
+
 fn end_block(deps: DepsMut, env: Env) -> Result<Response, ContractError> {
     // check if needed and quit early if we didn't hit epoch boundary
     let mut epoch = EPOCH.load(deps.storage)?;
     let cur_epoch = env.block.time.nanos() / (1_000_000_000 * epoch.epoch_length);
 
-    let old_validators = VALIDATORS.load(deps.storage)?;
-    if cur_epoch <= epoch.current_epoch && !old_validators.is_empty(){ // todo: revisit this check for non initialized validators
+    if cur_epoch <= epoch.current_epoch && !is_genesis_block(&env.block) {
         return Ok(Response::default());
     }
     // ensure to update this so we wait until next epoch to run this again
@@ -253,6 +260,7 @@ fn end_block(deps: DepsMut, env: Env) -> Result<Response, ContractError> {
     // calculate and store new validator set
     let validators = calculate_validators(deps.as_ref())?;
 
+    let old_validators = VALIDATORS.load(deps.storage)?;
     VALIDATORS.save(deps.storage, &validators)?;
     // determine the diff to send back to tendermint
     let diff = calculate_diff(validators, old_validators);
