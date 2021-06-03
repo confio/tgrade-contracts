@@ -71,11 +71,11 @@ This is becoming complex, and hard to reason about, so we need to discuss the fu
 
 - *Pending Voter* - On a successful proposal, a *non member* or *non voting member* may be converted to a *pending voter*.
   They have the same rights as a *non voting member* (participate in the DSO), but cannot yet vote. A pending voter may
-  *deposit escrow* and *return escrow*. Once their escrow deposit is equal or greater than the required escrow, they become
+  *deposit escrow*. Once their escrow deposit is equal or greater than the required escrow, they become
   *pending, paid voter*
 
 - *Pending, Paid Voter* - At this point, they have been approved and have paid the required escrow. However, they may have
-  to wait some time before becoming *Voter* (more on this below). **Question**: can they return escrow to become *pending voter*?
+  to wait some time before becoming *Voter* (more on this below). **Question**: can they return escrow to become *pending voter*? No
 
 - *Voter* - All voters are assigned a voting weight of 1 and are able to make proposals and vote on them. They can *deposit escrow*
   to raise it and *return* escrow down to the minimum required escrow, but no lower. There are 3 transitions out:
@@ -83,6 +83,7 @@ This is becoming complex, and hard to reason about, so we need to discuss the fu
   - Punishment: transition to a *Non Member* and escrow is distributed to whoever DSO Governance decides
   - Partial Slashing: transtion to a *Pending Voter* and a portion of the escrow is confiscated. They can then deposit
     more escrow to become a *Voter* or remain a *Non Voting Member*
+  - By Escrow Increased
 
 - *Leaving Voter* - A voter who has requested to leave is immediately assigned a weight of 0 like a *Non Voting Member*.
   However, the escrow is not immediately returned. It is converted to a "pending withdrawal" for a duration of
@@ -98,7 +99,7 @@ When transitioning from *Non Member* or *Non Voting Member* to *Pending Voter*, 
 are assigned one *Batch*. The *Batch* has a number of addresses and a "grace period" that ends at batch creation plus
 one voting period.  When transitioning from *Pending Voter* to *Pending, Paid Voter* the *Batch* status is consulted.
 If all voters in the *Batch* have paid their escrow, they are all converted to *Voter*. If the "grace period"
-has expired, this address and all other *Paid, Pending Voters* in that *Batch* are converted to *Voter*.
+has expired, this address and all other *Paid, Pending Voters* in that *Batch* are converted to *Voter*, and *Pending Voters* stays *Pending Voters*. 
 
 In order to handle the delayed transition, we add some more hooks to convert *Paid, Pending Voters* to *Voters*.
 First, anyone can call *CheckPending*, which will look for *Paid, Pending Voters* in *Batches* whose
@@ -111,7 +112,7 @@ meaning they will become a full voter once they have paid all escrow dues.
 
 ### Escrow Increased
 
-If the escrow is increased, many Voters may no longer have the minimum escrow. We handle this with a grace period to allow
+If the escrow is increased, many Voters may no longer have the minimum escrow. We handle this in batches of ones with a grace period to allow
 them to top-up before enforcing the new escrow. Rather than add more states to capture *Voters* or *Pending, Paid Voters*
 who have paid the old escrow but not the new one, we will model it by a delay on the escrow.
 
