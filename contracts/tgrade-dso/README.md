@@ -72,10 +72,10 @@ This is becoming complex, and hard to reason about, so we need to discuss the fu
 - *Pending Voter* - On a successful proposal, a *non member* or *non voting member* may be converted to a *pending voter*.
   They have the same rights as a *non voting member* (participate in the DSO), but cannot yet vote. A pending voter may
   *deposit escrow*. Once their escrow deposit is equal or greater than the required escrow, they become
-  *pending, paid voter*
+  *pending, paid voter*.
 
 - *Pending, Paid Voter* - At this point, they have been approved and have paid the required escrow. However, they may have
-  to wait some time before becoming *Voter* (more on this below). **Question**: can they return escrow to become *pending voter*? No
+  to wait some time before becoming *Voter* (more on this below).
 
 - *Voter* - All voters are assigned a voting weight of 1 and are able to make proposals and vote on them. They can *deposit escrow*
   to raise it and *return* escrow down to the minimum required escrow, but no lower. There are 3 transitions out:
@@ -90,6 +90,31 @@ This is becoming complex, and hard to reason about, so we need to discuss the fu
   `2 * voting period`. During the period it may be slashed via "Punishment" or "Partial Slashing" as a *Voter*.
   At the end of the period, any remaining escrow can be claimed by the *Leaving Voter*, converting them to a *Non Member*.
 
+### Leaving
+
+*Non Voting Member*, *Pending Voter*, *Pending, Paid Voter*, and *Pending, Paid Voter* may all request to voluntarily
+leave the DSO. *Non Voting Member* as well as *Pending Voter* who have not yet paid any escrow are immediately removed
+from the DSO. All other cases, which have paid in some escrow, are transitioned to *Leaving Voter* and can reclaim
+their escrow after the grace period has expired.
+
+Proposals work using a snapshot of the voting members *at the time of creation*. This means a voting member may leave
+the DSO, but still be eligible to vote in some existing proposals. To make this more intuitive, we will say that
+any vote cast *before* the voting member left will remain valid, however, they will not be able to vote after this point.
+We have 3 ways to calculate this:
+
+1. prevent their vote, but their missing vote is counted in the required votes for quorum
+2. automatically cast an "abstain" vote on their behalf, lowering the quorum needed to vote for the remainder
+3. prevent them from voting, and reduce the total weight on the proposal, so it was like they were never eligible
+
+Assume there are 10 voters and 50% quorum (5 votes) needed for passing. There is an open proposal with 2 yes votes
+and 1 no vote. 2 voters leave without casting a vote. What happens in these 3 cases:
+
+1. We remain as 3 votes, 2 more are needed for quorum, but only 5 more votes are possible... this leads to an
+   effective quorum of 5/8 or 67.5% for the remaining voters.
+2. This now becomes 5 votes (2 yes, 1 no, 2 abstain) and could pass at the end of the voting period with an effective
+   quorum of 30%.  On the other hand, the leaving voters could easily have done this themselves before leaving.
+3. We remain as 3 votes, but out of 8 total. Only one more vote is needed to reach quorum (effective 50%)
+   and if it were `yes` or `abstain` then the vote could pass.
 
 ### Pending and Paid to Voter
 
@@ -99,7 +124,7 @@ When transitioning from *Non Member* or *Non Voting Member* to *Pending Voter*, 
 are assigned one *Batch*. The *Batch* has a number of addresses and a "grace period" that ends at batch creation plus
 one voting period.  When transitioning from *Pending Voter* to *Pending, Paid Voter* the *Batch* status is consulted.
 If all voters in the *Batch* have paid their escrow, they are all converted to *Voter*. If the "grace period"
-has expired, this address and all other *Paid, Pending Voters* in that *Batch* are converted to *Voter*, and *Pending Voters* stays *Pending Voters*. 
+has expired, this address and all other *Paid, Pending Voters* in that *Batch* are converted to *Voter*, and *Pending Voters* stays *Pending Voters*.
 
 In order to handle the delayed transition, we add some more hooks to convert *Paid, Pending Voters* to *Voters*.
 First, anyone can call *CheckPending*, which will look for *Paid, Pending Voters* in *Batches* whose
