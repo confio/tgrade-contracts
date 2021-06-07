@@ -1068,6 +1068,13 @@ mod tests {
         coins(ESCROW_FUNDS, "utgd")
     }
 
+    fn later(env: &Env, seconds: u64) -> Env {
+        let mut later = env.clone();
+        later.block.height += seconds / 5;
+        later.block.time = later.block.time.plus_seconds(seconds);
+        later
+    }
+
     fn do_instantiate(
         deps: DepsMut,
         info: MessageInfo,
@@ -1289,18 +1296,11 @@ mod tests {
         assert_eq!(dso, expected);
     }
 
-    // TODO: cover all edge cases....
+    // TODO: cover all edge cases for adding...
     // - add non-voting who is already voting
     // - add voting who is already non-voting
     // - add voting who is already voting (pending)
     // more...
-
-    fn later(env: &Env, seconds: u64) -> Env {
-        let mut later = env.clone();
-        later.block.height += seconds / 5;
-        later.block.time = later.block.time.plus_seconds(seconds);
-        later
-    }
 
     /// This makes a new proposal at env (height and time)
     /// and ensures that all names in `can_vote` are able to place a 'yes' vote,
@@ -1488,7 +1488,6 @@ mod tests {
         // Second voting member adds just enough funds
         let info = mock_info(VOTING2, &[coin(1, "utgd")]);
         execute_deposit_escrow(deps.as_mut(), env.clone(), info).unwrap();
-        // TODO: test attributes?
 
         // batch gets run and weight and status also updated properly
         assert_voting(&deps, Some(1), Some(1), Some(1), None, None);
