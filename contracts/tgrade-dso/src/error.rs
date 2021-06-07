@@ -1,16 +1,13 @@
 use cosmwasm_std::{Decimal, StdError};
 use thiserror::Error;
 
+use crate::state::MemberStatus;
 use cw0::PaymentError;
-use cw_controllers::AdminError;
 
 #[derive(Error, Debug, PartialEq)]
 pub enum ContractError {
     #[error("{0}")]
     Std(#[from] StdError),
-
-    #[error("{0}")]
-    Admin(#[from] AdminError),
 
     #[error("Unauthorized")]
     Unauthorized {},
@@ -38,6 +35,9 @@ pub enum ContractError {
 
     #[error("Caller is not a DSO member")]
     NotAMember {},
+
+    #[error("Cannot be called by member with status: {0}")]
+    InvalidStatus(MemberStatus),
 
     #[error("Proposal is not open")]
     NotOpen {},

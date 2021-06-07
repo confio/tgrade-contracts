@@ -1,19 +1,17 @@
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
+use std::fmt;
 
 use cosmwasm_std::{
     attr, Addr, Attribute, BlockInfo, Decimal, StdError, StdResult, Storage, Uint128,
 };
 use cw0::Expiration;
 use cw3::{Status, Vote};
-use cw_controllers::Admin;
 use cw_storage_plus::{
     Index, IndexList, IndexedSnapshotMap, Item, Map, MultiIndex, Strategy, U64Key,
 };
 use std::convert::TryInto;
 use tg4::TOTAL_KEY;
-
-pub const ADMIN: Admin = Admin::new("admin");
 
 #[derive(Serialize, Deserialize, Clone, PartialEq, Debug)]
 pub struct Dso {
@@ -135,7 +133,7 @@ pub struct EscrowStatus {
     pub status: MemberStatus,
 }
 
-#[derive(Serialize, Deserialize, Clone, PartialEq, JsonSchema, Debug)]
+#[derive(Serialize, Deserialize, Clone, PartialEq, JsonSchema, Debug, Copy)]
 #[serde(rename_all = "snake_case")]
 pub enum MemberStatus {
     /// Normal member, not allowed to vote
@@ -150,8 +148,44 @@ pub enum MemberStatus {
     Leaving { claim_at: u64 },
 }
 
-// TODO: use EscrowStatus
-pub const ESCROWS: Map<&Addr, Uint128> = Map::new("escrows");
+impl MemberStatus {
+    pub fn can_pay_escrow(&self) -> bool {
+        match self {
+            MemberStatus::NonVoting {} => false,
+            MemberStatus::Leaving { .. } => false,
+            _ => true,
+        }
+    }
+}
+
+impl fmt::Display for MemberStatus {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            MemberStatus::NonVoting {} => write!(f, "Non-Voting"),
+            MemberStatus::Pending { .. } => write!(f, "Pending"),
+            MemberStatus::PendingPaid { .. } => write!(f, "Pending, Paid"),
+            MemberStatus::Voting {} => write!(f, "Voting"),
+            MemberStatus::Leaving { .. } => write!(f, "Leaving"),
+        }
+    }
+}
+
+pub const ESCROWS: Map<&Addr, EscrowStatus> = Map::new("escrows");
+
+/// A Batch is a group of members who got voter in together. We need this to
+/// calculate moving from *Paid, Pending Voter* to *Voter*
+#[derive(Serialize, Deserialize, Clone, PartialEq, JsonSchema, Debug)]
+pub struct Batch {
+    /// Timestamp (seconds) when all members are no longer pending
+    pub grace_ends_at: u64,
+    /// How many must still pay in their escrow before the batch is early authorized
+    pub waiting_escrow: u32,
+    /// List of all members that are part of this batch (look up ESCROWS with these keys)
+    pub members: Vec<Addr>,
+}
+
+pub const BATCH_COUNT: Item<u64> = Item::new("batch_count");
+pub const BATCHES: Map<U64Key, Batch> = Map::new("batch");
 
 #[derive(Serialize, Deserialize, Clone, PartialEq, JsonSchema, Debug)]
 #[serde(rename_all = "snake_case")]
@@ -163,6 +197,9 @@ pub enum ProposalContent {
         add: Vec<String>,
     },
     AdjustVotingRules(VotingRulesAdjustments),
+    AddVotingMembers {
+        voters: Vec<String>,
+    },
 }
 
 #[derive(Serialize, Deserialize, Clone, PartialEq, JsonSchema, Debug)]

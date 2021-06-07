@@ -1,8 +1,8 @@
 #[cfg(not(feature = "library"))]
 use cosmwasm_std::entry_point;
 use cosmwasm_std::{
-    attr, coin, to_binary, Addr, BankMsg, Binary, BlockInfo, CosmosMsg, Decimal, Deps, DepsMut,
-    Env, MessageInfo, Order, Response, StdResult, Uint128,
+    attr, coin, to_binary, Addr, Attribute, BankMsg, Binary, BlockInfo, CosmosMsg, Decimal, Deps,
+    DepsMut, Env, MessageInfo, Order, Response, StdResult, Uint128,
 };
 use cw0::{maybe_addr, Expiration};
 use cw2::set_contract_version;
@@ -19,9 +19,9 @@ use crate::msg::{
     ProposalResponse, QueryMsg, VoteInfo, VoteListResponse, VoteResponse,
 };
 use crate::state::{
-    members, next_id, parse_id, save_ballot, Ballot, Dso, Proposal, ProposalContent, Votes,
-    VotingRules, VotingRulesAdjustments, ADMIN, BALLOTS, BALLOTS_BY_VOTER, DSO, ESCROWS, PROPOSALS,
-    TOTAL,
+    members, next_id, parse_id, save_ballot, Ballot, Dso, EscrowStatus, MemberStatus, Proposal,
+    ProposalContent, Votes, VotingRules, VotingRulesAdjustments, BALLOTS, BALLOTS_BY_VOTER, DSO,
+    ESCROWS, PROPOSALS, TOTAL,
 };
 
 // version info for migration info
@@ -45,7 +45,6 @@ pub fn instantiate(
         deps,
         env,
         info,
-        msg.admin,
         msg.name,
         msg.escrow_amount,
         msg.voting_period,
@@ -61,10 +60,9 @@ pub fn instantiate(
 // easily be imported in other contracts
 #[allow(clippy::too_many_arguments)]
 pub fn create(
-    mut deps: DepsMut,
+    deps: DepsMut,
     env: Env,
     info: MessageInfo,
-    admin: Option<String>,
     name: String,
     escrow_amount: Uint128,
     voting_period: u32,
@@ -75,11 +73,6 @@ pub fn create(
 ) -> Result<(), ContractError> {
     validate(&name, escrow_amount, quorum, threshold)?;
 
-    let admin_addr = admin
-        .map(|admin| deps.api.addr_validate(&admin))
-        .transpose()?;
-    ADMIN.set(deps.branch(), admin_addr)?;
-
     // Store sender as initial member, and define its weight / state
     // based on init_funds
     let amount = cw0::must_pay(&info, DSO_DENOM)?;
@@ -87,7 +80,11 @@ pub fn create(
         return Err(ContractError::InsufficientFunds(amount.u128()));
     }
     // Put sender funds in escrow
-    ESCROWS.save(deps.storage, &info.sender, &amount)?;
+    let escrow = EscrowStatus {
+        paid: amount,
+        status: MemberStatus::Voting {},
+    };
+    ESCROWS.save(deps.storage, &info.sender, &escrow)?;
 
     members().save(deps.storage, &info.sender, &VOTING_WEIGHT, env.block.height)?;
     TOTAL.save(deps.storage, &VOTING_WEIGHT)?;
@@ -148,10 +145,7 @@ pub fn execute(
     msg: ExecuteMsg,
 ) -> Result<Response, ContractError> {
     match msg {
-        ExecuteMsg::AddVotingMembers { voters } => {
-            execute_add_voting_members(deps, env, info, voters)
-        }
-        ExecuteMsg::DepositEscrow {} => execute_deposit_escrow(deps, &env, info),
+        ExecuteMsg::DepositEscrow {} => execute_deposit_escrow(deps, env, info),
         ExecuteMsg::ReturnEscrow { amount } => execute_return_escrow(deps, info, amount),
         ExecuteMsg::Propose {
             title,
@@ -165,64 +159,91 @@ pub fn execute(
     }
 }
 
-pub fn execute_add_voting_members(
-    mut deps: DepsMut,
+pub fn execute_deposit_escrow(
+    deps: DepsMut,
     env: Env,
     info: MessageInfo,
-    add: Vec<String>,
 ) -> Result<Response, ContractError> {
-    let attributes = vec![
-        attr("action", "add_voting_members"),
-        attr("added", add.len()),
-        attr("sender", &info.sender),
-    ];
+    // They must be a member and an allow status to pay in
+    let mut escrow = ESCROWS
+        .may_load(deps.storage, &info.sender)?
+        .ok_or(ContractError::NotAMember {})?;
+    if !escrow.status.can_pay_escrow() {
+        return Err(ContractError::InvalidStatus(escrow.status));
+    }
 
-    // make the local additions
-    let _diff = add_voting_members(deps.branch(), env.block.height, info.sender, add)?;
+    // update the amount
+    let amount = cw0::must_pay(&info, DSO_DENOM)?;
+    escrow.paid += amount;
+
+    // check to see if we update the pending status
+    let attrs = match escrow.status {
+        MemberStatus::Pending { batch } => {
+            let required_escrow = DSO.load(deps.storage)?.escrow_amount;
+            if escrow.paid >= required_escrow {
+                // If we paid enough, we can move into Paid, Pending Voter
+                escrow.status = MemberStatus::PendingPaid { batch };
+                ESCROWS.save(deps.storage, &info.sender, &escrow)?;
+                // Now check if this batch is ready...
+                promote_batch_if_ready(deps, env, batch, &info.sender)?
+            } else {
+                // Otherwise, just update the paid value until later
+                ESCROWS.save(deps.storage, &info.sender, &escrow)?;
+                vec![]
+            }
+        }
+        _ => {
+            ESCROWS.save(deps.storage, &info.sender, &escrow)?;
+            vec![]
+        }
+    };
+
+    let mut attributes = vec![
+        attr("action", "deposit_escrow"),
+        attr("sender", info.sender),
+        attr("amount", amount),
+    ];
+    attributes.extend(attrs);
+
     Ok(Response {
-        submessages: vec![],
-        messages: vec![],
         attributes,
-        data: None,
+        ..Response::default()
     })
 }
 
-pub fn execute_deposit_escrow(
-    deps: DepsMut,
-    env: &Env,
-    info: MessageInfo,
-) -> Result<Response, ContractError> {
-    // This fails is no escrow there
-    let escrow = ESCROWS.load(deps.storage, &info.sender)?;
+/// Call when `promoted` has now paid in sufficient escrow.
+/// Checks if this user can be promoted to `Voter`. Also checks if other "pending"
+/// voters in the batch can be promoted.
+///
+/// Returns a list of attributes for each user promoted
+fn promote_batch_if_ready(
+    _deps: DepsMut,
+    _env: Env,
+    _batch: u64,
+    _promoted: &Addr,
+) -> Result<Vec<Attribute>, ContractError> {
+    // // Update weights and total only if there are now enough funds
+    // if escrow < escrow_amount && escrow + amount >= escrow_amount {
+    //     members().save(deps.storage, &info.sender, &VOTING_WEIGHT, env.block.height)?;
+    //     TOTAL.update::<_, ContractError>(deps.storage, |original| Ok(original + VOTING_WEIGHT))?;
+    // }
 
-    let amount = cw0::must_pay(&info, DSO_DENOM)?;
-    ESCROWS.save(deps.storage, &info.sender, &(escrow + amount))?;
-
-    // Update weights and total only if there are now enough funds
-    let escrow_amount = DSO.load(deps.storage)?.escrow_amount;
-    if escrow < escrow_amount && escrow + amount >= escrow_amount {
-        members().save(deps.storage, &info.sender, &VOTING_WEIGHT, env.block.height)?;
-        TOTAL.update::<_, ContractError>(deps.storage, |original| Ok(original + VOTING_WEIGHT))?;
-    }
-
-    let res = Response {
-        attributes: vec![attr("action", "deposit_escrow")],
-        ..Response::default()
-    };
-    Ok(res)
+    // TODO
+    Ok(vec![])
 }
 
+// TODO: redo this
 pub fn execute_return_escrow(
     deps: DepsMut,
     info: MessageInfo,
     amount: Option<Uint128>,
 ) -> Result<Response, ContractError> {
     // This fails is no escrow there
-    let escrow = ESCROWS.load(deps.storage, &info.sender)?;
+    let mut escrow = ESCROWS.load(deps.storage, &info.sender)?;
 
     // Compute the maximum amount that can be refund
     let escrow_amount = DSO.load(deps.storage)?.escrow_amount;
-    let mut max_refund = escrow;
+    let mut max_refund = escrow.paid;
     if max_refund >= escrow_amount {
         max_refund = max_refund.checked_sub(escrow_amount).unwrap();
     };
@@ -241,28 +262,22 @@ pub fn execute_return_escrow(
     let attributes = vec![attr("action", "return_escrow"), attr("amount", refund)];
     if refund.is_zero() {
         return Ok(Response {
-            submessages: vec![],
-            messages: vec![],
             attributes,
-            data: None,
+            ..Response::default()
         });
     }
 
     // Update remaining escrow
-    ESCROWS.save(
-        deps.storage,
-        &info.sender,
-        &escrow.checked_sub(refund).unwrap(),
-    )?;
+    escrow.paid = escrow.paid.checked_sub(refund).unwrap();
+    ESCROWS.save(deps.storage, &info.sender, &escrow)?;
 
     // Refund tokens
     let messages = send_tokens(&info.sender, &refund);
 
     Ok(Response {
-        submessages: vec![],
         messages,
         attributes,
-        data: None,
+        ..Response::default()
     })
 }
 
@@ -434,35 +449,51 @@ pub fn execute_close(
     })
 }
 
+// TODO: redo this
 pub fn execute_leave_dso(
     deps: DepsMut,
     env: Env,
     info: MessageInfo,
 ) -> Result<Response, ContractError> {
-    let voting = members()
+    let escrow = ESCROWS
         .may_load(deps.storage, &info.sender)?
         .ok_or(ContractError::NotAMember {})?;
 
-    if voting > 0 {
-        // voting member... this is a more complex situation, not yet implemented
-        return Err(ContractError::VotingMember(info.sender.to_string()));
-    }
-
-    // non-voting member... remove them and refund any escrow (a pending member who didn't pay it all in)
-    members().remove(deps.storage, &info.sender, env.block.height)?;
-    let messages = match ESCROWS.may_load(deps.storage, &info.sender)? {
-        Some(refund) => {
-            ESCROWS.remove(deps.storage, &info.sender);
-            send_tokens(&info.sender, &refund)
+    // TODO: special check if last member leaving (future story)
+    match escrow.status {
+        MemberStatus::NonVoting {} => leave_immediately(deps, env, info.sender),
+        MemberStatus::Pending { .. } => {
+            if escrow.paid.is_zero() {
+                leave_immediately(deps, env, info.sender)
+            } else {
+                trigger_long_leave(deps, env, info.sender)
+            }
         }
-        None => vec![],
-    };
+        _ => trigger_long_leave(deps, env, info.sender),
+    }
+}
+
+/// This is called for members who have never paid any escrow in
+fn leave_immediately(deps: DepsMut, env: Env, leaver: Addr) -> Result<Response, ContractError> {
+    // non-voting member... remove them and refund any escrow (a pending member who didn't pay it all in)
+    members().remove(deps.storage, &leaver, env.block.height)?;
+    ESCROWS.remove(deps.storage, &leaver);
 
     Ok(Response {
-        messages,
-        attributes: vec![attr("action", "leave_dso"), attr("sender", &info.sender)],
+        attributes: vec![
+            attr("action", "leave_dso"),
+            attr("type", "immediately"),
+            attr("sender", &leaver),
+        ],
         ..Response::default()
     })
+}
+
+fn trigger_long_leave(_deps: DepsMut, _env: Env, leaver: Addr) -> Result<Response, ContractError> {
+    // voting member... this is a more complex situation, not yet implemented
+    return Err(ContractError::VotingMember(leaver.to_string()));
+
+    //             send_tokens(&info.sender, &refund)
 }
 
 pub fn proposal_execute(
@@ -476,6 +507,9 @@ pub fn proposal_execute(
         }
         ProposalContent::AdjustVotingRules(adjustments) => {
             proposal_adjust_voting_rules(deps, env, adjustments)
+        }
+        ProposalContent::AddVotingMembers { voters } => {
+            proposal_add_voting_members(deps, env, voters)
         }
     }
 }
@@ -520,6 +554,49 @@ pub fn proposal_adjust_voting_rules(
     })
 }
 
+pub fn proposal_add_voting_members(
+    deps: DepsMut,
+    env: Env,
+    to_add: Vec<String>,
+) -> Result<Response, ContractError> {
+    let height = env.block.height;
+
+    // TODO: make a new batch
+    let batch = 1;
+
+    let attributes = vec![
+        attr("action", "add_voting_members"),
+        attr("added", to_add.len()),
+        attr("batch", batch),
+    ];
+
+    // make the local additions
+    // Add all new voting members and update total
+    let mut diffs: Vec<MemberDiff> = vec![];
+    let escrow = EscrowStatus {
+        paid: Uint128::zero(),
+        status: MemberStatus::Pending { batch },
+    };
+    for add in to_add.into_iter() {
+        let add_addr = deps.api.addr_validate(&add)?;
+        let old = ESCROWS.may_load(deps.storage, &add_addr)?;
+        // Only add the member if it does not already exist
+        if old.is_none() {
+            members().save(deps.storage, &add_addr, &0, height)?;
+            // Create member entry in escrow (with no funds)
+            ESCROWS.save(deps.storage, &add_addr, &escrow)?;
+            diffs.push(MemberDiff::new(add, None, Some(0)));
+        }
+    }
+    // TODO use this?
+    let _ = diffs;
+
+    Ok(Response {
+        attributes,
+        ..Response::default()
+    })
+}
+
 fn send_tokens(to: &Addr, amount: &Uint128) -> Vec<CosmosMsg> {
     if amount.is_zero() {
         vec![]
@@ -530,32 +607,6 @@ fn send_tokens(to: &Addr, amount: &Uint128) -> Vec<CosmosMsg> {
         }
         .into()]
     }
-}
-
-pub fn add_voting_members(
-    deps: DepsMut,
-    height: u64,
-    sender: Addr,
-    to_add: Vec<String>,
-) -> Result<MemberChangedHookMsg, ContractError> {
-    // TODO: Implement auth via voting
-    ADMIN.assert_admin(deps.as_ref(), &sender)?;
-
-    // Add all new voting members and update total
-    let mut diffs: Vec<MemberDiff> = vec![];
-    for add in to_add.into_iter() {
-        let add_addr = deps.api.addr_validate(&add)?;
-        let old = ESCROWS.may_load(deps.storage, &add_addr)?;
-        // Only add the member if it does not already exist
-        if old.is_none() {
-            members().save(deps.storage, &add_addr, &0, height)?;
-            // Create member entry in escrow (with no funds)
-            ESCROWS.save(deps.storage, &add_addr, &Uint128::zero())?;
-            diffs.push(MemberDiff::new(add, None, Some(0)));
-        }
-    }
-
-    Ok(MemberChangedHookMsg { diffs })
 }
 
 // The logic from execute_update_non_voting_members extracted for easier import
@@ -615,7 +666,6 @@ pub fn query(deps: Deps, env: Env, msg: QueryMsg) -> StdResult<Binary> {
         }
         QueryMsg::TotalWeight {} => to_binary(&query_total_weight(deps)?),
         QueryMsg::Dso {} => to_binary(&query_dso(deps)?),
-        QueryMsg::Admin {} => to_binary(&ADMIN.query_admin(deps)?),
         QueryMsg::Proposal { proposal_id } => to_binary(&query_proposal(deps, env, proposal_id)?),
         QueryMsg::Vote { proposal_id, voter } => to_binary(&query_vote(deps, proposal_id, voter)?),
         QueryMsg::ListProposals {
@@ -676,14 +726,7 @@ fn query_member(deps: Deps, addr: String, height: Option<u64>) -> StdResult<Memb
 
 fn query_escrow(deps: Deps, addr: String) -> StdResult<EscrowResponse> {
     let addr = deps.api.addr_validate(&addr)?;
-    let escrow = ESCROWS.may_load(deps.storage, &addr)?;
-    let escrow_amount = DSO.load(deps.storage)?.escrow_amount;
-    let authorized = escrow.map_or(false, |amount| amount >= escrow_amount);
-
-    Ok(EscrowResponse {
-        amount: escrow,
-        authorized,
-    })
+    ESCROWS.may_load(deps.storage, &addr)
 }
 
 // settings for pagination

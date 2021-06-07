@@ -1,7 +1,7 @@
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
-use crate::state::{ProposalContent, Votes, VotingRules};
+use crate::state::{EscrowStatus, ProposalContent, Votes, VotingRules};
 use cosmwasm_std::{Decimal, Uint128};
 use cw0::Expiration;
 use cw3::{Status, Vote};
@@ -9,10 +9,6 @@ use cw3::{Status, Vote};
 #[derive(Serialize, Deserialize, Clone, PartialEq, JsonSchema, Debug)]
 #[serde(rename_all = "snake_case")]
 pub struct InstantiateMsg {
-    /// The admin is the only account that can update the group state.
-    /// Omit it to make the group immutable.
-    // FIXME: Remove admin entirely once voting is working
-    pub admin: Option<String>,
     /// DSO Name
     pub name: String,
     /// The required escrow amount, in the default denom (utgd)
@@ -33,9 +29,6 @@ pub struct InstantiateMsg {
 #[derive(Serialize, Deserialize, Clone, PartialEq, JsonSchema, Debug)]
 #[serde(rename_all = "snake_case")]
 pub enum ExecuteMsg {
-    AddVotingMembers {
-        voters: Vec<String>,
-    },
     DepositEscrow {},
     ReturnEscrow {
         amount: Option<Uint128>,
@@ -62,8 +55,6 @@ pub enum ExecuteMsg {
 #[derive(Serialize, Deserialize, Clone, PartialEq, JsonSchema, Debug)]
 #[serde(rename_all = "snake_case")]
 pub enum QueryMsg {
-    /// Return AdminResponse
-    Admin {},
     /// Return DsoResponse
     Dso {},
     /// Return TotalWeightResponse
@@ -83,12 +74,13 @@ pub enum QueryMsg {
         start_after: Option<String>,
         limit: Option<u32>,
     },
-    /// Returns MemberResponse
+    /// Returns MemberResponse with voting weight
     Member {
         addr: String,
         at_height: Option<u64>,
     },
-    /// Returns EscrowResponse
+    /// Returns EscrowResponse with status (paying in escrow, leaving, etc) and amount.
+    /// Returns None (JSON: null) for non-members
     Escrow { addr: String },
     /// Returns ProposalResponse
     Proposal { proposal_id: u64 },
@@ -116,11 +108,7 @@ pub enum QueryMsg {
     },
 }
 
-#[derive(Serialize, Deserialize, Clone, PartialEq, JsonSchema, Debug)]
-pub struct EscrowResponse {
-    pub amount: Option<Uint128>,
-    pub authorized: bool,
-}
+pub type EscrowResponse = Option<EscrowStatus>;
 
 #[derive(Serialize, Deserialize, Clone, PartialEq, JsonSchema, Debug)]
 pub struct DsoResponse {

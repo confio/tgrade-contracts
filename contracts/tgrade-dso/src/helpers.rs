@@ -27,6 +27,7 @@ impl TgDsoContract {
         TgDsoContract(Tg4Contract(addr))
     }
 
+    #[allow(dead_code)]
     fn encode_msg(&self, msg: ExecuteMsg) -> StdResult<CosmosMsg> {
         Ok(WasmMsg::Execute {
             contract_addr: self.addr().into(),
@@ -34,10 +35,5 @@ impl TgDsoContract {
             send: vec![],
         }
         .into())
-    }
-
-    pub fn add_voting_members(&self, voters: Vec<String>) -> StdResult<CosmosMsg> {
-        let msg = ExecuteMsg::AddVotingMembers { voters };
-        self.encode_msg(msg)
     }
 }
