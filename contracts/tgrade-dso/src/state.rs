@@ -8,7 +8,7 @@ use cw0::Expiration;
 use cw3::{Status, Vote};
 use cw_controllers::Admin;
 use cw_storage_plus::{
-    Index, IndexList, IndexedSnapshotMap, Item, Map, MultiIndex, PrimaryKey, Strategy, U64Key,
+    Index, IndexList, IndexedSnapshotMap, Item, Map, MultiIndex, Strategy, U64Key,
 };
 use std::convert::TryInto;
 use tg4::TOTAL_KEY;
@@ -125,13 +125,33 @@ pub fn members<'a>() -> IndexedSnapshotMap<'a, &'a Addr, u64, MemberIndexes<'a>>
     )
 }
 
-pub const ESCROWS_KEY: &str = "escrows";
-pub const ESCROWS: Map<&Addr, Uint128> = Map::new(ESCROWS_KEY);
-
-/// escrow_key is meant for raw queries for one member escrow, given address
-pub fn escrow_key(address: &str) -> Vec<u8> {
-    (ESCROWS_KEY, address).joined_key()
+/// We store escrow and status together for all members.
+/// This is set for any address where weight is not None.
+#[derive(Serialize, Deserialize, Clone, PartialEq, JsonSchema, Debug)]
+pub struct EscrowStatus {
+    /// how much escrow they have paid
+    pub paid: Uint128,
+    /// voter status. we check this to see what functionality are allowed for this member
+    pub status: MemberStatus,
 }
+
+#[derive(Serialize, Deserialize, Clone, PartialEq, JsonSchema, Debug)]
+#[serde(rename_all = "snake_case")]
+pub enum MemberStatus {
+    /// Normal member, not allowed to vote
+    NonVoting {},
+    /// Approved for voting, need to pay in
+    Pending { batch: u64 },
+    /// Approved for voting, and paid in. Waiting for rest of batch
+    PendingPaid { batch: u64 },
+    /// Full-fledged voting member
+    Voting {},
+    /// Marked as leaving. Escrow frozen until
+    Leaving { claim_at: u64 },
+}
+
+// TODO: use EscrowStatus
+pub const ESCROWS: Map<&Addr, Uint128> = Map::new("escrows");
 
 #[derive(Serialize, Deserialize, Clone, PartialEq, JsonSchema, Debug)]
 #[serde(rename_all = "snake_case")]

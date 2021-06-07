@@ -896,7 +896,6 @@ fn list_votes_by_voter(
 mod tests {
     use super::*;
     use crate::error::ContractError::Std;
-    use crate::state::escrow_key;
     use cosmwasm_std::testing::{mock_dependencies, mock_env, mock_info};
     use cosmwasm_std::{
         coin, coins, from_slice, Api, Attribute, Coin, OwnedDeps, Querier, StdError, Storage,
@@ -1581,7 +1580,8 @@ mod tests {
         assert_eq!(None, member3_raw);
 
         // get escrow amount from raw key
-        let member0_escrow_raw = deps.storage.get(&escrow_key(INIT_ADMIN)).unwrap();
+        let key = ESCROWS.key(&Addr::unchecked(INIT_ADMIN));
+        let member0_escrow_raw = deps.storage.get(&key).unwrap();
         let member0_escrow: Uint128 = from_slice(&member0_escrow_raw).unwrap();
         assert_eq!(ESCROW_FUNDS, member0_escrow.u128());
     }
