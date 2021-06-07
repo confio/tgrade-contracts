@@ -44,16 +44,6 @@ Basic update messages, and queries are defined by the
 
 `tgrade-dso` add messages to:
 
-- Control the group membership:
-
-`UpdateMembers{add, remove}` - takes a membership diff and adds/updates the
-members, as well as removing any provided addresses. If an address is on both
-lists, it will be removed. If it appears multiple times in `add`, only the
-last occurrence will be used.
-Non-voting participants can be added with zero weight.
-This message is for testing purposes only, as all the group operations and update
-changes will be done through multisig voting.
-
 - Deposit and redeem funds in escrow.
 
 - Create proposals, and allow voting them:
@@ -67,3 +57,91 @@ non-voting participants, must be done through voting.
 - Close the DSO.
 This implies redeeming all the funds, and removing / blocking the DSO so that
 it cannot be accessed anymore.
+
+- And more
+
+## Membership
+
+This is becoming complex, and hard to reason about, so we need to discuss the full lifecycle of a member.
+
+- *Non Member* - Everyone starts here and may return here. No special rights in the DSO
+
+- *Non Voting Member* - On a successful proposal, an *non member* may be converted to a non-voting member. Another proposal
+  may convert them to a *non member*, or they may choose such a transition themself.
+
+- *Pending Voter* - On a successful proposal, a *non member* or *non voting member* may be converted to a *pending voter*.
+  They have the same rights as a *non voting member* (participate in the DSO), but cannot yet vote. A pending voter may
+  *deposit escrow*. Once their escrow deposit is equal or greater than the required escrow, they become
+  *pending, paid voter*.
+
+- *Pending, Paid Voter* - At this point, they have been approved and have paid the required escrow. However, they may have
+  to wait some time before becoming *Voter* (more on this below).
+
+- *Voter* - All voters are assigned a voting weight of 1 and are able to make proposals and vote on them. They can *deposit escrow*
+  to raise it and *return* escrow down to the minimum required escrow, but no lower. There are 3 transitions out:
+  - Voluntary leave: transition to *Leaving Voter*
+  - Punishment: transition to a *Non Member* and escrow is distributed to whoever DSO Governance decides
+  - Partial Slashing: transtion to a *Pending Voter* and a portion of the escrow is confiscated. They can then deposit
+    more escrow to become a *Voter* or remain a *Non Voting Member*
+  - By Escrow Increased
+
+- *Leaving Voter* - A voter who has requested to leave is immediately assigned a weight of 0 like a *Non Voting Member*.
+  However, the escrow is not immediately returned. It is converted to a "pending withdrawal" for a duration of
+  `2 * voting period`. During the period it may be slashed via "Punishment" or "Partial Slashing" as a *Voter*.
+  At the end of the period, any remaining escrow can be claimed by the *Leaving Voter*, converting them to a *Non Member*.
+
+### Leaving
+
+*Non Voting Member*, *Pending Voter*, *Pending, Paid Voter*, and *Pending, Paid Voter* may all request to voluntarily
+leave the DSO. *Non Voting Member* as well as *Pending Voter* who have not yet paid any escrow are immediately removed
+from the DSO. All other cases, which have paid in some escrow, are transitioned to *Leaving Voter* and can reclaim
+their escrow after the grace period has expired.
+
+Proposals work using a snapshot of the voting members *at the time of creation*. This means a voting member may leave
+the DSO, but still be eligible to vote in some existing proposals. To make this more intuitive, we will say that
+any vote cast *before* the voting member left will remain valid, however, they will not be able to vote after this point.
+The way we tally the votes for such proposals is:
+
+> prevent any *Leaving Voter* from casting further votes. Reduce the total weight on any proposal where an
+> eligible voter left without voting on it, so it was like they were never eligible.
+
+Assume there are 10 voters and 50% quorum (5 votes) needed for passing. There is an open proposal with 2 yes votes
+and 1 no vote. 2 voters leave without casting a vote.  In this case, we remain with 3 votes, but now out of 8 total.
+Only one more vote is needed to reach quorum (effective 50%) and if it were `yes` or `abstain` then the vote could pass.
+This is just like the leaving voters were not present when it started. Note that if one of the leaving voters cast
+a Yes vote right before leaving, we would remain with 4 votes (3 yes, 1 no) out of 9 total, and still not have quorum.
+
+### Pending and Paid to Voter
+
+Some transitions require more explanation, and this is the most complex one.
+
+When transitioning from *Non Member* or *Non Voting Member* to *Pending Voter*, all addresses in the proposal
+are assigned one *Batch*. The *Batch* has a number of addresses and a "grace period" that ends at batch creation plus
+one voting period.  When transitioning from *Pending Voter* to *Pending, Paid Voter* the *Batch* status is consulted.
+If all voters in the *Batch* have paid their escrow, they are all converted to *Voter*. If the "grace period"
+has expired, this address and all other *Paid, Pending Voters* in that *Batch* are converted to *Voter*, and *Pending Voters* stays *Pending Voters*.
+
+In order to handle the delayed transition, we add some more hooks to convert *Paid, Pending Voters* to *Voters*.
+First, anyone can call *CheckPending*, which will look for *Paid, Pending Voters* in *Batches* whose
+"grace period" has expired. Those will all be converted to *Voters*. We also perform this check upon proposal
+creation, converting all eligible *Paid, Pending Voters* to *Voters* right before the proposal creation, so they may
+vote on it.
+
+When transitioning from *Voter* to *Pending Voter* due to "Partial Slashing", they are assigned a batch of size 1,
+meaning they will become a full voter once they have paid all escrow dues.
+
+### Escrow Increased
+
+If the escrow is increased, many Voters may no longer have the minimum escrow. We handle this in batches of ones with a grace period to allow
+them to top-up before enforcing the new escrow. Rather than add more states to capture *Voters* or *Pending, Paid Voters*
+who have paid the old escrow but not the new one, we will model it by a delay on the escrow.
+
+We have `required_escrow` and `pending_escrow`, which is an `Option` with a deadline and an amount. When setting a new
+escrow, the `pending_escrow` is set. We do not allow multiple pending escrows at once. The *CheckPending* trigger
+will be extended to check and apply a new escrow (and this is also automatically called upon proposal creation).
+In such a case, we will move `pending_escrow` to `required_escrow` and mark `pending_escrow` as `None`. We will also
+iterate over all *Voters* and demote those with insufficient escrow to *Pending Voters*.
+
+Since the "grace period" for *Batches* and the "grace period" to enable new escrow are the same, we don't add lots of
+special logic to handle *Paid, Pending Voters*. Rather they will use the `pending_escrow` if set when paying into their
+escrow. To avoid race conditions, we will *CheckPending* to upgrade to *Voters* before doing the escrow check.
