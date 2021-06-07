@@ -216,6 +216,7 @@ pub fn execute_deposit_escrow(
 /// voters in the batch can be promoted.
 ///
 /// Returns a list of attributes for each user promoted
+#[allow(clippy::unnecessary_wraps)]
 fn promote_batch_if_ready(
     _deps: DepsMut,
     _env: Env,
@@ -449,26 +450,19 @@ pub fn execute_close(
     })
 }
 
-// TODO: redo this
 pub fn execute_leave_dso(
     deps: DepsMut,
     env: Env,
     info: MessageInfo,
 ) -> Result<Response, ContractError> {
+    // TODO: special check if last member leaving (future story)
     let escrow = ESCROWS
         .may_load(deps.storage, &info.sender)?
         .ok_or(ContractError::NotAMember {})?;
 
-    // TODO: special check if last member leaving (future story)
-    match escrow.status {
-        MemberStatus::NonVoting {} => leave_immediately(deps, env, info.sender),
-        MemberStatus::Pending { .. } => {
-            if escrow.paid.is_zero() {
-                leave_immediately(deps, env, info.sender)
-            } else {
-                trigger_long_leave(deps, env, info.sender)
-            }
-        }
+    match (escrow.status, escrow.paid) {
+        (MemberStatus::NonVoting {}, _) => leave_immediately(deps, env, info.sender),
+        (MemberStatus::Pending { .. }, Uint128(0)) => leave_immediately(deps, env, info.sender),
         _ => trigger_long_leave(deps, env, info.sender),
     }
 }
@@ -491,7 +485,7 @@ fn leave_immediately(deps: DepsMut, env: Env, leaver: Addr) -> Result<Response, 
 
 fn trigger_long_leave(_deps: DepsMut, _env: Env, leaver: Addr) -> Result<Response, ContractError> {
     // voting member... this is a more complex situation, not yet implemented
-    return Err(ContractError::VotingMember(leaver.to_string()));
+    Err(ContractError::VotingMember(leaver.to_string()))
 
     //             send_tokens(&info.sender, &refund)
 }

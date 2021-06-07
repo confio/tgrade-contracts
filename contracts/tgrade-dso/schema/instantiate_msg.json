@@ -12,13 +12,6 @@
     "voting_period"
   ],
   "properties": {
-    "admin": {
-      "description": "The admin is the only account that can update the group state. Omit it to make the group immutable.",
-      "type": [
-        "string",
-        "null"
-      ]
-    },
     "allow_end_early": {
       "description": "If true, and absolute threshold and quorum are met, we can end before voting period finished. (Recommended value: true, unless you have special needs)",
       "type": "boolean"

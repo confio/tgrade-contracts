@@ -150,11 +150,10 @@ pub enum MemberStatus {
 
 impl MemberStatus {
     pub fn can_pay_escrow(&self) -> bool {
-        match self {
-            MemberStatus::NonVoting {} => false,
-            MemberStatus::Leaving { .. } => false,
-            _ => true,
-        }
+        !matches!(
+            self,
+            MemberStatus::NonVoting {} | MemberStatus::Leaving { .. }
+        )
     }
 }
 
