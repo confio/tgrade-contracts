@@ -154,6 +154,7 @@ pub fn execute(
         ExecuteMsg::Execute { proposal_id } => execute_execute(deps, env, info, proposal_id),
         ExecuteMsg::Close { proposal_id } => execute_close(deps, env, info, proposal_id),
         ExecuteMsg::LeaveDso {} => execute_leave_dso(deps, env, info),
+        ExecuteMsg::CheckPending {} => execute_check_pending(deps, env, info),
     }
 }
 
@@ -233,26 +234,32 @@ fn promote_batch_if_ready(
             TOTAL.update::<_, StdError>(deps.storage, |old| Ok(old + VOTING_WEIGHT))?;
             vec![attr("promoted", promoted)]
         }
-        (true, false) => {
-            // try to promote them all
-            let mut attrs = Vec::with_capacity(batch.members.len());
-            for waiting in batch.members.iter() {
-                if promote_if_paid(deps.storage, waiting, height)? {
-                    attrs.push(attr("promoted", waiting));
-                }
-            }
-            batch.batch_promoted = true;
-            // update the total with the new weight
-            let added = attrs.len() as u64;
-            TOTAL.update::<_, StdError>(deps.storage, |old| Ok(old + VOTING_WEIGHT * added))?;
-            attrs
-        }
+        (true, false) => promote_batch(deps.storage, &mut batch, height)?,
         // not ready yet
         _ => vec![],
     };
 
     BATCHES.save(deps.storage, batch_id.into(), &batch)?;
 
+    Ok(attrs)
+}
+
+fn promote_batch(
+    storage: &mut dyn Storage,
+    batch: &mut Batch,
+    height: u64,
+) -> StdResult<Vec<Attribute>> {
+    // try to promote them all
+    let mut attrs = Vec::with_capacity(batch.members.len());
+    for waiting in batch.members.iter() {
+        if promote_if_paid(storage, waiting, height)? {
+            attrs.push(attr("promoted", waiting));
+        }
+    }
+    batch.batch_promoted = true;
+    // update the total with the new weight
+    let added = attrs.len() as u64;
+    TOTAL.update::<_, StdError>(storage, |old| Ok(old + VOTING_WEIGHT * added))?;
     Ok(attrs)
 }
 
@@ -343,6 +350,13 @@ pub fn execute_propose(
         return Err(ContractError::Unauthorized {});
     }
 
+    // trigger check_pending (we should get this cheaper)
+    // Note, we check this at the end of last block, so they will actually be included in the voters
+    // of this proposal (which uses a snapshot)
+    let mut last_block = env.block.clone();
+    last_block.height -= 1;
+    let mut attributes = check_pending(deps.storage, &last_block, vec![])?;
+
     // create a proposal
     let dso = DSO.load(deps.storage)?;
     let mut prop = Proposal {
@@ -366,13 +380,13 @@ pub fn execute_propose(
     };
     save_ballot(deps.storage, id, &info.sender, &ballot)?;
 
+    attributes.extend(vec![
+        attr("action", "propose"),
+        attr("sender", info.sender),
+        attr("proposal_id", id),
+    ]);
     Ok(Response {
-        attributes: vec![
-            attr("action", "propose"),
-            attr("sender", info.sender),
-            attr("proposal_id", id),
-            attr("status", format!("{:?}", prop.status)),
-        ],
+        attributes,
         ..Response::default()
     })
 }
@@ -528,10 +542,53 @@ fn leave_immediately(deps: DepsMut, env: Env, leaver: Addr) -> Result<Response, 
 }
 
 fn trigger_long_leave(_deps: DepsMut, _env: Env, leaver: Addr) -> Result<Response, ContractError> {
-    // voting member... this is a more complex situation, not yet implemented
+    // FIXME: voting member... this is a more complex situation, not yet implemented
     Err(ContractError::VotingMember(leaver.to_string()))
-
     //             send_tokens(&info.sender, &refund)
+}
+
+pub fn execute_check_pending(
+    deps: DepsMut,
+    env: Env,
+    info: MessageInfo,
+) -> Result<Response, ContractError> {
+    let start = vec![
+        attr("action", "check_pending"),
+        attr("sender", &info.sender),
+    ];
+    let attributes = check_pending(deps.storage, &env.block, start)?;
+    Ok(Response {
+        attributes,
+        ..Response::default()
+    })
+}
+
+fn check_pending(
+    storage: &mut dyn Storage,
+    block: &BlockInfo,
+    // the starting attributes (may be empty)
+    mut attributes: Vec<Attribute>,
+) -> StdResult<Vec<Attribute>> {
+    // Find all pending batches, starting from newest first
+    // TODO: can we optimize this by stopping early? Any lower limit? Secondary index?
+    //        previous voting period could have been anything!
+    let batches = BATCHES
+        .range(storage, None, None, Order::Descending)
+        .filter(|res| match res {
+            Ok((_, batch)) => !batch.batch_promoted && batch.can_promote(block),
+            Err(_) => true,
+        })
+        .collect::<StdResult<Vec<_>>>()?;
+
+    for (key, mut batch) in batches {
+        let batch_id = parse_id(&key)?;
+        let attrs = promote_batch(storage, &mut batch, block.height)?;
+        BATCHES.save(storage, batch_id.into(), &batch)?;
+        attributes.push(attr("batch", batch_id));
+        attributes.extend(attrs);
+    }
+
+    Ok(attributes)
 }
 
 pub fn proposal_execute(
@@ -1238,10 +1295,10 @@ mod tests {
     // - add voting who is already voting (pending)
     // more...
 
-    fn later(env: &Env, blocks: u64) -> Env {
+    fn later(env: &Env, seconds: u64) -> Env {
         let mut later = env.clone();
-        later.block.height += blocks;
-        later.block.time = later.block.time.plus_seconds(blocks * 5);
+        later.block.height += seconds / 5;
+        later.block.time = later.block.time.plus_seconds(seconds);
         later
     }
 
@@ -1338,7 +1395,23 @@ mod tests {
             &[VOTING1, VOTING2, VOTING3],
         );
 
-        // TODO: what triggers timeout of other
+        // New proposal, but still not expired, only second can vote
+        let almost_finish1 = delay1 + 86_400 * 14 - 1;
+        assert_can_vote(
+            deps.as_mut(),
+            &later(&start, almost_finish1),
+            &[SECOND1, SECOND2],
+            &[VOTING1, VOTING2, VOTING3],
+        );
+
+        // Right after the grace period, the batch1 "paid, pending" gets voting rights
+        let finish1 = delay1 + 86_400 * 30;
+        assert_can_vote(
+            deps.as_mut(),
+            &later(&start, finish1),
+            &[VOTING1, SECOND1, SECOND2],
+            &[VOTING2, VOTING3],
+        );
     }
 
     #[test]

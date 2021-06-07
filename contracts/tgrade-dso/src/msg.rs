@@ -50,6 +50,9 @@ pub enum ExecuteMsg {
     },
     /// This allows the caller to exit from the group
     LeaveDso {},
+    /// This checks any batches whose grace period has passed, and who have not all paid escrow.
+    /// Run through these groups and promote anyone who has paid escrow.
+    CheckPending {},
 }
 
 // TODO: expose batch query

@@ -148,6 +148,19 @@
         }
       },
       "additionalProperties": false
+    },
+    {
+      "description": "This checks any batches whose grace period has passed, and who have not all paid escrow. Run through these groups and promote anyone who has paid escrow.",
+      "type": "object",
+      "required": [
+        "check_pending"
+      ],
+      "properties": {
+        "check_pending": {
+          "type": "object"
+        }
+      },
+      "additionalProperties": false
     }
   ],
   "definitions": {
