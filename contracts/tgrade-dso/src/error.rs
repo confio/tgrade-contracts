@@ -1,4 +1,4 @@
-use cosmwasm_std::{Decimal, StdError};
+use cosmwasm_std::{Decimal, StdError, Uint128};
 use thiserror::Error;
 
 use crate::state::MemberStatus;
@@ -25,7 +25,7 @@ pub enum ContractError {
     NoFunds,
 
     #[error("Insufficient escrow amount: {0}")]
-    InsufficientFunds(u128),
+    InsufficientFunds(Uint128),
 
     #[error("{0}")]
     Payment(#[from] PaymentError),

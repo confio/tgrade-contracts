@@ -139,9 +139,9 @@ pub enum MemberStatus {
     /// Normal member, not allowed to vote
     NonVoting {},
     /// Approved for voting, need to pay in
-    Pending { batch: u64 },
+    Pending { batch_id: u64 },
     /// Approved for voting, and paid in. Waiting for rest of batch
-    PendingPaid { batch: u64 },
+    PendingPaid { batch_id: u64 },
     /// Full-fledged voting member
     Voting {},
     /// Marked as leaving. Escrow frozen until
@@ -149,11 +149,22 @@ pub enum MemberStatus {
 }
 
 impl MemberStatus {
+    #[inline]
     pub fn can_pay_escrow(&self) -> bool {
         !matches!(
             self,
             MemberStatus::NonVoting {} | MemberStatus::Leaving { .. }
         )
+    }
+
+    #[inline]
+    pub fn is_pending_paid(&self) -> bool {
+        matches!(self, MemberStatus::PendingPaid { .. })
+    }
+
+    #[inline]
+    pub fn is_voter(&self) -> bool {
+        matches!(self, MemberStatus::Voting {})
     }
 }
 
@@ -195,6 +206,13 @@ impl Batch {
 
 pub const BATCH_COUNT: Item<u64> = Item::new("batch_count");
 pub const BATCHES: Map<U64Key, Batch> = Map::new("batch");
+
+pub fn create_batch(store: &mut dyn Storage, batch: &Batch) -> StdResult<u64> {
+    let id: u64 = BATCH_COUNT.may_load(store)?.unwrap_or_default() + 1;
+    BATCH_COUNT.save(store, &id)?;
+    BATCHES.save(store, id.into(), batch)?;
+    Ok(id)
+}
 
 #[derive(Serialize, Deserialize, Clone, PartialEq, JsonSchema, Debug)]
 #[serde(rename_all = "snake_case")]
@@ -352,9 +370,10 @@ pub fn save_ballot(
     BALLOTS_BY_VOTER.save(storage, (sender, proposal_id.into()), ballot)
 }
 
-pub fn next_id(store: &mut dyn Storage) -> StdResult<u64> {
+pub fn create_proposal(store: &mut dyn Storage, proposal: &Proposal) -> StdResult<u64> {
     let id: u64 = PROPOSAL_COUNT.may_load(store)?.unwrap_or_default() + 1;
     PROPOSAL_COUNT.save(store, &id)?;
+    PROPOSALS.save(store, id.into(), proposal)?;
     Ok(id)
 }
 

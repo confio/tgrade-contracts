@@ -1,6 +1,6 @@
 {
   "$schema": "http://json-schema.org/draft-07/schema#",
-  "title": "Nullable_EscrowStatus",
+  "title": "EscrowResponse",
   "anyOf": [
     {
       "$ref": "#/definitions/EscrowStatus"
@@ -61,10 +61,10 @@
             "pending": {
               "type": "object",
               "required": [
-                "batch"
+                "batch_id"
               ],
               "properties": {
-                "batch": {
+                "batch_id": {
                   "type": "integer",
                   "format": "uint64",
                   "minimum": 0.0
@@ -84,10 +84,10 @@
             "pending_paid": {
               "type": "object",
               "required": [
-                "batch"
+                "batch_id"
               ],
               "properties": {
-                "batch": {
+                "batch_id": {
                   "type": "integer",
                   "format": "uint64",
                   "minimum": 0.0

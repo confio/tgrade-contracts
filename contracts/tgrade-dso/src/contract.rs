@@ -19,9 +19,9 @@ use crate::msg::{
     ProposalResponse, QueryMsg, VoteInfo, VoteListResponse, VoteResponse,
 };
 use crate::state::{
-    members, next_id, parse_id, save_ballot, Ballot, Dso, EscrowStatus, MemberStatus, Proposal,
-    ProposalContent, Votes, VotingRules, VotingRulesAdjustments, BALLOTS, BALLOTS_BY_VOTER,
-    BATCHES, DSO, ESCROWS, PROPOSALS, TOTAL,
+    create_batch, create_proposal, members, parse_id, save_ballot, Ballot, Batch, Dso,
+    EscrowStatus, MemberStatus, Proposal, ProposalContent, Votes, VotingRules,
+    VotingRulesAdjustments, BALLOTS, BALLOTS_BY_VOTER, BATCHES, DSO, ESCROWS, PROPOSALS, TOTAL,
 };
 
 // version info for migration info
@@ -77,7 +77,7 @@ pub fn create(
     // based on init_funds
     let amount = cw0::must_pay(&info, DSO_DENOM)?;
     if amount < escrow_amount {
-        return Err(ContractError::InsufficientFunds(amount.u128()));
+        return Err(ContractError::InsufficientFunds(amount));
     }
     // Put sender funds in escrow
     let escrow = EscrowStatus {
@@ -131,7 +131,8 @@ pub fn validate(
     }
 
     if escrow_amount.is_zero() {
-        return Err(ContractError::InsufficientFunds(escrow_amount.u128()));
+        // FIXME: fix the error here
+        return Err(ContractError::InsufficientFunds(escrow_amount));
     }
     Ok(())
 }
@@ -178,11 +179,11 @@ pub fn execute_deposit_escrow(
 
     // check to see if we update the pending status
     let attrs = match escrow.status {
-        MemberStatus::Pending { batch } => {
+        MemberStatus::Pending { batch_id: batch } => {
             let required_escrow = DSO.load(deps.storage)?.escrow_amount;
             if escrow.paid >= required_escrow {
                 // If we paid enough, we can move into Paid, Pending Voter
-                escrow.status = MemberStatus::PendingPaid { batch };
+                escrow.status = MemberStatus::PendingPaid { batch_id: batch };
                 ESCROWS.save(deps.storage, &info.sender, &escrow)?;
                 // Now check if this batch is ready...
                 promote_batch_if_ready(deps, env, batch, &info.sender)?
@@ -257,7 +258,7 @@ fn promote_batch_if_ready(
 fn promote_if_paid(storage: &mut dyn Storage, to_promote: &Addr, height: u64) -> StdResult<bool> {
     let mut escrow = ESCROWS.load(storage, to_promote)?;
     // if this one was not yet paid up, do nothing
-    if !matches!(escrow.status, MemberStatus::PendingPaid { .. }) {
+    if !escrow.status.is_pending_paid() {
         return Ok(false);
     }
 
@@ -271,28 +272,32 @@ fn promote_if_paid(storage: &mut dyn Storage, to_promote: &Addr, height: u64) ->
     Ok(true)
 }
 
-// TODO: redo this
 pub fn execute_return_escrow(
     deps: DepsMut,
     info: MessageInfo,
     amount: Option<Uint128>,
 ) -> Result<Response, ContractError> {
-    // This fails is no escrow there
-    let mut escrow = ESCROWS.load(deps.storage, &info.sender)?;
+    // This can only be called by voters
+    let mut escrow = ESCROWS
+        .may_load(deps.storage, &info.sender)?
+        .ok_or(ContractError::NotAMember {})?;
+    if escrow.status.is_voter() {
+        return Err(ContractError::InvalidStatus(escrow.status));
+    }
 
     // Compute the maximum amount that can be refund
     let escrow_amount = DSO.load(deps.storage)?.escrow_amount;
-    let mut max_refund = escrow.paid;
-    if max_refund >= escrow_amount {
-        max_refund = max_refund.checked_sub(escrow_amount).unwrap();
-    };
+    let max_refund = escrow
+        .paid
+        .checked_sub(escrow_amount)
+        .map_err(|_| ContractError::InsufficientFunds(escrow.paid))?;
 
     // Refund the maximum by default, or the requested amount (if possible)
     let refund = match amount {
         None => max_refund,
         Some(amount) => {
             if amount > max_refund {
-                return Err(ContractError::InsufficientFunds(amount.u128()));
+                return Err(ContractError::InsufficientFunds(amount));
             }
             amount
         }
@@ -350,8 +355,7 @@ pub fn execute_propose(
         rules: dso.rules,
     };
     prop.update_status(&env.block);
-    let id = next_id(deps.storage)?;
-    PROPOSALS.save(deps.storage, id.into(), &prop)?;
+    let id = create_proposal(deps.storage, &prop)?;
 
     // add the first yes vote from voter
     let ballot = Ballot {
@@ -445,7 +449,7 @@ pub fn execute_execute(
     PROPOSALS.save(deps.storage, proposal_id.into(), &prop)?;
 
     // execute the proposal
-    // TODO: better handling of return value??
+    // FIXME: better handling of return value??
     let mut res = proposal_execute(deps.branch(), env, prop.proposal)?;
 
     res.attributes.extend(vec![
@@ -493,7 +497,7 @@ pub fn execute_leave_dso(
     env: Env,
     info: MessageInfo,
 ) -> Result<Response, ContractError> {
-    // TODO: special check if last member leaving (future story)
+    // FIXME: special check if last member leaving (future story)
     let escrow = ESCROWS
         .may_load(deps.storage, &info.sender)?
         .ok_or(ContractError::NotAMember {})?;
@@ -592,36 +596,45 @@ pub fn proposal_add_voting_members(
     to_add: Vec<String>,
 ) -> Result<Response, ContractError> {
     let height = env.block.height;
+    // grace period is defined as the voting period
+    let grace_period = DSO.load(deps.storage)?.rules.voting_period_secs();
 
-    // TODO: make a new batch
-    let batch = 1;
+    let addrs = to_add
+        .iter()
+        .map(|addr| deps.api.addr_validate(&addr))
+        .collect::<StdResult<Vec<_>>>()?;
+    let batch = Batch {
+        grace_ends_at: env.block.time.plus_seconds(grace_period).nanos() / 1_000_000_000,
+        waiting_escrow: to_add.len() as u32,
+        batch_promoted: false,
+        members: addrs.clone(),
+    };
+    let batch_id = create_batch(deps.storage, &batch)?;
 
     let attributes = vec![
         attr("action", "add_voting_members"),
         attr("added", to_add.len()),
-        attr("batch", batch),
+        attr("batch_id", batch_id),
     ];
 
-    // make the local additions
-    // Add all new voting members and update total
-    let mut diffs: Vec<MemberDiff> = vec![];
+    // use the same placeholder for everyone in the batch
     let escrow = EscrowStatus {
         paid: Uint128::zero(),
-        status: MemberStatus::Pending { batch },
+        status: MemberStatus::Pending { batch_id },
     };
-    for add in to_add.into_iter() {
-        let add_addr = deps.api.addr_validate(&add)?;
-        let old = ESCROWS.may_load(deps.storage, &add_addr)?;
+    // make the local additions
+    // Add all new voting members and update total
+    for add in addrs.into_iter() {
+        let old = ESCROWS.may_load(deps.storage, &add)?;
         // Only add the member if it does not already exist
         if old.is_none() {
-            members().save(deps.storage, &add_addr, &0, height)?;
+            members().save(deps.storage, &add, &0, height)?;
             // Create member entry in escrow (with no funds)
-            ESCROWS.save(deps.storage, &add_addr, &escrow)?;
-            diffs.push(MemberDiff::new(add, None, Some(0)));
+            ESCROWS.save(deps.storage, &add, &escrow)?;
+            // FIXME: use this?
+            // diffs.push(MemberDiff::new(add, None, Some(0)));
         }
     }
-    // TODO use this?
-    let _ = diffs;
 
     Ok(Response {
         attributes,

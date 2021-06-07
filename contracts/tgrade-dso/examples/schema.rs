@@ -21,7 +21,7 @@ fn main() {
     export_schema_with_title(&mut schema_for!(QueryMsg), &out_dir, "QueryMsg");
     export_schema(&schema_for!(ProposalContent), &out_dir);
     export_schema(&schema_for!(DsoResponse), &out_dir);
-    export_schema(&schema_for!(EscrowResponse), &out_dir);
+    export_schema_with_title(&schema_for!(EscrowResponse), &out_dir, "EscrowResponse");
     export_schema(&schema_for!(MemberListResponse), &out_dir);
     export_schema(&schema_for!(MemberResponse), &out_dir);
     export_schema(&schema_for!(TotalWeightResponse), &out_dir);
