@@ -218,7 +218,8 @@ pub struct Batch {
 impl Batch {
     // Returns true if either all members have paid, or grace period is over
     pub fn can_promote(&self, block: &BlockInfo) -> bool {
-        self.waiting_escrow == 0 || Timestamp::from_seconds(self.grace_ends_at) >= block.time
+        let expiry = Timestamp::from_seconds(self.grace_ends_at);
+        self.waiting_escrow == 0 || block.time >= expiry
     }
 }
 
