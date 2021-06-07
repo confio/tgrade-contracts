@@ -1004,6 +1004,8 @@ mod tests {
     const NONVOTING1: &str = "bill";
     const NONVOTING2: &str = "paul";
     const NONVOTING3: &str = "jimmy";
+    const SECOND1: &str = "more";
+    const SECOND2: &str = "peeps";
 
     fn escrow_funds() -> Vec<Coin> {
         coins(ESCROW_FUNDS, "utgd")
@@ -1230,39 +1232,114 @@ mod tests {
         assert_eq!(dso, expected);
     }
 
-    // TODO
-    // #[test]
-    // fn test_add_voting_members() {
-    //     let mut deps = mock_dependencies(&[]);
-    //     let info = mock_info(INIT_ADMIN, &escrow_funds());
-    //     do_instantiate(deps.as_mut(), info, vec![]).unwrap();
-    //
-    //     // assert the voting set is proper
-    //     assert_voting(&deps, Some(1), None, None, None, None);
-    //
-    //     // Add a couple voting members
-    //     let add = vec![VOTING3.into(), VOTING1.into()];
-    //
-    //     // Non-admin cannot update
-    //     let height = mock_env().block.height;
-    //     let err = add_voting_members(
-    //         deps.as_mut(),
-    //         height + 5,
-    //         Addr::unchecked(VOTING1),
-    //         add.clone(),
-    //     )
-    //     .unwrap_err();
-    //     assert_eq!(err, AdminError::NotAdmin {}.into());
-    //
-    //     // Confirm the original values from instantiate
-    //     assert_voting(&deps, Some(1), None, None, None, None);
-    //
-    //     // Admin updates properly
-    //     add_voting_members(deps.as_mut(), height + 10, Addr::unchecked(INIT_ADMIN), add).unwrap();
-    //
-    //     // Updated properly
-    //     assert_voting(&deps, Some(1), Some(0), None, Some(0), None);
-    // }
+    // TODO: cover all edge cases....
+    // - add non-voting who is already voting
+    // - add voting who is already non-voting
+    // - add voting who is already voting (pending)
+    // more...
+
+    fn later(env: &Env, blocks: u64) -> Env {
+        let mut later = env.clone();
+        later.block.height += blocks;
+        later.block.time = later.block.time.plus_seconds(blocks * 5);
+        later
+    }
+
+    /// This makes a new proposal at env (height and time)
+    /// and ensures that all names in `can_vote` are able to place a 'yes' vote,
+    /// and all in `cannot_vote` will get an error when trying to place a vote.
+    fn assert_can_vote(mut deps: DepsMut, env: &Env, can_vote: &[&str], cannot_vote: &[&str]) {
+        // make a proposal
+        let msg = ExecuteMsg::Propose {
+            title: "Another Proposal".into(),
+            description: "Again and again".into(),
+            proposal: ProposalContent::AddRemoveNonVotingMembers {
+                remove: vec![],
+                add: vec!["new guy".into()],
+            },
+        };
+        let res = execute(deps.branch(), env.clone(), mock_info(INIT_ADMIN, &[]), msg).unwrap();
+        let proposal_id = parse_prop_id(&res.attributes);
+
+        // all voters can vote
+        let vote = ExecuteMsg::Vote {
+            proposal_id,
+            vote: Vote::Yes,
+        };
+        for voter in can_vote {
+            execute(
+                deps.branch(),
+                later(env, 5),
+                mock_info(voter, &[]),
+                vote.clone(),
+            )
+            .unwrap();
+        }
+
+        // all non-voters get an error
+        for non_voter in cannot_vote {
+            execute(
+                deps.branch(),
+                later(env, 10),
+                mock_info(non_voter, &[]),
+                vote.clone(),
+            )
+            .unwrap_err();
+        }
+    }
+
+    #[test]
+    fn test_add_voting_members_overlapping_batches() {
+        let mut deps = mock_dependencies(&[]);
+        // use different admin, so we have 4 available slots for queries
+        let info = mock_info(INIT_ADMIN, &escrow_funds());
+        do_instantiate(deps.as_mut(), info, vec![]).unwrap();
+
+        let batch1 = vec![VOTING1.into(), VOTING2.into(), VOTING3.into()];
+        let batch2 = vec![SECOND1.into(), SECOND2.into()];
+
+        // assert the voting set is proper at start
+        let start = mock_env();
+        assert_can_vote(
+            deps.as_mut(),
+            &start,
+            &[],
+            &[VOTING1, VOTING2, VOTING3, SECOND1, SECOND2],
+        );
+
+        // add new members, and one of them pays in
+        let delay1 = 10;
+        proposal_add_voting_members(deps.as_mut(), later(&start, delay1), batch1).unwrap();
+        let info = mock_info(VOTING1, &escrow_funds());
+        execute_deposit_escrow(deps.as_mut(), later(&start, delay1 + 1), info).unwrap();
+
+        // Still no power
+        assert_can_vote(
+            deps.as_mut(),
+            &later(&start, delay1 + 10),
+            &[],
+            &[VOTING1, VOTING2, VOTING3, SECOND1, SECOND2],
+        );
+
+        // make a second batch one week later
+        let delay2 = 86_400 * 7;
+        proposal_add_voting_members(deps.as_mut(), later(&start, delay2), batch2).unwrap();
+        // and both pay in
+        let info = mock_info(SECOND1, &escrow_funds());
+        execute_deposit_escrow(deps.as_mut(), later(&start, delay2 + 1), info).unwrap();
+        let info = mock_info(SECOND2, &escrow_funds());
+        execute_deposit_escrow(deps.as_mut(), later(&start, delay2 + 2), info).unwrap();
+
+        // Second batch with voting power
+        assert_can_vote(
+            deps.as_mut(),
+            &later(&start, delay2 + 10),
+            &[SECOND1, SECOND2],
+            &[VOTING1, VOTING2, VOTING3],
+        );
+
+        // TODO: what triggers timeout of other
+    }
 
     #[test]
     fn test_escrows() {
