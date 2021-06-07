@@ -3,7 +3,7 @@ use serde::{Deserialize, Serialize};
 use std::fmt;
 
 use cosmwasm_std::{
-    attr, Addr, Attribute, BlockInfo, Decimal, StdError, StdResult, Storage, Uint128,
+    attr, Addr, Attribute, BlockInfo, Decimal, StdError, StdResult, Storage, Timestamp, Uint128,
 };
 use cw0::Expiration;
 use cw3::{Status, Vote};
@@ -179,8 +179,18 @@ pub struct Batch {
     pub grace_ends_at: u64,
     /// How many must still pay in their escrow before the batch is early authorized
     pub waiting_escrow: u32,
+    /// All paid members promoted. We do this once when grace ends or waiting escrow hits 0.
+    /// Store this one done so we don't loop through that anymore.
+    pub batch_promoted: bool,
     /// List of all members that are part of this batch (look up ESCROWS with these keys)
     pub members: Vec<Addr>,
+}
+
+impl Batch {
+    // Returns true if either all members have paid, or grace period is over
+    pub fn can_promote(&self, block: &BlockInfo) -> bool {
+        self.waiting_escrow == 0 || Timestamp::from_seconds(self.grace_ends_at) >= block.time
+    }
 }
 
 pub const BATCH_COUNT: Item<u64> = Item::new("batch_count");

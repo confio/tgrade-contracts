@@ -2,7 +2,7 @@
 use cosmwasm_std::entry_point;
 use cosmwasm_std::{
     attr, coin, to_binary, Addr, Attribute, BankMsg, Binary, BlockInfo, CosmosMsg, Decimal, Deps,
-    DepsMut, Env, MessageInfo, Order, Response, StdResult, Uint128,
+    DepsMut, Env, MessageInfo, Order, Response, StdResult, Storage, Uint128,
 };
 use cw0::{maybe_addr, Expiration};
 use cw2::set_contract_version;
@@ -20,8 +20,8 @@ use crate::msg::{
 };
 use crate::state::{
     members, next_id, parse_id, save_ballot, Ballot, Dso, EscrowStatus, MemberStatus, Proposal,
-    ProposalContent, Votes, VotingRules, VotingRulesAdjustments, BALLOTS, BALLOTS_BY_VOTER, DSO,
-    ESCROWS, PROPOSALS, TOTAL,
+    ProposalContent, Votes, VotingRules, VotingRulesAdjustments, BALLOTS, BALLOTS_BY_VOTER,
+    BATCHES, DSO, ESCROWS, PROPOSALS, TOTAL,
 };
 
 // version info for migration info
@@ -216,21 +216,59 @@ pub fn execute_deposit_escrow(
 /// voters in the batch can be promoted.
 ///
 /// Returns a list of attributes for each user promoted
-#[allow(clippy::unnecessary_wraps)]
 fn promote_batch_if_ready(
-    _deps: DepsMut,
-    _env: Env,
-    _batch: u64,
-    _promoted: &Addr,
+    deps: DepsMut,
+    env: Env,
+    batch_id: u64,
+    promoted: &Addr,
 ) -> Result<Vec<Attribute>, ContractError> {
-    // // Update weights and total only if there are now enough funds
-    // if escrow < escrow_amount && escrow + amount >= escrow_amount {
-    //     members().save(deps.storage, &info.sender, &VOTING_WEIGHT, env.block.height)?;
-    //     TOTAL.update::<_, ContractError>(deps.storage, |original| Ok(original + VOTING_WEIGHT))?;
-    // }
+    // We first check and update this batch state
+    let mut batch = BATCHES.load(deps.storage, batch_id.into())?;
+    batch.waiting_escrow -= 1;
 
-    // TODO
-    Ok(vec![])
+    let height = env.block.height;
+    let attrs = match (batch.can_promote(&env.block), batch.batch_promoted) {
+        (true, true) => {
+            // just promote this one, everyone else has been promoted
+            promote_if_paid(deps.storage, promoted, height)?;
+            vec![attr("promoted", promoted)]
+        }
+        (true, false) => {
+            // try to promote them all
+            let mut attrs = Vec::with_capacity(batch.members.len());
+            for waiting in batch.members.iter() {
+                if promote_if_paid(deps.storage, waiting, height)? {
+                    attrs.push(attr("promoted", waiting));
+                }
+            }
+            batch.batch_promoted = true;
+            attrs
+        }
+        // not ready yet
+        _ => vec![],
+    };
+
+    BATCHES.save(deps.storage, batch_id.into(), &batch)?;
+
+    Ok(attrs)
+}
+
+/// Returns true if this address was eligible for promotion, false otherwise
+fn promote_if_paid(storage: &mut dyn Storage, to_promote: &Addr, height: u64) -> StdResult<bool> {
+    let mut escrow = ESCROWS.load(storage, to_promote)?;
+    // if this one was not yet paid up, do nothing
+    if !matches!(escrow.status, MemberStatus::PendingPaid { .. }) {
+        return Ok(false);
+    }
+
+    // update status
+    escrow.status = MemberStatus::Voting {};
+    ESCROWS.save(storage, to_promote, &escrow)?;
+
+    // update voting weight
+    members().save(storage, to_promote, &VOTING_WEIGHT, height)?;
+
+    Ok(true)
 }
 
 // TODO: redo this
