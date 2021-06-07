@@ -100,21 +100,16 @@ their escrow after the grace period has expired.
 Proposals work using a snapshot of the voting members *at the time of creation*. This means a voting member may leave
 the DSO, but still be eligible to vote in some existing proposals. To make this more intuitive, we will say that
 any vote cast *before* the voting member left will remain valid, however, they will not be able to vote after this point.
-We have 3 ways to calculate this:
+The way we tally the votes for such proposals is:
 
-1. prevent their vote, but their missing vote is counted in the required votes for quorum
-2. automatically cast an "abstain" vote on their behalf, lowering the quorum needed to vote for the remainder
-3. prevent them from voting, and reduce the total weight on the proposal, so it was like they were never eligible
+> prevent any *Leaving Voter* from casting further votes. Reduce the total weight on any proposal where an
+> eligible voter left without voting on it, so it was like they were never eligible.
 
 Assume there are 10 voters and 50% quorum (5 votes) needed for passing. There is an open proposal with 2 yes votes
-and 1 no vote. 2 voters leave without casting a vote. What happens in these 3 cases:
-
-1. We remain as 3 votes, 2 more are needed for quorum, but only 5 more votes are possible... this leads to an
-   effective quorum of 5/8 or 67.5% for the remaining voters.
-2. This now becomes 5 votes (2 yes, 1 no, 2 abstain) and could pass at the end of the voting period with an effective
-   quorum of 30%.  On the other hand, the leaving voters could easily have done this themselves before leaving.
-3. We remain as 3 votes, but out of 8 total. Only one more vote is needed to reach quorum (effective 50%)
-   and if it were `yes` or `abstain` then the vote could pass.
+and 1 no vote. 2 voters leave without casting a vote.  In this case, we remain with 3 votes, but now out of 8 total.
+Only one more vote is needed to reach quorum (effective 50%) and if it were `yes` or `abstain` then the vote could pass.
+This is just like the leaving voters were not present when it started. Note that if one of the leaving voters cast
+a Yes vote right before leaving, we would remain with 4 votes (3 yes, 1 no) out of 9 total, and still not have quorum.
 
 ### Pending and Paid to Voter
 
