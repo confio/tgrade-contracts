@@ -1446,7 +1446,7 @@ mod tests {
 
         // Third member tops-up with less than enough funds
         let info = mock_info(VOTING3, &[coin(ESCROW_FUNDS - 1, "utgd")]);
-        execute_deposit_escrow(deps.as_mut(), env, info).unwrap();
+        execute_deposit_escrow(deps.as_mut(), env.clone(), info).unwrap();
 
         // Updated properly
         assert_voting(&deps, Some(1), Some(1), Some(1), Some(0), None);
@@ -1467,36 +1467,44 @@ mod tests {
             Some(ESCROW_FUNDS - 1),
         );
 
-        // TODO:
+        // Third member cannot refund, as he is not a voter yet (only can leave)
+        let info = mock_info(VOTING3, &[]);
+        let err = execute_return_escrow(deps.as_mut(), info, None).unwrap_err();
+        assert_eq!(err, ContractError::InvalidStatus(pending_status2));
 
-        // // Third member tries to refund more than he has
-        // let info = mock_info(VOTING3, &[]);
-        // let res = execute_return_escrow(deps.as_mut(), info, Some(ESCROW_FUNDS.into()));
-        // assert!(res.is_err());
-        // assert_eq!(
-        //     res.err().unwrap(),
-        //     ContractError::InsufficientFunds(ESCROW_FUNDS.into())
-        // );
-        //
-        // // (Not) updated properly
-        // assert_voting(&deps, Some(1), Some(1), Some(1), Some(0), None);
-        //
-        // // Third member refunds all of its funds
-        // let info = mock_info(VOTING3, &[]);
-        // let _res =
-        //     execute_return_escrow(deps.as_mut(), info, Some((ESCROW_FUNDS - 1).into())).unwrap();
-        //
-        // // (Not) updated properly
-        // assert_voting(&deps, Some(1), Some(1), Some(1), Some(0), None);
-        //
-        // // Check escrows / auths are updated / proper
-        // assert_escrow_paid(
-        //     &deps,
-        //     Some(ESCROW_FUNDS),
-        //     Some(ESCROW_FUNDS),
-        //     Some(ESCROW_FUNDS),
-        //     Some(0),
-        // );
+        // But an existing voter can deposit more funds
+        let top_up = coins(ESCROW_FUNDS + 888, "utgd");
+        let info = mock_info(VOTING2, &top_up);
+        execute_deposit_escrow(deps.as_mut(), env, info).unwrap();
+        // (Not) updated properly
+        assert_voting(&deps, Some(1), Some(1), Some(1), Some(0), None);
+        // Check escrows are updated / proper
+        assert_escrow_paid(
+            &deps,
+            Some(ESCROW_FUNDS),
+            Some(ESCROW_FUNDS),
+            Some(2 * ESCROW_FUNDS + 888),
+            Some(ESCROW_FUNDS - 1),
+        );
+
+        // and as a voter, withdraw them all
+        let info = mock_info(VOTING2, &[]);
+        let res = execute_return_escrow(deps.as_mut(), info, None).unwrap();
+        assert_escrow_paid(
+            &deps,
+            Some(ESCROW_FUNDS),
+            Some(ESCROW_FUNDS),
+            Some(ESCROW_FUNDS),
+            Some(ESCROW_FUNDS - 1),
+        );
+        assert_eq!(
+            res.messages,
+            vec![BankMsg::Send {
+                to_address: VOTING2.into(),
+                amount: top_up
+            }
+            .into()]
+        )
     }
 
     #[test]
