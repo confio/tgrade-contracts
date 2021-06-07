@@ -133,6 +133,24 @@ pub struct EscrowStatus {
     pub status: MemberStatus,
 }
 
+impl EscrowStatus {
+    // return an escrow for a new non-voting member
+    pub fn non_voting() -> Self {
+        EscrowStatus {
+            paid: Uint128::zero(),
+            status: MemberStatus::NonVoting {},
+        }
+    }
+
+    // return an escrow for a new pending voting member
+    pub fn pending(batch_id: u64) -> Self {
+        EscrowStatus {
+            paid: Uint128::zero(),
+            status: MemberStatus::Pending { batch_id },
+        }
+    }
+}
+
 #[derive(Serialize, Deserialize, Clone, PartialEq, JsonSchema, Debug, Copy)]
 #[serde(rename_all = "snake_case")]
 pub enum MemberStatus {
