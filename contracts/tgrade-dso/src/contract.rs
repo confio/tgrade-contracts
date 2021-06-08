@@ -16,9 +16,9 @@ use crate::msg::{
     ProposalResponse, QueryMsg, VoteInfo, VoteListResponse, VoteResponse,
 };
 use crate::state::{
-    create_batch, create_proposal, members, parse_id, save_ballot, Ballot, Batch, Dso,
+    batches, create_batch, create_proposal, members, parse_id, save_ballot, Ballot, Batch, Dso,
     EscrowStatus, MemberStatus, Proposal, ProposalContent, Votes, VotingRules,
-    VotingRulesAdjustments, BALLOTS, BALLOTS_BY_VOTER, BATCHES, DSO, ESCROWS, PROPOSALS, TOTAL,
+    VotingRulesAdjustments, BALLOTS, BALLOTS_BY_VOTER, DSO, ESCROWS, PROPOSALS, TOTAL,
 };
 
 // version info for migration info
@@ -220,7 +220,7 @@ fn promote_batch_if_ready(
     promoted: &Addr,
 ) -> Result<Vec<Attribute>, ContractError> {
     // We first check and update this batch state
-    let mut batch = BATCHES.load(deps.storage, batch_id.into())?;
+    let mut batch = batches().load(deps.storage, batch_id.into())?;
     batch.waiting_escrow -= 1;
 
     let height = env.block.height;
@@ -237,7 +237,7 @@ fn promote_batch_if_ready(
         _ => vec![],
     };
 
-    BATCHES.save(deps.storage, batch_id.into(), &batch)?;
+    batches().save(deps.storage, batch_id.into(), &batch)?;
 
     Ok(attrs)
 }
@@ -583,7 +583,7 @@ fn check_pending(
     // Find all pending batches, starting from newest first
     // TODO: can we optimize this by stopping early? Any lower limit? Secondary index?
     //        previous voting period could have been anything!
-    let batches = BATCHES
+    let ready = batches()
         .range(storage, None, None, Order::Descending)
         .filter(|res| match res {
             Ok((_, batch)) => !batch.batch_promoted && batch.can_promote(block),
@@ -591,10 +591,10 @@ fn check_pending(
         })
         .collect::<StdResult<Vec<_>>>()?;
 
-    for (key, mut batch) in batches {
+    for (key, mut batch) in ready {
         let batch_id = parse_id(&key)?;
         let attrs = promote_batch(storage, &mut batch, block.height)?;
-        BATCHES.save(storage, batch_id.into(), &batch)?;
+        batches().save(storage, batch_id.into(), &batch)?;
         attributes.push(attr("batch", batch_id));
         attributes.extend(attrs);
     }
