@@ -475,7 +475,8 @@ pub fn execute_leave_dso(
     match (escrow.status, escrow.paid.u128()) {
         (MemberStatus::NonVoting {}, _) => leave_immediately(deps, env, info.sender),
         (MemberStatus::Pending { .. }, 0) => leave_immediately(deps, env, info.sender),
-        _ => trigger_long_leave(deps, env, info.sender),
+        (MemberStatus::Leaving { .. }, _) => Err(ContractError::InvalidStatus(escrow.status)),
+        _ => trigger_long_leave(deps, env, info.sender, escrow),
     }
 }
 
@@ -489,16 +490,42 @@ fn leave_immediately(deps: DepsMut, env: Env, leaver: Addr) -> Result<Response, 
         attributes: vec![
             attr("action", "leave_dso"),
             attr("type", "immediately"),
-            attr("sender", &leaver),
+            attr("sender", leaver),
         ],
         ..Response::default()
     })
 }
 
-fn trigger_long_leave(_deps: DepsMut, _env: Env, leaver: Addr) -> Result<Response, ContractError> {
-    // FIXME: voting member... this is a more complex situation, not yet implemented
-    Err(ContractError::VotingMember(leaver.to_string()))
-    //             send_tokens(&info.sender, &refund)
+fn trigger_long_leave(
+    deps: DepsMut,
+    env: Env,
+    leaver: Addr,
+    mut escrow: EscrowStatus,
+) -> Result<Response, ContractError> {
+    // if we are voting member, reduce vote to 0 (otherwise, it is already 0)
+    if escrow.status == (MemberStatus::Voting {}) {
+        members().save(deps.storage, &leaver, &0, env.block.height)?;
+        TOTAL.update::<_, StdError>(deps.storage, |old| {
+            old.checked_sub(VOTING_WEIGHT)
+                .ok_or_else(|| StdError::generic_err("Total underflow"))
+        })?;
+    }
+
+    // in all case, we become a leaving member and set the claim on our escrow
+    let dso = DSO.load(deps.storage)?;
+    let claim_at = (env.block.time.nanos() / 1_000_000_000) + (dso.rules.voting_period_secs() * 2);
+    escrow.status = MemberStatus::Leaving { claim_at };
+    ESCROWS.save(deps.storage, &leaver, &escrow)?;
+
+    Ok(Response {
+        attributes: vec![
+            attr("action", "leave_dso"),
+            attr("type", "delayed"),
+            attr("claim_at", claim_at),
+            attr("sender", leaver),
+        ],
+        ..Response::default()
+    })
 }
 
 pub fn execute_check_pending(
