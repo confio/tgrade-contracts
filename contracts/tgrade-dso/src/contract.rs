@@ -17,8 +17,8 @@ use crate::msg::{
 };
 use crate::state::{
     batches, create_batch, create_proposal, members, parse_id, save_ballot, Ballot, Batch, Dso,
-    EscrowStatus, MemberStatus, Proposal, ProposalContent, Votes, VotingRules,
-    VotingRulesAdjustments, BALLOTS, BALLOTS_BY_VOTER, DSO, ESCROWS, PROPOSALS, TOTAL,
+    DsoAdjustments, EscrowStatus, MemberStatus, Proposal, ProposalContent, Votes, VotingRules,
+    BALLOTS, BALLOTS_BY_VOTER, DSO, ESCROWS, PROPOSALS, TOTAL,
 };
 
 // version info for migration info
@@ -620,9 +620,7 @@ pub fn proposal_execute(
         ProposalContent::AddRemoveNonVotingMembers { add, remove } => {
             proposal_add_remove_non_voting_members(deps, env, add, remove)
         }
-        ProposalContent::AdjustVotingRules(adjustments) => {
-            proposal_adjust_voting_rules(deps, env, adjustments)
-        }
+        ProposalContent::EditDso(adjustments) => proposal_edit_dso(deps, env, adjustments),
         ProposalContent::AddVotingMembers { voters } => {
             proposal_add_voting_members(deps, env, voters)
         }
@@ -649,16 +647,21 @@ pub fn proposal_add_remove_non_voting_members(
     })
 }
 
-pub fn proposal_adjust_voting_rules(
+pub fn proposal_edit_dso(
     deps: DepsMut,
     _env: Env,
-    adjustments: VotingRulesAdjustments,
+    adjustments: DsoAdjustments,
 ) -> Result<Response, ContractError> {
+    // TODO: enable escrow handling (this is a complex case)
+    if adjustments.escrow_amount.is_some() {
+        return Err(ContractError::Unimplemented {});
+    }
+
     let mut attributes = adjustments.as_attributes();
-    attributes.push(attr("proposal", "adjust_voting_rules"));
+    attributes.push(attr("proposal", "edit_dso"));
 
     DSO.update::<_, ContractError>(deps.storage, |mut dso| {
-        dso.rules.apply_adjustments(adjustments);
+        dso.apply_adjustments(adjustments);
         Ok(dso)
     })?;
 

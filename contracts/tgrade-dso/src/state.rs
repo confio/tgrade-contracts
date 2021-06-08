@@ -34,28 +34,17 @@ pub struct VotingRules {
 }
 
 impl VotingRules {
-    pub fn apply_adjustments(&mut self, adjustments: VotingRulesAdjustments) {
-        if let Some(voting_period) = adjustments.voting_period {
-            self.voting_period = voting_period;
-        }
-        if let Some(quorum) = adjustments.quorum {
-            self.quorum = quorum;
-        }
-        if let Some(threshold) = adjustments.threshold {
-            self.threshold = threshold;
-        }
-        if let Some(allow_end_early) = adjustments.allow_end_early {
-            self.allow_end_early = allow_end_early;
-        }
-    }
-
     pub fn voting_period_secs(&self) -> u64 {
         self.voting_period as u64 * 86_400
     }
 }
 
 #[derive(Serialize, Deserialize, Clone, PartialEq, Debug, JsonSchema)]
-pub struct VotingRulesAdjustments {
+pub struct DsoAdjustments {
+    /// Length of voting period in days
+    pub name: Option<String>,
+    /// Length of voting period in days
+    pub escrow_amount: Option<Uint128>,
     /// Length of voting period in days
     pub voting_period: Option<u32>,
     /// quorum requirement (0.0-1.0)
@@ -66,9 +55,38 @@ pub struct VotingRulesAdjustments {
     pub allow_end_early: Option<bool>,
 }
 
-impl VotingRulesAdjustments {
+impl Dso {
+    pub fn apply_adjustments(&mut self, adjustments: DsoAdjustments) {
+        if let Some(name) = adjustments.name {
+            self.name = name;
+        }
+        if let Some(escrow_amount) = adjustments.escrow_amount {
+            self.escrow_amount = escrow_amount;
+        }
+        if let Some(voting_period) = adjustments.voting_period {
+            self.rules.voting_period = voting_period;
+        }
+        if let Some(quorum) = adjustments.quorum {
+            self.rules.quorum = quorum;
+        }
+        if let Some(threshold) = adjustments.threshold {
+            self.rules.threshold = threshold;
+        }
+        if let Some(allow_end_early) = adjustments.allow_end_early {
+            self.rules.allow_end_early = allow_end_early;
+        }
+    }
+}
+
+impl DsoAdjustments {
     pub fn as_attributes(&self) -> Vec<Attribute> {
         let mut res = vec![];
+        if let Some(name) = &self.name {
+            res.push(attr("name", name));
+        }
+        if let Some(escrow_amount) = self.escrow_amount {
+            res.push(attr("escrow_amount", escrow_amount));
+        }
         if let Some(voting_period) = self.voting_period {
             res.push(attr("voting_period", voting_period));
         }
@@ -262,7 +280,7 @@ pub enum ProposalContent {
         remove: Vec<String>,
         add: Vec<String>,
     },
-    AdjustVotingRules(VotingRulesAdjustments),
+    EditDso(DsoAdjustments),
     AddVotingMembers {
         voters: Vec<String>,
     },

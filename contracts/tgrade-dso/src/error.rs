@@ -56,6 +56,9 @@ pub enum ContractError {
 
     #[error("Cannot close completed or passed proposals")]
     WrongCloseStatus {},
+
+    #[error("Unimplemented (TODO)")]
+    Unimplemented {},
 }
 
 impl From<OverflowError> for ContractError {
