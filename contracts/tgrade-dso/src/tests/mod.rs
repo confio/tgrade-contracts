@@ -210,12 +210,6 @@ fn assert_escrow_status<S: Storage, A: Api, Q: Querier>(
     };
 }
 
-// TODO: cover all edge cases for adding...
-// - add non-voting who is already voting
-// - add voting who is already non-voting
-// - add voting who is already voting (pending)
-// more...
-
 /// This makes a new proposal at env (height and time)
 /// and ensures that all names in `can_vote` are able to place a 'yes' vote,
 /// and all in `cannot_vote` will get an error when trying to place a vote.

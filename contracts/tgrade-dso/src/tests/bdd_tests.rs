@@ -37,6 +37,17 @@ fn assert_membership(deps: Deps, addr: &str, expected: Option<u64>) {
     assert_eq!(val.weight, expected);
 }
 
+// this will panic on non-members, returns status for those with one
+fn get_status(deps: Deps, addr: &str) -> MemberStatus {
+    query_escrow(deps, addr.into()).unwrap().unwrap().status
+}
+
+// this will panic on non-members, returns status for those with one
+fn assert_escrow(deps: Deps, addr: &str, expected: u128) {
+    let paid = query_escrow(deps, addr.into()).unwrap().unwrap().paid;
+    assert_eq!(paid.u128(), expected);
+}
+
 fn setup_bdd(mut deps: DepsMut) {
     let start = mock_env();
     let msg = InstantiateMsg {
@@ -231,6 +242,10 @@ fn pending_some_deposit_return_propose_leave() {
 
     // check still non-voting
     assert_membership(deps.as_ref(), PENDING_SOME, Some(0));
+    assert!(matches!(
+        get_status(deps.as_ref(), PENDING_SOME),
+        MemberStatus::Pending { .. }
+    ));
 }
 
 #[test]
@@ -273,4 +288,109 @@ fn voting_deposit_return_propose_leave() {
 
     // check still voting
     assert_membership(deps.as_ref(), VOTING, Some(1));
+}
+
+// cover all edge cases for adding...
+// - add non-voting who is already voting
+// - add voting who is already non-voting
+// - add voting who is already voting (pending)
+// more...
+#[test]
+fn re_adding_existing_members() {
+    let mut deps = mock_dependencies(&[]);
+    setup_bdd(deps.as_mut());
+
+    // NO OP: add non-voting who is already voting
+    proposal_add_remove_non_voting_members(deps.as_mut(), now(), vec![VOTING.into()], vec![])
+        .unwrap();
+    assert!(matches!(
+        get_status(deps.as_ref(), VOTING),
+        MemberStatus::Voting {}
+    ));
+    assert_escrow(deps.as_ref(), VOTING, VOTING_ESCROW);
+
+    // NO OP: add voting who is already voting
+    proposal_add_voting_members(deps.as_mut(), now(), vec![VOTING.into()]).unwrap();
+    assert!(matches!(
+        get_status(deps.as_ref(), VOTING),
+        MemberStatus::Voting {}
+    ));
+    assert_escrow(deps.as_ref(), VOTING, VOTING_ESCROW);
+
+    // NO OP: add non-voting who is already pending
+    proposal_add_remove_non_voting_members(deps.as_mut(), now(), vec![PENDING_SOME.into()], vec![])
+        .unwrap();
+    assert!(matches!(
+        get_status(deps.as_ref(), PENDING_SOME),
+        MemberStatus::Pending { .. }
+    ));
+    assert_escrow(deps.as_ref(), PENDING_SOME, SOME_ESCROW);
+
+    // NO OP: add voting who is already pending
+    proposal_add_voting_members(deps.as_mut(), now(), vec![PENDING_SOME.into()]).unwrap();
+    assert!(matches!(
+        get_status(deps.as_ref(), PENDING_SOME),
+        MemberStatus::Pending { .. }
+    ));
+    assert_escrow(deps.as_ref(), PENDING_SOME, SOME_ESCROW);
+
+    // NO OP: add non-voting who is already non-voting
+    proposal_add_remove_non_voting_members(deps.as_mut(), now(), vec![NON_VOTING.into()], vec![])
+        .unwrap();
+    assert!(matches!(
+        get_status(deps.as_ref(), NON_VOTING),
+        MemberStatus::NonVoting {}
+    ));
+    assert_escrow(deps.as_ref(), NON_VOTING, 0);
+
+    // SUCCEED: add voting who is already non-voting
+    proposal_add_voting_members(deps.as_mut(), now(), vec![NON_VOTING.into()]).unwrap();
+    assert!(matches!(
+        get_status(deps.as_ref(), NON_VOTING),
+        MemberStatus::Pending { .. }
+    ));
+    assert_escrow(deps.as_ref(), NON_VOTING, 0);
+}
+
+#[test]
+fn remove_existing_members() {
+    let mut deps = mock_dependencies(&[]);
+    setup_bdd(deps.as_mut());
+
+    // FAIL: remove voting member
+    proposal_add_remove_non_voting_members(deps.as_mut(), now(), vec![], vec![VOTING.into()])
+        .unwrap_err();
+    assert!(matches!(
+        get_status(deps.as_ref(), VOTING),
+        MemberStatus::Voting {}
+    ));
+    assert_escrow(deps.as_ref(), VOTING, VOTING_ESCROW);
+
+    // FAIL: remove pending member
+    proposal_add_remove_non_voting_members(deps.as_mut(), now(), vec![], vec![PENDING_PAID.into()])
+        .unwrap_err();
+    assert!(matches!(
+        get_status(deps.as_ref(), PENDING_PAID),
+        MemberStatus::PendingPaid { .. }
+    ));
+    assert_escrow(deps.as_ref(), PENDING_PAID, PAID_ESCROW);
+
+    // FAIL: remove pending member with no escrow
+    proposal_add_remove_non_voting_members(
+        deps.as_mut(),
+        now(),
+        vec![],
+        vec![PENDING_BROKE.into()],
+    )
+    .unwrap_err();
+    assert!(matches!(
+        get_status(deps.as_ref(), PENDING_BROKE),
+        MemberStatus::Pending { .. }
+    ));
+    assert_escrow(deps.as_ref(), PENDING_BROKE, 0);
+
+    // Succeed: remove non-member member
+    proposal_add_remove_non_voting_members(deps.as_mut(), now(), vec![], vec![NON_VOTING.into()])
+        .unwrap();
+    assert_membership(deps.as_ref(), NON_VOTING, None);
 }
