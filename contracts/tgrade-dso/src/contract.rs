@@ -7,7 +7,7 @@ use cosmwasm_std::{
 use cw0::{maybe_addr, Expiration};
 use cw2::set_contract_version;
 use cw3::{Status, Vote};
-use cw_storage_plus::{Bound, U64Key};
+use cw_storage_plus::{Bound, U64Key, U8Key};
 use tg4::{Member, MemberListResponse, MemberResponse, TotalWeightResponse};
 
 use crate::error::ContractError;
@@ -580,21 +580,29 @@ fn check_pending(
     // the starting attributes (may be empty)
     mut attributes: Vec<Attribute>,
 ) -> StdResult<Vec<Attribute>> {
-    // Find all pending batches, starting from newest first
-    // TODO: can we optimize this by stopping early? Any lower limit? Secondary index?
-    //        previous voting period could have been anything!
-    let ready = batches()
-        .range(storage, None, None, Order::Descending)
-        .filter(|res| match res {
-            Ok((_, batch)) => !batch.batch_promoted && batch.can_promote(block),
-            Err(_) => true,
-        })
+    let batch_map = batches();
+
+    // Find batches that have not yet been promoted (0), which have expired at or less than the current time (now).
+    // These are all eligible for timeout-based promotion
+    let now = block.time.nanos() / 1_000_000_000;
+    // Use the index_key() helper to build the (raw) index key
+    // as we want to keep the last item (pk) unbounded, we increment time by 1 and use exclusive (below the next tick)
+    let max_key = batch_map
+        .idx
+        .promotion_time
+        .index_key((0u8.into(), (now + 1).into(), 0.into()));
+    let bound = Bound::Exclusive(max_key);
+
+    let ready = batch_map
+        .idx
+        .promotion_time
+        .range(storage, None, Some(bound), Order::Ascending)
         .collect::<StdResult<Vec<_>>>()?;
 
     for (key, mut batch) in ready {
         let batch_id = parse_id(&key)?;
         let attrs = promote_batch(storage, &mut batch, block.height)?;
-        batches().save(storage, batch_id.into(), &batch)?;
+        batch_map.save(storage, batch_id.into(), &batch)?;
         attributes.push(attr("batch", batch_id));
         attributes.extend(attrs);
     }

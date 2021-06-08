@@ -234,7 +234,7 @@ pub fn batches<'a>() -> IndexedMap<'a, U64Key, Batch, BatchIndexes<'a>> {
     let indexes = BatchIndexes {
         promotion_time: MultiIndex::new(
             |b: &Batch, pk: Vec<u8>| {
-                let promoted: u8 = b.batch_promoted as u8;
+                let promoted = if b.batch_promoted { 1u8 } else { 0u8 };
                 (promoted.into(), b.grace_ends_at.into(), pk.into())
             },
             "batch",
