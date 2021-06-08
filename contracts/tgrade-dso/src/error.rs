@@ -15,11 +15,20 @@ pub enum ContractError {
     #[error("Missing dso name")]
     EmptyName {},
 
-    #[error("Invalid voting quorum percentage: {0}")]
+    #[error("DSO name to long, maximum 1024 characters")]
+    LongName {},
+
+    #[error("Invalid voting quorum percentage, must be 0.01-1.0: {0}")]
     InvalidQuorum(Decimal),
 
-    #[error("Invalid voting threshold percentage: {0}")]
+    #[error("Invalid voting threshold percentage, must be 0.5-1.0: {0}")]
     InvalidThreshold(Decimal),
+
+    #[error("Invalid voting period, must be 1-365 days: {0}")]
+    InvalidVotingPeriod(u32),
+
+    #[error("Invalid escrow, must be at least 1 TGD. Paid {0} utgd")]
+    InvalidEscrow(Uint128),
 
     #[error("No funds provided")]
     NoFunds,

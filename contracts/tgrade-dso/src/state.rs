@@ -2,6 +2,7 @@ use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use std::fmt;
 
+use crate::error::ContractError;
 use cosmwasm_std::{
     attr, Addr, Attribute, BlockInfo, Decimal, StdError, StdResult, Storage, Timestamp, Uint128,
 };
@@ -34,6 +35,24 @@ pub struct VotingRules {
 }
 
 impl VotingRules {
+    pub fn validate(&self) -> Result<(), ContractError> {
+        let zero = Decimal::percent(0);
+        let hundred = Decimal::percent(100);
+
+        if self.quorum == zero || self.quorum > hundred {
+            return Err(ContractError::InvalidQuorum(self.quorum));
+        }
+
+        if self.threshold < Decimal::percent(50) || self.threshold > hundred {
+            return Err(ContractError::InvalidThreshold(self.threshold));
+        }
+
+        if self.voting_period == 0 || self.voting_period > 365 {
+            return Err(ContractError::InvalidVotingPeriod(self.voting_period));
+        }
+        Ok(())
+    }
+
     pub fn voting_period_secs(&self) -> u64 {
         self.voting_period as u64 * 86_400
     }
@@ -56,6 +75,22 @@ pub struct DsoAdjustments {
 }
 
 impl Dso {
+    pub fn validate(&self) -> Result<(), ContractError> {
+        self.rules.validate()?;
+
+        if self.name.trim().is_empty() {
+            return Err(ContractError::EmptyName {});
+        }
+        if self.name.len() > 1024 {
+            return Err(ContractError::LongName {});
+        }
+        // 1 million utgd = 1 TGD
+        if self.escrow_amount.u128() < 1_000_000 {
+            return Err(ContractError::InvalidEscrow(self.escrow_amount));
+        }
+        Ok(())
+    }
+
     pub fn apply_adjustments(&mut self, adjustments: DsoAdjustments) {
         if let Some(name) = adjustments.name {
             self.name = name;
