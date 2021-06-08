@@ -1,7 +1,7 @@
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
-use crate::state::{ProposalContent, VotingRules};
+use crate::state::{ProposalContent, Votes, VotingRules};
 use cosmwasm_std::{Decimal, Uint128};
 use cw0::Expiration;
 use cw3::{Status, Vote};
@@ -144,6 +144,8 @@ pub struct ProposalResponse {
     /// that the generic `Threshold{}` query does not provide valid information for existing proposals.
     pub rules: VotingRules,
     pub total_weight: u64,
+    /// This is a running tally of all votes cast on this proposal so far.
+    pub votes: Votes,
 }
 
 #[derive(Serialize, Deserialize, Clone, PartialEq, JsonSchema, Debug)]
