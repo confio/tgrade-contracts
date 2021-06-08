@@ -111,7 +111,7 @@
           "additionalProperties": false
         },
         {
-          "description": "Marked as leaving. Escrow frozen until",
+          "description": "Marked as leaving. Escrow frozen until `claim_at`",
           "type": "object",
           "required": [
             "leaving"

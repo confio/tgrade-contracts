@@ -292,7 +292,7 @@ pub fn execute_return_escrow(
     let mut escrow = ESCROWS
         .may_load(deps.storage, &info.sender)?
         .ok_or(ContractError::NotAMember {})?;
-    if !escrow.status.is_voter() {
+    if !escrow.status.is_voting() {
         return Err(ContractError::InvalidStatus(escrow.status));
     }
 

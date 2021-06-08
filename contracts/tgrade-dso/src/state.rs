@@ -163,7 +163,7 @@ pub enum MemberStatus {
     PendingPaid { batch_id: u64 },
     /// Full-fledged voting member
     Voting {},
-    /// Marked as leaving. Escrow frozen until
+    /// Marked as leaving. Escrow frozen until `claim_at`
     Leaving { claim_at: u64 },
 }
 
@@ -174,7 +174,7 @@ impl MemberStatus {
     }
 
     #[inline]
-    pub fn is_voter(&self) -> bool {
+    pub fn is_voting(&self) -> bool {
         matches!(self, MemberStatus::Voting {})
     }
 }
@@ -193,7 +193,7 @@ impl fmt::Display for MemberStatus {
 
 pub const ESCROWS: Map<&Addr, EscrowStatus> = Map::new("escrows");
 
-/// A Batch is a group of members who got voter in together. We need this to
+/// A Batch is a group of members who got voted in together. We need this to
 /// calculate moving from *Paid, Pending Voter* to *Voter*
 #[derive(Serialize, Deserialize, Clone, PartialEq, JsonSchema, Debug)]
 pub struct Batch {
@@ -211,8 +211,7 @@ pub struct Batch {
 impl Batch {
     // Returns true if either all members have paid, or grace period is over
     pub fn can_promote(&self, block: &BlockInfo) -> bool {
-        let expiry = Timestamp::from_seconds(self.grace_ends_at);
-        self.waiting_escrow == 0 || block.time >= expiry
+        self.waiting_escrow == 0 || block.time >= Timestamp::from_seconds(self.grace_ends_at)
     }
 }
 
