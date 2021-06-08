@@ -237,14 +237,14 @@ fn pending_some_deposit_return_propose_leave() {
     refund(deps.as_mut(), PENDING_SOME).unwrap_err();
     // cannot create proposal
     propose(deps.as_mut(), PENDING_SOME).unwrap_err();
-    // cannot leave
-    leave(deps.as_mut(), PENDING_SOME).unwrap_err();
+    // can leave, but long_leave
+    leave(deps.as_mut(), PENDING_SOME).unwrap();
 
     // check still non-voting
     assert_membership(deps.as_ref(), PENDING_SOME, Some(0));
     assert!(matches!(
         get_status(deps.as_ref(), PENDING_SOME),
-        MemberStatus::Pending { .. }
+        MemberStatus::Leaving { .. }
     ));
 }
 
@@ -262,11 +262,15 @@ fn pending_paid_deposit_return_propose_leave() {
     refund(deps.as_mut(), PENDING_PAID).unwrap_err();
     // cannot create proposal
     propose(deps.as_mut(), PENDING_PAID).unwrap_err();
-    // cannot leave
-    leave(deps.as_mut(), PENDING_PAID).unwrap_err();
+    // can leave, but long_leave
+    leave(deps.as_mut(), PENDING_PAID).unwrap();
 
     // check still non-voting
     assert_membership(deps.as_ref(), PENDING_PAID, Some(0));
+    assert!(matches!(
+        get_status(deps.as_ref(), PENDING_PAID),
+        MemberStatus::Leaving { .. }
+    ));
 }
 
 #[test]
@@ -283,11 +287,18 @@ fn voting_deposit_return_propose_leave() {
     refund(deps.as_mut(), VOTING).unwrap();
     // can create proposal
     propose(deps.as_mut(), VOTING).unwrap();
-    // cannot leave
-    leave(deps.as_mut(), VOTING).unwrap_err();
+    // can leave, but long_leave
+    leave(deps.as_mut(), VOTING).unwrap();
 
-    // check still voting
-    assert_membership(deps.as_ref(), VOTING, Some(1));
+    // TODO: we need to handle close DSO here (last voter leaving)
+    // check no longer voting
+    assert_membership(deps.as_ref(), VOTING, Some(0));
+    assert_eq!(query_total_weight(deps.as_ref()).unwrap().weight, 0);
+    // ensure leaving status
+    assert!(matches!(
+        get_status(deps.as_ref(), VOTING),
+        MemberStatus::Leaving { .. }
+    ));
 }
 
 // cover all edge cases for adding...
