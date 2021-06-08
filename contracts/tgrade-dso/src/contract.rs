@@ -7,7 +7,7 @@ use cosmwasm_std::{
 use cw0::{maybe_addr, Expiration};
 use cw2::set_contract_version;
 use cw3::{Status, Vote};
-use cw_storage_plus::{Bound, U64Key, U8Key};
+use cw_storage_plus::{Bound, PrimaryKey, U64Key};
 use tg4::{Member, MemberListResponse, MemberResponse, TotalWeightResponse};
 
 use crate::error::ContractError;
@@ -582,20 +582,18 @@ fn check_pending(
 ) -> StdResult<Vec<Attribute>> {
     let batch_map = batches();
 
-    // Find batches that have not yet been promoted (0), which have expired at or less than the current time (now).
+    // Limit to batches that have not yet been promoted (0), using sub_prefix.
+    // Iterate which have expired at or less than the current time (now), using a bound.
     // These are all eligible for timeout-based promotion
     let now = block.time.nanos() / 1_000_000_000;
-    // Use the index_key() helper to build the (raw) index key
     // as we want to keep the last item (pk) unbounded, we increment time by 1 and use exclusive (below the next tick)
-    let max_key = batch_map
-        .idx
-        .promotion_time
-        .index_key((0u8.into(), (now + 1).into(), 0.into()));
+    let max_key = (U64Key::from(now + 1), U64Key::from(0)).joined_key();
     let bound = Bound::Exclusive(max_key);
 
     let ready = batch_map
         .idx
         .promotion_time
+        .sub_prefix(0u8.into())
         .range(storage, None, Some(bound), Order::Ascending)
         .collect::<StdResult<Vec<_>>>()?;
 
