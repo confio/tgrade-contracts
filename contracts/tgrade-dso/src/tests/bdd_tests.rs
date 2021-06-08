@@ -113,7 +113,7 @@ fn refund(deps: DepsMut, addr: &str) -> Result<Response, ContractError> {
         deps,
         now(),
         mock_info(addr, &[]),
-        ExecuteMsg::ReturnEscrow { amount: None },
+        ExecuteMsg::ReturnEscrow {},
     )
 }
 

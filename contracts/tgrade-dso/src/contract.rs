@@ -86,7 +86,7 @@ pub fn execute(
 ) -> Result<Response, ContractError> {
     match msg {
         ExecuteMsg::DepositEscrow {} => execute_deposit_escrow(deps, env, info),
-        ExecuteMsg::ReturnEscrow { amount } => execute_return_escrow(deps, info, amount),
+        ExecuteMsg::ReturnEscrow {} => execute_return_escrow(deps, env, info),
         ExecuteMsg::Propose {
             title,
             description,
@@ -228,8 +228,8 @@ fn promote_if_paid(storage: &mut dyn Storage, to_promote: &Addr, height: u64) ->
 
 pub fn execute_return_escrow(
     deps: DepsMut,
+    _env: Env,
     info: MessageInfo,
-    amount: Option<Uint128>,
 ) -> Result<Response, ContractError> {
     cw0::nonpayable(&info)?;
 
@@ -243,21 +243,10 @@ pub fn execute_return_escrow(
 
     // Compute the maximum amount that can be refund
     let escrow_amount = DSO.load(deps.storage)?.escrow_amount;
-    let max_refund = escrow
+    let refund = escrow
         .paid
         .checked_sub(escrow_amount)
         .map_err(|_| ContractError::InsufficientFunds(escrow.paid))?;
-
-    // Refund the maximum by default, or the requested amount (if possible)
-    let refund = match amount {
-        None => max_refund,
-        Some(amount) => {
-            if amount > max_refund {
-                return Err(ContractError::InsufficientFunds(amount));
-            }
-            amount
-        }
-    };
 
     let attributes = vec![attr("action", "return_escrow"), attr("amount", refund)];
     if refund.is_zero() {

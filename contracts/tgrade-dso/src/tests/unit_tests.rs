@@ -235,40 +235,9 @@ fn test_escrows() {
         None,
     );
 
-    // Second voting member reclaims some funds
-    let info = mock_info(VOTING2, &[]);
-    let res = execute_return_escrow(deps.as_mut(), info, Some(10u128.into())).unwrap();
-    assert_eq!(
-        res.messages,
-        vec![BankMsg::Send {
-            to_address: VOTING2.into(),
-            amount: vec![coin(10, DSO_DENOM)]
-        }
-        .into()]
-    );
-
-    // (Not) updated properly
-    assert_voting(&deps, Some(1), Some(1), Some(1), None, None);
-    assert_escrow_status(
-        &deps,
-        Some(voting_status),
-        Some(voting_status),
-        Some(voting_status),
-        None,
-    );
-
-    // Check escrows / auths are updated / proper
-    assert_escrow_paid(
-        &deps,
-        Some(ESCROW_FUNDS),
-        Some(ESCROW_FUNDS),
-        Some(ESCROW_FUNDS * 2 - 1 - 10),
-        None,
-    );
-
     // Second voting member reclaims all possible funds
     let info = mock_info(VOTING2, &[]);
-    let _res = execute_return_escrow(deps.as_mut(), info, None).unwrap();
+    let _res = execute_return_escrow(deps.as_mut(), env.clone(), info).unwrap();
 
     // (Not) updated properly
     assert_voting(&deps, Some(1), Some(1), Some(1), None, None);
@@ -296,7 +265,7 @@ fn test_escrows() {
 
     // Third "member" (not added yet) tries to refund
     let info = mock_info(VOTING3, &[]);
-    let err = execute_return_escrow(deps.as_mut(), info, None).unwrap_err();
+    let err = execute_return_escrow(deps.as_mut(), env.clone(), info).unwrap_err();
     assert_eq!(err, ContractError::NotAMember {});
 
     // Third member is added
@@ -329,13 +298,13 @@ fn test_escrows() {
 
     // Third member cannot refund, as he is not a voter yet (only can leave)
     let info = mock_info(VOTING3, &[]);
-    let err = execute_return_escrow(deps.as_mut(), info, None).unwrap_err();
+    let err = execute_return_escrow(deps.as_mut(), env.clone(), info).unwrap_err();
     assert_eq!(err, ContractError::InvalidStatus(pending_status2));
 
     // But an existing voter can deposit more funds
     let top_up = coins(ESCROW_FUNDS + 888, "utgd");
     let info = mock_info(VOTING2, &top_up);
-    execute_deposit_escrow(deps.as_mut(), env, info).unwrap();
+    execute_deposit_escrow(deps.as_mut(), env.clone(), info).unwrap();
     // (Not) updated properly
     assert_voting(&deps, Some(1), Some(1), Some(1), Some(0), None);
     // Check escrows are updated / proper
@@ -349,7 +318,7 @@ fn test_escrows() {
 
     // and as a voter, withdraw them all
     let info = mock_info(VOTING2, &[]);
-    let res = execute_return_escrow(deps.as_mut(), info, None).unwrap();
+    let res = execute_return_escrow(deps.as_mut(), env, info).unwrap();
     assert_escrow_paid(
         &deps,
         Some(ESCROW_FUNDS),
