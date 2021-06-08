@@ -1,10 +1,11 @@
 #![cfg(test)]
 use super::*;
+use crate::msg::ExecuteMsg::{Execute, Propose};
 use cosmwasm_std::Deps;
 
 const BDD_NAME: &str = "bddso";
 
-// const NON_MEMBER: &str = "no one";
+const NON_MEMBER: &str = "no one";
 const NON_VOTING: &str = "juanito";
 // pending and paid pending are in the same batch
 const PENDING_BROKE: &str = "larry";
@@ -88,21 +89,92 @@ fn setup_bdd(mut deps: DepsMut) {
     assert_eq!(nonvoting.members.len(), 4);
 }
 
+fn deposit(deps: DepsMut, addr: &str) -> Result<Response, ContractError> {
+    execute(
+        deps,
+        now(),
+        mock_info(addr, &coins(5000, DENOM)),
+        ExecuteMsg::DepositEscrow {},
+    )
+}
+
+fn refund(deps: DepsMut, addr: &str) -> Result<Response, ContractError> {
+    execute(
+        deps,
+        now(),
+        mock_info(addr, &[]),
+        ExecuteMsg::ReturnEscrow { amount: None },
+    )
+}
+
+fn demo_proposal() -> ExecuteMsg {
+    // this will execute fine, but not do anything
+    let proposal = ProposalContent::AddRemoveNonVotingMembers {
+        remove: vec![NON_MEMBER.into()],
+        add: vec![],
+    };
+    ExecuteMsg::Propose {
+        title: "Demo Proposal".to_string(),
+        description: "To test who can vote".to_string(),
+        proposal,
+    }
+}
+
+// // voting member creates a new proposal and returns the id
+// fn create_proposal(deps: DepsMut) -> u64 {
+//
+// }
+
+fn propose(deps: DepsMut, addr: &str) -> Result<Response, ContractError> {
+    execute(deps, now(), mock_info(addr, &[]), demo_proposal())
+}
+
+fn leave(deps: DepsMut, addr: &str) -> Result<Response, ContractError> {
+    execute(deps, now(), mock_info(addr, &[]), ExecuteMsg::LeaveDso {})
+}
+
 #[test]
-fn non_voting_can_leave() {
+fn non_voting_deposit_return_propose_leave() {
     let mut deps = mock_dependencies(&[]);
     setup_bdd(deps.as_mut());
 
     // assert non-voting member
     assert_membership(deps.as_ref(), NON_VOTING, Some(0));
+
+    // cannot deposit escrow
+    deposit(deps.as_mut(), NON_VOTING).unwrap_err();
+    // cannot return escrow
+    refund(deps.as_mut(), NON_VOTING).unwrap_err();
+    // cannot create proposal
+    propose(deps.as_mut(), NON_VOTING).unwrap_err();
+
+    // assert non-voting member
+    assert_membership(deps.as_ref(), NON_VOTING, Some(0));
+
     // successful leave
-    execute(
-        deps.as_mut(),
-        now(),
-        mock_info(NON_VOTING, &[]),
-        ExecuteMsg::LeaveDso {},
-    )
-    .unwrap();
+    leave(deps.as_mut(), NON_VOTING).unwrap();
+
     // check not member
     assert_membership(deps.as_ref(), NON_VOTING, None);
+}
+
+#[test]
+fn non_member_deposit_return_propose_leave() {
+    let mut deps = mock_dependencies(&[]);
+    setup_bdd(deps.as_mut());
+
+    // assert non-voting member
+    assert_membership(deps.as_ref(), NON_MEMBER, None);
+
+    // cannot deposit escrow
+    deposit(deps.as_mut(), NON_MEMBER).unwrap_err();
+    // cannot return escrow
+    refund(deps.as_mut(), NON_MEMBER).unwrap_err();
+    // cannot create proposal
+    propose(deps.as_mut(), NON_MEMBER).unwrap_err();
+    // cannot leave
+    leave(deps.as_mut(), NON_MEMBER).unwrap_err();
+
+    // check not member
+    assert_membership(deps.as_ref(), NON_MEMBER, None);
 }
