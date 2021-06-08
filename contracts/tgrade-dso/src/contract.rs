@@ -7,7 +7,7 @@ use cosmwasm_std::{
 use cw0::{maybe_addr, Expiration};
 use cw2::set_contract_version;
 use cw3::{Status, Vote};
-use cw_storage_plus::{Bound, U64Key};
+use cw_storage_plus::{Bound, PrimaryKey, U64Key};
 use tg4::{Member, MemberListResponse, MemberResponse, TotalWeightResponse};
 
 use crate::error::ContractError;
@@ -16,9 +16,9 @@ use crate::msg::{
     ProposalResponse, QueryMsg, VoteInfo, VoteListResponse, VoteResponse,
 };
 use crate::state::{
-    create_batch, create_proposal, members, parse_id, save_ballot, Ballot, Batch, Dso,
+    batches, create_batch, create_proposal, members, parse_id, save_ballot, Ballot, Batch, Dso,
     EscrowStatus, MemberStatus, Proposal, ProposalContent, Votes, VotingRules,
-    VotingRulesAdjustments, BALLOTS, BALLOTS_BY_VOTER, BATCHES, DSO, ESCROWS, PROPOSALS, TOTAL,
+    VotingRulesAdjustments, BALLOTS, BALLOTS_BY_VOTER, DSO, ESCROWS, PROPOSALS, TOTAL,
 };
 
 // version info for migration info
@@ -220,7 +220,7 @@ fn promote_batch_if_ready(
     promoted: &Addr,
 ) -> Result<Vec<Attribute>, ContractError> {
     // We first check and update this batch state
-    let mut batch = BATCHES.load(deps.storage, batch_id.into())?;
+    let mut batch = batches().load(deps.storage, batch_id.into())?;
     batch.waiting_escrow -= 1;
 
     let height = env.block.height;
@@ -237,7 +237,7 @@ fn promote_batch_if_ready(
         _ => vec![],
     };
 
-    BATCHES.save(deps.storage, batch_id.into(), &batch)?;
+    batches().save(deps.storage, batch_id.into(), &batch)?;
 
     Ok(attrs)
 }
@@ -580,21 +580,27 @@ fn check_pending(
     // the starting attributes (may be empty)
     mut attributes: Vec<Attribute>,
 ) -> StdResult<Vec<Attribute>> {
-    // Find all pending batches, starting from newest first
-    // TODO: can we optimize this by stopping early? Any lower limit? Secondary index?
-    //        previous voting period could have been anything!
-    let batches = BATCHES
-        .range(storage, None, None, Order::Descending)
-        .filter(|res| match res {
-            Ok((_, batch)) => !batch.batch_promoted && batch.can_promote(block),
-            Err(_) => true,
-        })
+    let batch_map = batches();
+
+    // Limit to batches that have not yet been promoted (0), using sub_prefix.
+    // Iterate which have expired at or less than the current time (now), using a bound.
+    // These are all eligible for timeout-based promotion
+    let now = block.time.nanos() / 1_000_000_000;
+    // as we want to keep the last item (pk) unbounded, we increment time by 1 and use exclusive (below the next tick)
+    let max_key = (U64Key::from(now + 1), U64Key::from(0)).joined_key();
+    let bound = Bound::Exclusive(max_key);
+
+    let ready = batch_map
+        .idx
+        .promotion_time
+        .sub_prefix(0u8.into())
+        .range(storage, None, Some(bound), Order::Ascending)
         .collect::<StdResult<Vec<_>>>()?;
 
-    for (key, mut batch) in batches {
+    for (key, mut batch) in ready {
         let batch_id = parse_id(&key)?;
         let attrs = promote_batch(storage, &mut batch, block.height)?;
-        BATCHES.save(storage, batch_id.into(), &batch)?;
+        batch_map.save(storage, batch_id.into(), &batch)?;
         attributes.push(attr("batch", batch_id));
         attributes.extend(attrs);
     }

@@ -8,7 +8,8 @@ use cosmwasm_std::{
 use cw0::Expiration;
 use cw3::{Status, Vote};
 use cw_storage_plus::{
-    Index, IndexList, IndexedSnapshotMap, Item, Map, MultiIndex, Strategy, U64Key,
+    Index, IndexList, IndexedMap, IndexedSnapshotMap, Item, Map, MultiIndex, Strategy, U64Key,
+    U8Key,
 };
 use std::convert::TryInto;
 use tg4::TOTAL_KEY;
@@ -215,13 +216,41 @@ impl Batch {
     }
 }
 
+// We need a secondary index for batches, such that we can look up batches that have
+// not been promoted, ordered by expiration (ascending) up to now.
+// Index: (U8Key/bool: batch_promoted, U64Key: grace_ends_at) -> U64Key: pk
+pub struct BatchIndexes<'a> {
+    pub promotion_time: MultiIndex<'a, (U8Key, U64Key, U64Key), Batch>,
+}
+
+impl<'a> IndexList<Batch> for BatchIndexes<'a> {
+    fn get_indexes(&'_ self) -> Box<dyn Iterator<Item = &'_ dyn Index<Batch>> + '_> {
+        let v: Vec<&dyn Index<Batch>> = vec![&self.promotion_time];
+        Box::new(v.into_iter())
+    }
+}
+
+pub fn batches<'a>() -> IndexedMap<'a, U64Key, Batch, BatchIndexes<'a>> {
+    let indexes = BatchIndexes {
+        promotion_time: MultiIndex::new(
+            |b: &Batch, pk: Vec<u8>| {
+                let promoted = if b.batch_promoted { 1u8 } else { 0u8 };
+                (promoted.into(), b.grace_ends_at.into(), pk.into())
+            },
+            "batch",
+            "batch__promotion",
+        ),
+    };
+    IndexedMap::new("batch", indexes)
+}
+
 pub const BATCH_COUNT: Item<u64> = Item::new("batch_count");
-pub const BATCHES: Map<U64Key, Batch> = Map::new("batch");
+// pub const BATCHES: Map<U64Key, Batch> = Map::new("batch");
 
 pub fn create_batch(store: &mut dyn Storage, batch: &Batch) -> StdResult<u64> {
     let id: u64 = BATCH_COUNT.may_load(store)?.unwrap_or_default() + 1;
     BATCH_COUNT.save(store, &id)?;
-    BATCHES.save(store, id.into(), batch)?;
+    batches().save(store, id.into(), batch)?;
     Ok(id)
 }
 
