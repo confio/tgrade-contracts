@@ -1,6 +1,5 @@
 #![cfg(test)]
 use super::*;
-use crate::msg::ExecuteMsg::{Execute, Propose};
 use cosmwasm_std::Deps;
 
 const BDD_NAME: &str = "bddso";
@@ -177,4 +176,101 @@ fn non_member_deposit_return_propose_leave() {
 
     // check not member
     assert_membership(deps.as_ref(), NON_MEMBER, None);
+}
+
+#[test]
+fn pending_broke_deposit_return_propose() {
+    let mut deps = mock_dependencies(&[]);
+    setup_bdd(deps.as_mut());
+
+    // assert non-voting member
+    assert_membership(deps.as_ref(), PENDING_BROKE, Some(0));
+
+    // successful deposit escrow
+    deposit(deps.as_mut(), PENDING_BROKE).unwrap();
+    // cannot return escrow
+    refund(deps.as_mut(), PENDING_BROKE).unwrap_err();
+    // cannot create proposal
+    propose(deps.as_mut(), PENDING_BROKE).unwrap_err();
+
+    // check still non-voting
+    assert_membership(deps.as_ref(), PENDING_BROKE, Some(0));
+}
+
+#[test]
+fn pending_broke_leave() {
+    let mut deps = mock_dependencies(&[]);
+    setup_bdd(deps.as_mut());
+
+    // assert non-voting member
+    assert_membership(deps.as_ref(), PENDING_BROKE, Some(0));
+
+    // can leave (with no funds paid in)
+    leave(deps.as_mut(), PENDING_BROKE).unwrap();
+
+    // check not member
+    assert_membership(deps.as_ref(), PENDING_BROKE, None);
+}
+
+#[test]
+fn pending_some_deposit_return_propose_leave() {
+    let mut deps = mock_dependencies(&[]);
+    setup_bdd(deps.as_mut());
+
+    // assert non-voting member
+    assert_membership(deps.as_ref(), PENDING_SOME, Some(0));
+
+    // can deposit escrow
+    deposit(deps.as_mut(), PENDING_SOME).unwrap();
+    // cannot return escrow
+    refund(deps.as_mut(), PENDING_SOME).unwrap_err();
+    // cannot create proposal
+    propose(deps.as_mut(), PENDING_SOME).unwrap_err();
+    // cannot leave
+    leave(deps.as_mut(), PENDING_SOME).unwrap_err();
+
+    // check still non-voting
+    assert_membership(deps.as_ref(), PENDING_SOME, Some(0));
+}
+
+#[test]
+fn pending_paid_deposit_return_propose_leave() {
+    let mut deps = mock_dependencies(&[]);
+    setup_bdd(deps.as_mut());
+
+    // assert non-voting member
+    assert_membership(deps.as_ref(), PENDING_PAID, Some(0));
+
+    // can deposit escrow
+    deposit(deps.as_mut(), PENDING_PAID).unwrap();
+    // cannot return escrow
+    refund(deps.as_mut(), PENDING_PAID).unwrap_err();
+    // cannot create proposal
+    propose(deps.as_mut(), PENDING_PAID).unwrap_err();
+    // cannot leave
+    leave(deps.as_mut(), PENDING_PAID).unwrap_err();
+
+    // check still non-voting
+    assert_membership(deps.as_ref(), PENDING_PAID, Some(0));
+}
+
+#[test]
+fn voting_deposit_return_propose_leave() {
+    let mut deps = mock_dependencies(&[]);
+    setup_bdd(deps.as_mut());
+
+    // assert voting member
+    assert_membership(deps.as_ref(), VOTING, Some(1));
+
+    // can deposit escrow
+    deposit(deps.as_mut(), VOTING).unwrap();
+    // can return escrow
+    refund(deps.as_mut(), VOTING).unwrap();
+    // can create proposal
+    propose(deps.as_mut(), VOTING).unwrap();
+    // cannot leave
+    leave(deps.as_mut(), VOTING).unwrap_err();
+
+    // check still voting
+    assert_membership(deps.as_ref(), VOTING, Some(1));
 }
