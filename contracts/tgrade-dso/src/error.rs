@@ -1,4 +1,4 @@
-use cosmwasm_std::{Decimal, StdError, Uint128};
+use cosmwasm_std::{Decimal, OverflowError, StdError, Uint128};
 use thiserror::Error;
 
 use crate::state::MemberStatus;
@@ -56,4 +56,10 @@ pub enum ContractError {
 
     #[error("Cannot close completed or passed proposals")]
     WrongCloseStatus {},
+}
+
+impl From<OverflowError> for ContractError {
+    fn from(err: OverflowError) -> Self {
+        ContractError::Std(err.into())
+    }
 }

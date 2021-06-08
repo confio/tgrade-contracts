@@ -323,7 +323,7 @@ pub fn execute_return_escrow(
     }
 
     // Update remaining escrow
-    escrow.paid = escrow.paid.checked_sub(refund).unwrap();
+    escrow.paid = escrow.paid.checked_sub(refund)?;
     ESCROWS.save(deps.storage, &info.sender, &escrow)?;
 
     // Refund tokens
@@ -384,7 +384,7 @@ pub fn execute_propose(
     };
     save_ballot(deps.storage, id, &info.sender, &ballot)?;
 
-    attributes.extend(vec![
+    attributes.extend_from_slice(&[
         attr("action", "propose"),
         attr("sender", info.sender),
         attr("proposal_id", id),
@@ -473,13 +473,10 @@ pub fn execute_execute(
     PROPOSALS.save(deps.storage, proposal_id.into(), &prop)?;
 
     // execute the proposal
-    // FIXME: better handling of return value??
     let mut res = proposal_execute(deps.branch(), env, prop.proposal)?;
+    res.add_attribute("action", "execute");
+    res.add_attribute("proposal_id", proposal_id.to_string());
 
-    res.attributes.extend(vec![
-        attr("action", "execute"),
-        attr("proposal_id", proposal_id),
-    ]);
     Ok(res)
 }
 
@@ -530,9 +527,9 @@ pub fn execute_leave_dso(
         .may_load(deps.storage, &info.sender)?
         .ok_or(ContractError::NotAMember {})?;
 
-    match (escrow.status, escrow.paid) {
+    match (escrow.status, escrow.paid.u128()) {
         (MemberStatus::NonVoting {}, _) => leave_immediately(deps, env, info.sender),
-        (MemberStatus::Pending { .. }, Uint128(0)) => leave_immediately(deps, env, info.sender),
+        (MemberStatus::Pending { .. }, 0) => leave_immediately(deps, env, info.sender),
         _ => trigger_long_leave(deps, env, info.sender),
     }
 }
