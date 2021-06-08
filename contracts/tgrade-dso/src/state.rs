@@ -1,19 +1,18 @@
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
+use std::fmt;
 
 use cosmwasm_std::{
-    attr, Addr, Attribute, BlockInfo, Decimal, StdError, StdResult, Storage, Uint128,
+    attr, Addr, Attribute, BlockInfo, Decimal, StdError, StdResult, Storage, Timestamp, Uint128,
 };
 use cw0::Expiration;
 use cw3::{Status, Vote};
-use cw_controllers::Admin;
 use cw_storage_plus::{
-    Index, IndexList, IndexedSnapshotMap, Item, Map, MultiIndex, PrimaryKey, Strategy, U64Key,
+    Index, IndexList, IndexedMap, IndexedSnapshotMap, Item, Map, MultiIndex, Strategy, U64Key,
+    U8Key,
 };
 use std::convert::TryInto;
 use tg4::TOTAL_KEY;
-
-pub const ADMIN: Admin = Admin::new("admin");
 
 #[derive(Serialize, Deserialize, Clone, PartialEq, Debug)]
 pub struct Dso {
@@ -125,12 +124,133 @@ pub fn members<'a>() -> IndexedSnapshotMap<'a, &'a Addr, u64, MemberIndexes<'a>>
     )
 }
 
-pub const ESCROWS_KEY: &str = "escrows";
-pub const ESCROWS: Map<&Addr, Uint128> = Map::new(ESCROWS_KEY);
+/// We store escrow and status together for all members.
+/// This is set for any address where weight is not None.
+#[derive(Serialize, Deserialize, Clone, PartialEq, JsonSchema, Debug)]
+pub struct EscrowStatus {
+    /// how much escrow they have paid
+    pub paid: Uint128,
+    /// voter status. we check this to see what functionality are allowed for this member
+    pub status: MemberStatus,
+}
 
-/// escrow_key is meant for raw queries for one member escrow, given address
-pub fn escrow_key(address: &str) -> Vec<u8> {
-    (ESCROWS_KEY, address).joined_key()
+impl EscrowStatus {
+    // return an escrow for a new non-voting member
+    pub fn non_voting() -> Self {
+        EscrowStatus {
+            paid: Uint128::zero(),
+            status: MemberStatus::NonVoting {},
+        }
+    }
+
+    // return an escrow for a new pending voting member
+    pub fn pending(batch_id: u64) -> Self {
+        EscrowStatus {
+            paid: Uint128::zero(),
+            status: MemberStatus::Pending { batch_id },
+        }
+    }
+}
+
+#[derive(Serialize, Deserialize, Clone, PartialEq, JsonSchema, Debug, Copy)]
+#[serde(rename_all = "snake_case")]
+pub enum MemberStatus {
+    /// Normal member, not allowed to vote
+    NonVoting {},
+    /// Approved for voting, need to pay in
+    Pending { batch_id: u64 },
+    /// Approved for voting, and paid in. Waiting for rest of batch
+    PendingPaid { batch_id: u64 },
+    /// Full-fledged voting member
+    Voting {},
+    /// Marked as leaving. Escrow frozen until `claim_at`
+    Leaving { claim_at: u64 },
+}
+
+impl MemberStatus {
+    #[inline]
+    pub fn is_pending_paid(&self) -> bool {
+        matches!(self, MemberStatus::PendingPaid { .. })
+    }
+
+    #[inline]
+    pub fn is_voting(&self) -> bool {
+        matches!(self, MemberStatus::Voting {})
+    }
+}
+
+impl fmt::Display for MemberStatus {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            MemberStatus::NonVoting {} => write!(f, "Non-Voting"),
+            MemberStatus::Pending { .. } => write!(f, "Pending"),
+            MemberStatus::PendingPaid { .. } => write!(f, "Pending, Paid"),
+            MemberStatus::Voting {} => write!(f, "Voting"),
+            MemberStatus::Leaving { .. } => write!(f, "Leaving"),
+        }
+    }
+}
+
+pub const ESCROWS: Map<&Addr, EscrowStatus> = Map::new("escrows");
+
+/// A Batch is a group of members who got voted in together. We need this to
+/// calculate moving from *Paid, Pending Voter* to *Voter*
+#[derive(Serialize, Deserialize, Clone, PartialEq, JsonSchema, Debug)]
+pub struct Batch {
+    /// Timestamp (seconds) when all members are no longer pending
+    pub grace_ends_at: u64,
+    /// How many must still pay in their escrow before the batch is early authorized
+    pub waiting_escrow: u32,
+    /// All paid members promoted. We do this once when grace ends or waiting escrow hits 0.
+    /// Store this one done so we don't loop through that anymore.
+    pub batch_promoted: bool,
+    /// List of all members that are part of this batch (look up ESCROWS with these keys)
+    pub members: Vec<Addr>,
+}
+
+impl Batch {
+    // Returns true if either all members have paid, or grace period is over
+    pub fn can_promote(&self, block: &BlockInfo) -> bool {
+        self.waiting_escrow == 0 || block.time >= Timestamp::from_seconds(self.grace_ends_at)
+    }
+}
+
+// We need a secondary index for batches, such that we can look up batches that have
+// not been promoted, ordered by expiration (ascending) up to now.
+// Index: (U8Key/bool: batch_promoted, U64Key: grace_ends_at) -> U64Key: pk
+pub struct BatchIndexes<'a> {
+    pub promotion_time: MultiIndex<'a, (U8Key, U64Key, U64Key), Batch>,
+}
+
+impl<'a> IndexList<Batch> for BatchIndexes<'a> {
+    fn get_indexes(&'_ self) -> Box<dyn Iterator<Item = &'_ dyn Index<Batch>> + '_> {
+        let v: Vec<&dyn Index<Batch>> = vec![&self.promotion_time];
+        Box::new(v.into_iter())
+    }
+}
+
+pub fn batches<'a>() -> IndexedMap<'a, U64Key, Batch, BatchIndexes<'a>> {
+    let indexes = BatchIndexes {
+        promotion_time: MultiIndex::new(
+            |b: &Batch, pk: Vec<u8>| {
+                let promoted = if b.batch_promoted { 1u8 } else { 0u8 };
+                (promoted.into(), b.grace_ends_at.into(), pk.into())
+            },
+            "batch",
+            "batch__promotion",
+        ),
+    };
+    IndexedMap::new("batch", indexes)
+}
+
+pub const BATCH_COUNT: Item<u64> = Item::new("batch_count");
+// pub const BATCHES: Map<U64Key, Batch> = Map::new("batch");
+
+pub fn create_batch(store: &mut dyn Storage, batch: &Batch) -> StdResult<u64> {
+    let id: u64 = BATCH_COUNT.may_load(store)?.unwrap_or_default() + 1;
+    BATCH_COUNT.save(store, &id)?;
+    batches().save(store, id.into(), batch)?;
+    Ok(id)
 }
 
 #[derive(Serialize, Deserialize, Clone, PartialEq, JsonSchema, Debug)]
@@ -143,6 +263,9 @@ pub enum ProposalContent {
         add: Vec<String>,
     },
     AdjustVotingRules(VotingRulesAdjustments),
+    AddVotingMembers {
+        voters: Vec<String>,
+    },
 }
 
 #[derive(Serialize, Deserialize, Clone, PartialEq, JsonSchema, Debug)]
@@ -286,9 +409,10 @@ pub fn save_ballot(
     BALLOTS_BY_VOTER.save(storage, (sender, proposal_id.into()), ballot)
 }
 
-pub fn next_id(store: &mut dyn Storage) -> StdResult<u64> {
+pub fn create_proposal(store: &mut dyn Storage, proposal: &Proposal) -> StdResult<u64> {
     let id: u64 = PROPOSAL_COUNT.may_load(store)?.unwrap_or_default() + 1;
     PROPOSAL_COUNT.save(store, &id)?;
+    PROPOSALS.save(store, id.into(), proposal)?;
     Ok(id)
 }
 

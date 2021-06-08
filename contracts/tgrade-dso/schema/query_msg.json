@@ -3,19 +3,6 @@
   "title": "QueryMsg",
   "anyOf": [
     {
-      "description": "Return AdminResponse",
-      "type": "object",
-      "required": [
-        "admin"
-      ],
-      "properties": {
-        "admin": {
-          "type": "object"
-        }
-      },
-      "additionalProperties": false
-    },
-    {
       "description": "Return DsoResponse",
       "type": "object",
       "required": [
@@ -129,7 +116,7 @@
       "additionalProperties": false
     },
     {
-      "description": "Returns MemberResponse",
+      "description": "Returns MemberResponse with voting weight",
       "type": "object",
       "required": [
         "member"
@@ -158,7 +145,7 @@
       "additionalProperties": false
     },
     {
-      "description": "Returns EscrowResponse",
+      "description": "Returns EscrowResponse with status (paying in escrow, leaving, etc) and amount. Returns None (JSON: null) for non-members",
       "type": "object",
       "required": [
         "escrow"

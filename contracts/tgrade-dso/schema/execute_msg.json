@@ -5,29 +5,6 @@
     {
       "type": "object",
       "required": [
-        "add_voting_members"
-      ],
-      "properties": {
-        "add_voting_members": {
-          "type": "object",
-          "required": [
-            "voters"
-          ],
-          "properties": {
-            "voters": {
-              "type": "array",
-              "items": {
-                "type": "string"
-              }
-            }
-          }
-        }
-      },
-      "additionalProperties": false
-    },
-    {
-      "type": "object",
-      "required": [
         "deposit_escrow"
       ],
       "properties": {
@@ -171,6 +148,19 @@
         }
       },
       "additionalProperties": false
+    },
+    {
+      "description": "This checks any batches whose grace period has passed, and who have not all paid escrow. Run through these groups and promote anyone who has paid escrow.",
+      "type": "object",
+      "required": [
+        "check_pending"
+      ],
+      "properties": {
+        "check_pending": {
+          "type": "object"
+        }
+      },
+      "additionalProperties": false
     }
   ],
   "definitions": {
@@ -219,6 +209,29 @@
           "properties": {
             "adjust_voting_rules": {
               "$ref": "#/definitions/VotingRulesAdjustments"
+            }
+          },
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "required": [
+            "add_voting_members"
+          ],
+          "properties": {
+            "add_voting_members": {
+              "type": "object",
+              "required": [
+                "voters"
+              ],
+              "properties": {
+                "voters": {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  }
+                }
+              }
             }
           },
           "additionalProperties": false
