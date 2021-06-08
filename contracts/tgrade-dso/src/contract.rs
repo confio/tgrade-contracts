@@ -778,6 +778,7 @@ fn query_proposal(deps: Deps, env: Env, id: u64) -> StdResult<ProposalResponse> 
         expires: prop.expires,
         rules: prop.rules,
         total_weight: prop.total_weight,
+        votes: prop.votes,
     })
 }
 
@@ -818,6 +819,7 @@ fn map_proposal(
         expires: prop.expires,
         rules: prop.rules,
         total_weight: prop.total_weight,
+        votes: prop.votes,
     })
 }
 
