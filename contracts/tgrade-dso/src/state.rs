@@ -168,14 +168,6 @@ pub enum MemberStatus {
 
 impl MemberStatus {
     #[inline]
-    pub fn can_pay_escrow(&self) -> bool {
-        !matches!(
-            self,
-            MemberStatus::NonVoting {} | MemberStatus::Leaving { .. }
-        )
-    }
-
-    #[inline]
     pub fn is_pending_paid(&self) -> bool {
         matches!(self, MemberStatus::PendingPaid { .. })
     }

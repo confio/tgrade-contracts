@@ -167,9 +167,6 @@ pub fn execute_deposit_escrow(
     let mut escrow = ESCROWS
         .may_load(deps.storage, &info.sender)?
         .ok_or(ContractError::NotAMember {})?;
-    if !escrow.status.can_pay_escrow() {
-        return Err(ContractError::InvalidStatus(escrow.status));
-    }
 
     // update the amount
     let amount = cw0::must_pay(&info, DSO_DENOM)?;
@@ -191,10 +188,11 @@ pub fn execute_deposit_escrow(
                 vec![]
             }
         }
-        _ => {
+        MemberStatus::PendingPaid { .. } | MemberStatus::Voting {} => {
             ESCROWS.save(deps.storage, &info.sender, &escrow)?;
             vec![]
         }
+        _ => return Err(ContractError::InvalidStatus(escrow.status)),
     };
 
     let mut attributes = vec![
@@ -264,6 +262,8 @@ fn promote_batch(
 }
 
 /// Returns true if this address was eligible for promotion, false otherwise
+/// Make sure you update TOTAL after calling this
+/// (Not done here, so we can update TOTAL once when promoting a whole batch)
 fn promote_if_paid(storage: &mut dyn Storage, to_promote: &Addr, height: u64) -> StdResult<bool> {
     let mut escrow = ESCROWS.load(storage, to_promote)?;
     // if this one was not yet paid up, do nothing
