@@ -221,6 +221,8 @@ fn promote_batch_if_ready(
 ) -> Result<Vec<Attribute>, ContractError> {
     // We first check and update this batch state
     let mut batch = batches().load(deps.storage, batch_id.into())?;
+    // This will panic if we hit 0. That said, it can never go below 0 if we call this once per member.
+    // And we trigger batch promotion below if this does hit 0 (batch.can_promote() == true)
     batch.waiting_escrow -= 1;
 
     let height = env.block.height;
@@ -248,16 +250,17 @@ fn promote_batch(
     height: u64,
 ) -> StdResult<Vec<Attribute>> {
     // try to promote them all
+    let mut added = 0;
     let mut attrs = Vec::with_capacity(batch.members.len());
     for waiting in batch.members.iter() {
         if promote_if_paid(storage, waiting, height)? {
             attrs.push(attr("promoted", waiting));
+            added += VOTING_WEIGHT;
         }
     }
     batch.batch_promoted = true;
     // update the total with the new weight
-    let added = attrs.len() as u64;
-    TOTAL.update::<_, StdError>(storage, |old| Ok(old + VOTING_WEIGHT * added))?;
+    TOTAL.update::<_, StdError>(storage, |old| Ok(old + added))?;
     Ok(attrs)
 }
 
@@ -708,8 +711,6 @@ pub fn proposal_add_voting_members(
             members().save(deps.storage, &add, &0, height)?;
             // Create member entry in escrow (with no funds)
             ESCROWS.save(deps.storage, &add, &escrow)?;
-            // FIXME: use this?
-            // diffs.push(MemberDiff::new(add, None, Some(0)));
         }
     }
 
@@ -731,7 +732,7 @@ fn send_tokens(to: &Addr, amount: &Uint128) -> Vec<CosmosMsg> {
     }
 }
 
-// The logic from execute_update_non_voting_members extracted for easier import
+// This is a helper used both on instantiation as well as on passed proposals
 pub fn add_remove_non_voting_members(
     deps: DepsMut,
     height: u64,
@@ -748,7 +749,6 @@ pub fn add_remove_non_voting_members(
             members().save(deps.storage, &add_addr, &0, height)?;
             // set status
             ESCROWS.save(deps.storage, &add_addr, &EscrowStatus::non_voting())?;
-            // diffs.push(MemberDiff::new(add, None, Some(0)));
         }
     }
 
