@@ -16,7 +16,7 @@ use tg4::{member_key, TOTAL_KEY};
 use crate::contract::*;
 use crate::error::ContractError;
 use crate::msg::{DsoResponse, ExecuteMsg, InstantiateMsg, ProposalResponse, QueryMsg, VoteInfo};
-use crate::state::{MemberStatus, ProposalContent, VotingRules, VotingRulesAdjustments};
+use crate::state::{DsoAdjustments, MemberStatus, ProposalContent, VotingRules};
 
 const INIT_ADMIN: &str = "juan";
 

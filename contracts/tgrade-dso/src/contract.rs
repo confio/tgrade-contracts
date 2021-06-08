@@ -1,8 +1,8 @@
 #[cfg(not(feature = "library"))]
 use cosmwasm_std::entry_point;
 use cosmwasm_std::{
-    attr, coin, to_binary, Addr, Attribute, BankMsg, Binary, BlockInfo, CosmosMsg, Decimal, Deps,
-    DepsMut, Env, MessageInfo, Order, Response, StdError, StdResult, Storage, Uint128,
+    attr, coin, to_binary, Addr, Attribute, BankMsg, Binary, BlockInfo, CosmosMsg, Deps, DepsMut,
+    Env, MessageInfo, Order, Response, StdError, StdResult, Storage, Uint128,
 };
 use cw0::{maybe_addr, Expiration};
 use cw2::set_contract_version;
@@ -17,8 +17,8 @@ use crate::msg::{
 };
 use crate::state::{
     batches, create_batch, create_proposal, members, parse_id, save_ballot, Ballot, Batch, Dso,
-    EscrowStatus, MemberStatus, Proposal, ProposalContent, Votes, VotingRules,
-    VotingRulesAdjustments, BALLOTS, BALLOTS_BY_VOTER, DSO, ESCROWS, PROPOSALS, TOTAL,
+    DsoAdjustments, EscrowStatus, MemberStatus, Proposal, ProposalContent, Votes, VotingRules,
+    BALLOTS, BALLOTS_BY_VOTER, DSO, ESCROWS, PROPOSALS, TOTAL,
 };
 
 // version info for migration info
@@ -38,44 +38,29 @@ pub fn instantiate(
     msg: InstantiateMsg,
 ) -> Result<Response, ContractError> {
     set_contract_version(deps.storage, CONTRACT_NAME, CONTRACT_VERSION)?;
-    create(
-        deps,
-        env,
-        info,
-        msg.name,
-        msg.escrow_amount,
-        msg.voting_period,
-        msg.quorum,
-        msg.threshold,
-        msg.allow_end_early,
-        msg.initial_members,
-    )?;
-    Ok(Response::default())
-}
 
-// create is the instantiation logic with set_contract_version removed so it can more
-// easily be imported in other contracts
-#[allow(clippy::too_many_arguments)]
-pub fn create(
-    deps: DepsMut,
-    env: Env,
-    info: MessageInfo,
-    name: String,
-    escrow_amount: Uint128,
-    voting_period: u32,
-    quorum: Decimal,
-    threshold: Decimal,
-    allow_end_early: bool,
-    initial_members: Vec<String>,
-) -> Result<(), ContractError> {
-    validate(&name, escrow_amount, quorum, threshold)?;
+    let dso = Dso {
+        name: msg.name,
+        escrow_amount: msg.escrow_amount,
+        rules: VotingRules {
+            voting_period: msg.voting_period,
+            quorum: msg.quorum,
+            threshold: msg.threshold,
+            allow_end_early: msg.allow_end_early,
+        },
+    };
+    dso.validate()?;
 
     // Store sender as initial member, and define its weight / state
     // based on init_funds
     let amount = cw0::must_pay(&info, DSO_DENOM)?;
-    if amount < escrow_amount {
+    if amount < dso.escrow_amount {
         return Err(ContractError::InsufficientFunds(amount));
     }
+
+    // Create the DSO
+    DSO.save(deps.storage, &dso)?;
+
     // Put sender funds in escrow
     let escrow = EscrowStatus {
         paid: amount,
@@ -86,52 +71,9 @@ pub fn create(
     members().save(deps.storage, &info.sender, &VOTING_WEIGHT, env.block.height)?;
     TOTAL.save(deps.storage, &VOTING_WEIGHT)?;
 
-    // Create DSO
-    DSO.save(
-        deps.storage,
-        &Dso {
-            name,
-            escrow_amount,
-            rules: VotingRules {
-                voting_period,
-                quorum,
-                threshold,
-                allow_end_early,
-            },
-        },
-    )?;
-
     // add all members
-    add_remove_non_voting_members(deps, env.block.height, initial_members, vec![])?;
-
-    Ok(())
-}
-
-pub fn validate(
-    name: &str,
-    escrow_amount: Uint128,
-    quorum: Decimal,
-    threshold: Decimal,
-) -> Result<(), ContractError> {
-    if name.trim().is_empty() {
-        return Err(ContractError::EmptyName {});
-    }
-    let zero = Decimal::percent(0);
-    let hundred = Decimal::percent(100);
-
-    if quorum == zero || quorum > hundred {
-        return Err(ContractError::InvalidQuorum(quorum));
-    }
-
-    if threshold < Decimal::percent(50) || threshold > hundred {
-        return Err(ContractError::InvalidThreshold(threshold));
-    }
-
-    if escrow_amount.is_zero() {
-        // FIXME: fix the error here
-        return Err(ContractError::InsufficientFunds(escrow_amount));
-    }
-    Ok(())
+    add_remove_non_voting_members(deps, env.block.height, msg.initial_members, vec![])?;
+    Ok(Response::default())
 }
 
 // And declare a custom Error variant for the ones where you will want to make use of it
@@ -620,9 +562,7 @@ pub fn proposal_execute(
         ProposalContent::AddRemoveNonVotingMembers { add, remove } => {
             proposal_add_remove_non_voting_members(deps, env, add, remove)
         }
-        ProposalContent::AdjustVotingRules(adjustments) => {
-            proposal_adjust_voting_rules(deps, env, adjustments)
-        }
+        ProposalContent::EditDso(adjustments) => proposal_edit_dso(deps, env, adjustments),
         ProposalContent::AddVotingMembers { voters } => {
             proposal_add_voting_members(deps, env, voters)
         }
@@ -649,16 +589,21 @@ pub fn proposal_add_remove_non_voting_members(
     })
 }
 
-pub fn proposal_adjust_voting_rules(
+pub fn proposal_edit_dso(
     deps: DepsMut,
     _env: Env,
-    adjustments: VotingRulesAdjustments,
+    adjustments: DsoAdjustments,
 ) -> Result<Response, ContractError> {
+    // TODO: enable escrow handling (this is a complex case)
+    if adjustments.escrow_amount.is_some() {
+        return Err(ContractError::Unimplemented {});
+    }
+
     let mut attributes = adjustments.as_attributes();
-    attributes.push(attr("proposal", "adjust_voting_rules"));
+    attributes.push(attr("proposal", "edit_dso"));
 
     DSO.update::<_, ContractError>(deps.storage, |mut dso| {
-        dso.rules.apply_adjustments(adjustments);
+        dso.apply_adjustments(adjustments);
         Ok(dso)
     })?;
 

@@ -510,7 +510,9 @@ fn propose_new_voting_rules() {
     );
 
     // make a new proposal
-    let prop = ProposalContent::AdjustVotingRules(VotingRulesAdjustments {
+    let prop = ProposalContent::EditDso(DsoAdjustments {
+        name: Some("New Name!".into()),
+        escrow_amount: None,
         voting_period: Some(7),
         quorum: None,
         threshold: Some(Decimal::percent(51)),
@@ -540,18 +542,19 @@ fn propose_new_voting_rules() {
     .unwrap();
 
     // check the proper attributes returned
-    assert_eq!(res.attributes.len(), 6);
-    assert_eq!(&res.attributes[0], &attr("voting_period", "7"));
-    assert_eq!(&res.attributes[1], &attr("threshold", "0.51"));
-    assert_eq!(&res.attributes[2], &attr("allow_end_early", "true"));
-    assert_eq!(&res.attributes[3], &attr("proposal", "adjust_voting_rules"));
-    assert_eq!(&res.attributes[4], &attr("action", "execute"));
-    assert_eq!(&res.attributes[5], &attr("proposal_id", "1"));
+    assert_eq!(res.attributes.len(), 7);
+    assert_eq!(&res.attributes[0], &attr("name", "New Name!"));
+    assert_eq!(&res.attributes[1], &attr("voting_period", "7"));
+    assert_eq!(&res.attributes[2], &attr("threshold", "0.51"));
+    assert_eq!(&res.attributes[3], &attr("allow_end_early", "true"));
+    assert_eq!(&res.attributes[4], &attr("proposal", "edit_dso"));
+    assert_eq!(&res.attributes[5], &attr("action", "execute"));
+    assert_eq!(&res.attributes[6], &attr("proposal_id", "1"));
 
     // check the rules have been updated
-    let rules = query_dso(deps.as_ref()).unwrap().rules;
+    let dso = query_dso(deps.as_ref()).unwrap();
     assert_eq!(
-        rules,
+        dso.rules,
         VotingRules {
             voting_period: 7,
             quorum: Decimal::percent(40),
@@ -559,6 +562,7 @@ fn propose_new_voting_rules() {
             allow_end_early: true,
         }
     );
+    assert_eq!(&dso.name, "New Name!");
 }
 
 #[test]
