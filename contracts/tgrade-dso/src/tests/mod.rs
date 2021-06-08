@@ -1,5 +1,6 @@
 #![cfg(test)]
 
+mod bdd_tests;
 mod unit_tests;
 
 use cosmwasm_std::testing::{mock_dependencies, mock_env, mock_info};
@@ -21,6 +22,7 @@ const INIT_ADMIN: &str = "juan";
 
 const DSO_NAME: &str = "test_dso";
 const ESCROW_FUNDS: u128 = 1_000_000;
+const DENOM: &str = "utgd";
 
 const VOTING1: &str = "miles";
 const VOTING2: &str = "john";
@@ -32,7 +34,7 @@ const SECOND1: &str = "more";
 const SECOND2: &str = "peeps";
 
 fn escrow_funds() -> Vec<Coin> {
-    coins(ESCROW_FUNDS, "utgd")
+    coins(ESCROW_FUNDS, DENOM)
 }
 
 fn later(env: &Env, seconds: u64) -> Env {
