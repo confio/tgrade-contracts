@@ -56,7 +56,4 @@ pub enum ContractError {
 
     #[error("Cannot close completed or passed proposals")]
     WrongCloseStatus {},
-
-    #[error("TODO: remove when ready")]
-    Unimplemented {},
 }

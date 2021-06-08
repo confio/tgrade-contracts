@@ -163,7 +163,7 @@ pub fn execute_deposit_escrow(
     env: Env,
     info: MessageInfo,
 ) -> Result<Response, ContractError> {
-    // They must be a member and an allow status to pay in
+    // They must be a member and an allowed status to pay in
     let mut escrow = ESCROWS
         .may_load(deps.storage, &info.sender)?
         .ok_or(ContractError::NotAMember {})?;
@@ -286,6 +286,8 @@ pub fn execute_return_escrow(
     info: MessageInfo,
     amount: Option<Uint128>,
 ) -> Result<Response, ContractError> {
+    cw0::nonpayable(&info)?;
+
     // This can only be called by voters
     let mut escrow = ESCROWS
         .may_load(deps.storage, &info.sender)?
@@ -342,6 +344,8 @@ pub fn execute_propose(
     description: String,
     proposal: ProposalContent,
 ) -> Result<Response, ContractError> {
+    cw0::nonpayable(&info)?;
+
     // only voting members  can create a proposal
     let vote_power = members()
         .may_load(deps.storage, &info.sender)?
@@ -398,6 +402,8 @@ pub fn execute_vote(
     proposal_id: u64,
     vote: Vote,
 ) -> Result<Response, ContractError> {
+    cw0::nonpayable(&info)?;
+
     // ensure proposal exists and can be voted on
     let mut prop = PROPOSALS.load(deps.storage, proposal_id.into())?;
     if prop.status != Status::Open && prop.status != Status::Passed {
@@ -448,9 +454,11 @@ pub fn execute_vote(
 pub fn execute_execute(
     mut deps: DepsMut,
     env: Env,
-    _info: MessageInfo,
+    info: MessageInfo,
     proposal_id: u64,
 ) -> Result<Response, ContractError> {
+    cw0::nonpayable(&info)?;
+
     // anyone can trigger this if the vote passed
     let mut prop = PROPOSALS.load(deps.storage, proposal_id.into())?;
 
@@ -481,6 +489,8 @@ pub fn execute_close(
     info: MessageInfo,
     proposal_id: u64,
 ) -> Result<Response, ContractError> {
+    cw0::nonpayable(&info)?;
+
     // anyone can trigger this if the vote passed
 
     let mut prop = PROPOSALS.load(deps.storage, proposal_id.into())?;
@@ -513,6 +523,8 @@ pub fn execute_leave_dso(
     env: Env,
     info: MessageInfo,
 ) -> Result<Response, ContractError> {
+    cw0::nonpayable(&info)?;
+
     // FIXME: special check if last member leaving (future story)
     let escrow = ESCROWS
         .may_load(deps.storage, &info.sender)?
@@ -552,6 +564,8 @@ pub fn execute_check_pending(
     env: Env,
     info: MessageInfo,
 ) -> Result<Response, ContractError> {
+    cw0::nonpayable(&info)?;
+
     let start = vec![
         attr("action", "check_pending"),
         attr("sender", &info.sender),
