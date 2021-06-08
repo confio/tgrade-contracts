@@ -228,25 +228,32 @@ fn promote_if_paid(storage: &mut dyn Storage, to_promote: &Addr, height: u64) ->
 
 pub fn execute_return_escrow(
     deps: DepsMut,
-    _env: Env,
+    env: Env,
     info: MessageInfo,
 ) -> Result<Response, ContractError> {
     cw0::nonpayable(&info)?;
 
-    // This can only be called by voters
     let mut escrow = ESCROWS
         .may_load(deps.storage, &info.sender)?
         .ok_or(ContractError::NotAMember {})?;
-    if !escrow.status.is_voting() {
-        return Err(ContractError::InvalidStatus(escrow.status));
-    }
 
-    // Compute the maximum amount that can be refund
-    let escrow_amount = DSO.load(deps.storage)?.escrow_amount;
-    let refund = escrow
-        .paid
-        .checked_sub(escrow_amount)
-        .map_err(|_| ContractError::InsufficientFunds(escrow.paid))?;
+    let refund = match escrow.status {
+        // voters can deduct as long as they maintain the required escrow
+        MemberStatus::Voting {} => {
+            let min = DSO.load(deps.storage)?.escrow_amount;
+            escrow.paid.checked_sub(min)?
+        }
+        // leaving voters can claim as long as claim_at has passed
+        MemberStatus::Leaving { claim_at } => {
+            if claim_at <= env.block.time.nanos() / 1_000_000_000 {
+                escrow.paid
+            } else {
+                return Err(ContractError::InvalidStatus(escrow.status));
+            }
+        }
+        // no one else can withdraw
+        _ => return Err(ContractError::InvalidStatus(escrow.status)),
+    };
 
     let attributes = vec![attr("action", "return_escrow"), attr("amount", refund)];
     if refund.is_zero() {
@@ -258,7 +265,14 @@ pub fn execute_return_escrow(
 
     // Update remaining escrow
     escrow.paid = escrow.paid.checked_sub(refund)?;
-    ESCROWS.save(deps.storage, &info.sender, &escrow)?;
+    if escrow.paid.is_zero() {
+        // clearing out leaving member
+        ESCROWS.remove(deps.storage, &info.sender);
+        members().remove(deps.storage, &info.sender, env.block.height)?;
+    } else {
+        // removing excess from voting member
+        ESCROWS.save(deps.storage, &info.sender, &escrow)?;
+    }
 
     // Refund tokens
     let messages = send_tokens(&info.sender, &refund);
