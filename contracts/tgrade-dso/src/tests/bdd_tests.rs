@@ -20,7 +20,7 @@ const VOTING_ESCROW: u128 = ESCROW_FUNDS * 2;
 // const LEAVING_ESCROW: u128 = ESCROW_FUNDS + 777808;
 
 const PENDING_STARTS: u64 = 500;
-// const PENDING_ENDS: u64 = PENDING_STARTS + 14 * 86_400 + 1;
+const PENDING_ENDS: u64 = PENDING_STARTS + 14 * 86_400 + 1;
 
 // const LEAVING_STARTS: u64 = 50000;
 // const LEAVING_ENDS: u64 = LEAVING_STARTS + 2 * 14 * 86_400 + 1;
@@ -270,6 +270,27 @@ fn pending_paid_deposit_return_propose_leave() {
     assert!(matches!(
         get_status(deps.as_ref(), PENDING_PAID),
         MemberStatus::Leaving { .. }
+    ));
+}
+
+#[test]
+fn pending_paid_timeout_to_voter() {
+    let mut deps = mock_dependencies(&[]);
+    setup_bdd(deps.as_mut());
+
+    execute(
+        deps.as_mut(),
+        later(&mock_env(), PENDING_ENDS),
+        mock_info(PENDING_PAID, &[]),
+        ExecuteMsg::CheckPending {},
+    )
+    .unwrap();
+
+    // assert non-voting member
+    assert_membership(deps.as_ref(), PENDING_PAID, Some(1));
+    assert!(matches!(
+        get_status(deps.as_ref(), PENDING_PAID),
+        MemberStatus::Voting {}
     ));
 }
 
