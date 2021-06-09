@@ -451,6 +451,10 @@ pub const PROPOSAL_COUNT: Item<u64> = Item::new("proposal_count");
 pub const BALLOTS: Map<(U64Key, &Addr), Ballot> = Map::new("votes");
 pub const BALLOTS_BY_VOTER: Map<(&Addr, U64Key), Ballot> = Map::new("votes_by_voter");
 pub const PROPOSALS: Map<U64Key, Proposal> = Map::new("proposals");
+// This maps expiration timestamp (second) to Proposal primary key,
+// needed for bounded size queries in adjust_open_proposals_for_leaver
+// Just add in create_proposal
+pub const PROPOSAL_BY_EXPIRY: Map<U64Key, u64> = Map::new("proposals_by_expiry");
 
 pub fn save_ballot(
     storage: &mut dyn Storage,
@@ -463,9 +467,14 @@ pub fn save_ballot(
 }
 
 pub fn create_proposal(store: &mut dyn Storage, proposal: &Proposal) -> StdResult<u64> {
+    let expiry = match proposal.expires {
+        Expiration::AtTime(timestamp) => timestamp.nanos() / 1_000_000_000,
+        _ => return Err(StdError::generic_err("proposals only expire on timestamp")),
+    };
     let id: u64 = PROPOSAL_COUNT.may_load(store)?.unwrap_or_default() + 1;
     PROPOSAL_COUNT.save(store, &id)?;
     PROPOSALS.save(store, id.into(), proposal)?;
+    PROPOSAL_BY_EXPIRY.save(store, expiry.into(), &id)?;
     Ok(id)
 }
 

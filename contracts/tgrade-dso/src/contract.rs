@@ -18,7 +18,7 @@ use crate::msg::{
 use crate::state::{
     batches, create_batch, create_proposal, members, parse_id, save_ballot, Ballot, Batch, Dso,
     DsoAdjustments, EscrowStatus, MemberStatus, Proposal, ProposalContent, Votes, VotingRules,
-    BALLOTS, BALLOTS_BY_VOTER, DSO, ESCROWS, PROPOSALS, TOTAL,
+    BALLOTS, BALLOTS_BY_VOTER, DSO, ESCROWS, PROPOSALS, PROPOSAL_BY_EXPIRY, TOTAL,
 };
 
 // version info for migration info
@@ -546,21 +546,19 @@ fn adjust_open_proposals_for_leaver(
 ) -> Result<(), ContractError> {
     // TODO: no brute force here
     // find all open proposals that have not yet expired
-    let open_props = PROPOSALS
-        .range(deps.storage, None, None, Order::Ascending)
-        .filter(|res| match res {
-            Ok((_, prop)) => prop.current_status(&env.block) == Status::Open,
-            Err(_) => true,
-        })
+    let now = env.block.time.nanos() / 1_000_000_000;
+    let start = Bound::Inclusive(U64Key::from(now).into());
+    let open_prop_ids = PROPOSAL_BY_EXPIRY
+        .range(deps.storage, Some(start), None, Order::Ascending)
         .collect::<StdResult<Vec<_>>>()?;
 
     // check which ones we have not voted on and update them
-    for (key, mut prop) in open_props {
-        let prop_id = parse_id(&key)?;
+    for (_, prop_id) in open_prop_ids {
         if BALLOTS
             .may_load(deps.storage, (prop_id.into(), leaver))?
             .is_none()
         {
+            let mut prop = PROPOSALS.load(deps.storage, prop_id.into())?;
             prop.total_weight -= VOTING_WEIGHT;
             PROPOSALS.save(deps.storage, prop_id.into(), &prop)?;
         }
