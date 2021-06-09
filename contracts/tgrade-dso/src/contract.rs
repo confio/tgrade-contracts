@@ -505,7 +505,7 @@ fn leave_immediately(deps: DepsMut, env: Env, leaver: Addr) -> Result<Response, 
 }
 
 fn trigger_long_leave(
-    deps: DepsMut,
+    mut deps: DepsMut,
     env: Env,
     leaver: Addr,
     mut escrow: EscrowStatus,
@@ -517,6 +517,9 @@ fn trigger_long_leave(
             old.checked_sub(VOTING_WEIGHT)
                 .ok_or_else(|| StdError::generic_err("Total underflow"))
         })?;
+
+        // now, we reduce total weight of all open proposals that this member has not yet voted on
+        adjust_open_proposals_for_leaver(deps.branch(), &env, &leaver)?;
     }
 
     // in all case, we become a leaving member and set the claim on our escrow
@@ -534,6 +537,36 @@ fn trigger_long_leave(
         ],
         ..Response::default()
     })
+}
+
+fn adjust_open_proposals_for_leaver(
+    deps: DepsMut,
+    env: &Env,
+    leaver: &Addr,
+) -> Result<(), ContractError> {
+    // TODO: no brute force here
+    // find all open proposals that have not yet expired
+    let open_props = PROPOSALS
+        .range(deps.storage, None, None, Order::Ascending)
+        .filter(|res| match res {
+            Ok((_, prop)) => prop.current_status(&env.block) == Status::Open,
+            Err(_) => true,
+        })
+        .collect::<StdResult<Vec<_>>>()?;
+
+    // check which ones we have not voted on and update them
+    for (key, mut prop) in open_props {
+        let prop_id = parse_id(&key)?;
+        if BALLOTS
+            .may_load(deps.storage, (prop_id.into(), leaver))?
+            .is_none()
+        {
+            prop.total_weight -= VOTING_WEIGHT;
+            PROPOSALS.save(deps.storage, prop_id.into(), &prop)?;
+        }
+    }
+
+    Ok(())
 }
 
 pub fn execute_check_pending(
