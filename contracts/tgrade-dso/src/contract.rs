@@ -559,8 +559,10 @@ fn adjust_open_proposals_for_leaver(
             .is_none()
         {
             let mut prop = PROPOSALS.load(deps.storage, prop_id.into())?;
-            prop.total_weight -= VOTING_WEIGHT;
-            PROPOSALS.save(deps.storage, prop_id.into(), &prop)?;
+            if prop.status == (Status::Open{}) {
+                prop.total_weight -= VOTING_WEIGHT;
+                PROPOSALS.save(deps.storage, prop_id.into(), &prop)?;
+            }
         }
     }
 
