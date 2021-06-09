@@ -682,6 +682,22 @@ fn leaving_voter_cannot_vote_anymore() {
     assert_prop_status(deps.as_ref(), prop2, 4000, Status::Open);
     assert_prop_status(deps.as_ref(), prop3, 4000, Status::Open);
 
+    // ensure VOTING4 can not vote anymore on the other proposals
+    execute(
+        deps.as_mut(),
+        later(&start, 5000),
+        mock_info(VOTING4, &[]),
+        yes_vote(prop2),
+    )
+    .unwrap_err();
+    execute(
+        deps.as_mut(),
+        later(&start, 5000),
+        mock_info(VOTING4, &[]),
+        yes_vote(prop3),
+    )
+    .unwrap_err();
+
     // now, add some more votes
     // VOTING1 votes yes on all 3
     // VOTING 2 votes yes on prop3
