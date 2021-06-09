@@ -3,9 +3,9 @@
   "title": "HookType",
   "type": "string",
   "enum": [
-    "begin_block",
-    "end_block",
-    "validator_set_update",
+    "begin_blocker",
+    "end_blocker",
+    "validator_set_updater",
     "gov_proposal_executor",
     "sudoer",
     "token_minter",
