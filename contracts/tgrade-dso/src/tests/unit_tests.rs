@@ -1,5 +1,6 @@
 #![cfg(test)]
 use super::*;
+use cosmwasm_std::Deps;
 
 #[test]
 fn instantiation_no_funds() {
@@ -553,4 +554,128 @@ fn raw_queries_work() {
     // and execute misses
     let member3_raw = deps.storage.get(&member_key(VOTING3));
     assert_eq!(None, member3_raw);
+}
+
+const VOTING4: &str = "bouncer";
+
+fn create_proposal(deps: DepsMut, delay: u64) -> u64 {
+    // meaningless proposal
+    let msg = ExecuteMsg::Propose {
+        title: "Another Proposal".into(),
+        description: "Again and again".into(),
+        proposal: ProposalContent::AddRemoveNonVotingMembers {
+            remove: vec![],
+            add: vec!["new guy".into()],
+        },
+    };
+    let env = later(&mock_env(), delay);
+    let res = execute(deps, env, mock_info(INIT_ADMIN, &[]), msg).unwrap();
+    parse_prop_id(&res.attributes)
+}
+
+fn assert_prop_status(deps: Deps, proposal_id: u64, delay: u64, expected: Status) {
+    let time = later(&mock_env(), delay);
+    let prop = query_proposal(deps, time, proposal_id).unwrap();
+    assert_eq!(prop.status, expected);
+}
+
+// Setup:
+// * Create 5 voters
+// * Require 60% threshold, 50% quorum to pass
+// * Create 3 proposals (1 yes)
+// * Leaving voter votes yes on A (nothing on others)
+// * Voter leaves DSO
+//
+// Desired properties:
+// * One more yes on A -> immediately passes (3/5 of absolute 60% threshold)
+// * One more yes on B -> passes on expiration (2/4 matches quorum, threshold, but not 60% of total yes)
+// * Two yes on C -> passes immediately (3/4 of absolute threshold)
+#[test]
+fn leaving_voter_cannot_vote_anymore() {
+    let info = mock_info(INIT_ADMIN, &escrow_funds());
+    let mut deps = mock_dependencies(&[]);
+    let msg = InstantiateMsg {
+        name: "Leaving votes".to_string(),
+        escrow_amount: Uint128(ESCROW_FUNDS),
+        voting_period: 7,
+        quorum: Decimal::percent(50),
+        threshold: Decimal::percent(60),
+        allow_end_early: true,
+        initial_members: vec![],
+    };
+    instantiate(deps.as_mut(), mock_env(), info, msg).unwrap();
+
+    // 4 more voting members
+    let start = mock_env();
+    proposal_add_voting_members(
+        deps.as_mut(),
+        later(&start, 10),
+        vec![
+            VOTING1.into(),
+            VOTING2.into(),
+            VOTING3.into(),
+            VOTING4.into(),
+        ],
+    )
+    .unwrap();
+    // all pay in
+    execute_deposit_escrow(
+        deps.as_mut(),
+        later(&start, 20),
+        mock_info(VOTING1, &escrow_funds()),
+    )
+    .unwrap();
+    execute_deposit_escrow(
+        deps.as_mut(),
+        later(&start, 30),
+        mock_info(VOTING2, &escrow_funds()),
+    )
+    .unwrap();
+    execute_deposit_escrow(
+        deps.as_mut(),
+        later(&start, 40),
+        mock_info(VOTING3, &escrow_funds()),
+    )
+    .unwrap();
+    execute_deposit_escrow(
+        deps.as_mut(),
+        later(&start, 50),
+        mock_info(VOTING4, &escrow_funds()),
+    )
+    .unwrap();
+    // ensure 5 voting members
+    let voters = list_voting_members(deps.as_ref(), None, None).unwrap();
+    assert_eq!(5, voters.members.len());
+
+    // INIT_ADMIN 3 proposals
+    let prop1 = create_proposal(deps.as_mut(), 500);
+    let prop2 = create_proposal(deps.as_mut(), 1000);
+    let prop3 = create_proposal(deps.as_mut(), 1500);
+
+    // VOTING4 votes yes on prop1
+    let yes1 = ExecuteMsg::Vote {
+        proposal_id: prop1,
+        vote: Vote::Yes,
+    };
+    execute(
+        deps.as_mut(),
+        later(&start, 2000),
+        mock_info(VOTING4, &[]),
+        yes1.clone(),
+    )
+    .unwrap();
+
+    // VOTING4 leaves
+    execute(
+        deps.as_mut(),
+        later(&start, 3000),
+        mock_info(VOTING4, &[]),
+        ExecuteMsg::LeaveDso {},
+    )
+    .unwrap();
+
+    // SETUP DONE... test conditions
+    assert_prop_status(deps.as_ref(), prop1, 4000, Status::Open);
+    assert_prop_status(deps.as_ref(), prop2, 4000, Status::Open);
+    assert_prop_status(deps.as_ref(), prop3, 4000, Status::Open);
 }
