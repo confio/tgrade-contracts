@@ -5,7 +5,9 @@ use cosmwasm_std::{
 use crate::error::ContractError;
 use crate::msg::{ExecuteMsg, InstantiateMsg, OwnerResponse, QueryMsg};
 use crate::state::{Config, CONFIG};
-use tgrade_bindings::{GovProposal, HooksMsg, PrivilegeChangeMsg, TgradeMsg, TgradeSudoMsg};
+use tgrade_bindings::{
+    GovProposal, HookType, HooksMsg, PrivilegeChangeMsg, TgradeMsg, TgradeSudoMsg,
+};
 
 // Note, you can use StdResult in some functions where you do not
 // make use of the custom errors
@@ -105,16 +107,16 @@ pub fn sudo(
 fn privilege_change(_deps: DepsMut, change: PrivilegeChangeMsg) -> Response<TgradeMsg> {
     match change {
         PrivilegeChangeMsg::Promoted {} => {
-            let msg = TgradeMsg::Hooks(HooksMsg::RegisterGovProposalExecutor {});
+            let messages = vec![HooksMsg::Register(HookType::GovProposalExecutor).into()];
             Response {
-                messages: vec![msg.into()],
+                messages,
                 ..Response::default()
             }
         }
         PrivilegeChangeMsg::Demoted {} => {
-            let msg = TgradeMsg::Hooks(HooksMsg::UnregisterGovProposalExecutor {});
+            let messages = vec![HooksMsg::Unregister(HookType::GovProposalExecutor).into()];
             Response {
-                messages: vec![msg.into()],
+                messages,
                 ..Response::default()
             }
         }
