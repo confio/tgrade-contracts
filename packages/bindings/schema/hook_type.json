@@ -1,0 +1,14 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "HookType",
+  "type": "string",
+  "enum": [
+    "begin_block",
+    "end_block",
+    "validator_set_update",
+    "gov_proposal_executor",
+    "sudoer",
+    "token_minter",
+    "consensus_param_changer"
+  ]
+}

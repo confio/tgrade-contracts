@@ -16,58 +16,30 @@
       "additionalProperties": false
     },
     {
+      "description": "Lists all contracts registered with the given hook type Returns ListHooksResponse",
       "type": "object",
       "required": [
-        "hooks"
+        "list_hooks"
       ],
       "properties": {
-        "hooks": {
-          "$ref": "#/definitions/HooksQuery"
+        "list_hooks": {
+          "$ref": "#/definitions/HookType"
         }
       },
       "additionalProperties": false
     }
   ],
   "definitions": {
-    "HooksQuery": {
-      "anyOf": [
-        {
-          "description": "List all registered contracts for each category",
-          "type": "object",
-          "required": [
-            "list_begin_blockers"
-          ],
-          "properties": {
-            "list_begin_blockers": {
-              "type": "object"
-            }
-          },
-          "additionalProperties": false
-        },
-        {
-          "type": "object",
-          "required": [
-            "list_end_blockers"
-          ],
-          "properties": {
-            "list_end_blockers": {
-              "type": "object"
-            }
-          },
-          "additionalProperties": false
-        },
-        {
-          "type": "object",
-          "required": [
-            "get_validator_set_updater"
-          ],
-          "properties": {
-            "get_validator_set_updater": {
-              "type": "object"
-            }
-          },
-          "additionalProperties": false
-        }
+    "HookType": {
+      "type": "string",
+      "enum": [
+        "begin_block",
+        "end_block",
+        "validator_set_update",
+        "gov_proposal_executor",
+        "sudoer",
+        "token_minter",
+        "consensus_param_changer"
       ]
     }
   }
