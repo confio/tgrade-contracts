@@ -369,6 +369,11 @@ pub fn execute_vote(
     if vote_power == 0 {
         return Err(ContractError::Unauthorized {});
     }
+    // ensure the voter is not currently leaving the dso (must be currently a voter)
+    let escrow = ESCROWS.load(deps.storage, &info.sender)?;
+    if escrow.status != (MemberStatus::Voting {}) {
+        return Err(ContractError::InvalidStatus(escrow.status));
+    }
 
     if BALLOTS
         .may_load(deps.storage, (proposal_id.into(), &info.sender))?
