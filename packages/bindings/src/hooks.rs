@@ -5,11 +5,11 @@ use serde::{Deserialize, Serialize};
 #[serde(rename_all = "snake_case")]
 pub enum HookType {
     /// contracts registered here are called the beginning of each block with possible double-sign evidence
-    BeginBlock,
+    BeginBlocker,
     /// contracts registered here are called the end of every block
-    EndBlock,
+    EndBlocker,
     /// only max 1 contract can be registered here, this is called in EndBlock (after everything else) and can change the validator set.
-    ValidatorSetUpdate,
+    ValidatorSetUpdater,
     /// contracts registered here are allowed to call ExecuteGovProposal{}
     /// (Any privileged contract *can* register, but this means you must explicitly request permission before sending such a message)
     GovProposalExecutor,

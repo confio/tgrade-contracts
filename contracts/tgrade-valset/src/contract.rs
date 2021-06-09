@@ -224,7 +224,7 @@ pub fn sudo(deps: DepsMut, env: Env, msg: TgradeSudoMsg) -> Result<Response, Con
 fn privilege_change(_deps: DepsMut, change: PrivilegeChangeMsg) -> Response {
     match change {
         PrivilegeChangeMsg::Promoted {} => {
-            let msg = HooksMsg::Register(HookType::ValidatorSetUpdate).into();
+            let msg = HooksMsg::Register(HookType::ValidatorSetUpdater).into();
             Response {
                 messages: vec![msg],
                 ..Response::default()
