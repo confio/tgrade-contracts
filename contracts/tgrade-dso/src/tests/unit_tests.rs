@@ -579,6 +579,13 @@ fn assert_prop_status(deps: Deps, proposal_id: u64, delay: u64, expected: Status
     assert_eq!(prop.status, expected);
 }
 
+fn yes_vote(proposal_id: u64) -> ExecuteMsg {
+    ExecuteMsg::Vote {
+        proposal_id,
+        vote: Vote::Yes,
+    }
+}
+
 // Setup:
 // * Create 5 voters
 // * Require 60% threshold, 50% quorum to pass
@@ -653,15 +660,11 @@ fn leaving_voter_cannot_vote_anymore() {
     let prop3 = create_proposal(deps.as_mut(), 1500);
 
     // VOTING4 votes yes on prop1
-    let yes1 = ExecuteMsg::Vote {
-        proposal_id: prop1,
-        vote: Vote::Yes,
-    };
     execute(
         deps.as_mut(),
         later(&start, 2000),
         mock_info(VOTING4, &[]),
-        yes1.clone(),
+        yes_vote(prop1),
     )
     .unwrap();
 
@@ -678,4 +681,48 @@ fn leaving_voter_cannot_vote_anymore() {
     assert_prop_status(deps.as_ref(), prop1, 4000, Status::Open);
     assert_prop_status(deps.as_ref(), prop2, 4000, Status::Open);
     assert_prop_status(deps.as_ref(), prop3, 4000, Status::Open);
+
+    // now, add some more votes
+    // VOTING1 votes yes on all 3
+    // VOTING 2 votes yes on prop3
+    execute(
+        deps.as_mut(),
+        later(&start, 6000),
+        mock_info(VOTING1, &[]),
+        yes_vote(prop1),
+    )
+    .unwrap();
+    execute(
+        deps.as_mut(),
+        later(&start, 6005),
+        mock_info(VOTING1, &[]),
+        yes_vote(prop2),
+    )
+    .unwrap();
+    execute(
+        deps.as_mut(),
+        later(&start, 6010),
+        mock_info(VOTING1, &[]),
+        yes_vote(prop3),
+    )
+    .unwrap();
+
+    // ensure #1 and #3 are passed, #2 is still open
+    assert_prop_status(deps.as_ref(), prop1, 7000, Status::Passed);
+    assert_prop_status(deps.as_ref(), prop2, 7000, Status::Open);
+    assert_prop_status(deps.as_ref(), prop3, 7000, Status::Open);
+
+    // one more vote on prop3 and it passes
+    execute(
+        deps.as_mut(),
+        later(&start, 7500),
+        mock_info(VOTING2, &[]),
+        yes_vote(prop3),
+    )
+    .unwrap();
+    assert_prop_status(deps.as_ref(), prop3, 8000, Status::Passed);
+
+    // now, wait for the proposal to expire and ensure prop2 passes now (8 days with 7 day voting period)
+    // This requires that voter4 was removed from the total_weight on this proposal
+    assert_prop_status(deps.as_ref(), prop2, 8 * 86_400, Status::Passed);
 }
