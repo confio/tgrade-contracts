@@ -6,7 +6,7 @@ use crate::error::ContractError;
 use crate::msg::{ExecuteMsg, InstantiateMsg, OwnerResponse, QueryMsg};
 use crate::state::{Config, CONFIG};
 use tgrade_bindings::{
-    GovProposal, HookType, HooksMsg, PrivilegeChangeMsg, TgradeMsg, TgradeSudoMsg,
+    GovProposal, Privilege, PrivilegeChangeMsg, PrivilegeMsg, TgradeMsg, TgradeSudoMsg,
 };
 
 // Note, you can use StdResult in some functions where you do not
@@ -107,14 +107,14 @@ pub fn sudo(
 fn privilege_change(_deps: DepsMut, change: PrivilegeChangeMsg) -> Response<TgradeMsg> {
     match change {
         PrivilegeChangeMsg::Promoted {} => {
-            let messages = vec![HooksMsg::Register(HookType::GovProposalExecutor).into()];
+            let messages = vec![PrivilegeMsg::Request(Privilege::GovProposalExecutor).into()];
             Response {
                 messages,
                 ..Response::default()
             }
         }
         PrivilegeChangeMsg::Demoted {} => {
-            let messages = vec![HooksMsg::Unregister(HookType::GovProposalExecutor).into()];
+            let messages = vec![PrivilegeMsg::Release(Privilege::GovProposalExecutor).into()];
             Response {
                 messages,
                 ..Response::default()

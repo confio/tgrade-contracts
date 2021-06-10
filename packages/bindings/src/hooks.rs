@@ -3,7 +3,7 @@ use serde::{Deserialize, Serialize};
 
 #[derive(Serialize, Deserialize, Clone, PartialEq, JsonSchema, Debug)]
 #[serde(rename_all = "snake_case")]
-pub enum HookType {
+pub enum Privilege {
     /// contracts registered here are called the beginning of each block with possible double-sign evidence
     BeginBlocker,
     /// contracts registered here are called the end of every block
@@ -23,7 +23,7 @@ pub enum HookType {
 
 #[derive(Serialize, Deserialize, Clone, PartialEq, JsonSchema, Debug)]
 #[serde(rename_all = "snake_case")]
-pub enum HooksMsg {
-    Register(HookType),
-    Unregister(HookType),
+pub enum PrivilegeMsg {
+    Request(Privilege),
+    Release(Privilege),
 }

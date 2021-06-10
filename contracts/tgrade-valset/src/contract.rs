@@ -13,7 +13,7 @@ use cw_storage_plus::Bound;
 
 use tg4::Tg4Contract;
 use tgrade_bindings::{
-    Ed25519Pubkey, HookType, HooksMsg, PrivilegeChangeMsg, Pubkey, TgradeMsg, TgradeSudoMsg,
+    Ed25519Pubkey, Privilege, PrivilegeChangeMsg, PrivilegeMsg, Pubkey, TgradeMsg, TgradeSudoMsg,
     ValidatorDiff, ValidatorUpdate,
 };
 
@@ -224,7 +224,7 @@ pub fn sudo(deps: DepsMut, env: Env, msg: TgradeSudoMsg) -> Result<Response, Con
 fn privilege_change(_deps: DepsMut, change: PrivilegeChangeMsg) -> Response {
     match change {
         PrivilegeChangeMsg::Promoted {} => {
-            let msg = HooksMsg::Register(HookType::ValidatorSetUpdater).into();
+            let msg = PrivilegeMsg::Request(Privilege::ValidatorSetUpdater).into();
             Response {
                 messages: vec![msg],
                 ..Response::default()
