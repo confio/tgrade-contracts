@@ -1,12 +1,12 @@
 {
   "$schema": "http://json-schema.org/draft-07/schema#",
-  "title": "ListBeginBlockersResponse",
+  "title": "ListPrivilegedResponse",
   "type": "object",
   "required": [
-    "begin_blockers"
+    "privileged"
   ],
   "properties": {
-    "begin_blockers": {
+    "privileged": {
       "type": "array",
       "items": {
         "$ref": "#/definitions/Addr"

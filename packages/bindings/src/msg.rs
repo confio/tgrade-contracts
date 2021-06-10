@@ -4,14 +4,15 @@ use serde::{Deserialize, Serialize};
 use cosmwasm_std::{Binary, CosmosMsg, Uint128};
 
 use crate::gov::GovProposal;
+use crate::hooks::PrivilegeMsg;
 
 #[derive(Serialize, Deserialize, Clone, PartialEq, JsonSchema, Debug)]
 #[serde(rename_all = "snake_case")]
 /// A number of Custom messages that can be returned by 'privileged' contracts.
 /// Returning them from any other contract will return an error and abort the transaction.
 pub enum TgradeMsg {
-    /// un/register for begin or end block hooks
-    Hooks(HooksMsg),
+    /// request or release some privileges, such as BeginBlocker or TokenMinter
+    Privilege(PrivilegeMsg),
     /// privileged contracts can mint arbitrary native tokens (extends BankMsg)
     MintTokens {
         denom: String,
@@ -36,24 +37,6 @@ pub enum TgradeMsg {
         description: String,
         proposal: GovProposal,
     },
-}
-
-#[derive(Serialize, Deserialize, Clone, PartialEq, JsonSchema, Debug)]
-#[serde(rename_all = "snake_case")]
-pub enum HooksMsg {
-    /// contracts registered here are called the beginning of each block with possible double-sign evidence
-    RegisterBeginBlock {},
-    UnregisterBeginBlock {},
-    /// contracts registered here are called the end of every block
-    RegisterEndBlock {},
-    UnregisterEndBlock {},
-    /// only max 1 contract can be registered here, this is called in EndBlock (after everything else) and can change the validator set.
-    RegisterValidatorSetUpdate {},
-    UnregisterValidatorSetUpdate {},
-    /// contracts registered here are allowed to call ExecuteGovProposal{}
-    /// (Any privileged contract *can* register, but this means you must explicitly request permission before sending such a message)
-    RegisterGovProposalExecutor {},
-    UnregisterGovProposalExecutor {},
 }
 
 /// See https://github.com/tendermint/tendermint/blob/v0.34.8/proto/tendermint/abci/types.proto#L282-L289
@@ -132,14 +115,14 @@ impl From<TgradeMsg> for CosmosMsg<TgradeMsg> {
     }
 }
 
-impl From<HooksMsg> for TgradeMsg {
-    fn from(msg: HooksMsg) -> TgradeMsg {
-        TgradeMsg::Hooks(msg)
+impl From<PrivilegeMsg> for TgradeMsg {
+    fn from(msg: PrivilegeMsg) -> TgradeMsg {
+        TgradeMsg::Privilege(msg)
     }
 }
 
-impl From<HooksMsg> for CosmosMsg<TgradeMsg> {
-    fn from(msg: HooksMsg) -> CosmosMsg<TgradeMsg> {
+impl From<PrivilegeMsg> for CosmosMsg<TgradeMsg> {
+    fn from(msg: PrivilegeMsg) -> CosmosMsg<TgradeMsg> {
         CosmosMsg::Custom(TgradeMsg::from(msg))
     }
 }

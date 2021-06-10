@@ -600,110 +600,6 @@
         }
       ]
     },
-    "HooksMsg": {
-      "anyOf": [
-        {
-          "description": "contracts registered here are called the beginning of each block with possible double-sign evidence",
-          "type": "object",
-          "required": [
-            "register_begin_block"
-          ],
-          "properties": {
-            "register_begin_block": {
-              "type": "object"
-            }
-          },
-          "additionalProperties": false
-        },
-        {
-          "type": "object",
-          "required": [
-            "unregister_begin_block"
-          ],
-          "properties": {
-            "unregister_begin_block": {
-              "type": "object"
-            }
-          },
-          "additionalProperties": false
-        },
-        {
-          "description": "contracts registered here are called the end of every block",
-          "type": "object",
-          "required": [
-            "register_end_block"
-          ],
-          "properties": {
-            "register_end_block": {
-              "type": "object"
-            }
-          },
-          "additionalProperties": false
-        },
-        {
-          "type": "object",
-          "required": [
-            "unregister_end_block"
-          ],
-          "properties": {
-            "unregister_end_block": {
-              "type": "object"
-            }
-          },
-          "additionalProperties": false
-        },
-        {
-          "description": "only max 1 contract can be registered here, this is called in EndBlock (after everything else) and can change the validator set.",
-          "type": "object",
-          "required": [
-            "register_validator_set_update"
-          ],
-          "properties": {
-            "register_validator_set_update": {
-              "type": "object"
-            }
-          },
-          "additionalProperties": false
-        },
-        {
-          "type": "object",
-          "required": [
-            "unregister_validator_set_update"
-          ],
-          "properties": {
-            "unregister_validator_set_update": {
-              "type": "object"
-            }
-          },
-          "additionalProperties": false
-        },
-        {
-          "description": "contracts registered here are allowed to call ExecuteGovProposal{} (Any privileged contract *can* register, but this means you must explicitly request permission before sending such a message)",
-          "type": "object",
-          "required": [
-            "register_gov_proposal_executor"
-          ],
-          "properties": {
-            "register_gov_proposal_executor": {
-              "type": "object"
-            }
-          },
-          "additionalProperties": false
-        },
-        {
-          "type": "object",
-          "required": [
-            "unregister_gov_proposal_executor"
-          ],
-          "properties": {
-            "unregister_gov_proposal_executor": {
-              "type": "object"
-            }
-          },
-          "additionalProperties": false
-        }
-      ]
-    },
     "ParamChange": {
       "description": "ParamChange defines an individual parameter change, for use in ParameterChangeProposal.",
       "type": "object",
@@ -724,6 +620,46 @@
         }
       }
     },
+    "Privilege": {
+      "type": "string",
+      "enum": [
+        "begin_blocker",
+        "end_blocker",
+        "validator_set_updater",
+        "gov_proposal_executor",
+        "sudoer",
+        "token_minter",
+        "consensus_param_changer"
+      ]
+    },
+    "PrivilegeMsg": {
+      "anyOf": [
+        {
+          "type": "object",
+          "required": [
+            "request"
+          ],
+          "properties": {
+            "request": {
+              "$ref": "#/definitions/Privilege"
+            }
+          },
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "required": [
+            "release"
+          ],
+          "properties": {
+            "release": {
+              "$ref": "#/definitions/Privilege"
+            }
+          },
+          "additionalProperties": false
+        }
+      ]
+    },
     "ProtoAny": {
       "type": "object",
       "required": [
@@ -743,14 +679,14 @@
       "description": "A number of Custom messages that can be returned by 'privileged' contracts. Returning them from any other contract will return an error and abort the transaction.",
       "anyOf": [
         {
-          "description": "un/register for begin or end block hooks",
+          "description": "request or release some privileges, such as BeginBlocker or TokenMinter",
           "type": "object",
           "required": [
-            "hooks"
+            "privilege"
           ],
           "properties": {
-            "hooks": {
-              "$ref": "#/definitions/HooksMsg"
+            "privilege": {
+              "$ref": "#/definitions/PrivilegeMsg"
             }
           },
           "additionalProperties": false
