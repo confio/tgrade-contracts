@@ -48,6 +48,9 @@ pub enum ContractError {
     #[error("Cannot be called by member with status: {0}")]
     InvalidStatus(MemberStatus),
 
+    #[error("Cannot claim funds until {0} seconds after epoch")]
+    CannotClaimYet(u64),
+
     #[error("Proposal is not open")]
     NotOpen {},
 

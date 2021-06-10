@@ -451,7 +451,7 @@ pub const PROPOSAL_COUNT: Item<u64> = Item::new("proposal_count");
 pub const BALLOTS: Map<(U64Key, &Addr), Ballot> = Map::new("votes");
 pub const BALLOTS_BY_VOTER: Map<(&Addr, U64Key), Ballot> = Map::new("votes_by_voter");
 pub const PROPOSALS: Map<U64Key, Proposal> = Map::new("proposals");
-// This maps expiration timestamp (second) to Proposal primary key,
+// This maps expiration timestamp (seconds) to Proposal primary key,
 // needed for bounded size queries in adjust_open_proposals_for_leaver
 // Just add in create_proposal
 pub const PROPOSAL_BY_EXPIRY: Map<U64Key, u64> = Map::new("proposals_by_expiry");

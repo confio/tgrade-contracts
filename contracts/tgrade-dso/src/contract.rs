@@ -248,7 +248,7 @@ pub fn execute_return_escrow(
             if claim_at <= env.block.time.nanos() / 1_000_000_000 {
                 escrow.paid
             } else {
-                return Err(ContractError::InvalidStatus(escrow.status));
+                return Err(ContractError::CannotClaimYet(claim_at));
             }
         }
         // no one else can withdraw
@@ -357,6 +357,7 @@ pub fn execute_vote(
     if prop.status != Status::Open && prop.status != Status::Passed {
         return Err(ContractError::NotOpen {});
     }
+    // Looking at Expiration:, if the block time == expiratation time, this counts as expired
     if prop.expires.is_expired(&env.block) {
         return Err(ContractError::Expired {});
     }
@@ -371,7 +372,7 @@ pub fn execute_vote(
     }
     // ensure the voter is not currently leaving the dso (must be currently a voter)
     let escrow = ESCROWS.load(deps.storage, &info.sender)?;
-    if escrow.status != (MemberStatus::Voting {}) {
+    if !escrow.status.is_voting() {
         return Err(ContractError::InvalidStatus(escrow.status));
     }
 
@@ -544,10 +545,9 @@ fn adjust_open_proposals_for_leaver(
     env: &Env,
     leaver: &Addr,
 ) -> Result<(), ContractError> {
-    // TODO: no brute force here
     // find all open proposals that have not yet expired
     let now = env.block.time.nanos() / 1_000_000_000;
-    let start = Bound::Inclusive(U64Key::from(now).into());
+    let start = Bound::Exclusive(U64Key::from(now).into());
     let open_prop_ids = PROPOSAL_BY_EXPIRY
         .range(deps.storage, Some(start), None, Order::Ascending)
         .collect::<StdResult<Vec<_>>>()?;
