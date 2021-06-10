@@ -752,12 +752,11 @@ mod test {
         assert_eq!(0, active.validators.len());
 
         // Trigger end block run through sudo call
-        let res = app
-            .sudo(
-                valset_addr.clone(),
-                &TgradeSudoMsg::EndWithValidatorUpdate {},
-            )
-            .unwrap();
+        app.sudo(
+            valset_addr.clone(),
+            &TgradeSudoMsg::EndWithValidatorUpdate {},
+        )
+        .unwrap();
 
         // End block has run now, so active validators list is updated
         let active: ListActiveValidatorsResponse = app
