@@ -30,9 +30,7 @@ pub struct InstantiateMsg {
 #[serde(rename_all = "snake_case")]
 pub enum ExecuteMsg {
     DepositEscrow {},
-    ReturnEscrow {
-        amount: Option<Uint128>,
-    },
+    ReturnEscrow {},
     Propose {
         title: String,
         description: String,

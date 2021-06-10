@@ -18,7 +18,7 @@ use crate::msg::{
 use crate::state::{
     batches, create_batch, create_proposal, members, parse_id, save_ballot, Ballot, Batch, Dso,
     DsoAdjustments, EscrowStatus, MemberStatus, Proposal, ProposalContent, Votes, VotingRules,
-    BALLOTS, BALLOTS_BY_VOTER, DSO, ESCROWS, PROPOSALS, TOTAL,
+    BALLOTS, BALLOTS_BY_VOTER, DSO, ESCROWS, PROPOSALS, PROPOSAL_BY_EXPIRY, TOTAL,
 };
 
 // version info for migration info
@@ -86,7 +86,7 @@ pub fn execute(
 ) -> Result<Response, ContractError> {
     match msg {
         ExecuteMsg::DepositEscrow {} => execute_deposit_escrow(deps, env, info),
-        ExecuteMsg::ReturnEscrow { amount } => execute_return_escrow(deps, info, amount),
+        ExecuteMsg::ReturnEscrow {} => execute_return_escrow(deps, env, info),
         ExecuteMsg::Propose {
             title,
             description,
@@ -228,35 +228,31 @@ fn promote_if_paid(storage: &mut dyn Storage, to_promote: &Addr, height: u64) ->
 
 pub fn execute_return_escrow(
     deps: DepsMut,
+    env: Env,
     info: MessageInfo,
-    amount: Option<Uint128>,
 ) -> Result<Response, ContractError> {
     cw0::nonpayable(&info)?;
 
-    // This can only be called by voters
     let mut escrow = ESCROWS
         .may_load(deps.storage, &info.sender)?
         .ok_or(ContractError::NotAMember {})?;
-    if !escrow.status.is_voting() {
-        return Err(ContractError::InvalidStatus(escrow.status));
-    }
 
-    // Compute the maximum amount that can be refund
-    let escrow_amount = DSO.load(deps.storage)?.escrow_amount;
-    let max_refund = escrow
-        .paid
-        .checked_sub(escrow_amount)
-        .map_err(|_| ContractError::InsufficientFunds(escrow.paid))?;
-
-    // Refund the maximum by default, or the requested amount (if possible)
-    let refund = match amount {
-        None => max_refund,
-        Some(amount) => {
-            if amount > max_refund {
-                return Err(ContractError::InsufficientFunds(amount));
-            }
-            amount
+    let refund = match escrow.status {
+        // voters can deduct as long as they maintain the required escrow
+        MemberStatus::Voting {} => {
+            let min = DSO.load(deps.storage)?.escrow_amount;
+            escrow.paid.checked_sub(min)?
         }
+        // leaving voters can claim as long as claim_at has passed
+        MemberStatus::Leaving { claim_at } => {
+            if claim_at <= env.block.time.nanos() / 1_000_000_000 {
+                escrow.paid
+            } else {
+                return Err(ContractError::CannotClaimYet(claim_at));
+            }
+        }
+        // no one else can withdraw
+        _ => return Err(ContractError::InvalidStatus(escrow.status)),
     };
 
     let attributes = vec![attr("action", "return_escrow"), attr("amount", refund)];
@@ -269,7 +265,14 @@ pub fn execute_return_escrow(
 
     // Update remaining escrow
     escrow.paid = escrow.paid.checked_sub(refund)?;
-    ESCROWS.save(deps.storage, &info.sender, &escrow)?;
+    if escrow.paid.is_zero() {
+        // clearing out leaving member
+        ESCROWS.remove(deps.storage, &info.sender);
+        members().remove(deps.storage, &info.sender, env.block.height)?;
+    } else {
+        // removing excess from voting member
+        ESCROWS.save(deps.storage, &info.sender, &escrow)?;
+    }
 
     // Refund tokens
     let messages = send_tokens(&info.sender, &refund);
@@ -354,6 +357,7 @@ pub fn execute_vote(
     if prop.status != Status::Open && prop.status != Status::Passed {
         return Err(ContractError::NotOpen {});
     }
+    // Looking at Expiration:, if the block time == expiratation time, this counts as expired
     if prop.expires.is_expired(&env.block) {
         return Err(ContractError::Expired {});
     }
@@ -365,6 +369,11 @@ pub fn execute_vote(
         .unwrap_or_default();
     if vote_power == 0 {
         return Err(ContractError::Unauthorized {});
+    }
+    // ensure the voter is not currently leaving the dso (must be currently a voter)
+    let escrow = ESCROWS.load(deps.storage, &info.sender)?;
+    if !escrow.status.is_voting() {
+        return Err(ContractError::InvalidStatus(escrow.status));
     }
 
     if BALLOTS
@@ -475,7 +484,8 @@ pub fn execute_leave_dso(
     match (escrow.status, escrow.paid.u128()) {
         (MemberStatus::NonVoting {}, _) => leave_immediately(deps, env, info.sender),
         (MemberStatus::Pending { .. }, 0) => leave_immediately(deps, env, info.sender),
-        _ => trigger_long_leave(deps, env, info.sender),
+        (MemberStatus::Leaving { .. }, _) => Err(ContractError::InvalidStatus(escrow.status)),
+        _ => trigger_long_leave(deps, env, info.sender, escrow),
     }
 }
 
@@ -489,16 +499,74 @@ fn leave_immediately(deps: DepsMut, env: Env, leaver: Addr) -> Result<Response, 
         attributes: vec![
             attr("action", "leave_dso"),
             attr("type", "immediately"),
-            attr("sender", &leaver),
+            attr("sender", leaver),
         ],
         ..Response::default()
     })
 }
 
-fn trigger_long_leave(_deps: DepsMut, _env: Env, leaver: Addr) -> Result<Response, ContractError> {
-    // FIXME: voting member... this is a more complex situation, not yet implemented
-    Err(ContractError::VotingMember(leaver.to_string()))
-    //             send_tokens(&info.sender, &refund)
+fn trigger_long_leave(
+    mut deps: DepsMut,
+    env: Env,
+    leaver: Addr,
+    mut escrow: EscrowStatus,
+) -> Result<Response, ContractError> {
+    // if we are voting member, reduce vote to 0 (otherwise, it is already 0)
+    if escrow.status == (MemberStatus::Voting {}) {
+        members().save(deps.storage, &leaver, &0, env.block.height)?;
+        TOTAL.update::<_, StdError>(deps.storage, |old| {
+            old.checked_sub(VOTING_WEIGHT)
+                .ok_or_else(|| StdError::generic_err("Total underflow"))
+        })?;
+
+        // now, we reduce total weight of all open proposals that this member has not yet voted on
+        adjust_open_proposals_for_leaver(deps.branch(), &env, &leaver)?;
+    }
+
+    // in all case, we become a leaving member and set the claim on our escrow
+    let dso = DSO.load(deps.storage)?;
+    let claim_at = (env.block.time.nanos() / 1_000_000_000) + (dso.rules.voting_period_secs() * 2);
+    escrow.status = MemberStatus::Leaving { claim_at };
+    ESCROWS.save(deps.storage, &leaver, &escrow)?;
+
+    Ok(Response {
+        attributes: vec![
+            attr("action", "leave_dso"),
+            attr("type", "delayed"),
+            attr("claim_at", claim_at),
+            attr("sender", leaver),
+        ],
+        ..Response::default()
+    })
+}
+
+fn adjust_open_proposals_for_leaver(
+    deps: DepsMut,
+    env: &Env,
+    leaver: &Addr,
+) -> Result<(), ContractError> {
+    // find all open proposals that have not yet expired
+    let now = env.block.time.nanos() / 1_000_000_000;
+    let start = Bound::Exclusive(U64Key::from(now).into());
+    let open_prop_ids = PROPOSAL_BY_EXPIRY
+        .range(deps.storage, Some(start), None, Order::Ascending)
+        .collect::<StdResult<Vec<_>>>()?;
+
+    // check which ones we have not voted on and update them
+    for (_, prop_id) in open_prop_ids {
+        if BALLOTS
+            .may_load(deps.storage, (prop_id.into(), leaver))?
+            .is_none()
+        {
+            let mut prop = PROPOSALS.load(deps.storage, prop_id.into())?;
+            if prop.status == (Status::Open {}) {
+                prop.total_weight -= VOTING_WEIGHT;
+                PROPOSALS.save(deps.storage, prop_id.into(), &prop)?;
+            }
+        }
+    }
+
+    Ok(())
 }
 
 pub fn execute_check_pending(

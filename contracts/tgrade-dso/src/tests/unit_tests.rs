@@ -1,5 +1,6 @@
 #![cfg(test)]
 use super::*;
+use cosmwasm_std::Deps;
 
 #[test]
 fn instantiation_no_funds() {
@@ -235,40 +236,9 @@ fn test_escrows() {
         None,
     );
 
-    // Second voting member reclaims some funds
-    let info = mock_info(VOTING2, &[]);
-    let res = execute_return_escrow(deps.as_mut(), info, Some(10u128.into())).unwrap();
-    assert_eq!(
-        res.messages,
-        vec![BankMsg::Send {
-            to_address: VOTING2.into(),
-            amount: vec![coin(10, DSO_DENOM)]
-        }
-        .into()]
-    );
-
-    // (Not) updated properly
-    assert_voting(&deps, Some(1), Some(1), Some(1), None, None);
-    assert_escrow_status(
-        &deps,
-        Some(voting_status),
-        Some(voting_status),
-        Some(voting_status),
-        None,
-    );
-
-    // Check escrows / auths are updated / proper
-    assert_escrow_paid(
-        &deps,
-        Some(ESCROW_FUNDS),
-        Some(ESCROW_FUNDS),
-        Some(ESCROW_FUNDS * 2 - 1 - 10),
-        None,
-    );
-
     // Second voting member reclaims all possible funds
     let info = mock_info(VOTING2, &[]);
-    let _res = execute_return_escrow(deps.as_mut(), info, None).unwrap();
+    let _res = execute_return_escrow(deps.as_mut(), env.clone(), info).unwrap();
 
     // (Not) updated properly
     assert_voting(&deps, Some(1), Some(1), Some(1), None, None);
@@ -296,7 +266,7 @@ fn test_escrows() {
 
     // Third "member" (not added yet) tries to refund
     let info = mock_info(VOTING3, &[]);
-    let err = execute_return_escrow(deps.as_mut(), info, None).unwrap_err();
+    let err = execute_return_escrow(deps.as_mut(), env.clone(), info).unwrap_err();
     assert_eq!(err, ContractError::NotAMember {});
 
     // Third member is added
@@ -329,13 +299,13 @@ fn test_escrows() {
 
     // Third member cannot refund, as he is not a voter yet (only can leave)
     let info = mock_info(VOTING3, &[]);
-    let err = execute_return_escrow(deps.as_mut(), info, None).unwrap_err();
+    let err = execute_return_escrow(deps.as_mut(), env.clone(), info).unwrap_err();
     assert_eq!(err, ContractError::InvalidStatus(pending_status2));
 
     // But an existing voter can deposit more funds
     let top_up = coins(ESCROW_FUNDS + 888, "utgd");
     let info = mock_info(VOTING2, &top_up);
-    execute_deposit_escrow(deps.as_mut(), env, info).unwrap();
+    execute_deposit_escrow(deps.as_mut(), env.clone(), info).unwrap();
     // (Not) updated properly
     assert_voting(&deps, Some(1), Some(1), Some(1), Some(0), None);
     // Check escrows are updated / proper
@@ -349,7 +319,7 @@ fn test_escrows() {
 
     // and as a voter, withdraw them all
     let info = mock_info(VOTING2, &[]);
-    let res = execute_return_escrow(deps.as_mut(), info, None).unwrap();
+    let res = execute_return_escrow(deps.as_mut(), env, info).unwrap();
     assert_escrow_paid(
         &deps,
         Some(ESCROW_FUNDS),
@@ -586,101 +556,189 @@ fn raw_queries_work() {
     assert_eq!(None, member3_raw);
 }
 
-#[test]
-fn non_voting_can_leave() {
-    let mut deps = mock_dependencies(&[]);
-    let info = mock_info(INIT_ADMIN, &escrow_funds());
+const VOTING4: &str = "bouncer";
 
-    do_instantiate(
-        deps.as_mut(),
-        info,
-        vec![NONVOTING1.into(), NONVOTING2.into()],
-    )
-    .unwrap();
-
-    let non_voting = list_non_voting_members(deps.as_ref(), None, None).unwrap();
-    assert_eq!(non_voting.members.len(), 2);
-
-    let res = execute(
-        deps.as_mut(),
-        mock_env(),
-        mock_info(NONVOTING2, &[]),
-        ExecuteMsg::LeaveDso {},
-    )
-    .unwrap();
-    assert_eq!(res.messages.len(), 0);
-
-    let non_voting = list_non_voting_members(deps.as_ref(), None, None).unwrap();
-    assert_eq!(non_voting.members.len(), 1);
-    assert_eq!(NONVOTING1, &non_voting.members[0].addr)
+fn create_proposal(deps: DepsMut, delay: u64) -> u64 {
+    // meaningless proposal
+    let msg = ExecuteMsg::Propose {
+        title: "Another Proposal".into(),
+        description: "Again and again".into(),
+        proposal: ProposalContent::AddRemoveNonVotingMembers {
+            remove: vec![],
+            add: vec!["new guy".into()],
+        },
+    };
+    let env = later(&mock_env(), delay);
+    let res = execute(deps, env, mock_info(INIT_ADMIN, &[]), msg).unwrap();
+    parse_prop_id(&res.attributes)
 }
 
-#[test]
-fn pending_voting_can_leave_with_refund() {
-    let mut deps = mock_dependencies(&[]);
-    let info = mock_info(INIT_ADMIN, &escrow_funds());
+fn assert_prop_status(deps: Deps, proposal_id: u64, delay: u64, expected: Status) {
+    let time = later(&mock_env(), delay);
+    let prop = query_proposal(deps, time, proposal_id).unwrap();
+    assert_eq!(prop.status, expected);
+}
 
-    do_instantiate(
+fn yes_vote(proposal_id: u64) -> ExecuteMsg {
+    ExecuteMsg::Vote {
+        proposal_id,
+        vote: Vote::Yes,
+    }
+}
+
+// Setup:
+// * Create 5 voters
+// * Require 60% threshold, 50% quorum to pass
+// * Create 3 proposals (1 yes)
+// * Leaving voter votes yes on A (nothing on others)
+// * Voter leaves DSO
+//
+// Desired properties:
+// * One more yes on A -> immediately passes (3/5 of absolute 60% threshold)
+// * One more yes on B -> passes on expiration (2/4 matches quorum, threshold, but not 60% of total yes)
+// * Two yes on C -> passes immediately (3/4 of absolute threshold)
+#[test]
+fn leaving_voter_cannot_vote_anymore() {
+    let info = mock_info(INIT_ADMIN, &escrow_funds());
+    let mut deps = mock_dependencies(&[]);
+    let msg = InstantiateMsg {
+        name: "Leaving votes".to_string(),
+        escrow_amount: Uint128(ESCROW_FUNDS),
+        voting_period: 7,
+        quorum: Decimal::percent(50),
+        threshold: Decimal::percent(60),
+        allow_end_early: true,
+        initial_members: vec![],
+    };
+    instantiate(deps.as_mut(), mock_env(), info, msg).unwrap();
+
+    // 4 more voting members
+    let start = mock_env();
+    proposal_add_voting_members(
         deps.as_mut(),
-        info,
-        vec![NONVOTING1.into(), NONVOTING2.into()],
+        later(&start, 10),
+        vec![
+            VOTING1.into(),
+            VOTING2.into(),
+            VOTING3.into(),
+            VOTING4.into(),
+        ],
     )
     .unwrap();
+    // all pay in
+    execute_deposit_escrow(
+        deps.as_mut(),
+        later(&start, 20),
+        mock_info(VOTING1, &escrow_funds()),
+    )
+    .unwrap();
+    execute_deposit_escrow(
+        deps.as_mut(),
+        later(&start, 30),
+        mock_info(VOTING2, &escrow_funds()),
+    )
+    .unwrap();
+    execute_deposit_escrow(
+        deps.as_mut(),
+        later(&start, 40),
+        mock_info(VOTING3, &escrow_funds()),
+    )
+    .unwrap();
+    execute_deposit_escrow(
+        deps.as_mut(),
+        later(&start, 50),
+        mock_info(VOTING4, &escrow_funds()),
+    )
+    .unwrap();
+    // ensure 5 voting members
+    let voters = list_voting_members(deps.as_ref(), None, None).unwrap();
+    assert_eq!(5, voters.members.len());
 
-    // pending member
-    proposal_add_voting_members(deps.as_mut(), mock_env(), vec![VOTING1.into()]).unwrap();
-    // with too little escrow
+    // INIT_ADMIN 3 proposals
+    let prop1 = create_proposal(deps.as_mut(), 500);
+    let prop2 = create_proposal(deps.as_mut(), 1000);
+    let prop3 = create_proposal(deps.as_mut(), 1500);
+
+    // VOTING4 votes yes on prop1
     execute(
         deps.as_mut(),
-        mock_env(),
-        mock_info(VOTING1, &coins(50_000, "utgd")),
-        ExecuteMsg::DepositEscrow {},
+        later(&start, 2000),
+        mock_info(VOTING4, &[]),
+        yes_vote(prop1),
     )
     .unwrap();
 
-    // ensure they are not a voting member
-    let voting = list_voting_members(deps.as_ref(), None, None).unwrap();
-    assert_eq!(voting.members.len(), 1);
-
-    // but are a non-voting member
-    let non_voting = list_non_voting_members(deps.as_ref(), None, None).unwrap();
-    assert_eq!(non_voting.members.len(), 3);
-
-    // they cannot leave as they have some escrow
-    let err = execute(
+    // VOTING4 leaves
+    execute(
         deps.as_mut(),
-        mock_env(),
+        later(&start, 3000),
+        mock_info(VOTING4, &[]),
+        ExecuteMsg::LeaveDso {},
+    )
+    .unwrap();
+
+    // SETUP DONE... test conditions
+    assert_prop_status(deps.as_ref(), prop1, 4000, Status::Open);
+    assert_prop_status(deps.as_ref(), prop2, 4000, Status::Open);
+    assert_prop_status(deps.as_ref(), prop3, 4000, Status::Open);
+
+    // ensure VOTING4 can not vote anymore on the other proposals
+    execute(
+        deps.as_mut(),
+        later(&start, 5000),
+        mock_info(VOTING4, &[]),
+        yes_vote(prop2),
+    )
+    .unwrap_err();
+    execute(
+        deps.as_mut(),
+        later(&start, 5000),
+        mock_info(VOTING4, &[]),
+        yes_vote(prop3),
+    )
+    .unwrap_err();
+
+    // now, add some more votes
+    // VOTING1 votes yes on all 3
+    // VOTING 2 votes yes on prop3
+    execute(
+        deps.as_mut(),
+        later(&start, 6000),
         mock_info(VOTING1, &[]),
-        ExecuteMsg::LeaveDso {},
+        yes_vote(prop1),
     )
-    .unwrap_err();
-    assert_eq!(err, ContractError::VotingMember(VOTING1.into()));
-}
-
-#[test]
-fn voting_cannot_leave() {
-    let mut deps = mock_dependencies(&[]);
-    let info = mock_info(INIT_ADMIN, &escrow_funds());
-
-    do_instantiate(
+    .unwrap();
+    execute(
         deps.as_mut(),
-        info,
-        vec![NONVOTING1.into(), NONVOTING2.into()],
+        later(&start, 6005),
+        mock_info(VOTING1, &[]),
+        yes_vote(prop2),
+    )
+    .unwrap();
+    execute(
+        deps.as_mut(),
+        later(&start, 6010),
+        mock_info(VOTING1, &[]),
+        yes_vote(prop3),
     )
     .unwrap();
 
-    let voting = list_voting_members(deps.as_ref(), None, None).unwrap();
-    assert_eq!(voting.members.len(), 1);
+    // ensure #1 and #3 are passed, #2 is still open
+    assert_prop_status(deps.as_ref(), prop1, 7000, Status::Passed);
+    assert_prop_status(deps.as_ref(), prop2, 7000, Status::Open);
+    assert_prop_status(deps.as_ref(), prop3, 7000, Status::Open);
 
-    let err = execute(
+    // one more vote on prop3 and it passes
+    execute(
         deps.as_mut(),
-        mock_env(),
-        mock_info(INIT_ADMIN, &[]),
-        ExecuteMsg::LeaveDso {},
+        later(&start, 7500),
+        mock_info(VOTING2, &[]),
+        yes_vote(prop3),
     )
-    .unwrap_err();
-    assert!(matches!(err, ContractError::VotingMember(_)));
+    .unwrap();
+    assert_prop_status(deps.as_ref(), prop3, 8000, Status::Passed);
 
-    let voting = list_voting_members(deps.as_ref(), None, None).unwrap();
-    assert_eq!(voting.members.len(), 1);
+    // now, wait for the proposal to expire and ensure prop2 passes now (8 days with 7 day voting period)
+    // This requires that voter4 was removed from the total_weight on this proposal
+    assert_prop_status(deps.as_ref(), prop2, 8 * 86_400, Status::Passed);
 }

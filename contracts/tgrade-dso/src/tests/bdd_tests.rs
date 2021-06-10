@@ -1,6 +1,6 @@
 #![cfg(test)]
 use super::*;
-use cosmwasm_std::Deps;
+use cosmwasm_std::{CosmosMsg, Deps};
 
 const BDD_NAME: &str = "bddso";
 
@@ -11,19 +11,19 @@ const PENDING_BROKE: &str = "larry";
 const PENDING_SOME: &str = "paul";
 const PENDING_PAID: &str = "bill";
 const VOTING: &str = "val";
-// const LEAVING: &str = "adios";
+const LEAVING: &str = "adios";
 
 // how much paid by PENDING_SOME
 const SOME_ESCROW: u128 = ESCROW_FUNDS / 2;
 const PAID_ESCROW: u128 = ESCROW_FUNDS;
 const VOTING_ESCROW: u128 = ESCROW_FUNDS * 2;
-// const LEAVING_ESCROW: u128 = ESCROW_FUNDS + 777808;
+const LEAVING_ESCROW: u128 = ESCROW_FUNDS + 777808;
 
 const PENDING_STARTS: u64 = 500;
-// const PENDING_ENDS: u64 = PENDING_STARTS + 14 * 86_400 + 1;
+const PENDING_ENDS: u64 = PENDING_STARTS + 14 * 86_400 + 1;
 
-// const LEAVING_STARTS: u64 = 50000;
-// const LEAVING_ENDS: u64 = LEAVING_STARTS + 2 * 14 * 86_400 + 1;
+const LEAVING_STARTS: u64 = 50000;
+const LEAVING_ENDS: u64 = LEAVING_STARTS + 2 * 14 * 86_400 + 1;
 
 // sometime in the second day (after setup, before expiration)
 const NOW: u64 = 86_400 * 2;
@@ -62,11 +62,7 @@ fn setup_bdd(mut deps: DepsMut) {
     let info = mock_info(VOTING, &coins(VOTING_ESCROW, DENOM));
     instantiate(deps.branch(), start.clone(), info, msg).unwrap();
 
-    // TODO: add leaving in first batch
-    // proposal_add_voting_members(deps.as_mut(), later(&start, 100), vec![LEAVING.into()]).unwrap();
-    // leaving pays in escrow
-
-    // add pendings in second
+    // add pendings in first batch
     proposal_add_voting_members(
         deps.branch(),
         later(&start, PENDING_STARTS),
@@ -77,6 +73,15 @@ fn setup_bdd(mut deps: DepsMut) {
         ],
     )
     .unwrap();
+    // add leaving in second batch (same block)
+    proposal_add_voting_members(
+        deps.branch(),
+        later(&start, PENDING_STARTS),
+        vec![LEAVING.into()],
+    )
+    .unwrap();
+
+    // pay in escrows
     execute(
         deps.branch(),
         later(&start, PENDING_STARTS + 200),
@@ -91,12 +96,34 @@ fn setup_bdd(mut deps: DepsMut) {
         ExecuteMsg::DepositEscrow {},
     )
     .unwrap();
+    execute(
+        deps.branch(),
+        later(&start, PENDING_STARTS + 600),
+        mock_info(LEAVING, &coins(LEAVING_ESCROW, DENOM)),
+        ExecuteMsg::DepositEscrow {},
+    )
+    .unwrap();
 
-    // ensure we have proper setup... 1 voting, 4 non-voting
+    // ensure we have proper setup... 2 voting, 4 non-voting
+    let voting = list_voting_members(deps.as_ref(), None, None).unwrap();
+    assert_eq!(voting.members.len(), 2);
+    let nonvoting = list_non_voting_members(deps.as_ref(), None, None).unwrap();
+    assert_eq!(nonvoting.members.len(), 4);
+
+    // now, the leaving one triggers an exit
+    execute(
+        deps.branch(),
+        later(&start, LEAVING_STARTS),
+        mock_info(LEAVING, &[]),
+        ExecuteMsg::LeaveDso {},
+    )
+    .unwrap();
+
+    // ensure we have proper setup... 1 voting, 5 non-voting
     let voting = list_voting_members(deps.as_ref(), None, None).unwrap();
     assert_eq!(voting.members.len(), 1);
     let nonvoting = list_non_voting_members(deps.as_ref(), None, None).unwrap();
-    assert_eq!(nonvoting.members.len(), 4);
+    assert_eq!(nonvoting.members.len(), 5);
 }
 
 fn deposit(deps: DepsMut, addr: &str) -> Result<Response, ContractError> {
@@ -113,7 +140,7 @@ fn refund(deps: DepsMut, addr: &str) -> Result<Response, ContractError> {
         deps,
         now(),
         mock_info(addr, &[]),
-        ExecuteMsg::ReturnEscrow { amount: None },
+        ExecuteMsg::ReturnEscrow {},
     )
 }
 
@@ -141,6 +168,18 @@ fn propose(deps: DepsMut, addr: &str) -> Result<Response, ContractError> {
 
 fn leave(deps: DepsMut, addr: &str) -> Result<Response, ContractError> {
     execute(deps, now(), mock_info(addr, &[]), ExecuteMsg::LeaveDso {})
+}
+
+fn assert_payment(messages: Vec<CosmosMsg>, to_addr: &str, amount: u128) {
+    assert_eq!(1, messages.len());
+    assert_eq!(
+        &messages[0],
+        &BankMsg::Send {
+            to_address: to_addr.to_string(),
+            amount: coins(amount, DENOM)
+        }
+        .into()
+    );
 }
 
 #[test]
@@ -237,14 +276,14 @@ fn pending_some_deposit_return_propose_leave() {
     refund(deps.as_mut(), PENDING_SOME).unwrap_err();
     // cannot create proposal
     propose(deps.as_mut(), PENDING_SOME).unwrap_err();
-    // cannot leave
-    leave(deps.as_mut(), PENDING_SOME).unwrap_err();
+    // can leave, but long_leave
+    leave(deps.as_mut(), PENDING_SOME).unwrap();
 
     // check still non-voting
     assert_membership(deps.as_ref(), PENDING_SOME, Some(0));
     assert!(matches!(
         get_status(deps.as_ref(), PENDING_SOME),
-        MemberStatus::Pending { .. }
+        MemberStatus::Leaving { .. }
     ));
 }
 
@@ -262,11 +301,36 @@ fn pending_paid_deposit_return_propose_leave() {
     refund(deps.as_mut(), PENDING_PAID).unwrap_err();
     // cannot create proposal
     propose(deps.as_mut(), PENDING_PAID).unwrap_err();
-    // cannot leave
-    leave(deps.as_mut(), PENDING_PAID).unwrap_err();
+    // can leave, but long_leave
+    leave(deps.as_mut(), PENDING_PAID).unwrap();
 
     // check still non-voting
     assert_membership(deps.as_ref(), PENDING_PAID, Some(0));
+    assert!(matches!(
+        get_status(deps.as_ref(), PENDING_PAID),
+        MemberStatus::Leaving { .. }
+    ));
+}
+
+#[test]
+fn pending_paid_timeout_to_voter() {
+    let mut deps = mock_dependencies(&[]);
+    setup_bdd(deps.as_mut());
+
+    execute(
+        deps.as_mut(),
+        later(&mock_env(), PENDING_ENDS),
+        mock_info(PENDING_PAID, &[]),
+        ExecuteMsg::CheckPending {},
+    )
+    .unwrap();
+
+    // assert non-voting member
+    assert_membership(deps.as_ref(), PENDING_PAID, Some(1));
+    assert!(matches!(
+        get_status(deps.as_ref(), PENDING_PAID),
+        MemberStatus::Voting {}
+    ));
 }
 
 #[test]
@@ -280,14 +344,66 @@ fn voting_deposit_return_propose_leave() {
     // can deposit escrow
     deposit(deps.as_mut(), VOTING).unwrap();
     // can return escrow
-    refund(deps.as_mut(), VOTING).unwrap();
+    let res = refund(deps.as_mut(), VOTING).unwrap();
+    // we deposited 5000 in `deposit`. Return everything we can above the minimum
+    assert_payment(res.messages, VOTING, VOTING_ESCROW + 5000 - ESCROW_FUNDS);
     // can create proposal
     propose(deps.as_mut(), VOTING).unwrap();
-    // cannot leave
-    leave(deps.as_mut(), VOTING).unwrap_err();
+    // can leave, but long_leave
+    leave(deps.as_mut(), VOTING).unwrap();
 
-    // check still voting
-    assert_membership(deps.as_ref(), VOTING, Some(1));
+    // TODO: we need to handle close DSO here (last voter leaving)
+    // check no longer voting
+    assert_membership(deps.as_ref(), VOTING, Some(0));
+    assert_eq!(query_total_weight(deps.as_ref()).unwrap().weight, 0);
+    // ensure leaving status
+    assert!(matches!(
+        get_status(deps.as_ref(), VOTING),
+        MemberStatus::Leaving { .. }
+    ));
+}
+
+#[test]
+fn leaving_deposit_return_propose_leave() {
+    let mut deps = mock_dependencies(&[]);
+    setup_bdd(deps.as_mut());
+
+    // assert non-voting member
+    assert_membership(deps.as_ref(), LEAVING, Some(0));
+
+    // cannot deposit escrow
+    deposit(deps.as_mut(), LEAVING).unwrap_err();
+    // cannot return escrow
+    refund(deps.as_mut(), LEAVING).unwrap_err();
+    // cannot create proposal
+    propose(deps.as_mut(), LEAVING).unwrap_err();
+    // cannot leave again
+    leave(deps.as_mut(), LEAVING).unwrap_err();
+
+    // check still non-voting
+    assert_membership(deps.as_ref(), LEAVING, Some(0));
+}
+
+#[test]
+fn leaving_return_after_timeout() {
+    let mut deps = mock_dependencies(&[]);
+    setup_bdd(deps.as_mut());
+
+    // assert non-voting member
+    assert_membership(deps.as_ref(), LEAVING, Some(0));
+
+    // can return escrow
+    let res = execute(
+        deps.as_mut(),
+        later(&mock_env(), LEAVING_ENDS),
+        mock_info(LEAVING, &[]),
+        ExecuteMsg::ReturnEscrow {},
+    )
+    .unwrap();
+    assert_payment(res.messages, LEAVING, LEAVING_ESCROW);
+
+    // check non-member
+    assert_membership(deps.as_ref(), LEAVING, None);
 }
 
 // cover all edge cases for adding...

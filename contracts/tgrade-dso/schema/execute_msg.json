@@ -21,19 +21,7 @@
       ],
       "properties": {
         "return_escrow": {
-          "type": "object",
-          "properties": {
-            "amount": {
-              "anyOf": [
-                {
-                  "$ref": "#/definitions/Uint128"
-                },
-                {
-                  "type": "null"
-                }
-              ]
-            }
-          }
+          "type": "object"
         }
       },
       "additionalProperties": false
