@@ -6,6 +6,7 @@ use tgrade_bindings::{Ed25519Pubkey, Pubkey};
 
 use crate::error::ContractError;
 use crate::state::{Config, ValidatorInfo};
+use cosmwasm_std::Coin;
 
 #[derive(Serialize, Deserialize, Clone, PartialEq, JsonSchema, Debug)]
 #[serde(rename_all = "snake_case")]
@@ -26,9 +27,15 @@ pub struct InstantiateMsg {
     /// Epoch # is env.block.time/epoch_length (round down). First block with a new epoch number
     /// will trigger a new validator calculation.
     pub epoch_length: u64,
+    /// Total reward paid out each epoch. This will be split among all validators during the last
+    /// epoch.
+    /// (epoch_reward.amount * 86_400 * 30 / epoch_length) is reward tokens to mint each month.
+    /// Ensure this is sensible in relation to the total token supply.
+    pub epoch_reward: Coin,
 
-    /// Initial operators and validator keys registered - needed to have non-empty validator
-    /// set upon initialization.
+    /// Initial operators and validator keys registered.
+    /// If you do not set this, the validators need to register themselves before
+    /// making this privileged/calling the EndBlockers, so we have a non-empty validator set
     pub initial_keys: Vec<OperatorKey>,
 
     /// A scaling factor to multiply cw4-group weights to produce the tendermint validator power
@@ -49,6 +56,9 @@ impl InstantiateMsg {
         }
         if self.scaling == Some(0) {
             return Err(ContractError::InvalidScaling {});
+        }
+        if self.epoch_reward.denom.len() < 3 {
+            return Err(ContractError::InvalidRewardDenom {});
         }
         for op in self.initial_keys.iter() {
             op.validate()?
@@ -143,6 +153,7 @@ mod test {
     use super::*;
     use crate::error::ContractError;
     use crate::test_helpers::{invalid_operator, valid_operator};
+    use cosmwasm_std::coin;
 
     #[test]
     fn validate_operator_key() {
@@ -158,6 +169,7 @@ mod test {
             min_weight: 5,
             max_validators: 20,
             epoch_length: 5000,
+            epoch_reward: coin(7777, "foobar"),
             initial_keys: vec![valid_operator("foo"), valid_operator("bar")],
             scaling: None,
         };
@@ -198,9 +210,15 @@ mod test {
         no_operators.validate().unwrap();
 
         // fails on invalid operator
-        let mut invalid = proper;
+        let mut invalid = proper.clone();
         invalid.initial_keys = vec![valid_operator("foo"), invalid_operator()];
         let err = invalid.validate().unwrap_err();
         assert_eq!(err, ContractError::InvalidPubkey {});
+
+        // fails if no denom set for reward
+        let mut invalid = proper;
+        invalid.epoch_reward.denom = "".into();
+        let err = invalid.validate().unwrap_err();
+        assert_eq!(err, ContractError::InvalidRewardDenom {});
     }
 }

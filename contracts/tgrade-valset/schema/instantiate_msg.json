@@ -4,6 +4,7 @@
   "type": "object",
   "required": [
     "epoch_length",
+    "epoch_reward",
     "initial_keys",
     "max_validators",
     "membership",
@@ -16,8 +17,16 @@
       "format": "uint64",
       "minimum": 0.0
     },
+    "epoch_reward": {
+      "description": "Total reward paid out each epoch. This will be split among all validators during the last epoch. (epoch_reward.amount * 86_400 * 30 / epoch_length) is reward tokens to mint each month. Ensure this is sensible in relation to the total token supply.",
+      "allOf": [
+        {
+          "$ref": "#/definitions/Coin"
+        }
+      ]
+    },
     "initial_keys": {
-      "description": "Initial operators and validator keys registered - needed to have non-empty validator set upon initialization.",
+      "description": "Initial operators and validator keys registered. If you do not set this, the validators need to register themselves before making this privileged/calling the EndBlockers, so we have a non-empty validator set",
       "type": "array",
       "items": {
         "$ref": "#/definitions/OperatorKey"
@@ -53,6 +62,21 @@
     "Binary": {
       "description": "Binary is a wrapper around Vec<u8> to add base64 de/serialization with serde. It also adds some helper methods to help encode inline.\n\nThis is only needed as serde-json-{core,wasm} has a horrible encoding for Vec<u8>",
       "type": "string"
+    },
+    "Coin": {
+      "type": "object",
+      "required": [
+        "amount",
+        "denom"
+      ],
+      "properties": {
+        "amount": {
+          "$ref": "#/definitions/Uint128"
+        },
+        "denom": {
+          "type": "string"
+        }
+      }
     },
     "OperatorKey": {
       "description": "Maps an sdk address to a Tendermint pubkey.",
@@ -118,6 +142,10 @@
           "additionalProperties": false
         }
       ]
+    },
+    "Uint128": {
+      "description": "A thin wrapper around u128 that is using strings for JSON encoding/decoding, such that the full u128 range can be used for clients that convert JSON numbers to floats, like JavaScript and jq.\n\n# Examples\n\nUse `from` to create instances of this and `u128` to get the value out:\n\n``` # use cosmwasm_std::Uint128; let a = Uint128::from(123u128); assert_eq!(a.u128(), 123);\n\nlet b = Uint128::from(42u64); assert_eq!(b.u128(), 42);\n\nlet c = Uint128::from(70u32); assert_eq!(c.u128(), 70); ```",
+      "type": "string"
     }
   }
 }

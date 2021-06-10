@@ -20,6 +20,9 @@ pub enum ContractError {
     #[error("The epoch length must be greater than zero")]
     InvalidEpoch {},
 
+    #[error("You must use a valid denom for the block reward (> 2 chars)")]
+    InvalidRewardDenom {},
+
     #[error("Min_weight must be greater than zero")]
     InvalidMinWeight {},
 

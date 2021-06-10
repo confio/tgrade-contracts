@@ -52,6 +52,7 @@ pub fn instantiate(
         min_weight: msg.min_weight,
         max_validators: msg.max_validators,
         scaling: msg.scaling,
+        epoch_reward: msg.epoch_reward,
     };
     CONFIG.save(deps.storage, &cfg)?;
 
@@ -370,6 +371,7 @@ mod test {
         addrs, contract_valset, members, mock_app, mock_pubkey, nonmembers, valid_operator,
         valid_validator,
     };
+    use cosmwasm_std::{coin, Coin};
 
     const EPOCH_LENGTH: u64 = 100;
     const GROUP_OWNER: &str = "admin";
@@ -380,6 +382,14 @@ mod test {
 
     // Number of validators for tests
     const VALIDATORS: usize = 32;
+
+    // 500 usdc per block
+    const REWARD_AMOUNT: u128 = 50_000;
+    const REWARD_DENOM: &str = "usdc";
+
+    fn epoch_reward() -> Coin {
+        coin(REWARD_AMOUNT, REWARD_DENOM)
+    }
 
     fn validators(count: usize) -> Vec<ValidatorInfo> {
         let mut p: u64 = 0;
@@ -442,6 +452,7 @@ mod test {
             min_weight,
             max_validators,
             epoch_length: EPOCH_LENGTH,
+            epoch_reward: epoch_reward(),
             initial_keys: members.chain(nonmembers).collect(),
             scaling: None,
         }
@@ -467,6 +478,7 @@ mod test {
                 membership: Tg4Contract(group_addr),
                 min_weight: 5,
                 max_validators: 10,
+                epoch_reward: epoch_reward(),
                 scaling: None
             }
         );
