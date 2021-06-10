@@ -37,12 +37,14 @@ pub struct EpochInfo {
     pub last_update_height: u64,
 }
 
-/// Operators SDK address, Tendermint public key, and tendermint voting power.
+/// Tendermint public key, Operator SDK address, and tendermint voting power.
+/// The order of fields in this struct defines the sort order of ValidatorDiff
+/// additions and updates.
 #[derive(Serialize, Deserialize, Clone, PartialEq, Eq, PartialOrd, Ord, JsonSchema, Debug)]
 pub struct ValidatorInfo {
-    pub operator: Addr,
     /// TODO: better name to specify this is the Tendermint pubkey for consensus?
     pub validator_pubkey: Pubkey,
+    pub operator: Addr,
     /// The voting power in Tendermint sdk
     pub power: u64,
 }
