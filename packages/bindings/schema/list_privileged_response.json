@@ -1,12 +1,12 @@
 {
   "$schema": "http://json-schema.org/draft-07/schema#",
-  "title": "ListHooksResponse",
+  "title": "ListPrivilegedResponse",
   "type": "object",
   "required": [
-    "registered"
+    "privileged"
   ],
   "properties": {
-    "registered": {
+    "privileged": {
       "type": "array",
       "items": {
         "$ref": "#/definitions/Addr"

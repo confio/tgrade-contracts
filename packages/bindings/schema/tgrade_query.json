@@ -16,21 +16,21 @@
       "additionalProperties": false
     },
     {
-      "description": "Lists all contracts registered with the given hook type Returns ListHooksResponse",
+      "description": "Lists all contracts registered with the given privilege Returns ListPrivilegedResponse",
       "type": "object",
       "required": [
-        "list_hooks"
+        "list_privileged"
       ],
       "properties": {
-        "list_hooks": {
-          "$ref": "#/definitions/HookType"
+        "list_privileged": {
+          "$ref": "#/definitions/Privilege"
         }
       },
       "additionalProperties": false
     }
   ],
   "definitions": {
-    "HookType": {
+    "Privilege": {
       "type": "string",
       "enum": [
         "begin_blocker",

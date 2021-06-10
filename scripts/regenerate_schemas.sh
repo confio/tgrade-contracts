@@ -7,5 +7,7 @@ for contract in contracts/*; do
 done
 
 for package in packages/*; do
-  (cd "$package"; cargo schema; cd -)
+  if ! (echo "$package" | grep -q controllers); then
+    (cd "$package"; cargo schema; cd -)
+  fi
 done
