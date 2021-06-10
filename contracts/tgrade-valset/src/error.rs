@@ -37,6 +37,9 @@ pub enum ContractError {
 
     #[error("Unauthorized")]
     Unauthorized {},
+
+    #[error("No validators")]
+    NoValidators {},
 }
 
 impl From<Ed25519PubkeyConversionError> for ContractError {

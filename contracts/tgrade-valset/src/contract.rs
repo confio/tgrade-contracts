@@ -3,8 +3,8 @@ use std::collections::BTreeSet;
 use std::convert::TryInto;
 
 use cosmwasm_std::{
-    entry_point, to_binary, Addr, Binary, BlockInfo, Deps, DepsMut, Env, MessageInfo, Order,
-    StdError, StdResult, Timestamp,
+    coin, entry_point, to_binary, Addr, BankMsg, Binary, BlockInfo, CosmosMsg, Deps, DepsMut, Env,
+    MessageInfo, Order, StdError, StdResult, Timestamp,
 };
 
 use cw0::maybe_addr;
@@ -254,6 +254,13 @@ fn end_block(deps: DepsMut, env: Env) -> Result<Response, ContractError> {
     if cur_epoch <= epoch.current_epoch && !is_genesis_block(&env.block) {
         return Ok(Response::default());
     }
+    // we don't pay the first epoch, as this may be huge if contract starts at non-zero height
+    let pay_epochs = if epoch.current_epoch == 0 {
+        0
+    } else {
+        cur_epoch - epoch.current_epoch
+    };
+
     // ensure to update this so we wait until next epoch to run this again
     epoch.current_epoch = cur_epoch;
     EPOCH.save(deps.storage, &epoch)?;
@@ -262,14 +269,69 @@ fn end_block(deps: DepsMut, env: Env) -> Result<Response, ContractError> {
     let validators = calculate_validators(deps.as_ref())?;
 
     let old_validators = VALIDATORS.load(deps.storage)?;
+    let pay_validators = old_validators.clone();
     VALIDATORS.save(deps.storage, &validators)?;
     // determine the diff to send back to tendermint
     let diff = calculate_diff(validators, old_validators);
+
+    // provide payment if there is rewards to give
+    let messages = if pay_epochs > 0 && !pay_validators.is_empty() {
+        pay_block_rewards(deps, env, pay_validators, pay_epochs)?
+    } else {
+        vec![]
+    };
     let res = Response {
+        messages,
         data: Some(to_binary(&diff)?),
         ..Response::default()
     };
     Ok(res)
+}
+
+/// Ensure you pass in non-empty pay-validators, it will panic if total validator weight is 0
+fn pay_block_rewards(
+    deps: DepsMut,
+    env: Env,
+    pay_validators: Vec<ValidatorInfo>,
+    pay_epochs: u64,
+) -> StdResult<Vec<CosmosMsg<TgradeMsg>>> {
+    // calculate the desired block reward
+    let config = CONFIG.load(deps.storage)?;
+    let denom = config.epoch_reward.denom;
+    let block_reward = config.epoch_reward.amount.u128() * (pay_epochs as u128);
+
+    // TODO: handle fees in other denoms
+    let other_reward = deps
+        .querier
+        .query_balance(&env.contract.address, &denom)?
+        .amount
+        .u128();
+    let total_reward = block_reward + other_reward;
+
+    // split it among the validators
+    let total_power = pay_validators.iter().map(|v| v.power).sum::<u64>() as u128;
+    let mut messages: Vec<CosmosMsg<TgradeMsg>> = pay_validators
+        .into_iter()
+        .map(|val| {
+            let reward = total_reward * (val.power as u128) / total_power;
+            BankMsg::Send {
+                to_address: val.operator.into(),
+                amount: vec![coin(reward, &denom)],
+            }
+            .into()
+        })
+        .collect();
+
+    // create a minting action (and do this first)
+    let minting = TgradeMsg::MintTokens {
+        denom,
+        amount: block_reward.into(),
+        recipient: env.contract.address.into(),
+    }
+    .into();
+    messages.insert(0, minting);
+
+    Ok(messages)
 }
 
 const QUERY_LIMIT: Option<u32> = Some(30);
@@ -690,7 +752,7 @@ mod test {
         assert_eq!(0, active.validators.len());
 
         // Trigger end block run through sudo call
-        let _ = app
+        let res = app
             .sudo(
                 valset_addr.clone(),
                 &TgradeSudoMsg::EndWithValidatorUpdate {},
