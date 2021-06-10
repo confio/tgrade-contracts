@@ -67,7 +67,7 @@
       ]
     },
     "ValidatorInfo": {
-      "description": "Operators SDK address, Tendermint public key, and tendermint voting power.",
+      "description": "Tendermint public key, Operator SDK address, and tendermint voting power. The order of fields in this struct defines the sort order of ValidatorDiff additions and updates.",
       "type": "object",
       "required": [
         "operator",

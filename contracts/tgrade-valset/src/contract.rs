@@ -333,6 +333,10 @@ fn calculate_validators(deps: Deps) -> Result<Vec<ValidatorInfo>, ContractError>
 /// `operators` and `pubkeys` are one-to-one, so this is legit.
 ///
 /// Uses a `BTreeSet`, so computed differences are stable / sorted.
+/// The order is defined by the order of fields in the `ValidatorInfo` struct, for
+/// additions and updates, and by `validator_pubkey`, for removals.
+/// Additions and updates (power > 0) come first, and then removals (power == 0);
+/// and, each group is ordered in turn by `validator_pubkey` ascending.
 fn calculate_diff(cur_vals: Vec<ValidatorInfo>, old_vals: Vec<ValidatorInfo>) -> ValidatorDiff {
     // Compute additions and updates
     let cur: BTreeSet<_> = cur_vals.iter().collect();

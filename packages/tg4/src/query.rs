@@ -8,7 +8,8 @@ pub enum Tg4QueryMsg {
     Admin {},
     /// Return TotalWeightResponse
     TotalWeight {},
-    /// Returns MembersListResponse
+    /// Returns MembersListResponse.
+    /// The result is sorted by address ascending
     ListMembers {
         start_after: Option<String>,
         limit: Option<u32>,
