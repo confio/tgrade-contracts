@@ -1050,4 +1050,42 @@ mod test {
             );
         }
     }
+
+    // existing fees to distribute, (1500)
+    // total not evenly divisible by 3 validators
+    // 21500 total, split over 3 => 3583, 7166, 10750 (+ 1 rollover to last)
+    #[test]
+    fn block_rewards_rollover() {
+        let mut deps = mock_dependencies(&coins(1500, REWARD_DENOM));
+        set_block_rewards_config(deps.as_mut(), 10000);
+        // powers: 1, 2, 3
+        let pay_to = validators(3);
+
+        // we will pay out 2 epochs at 6000 divided by 6
+        // this should be 2000, 4000, 6000 tokens
+        let msgs = pay_block_rewards(deps.as_mut(), mock_env(), pay_to.clone(), 2).unwrap();
+        assert_eq!(msgs.len(), 4);
+
+        assert_eq!(
+            &msgs[0],
+            &TgradeMsg::MintTokens {
+                denom: REWARD_DENOM.to_string(),
+                amount: 20000u128.into(),
+                recipient: mock_env().contract.address.into(),
+            }
+            .into()
+        );
+        // TODO: 10751 when fixed rounding
+        let expected_payouts = &[3583, 7166, 10750];
+        for ((reward, val), payout) in msgs[1..].iter().zip(&pay_to).zip(expected_payouts) {
+            assert_eq!(
+                reward,
+                &BankMsg::Send {
+                    to_address: val.operator.to_string(),
+                    amount: coins(*payout, REWARD_DENOM),
+                }
+                .into()
+            );
+        }
+    }
 }
