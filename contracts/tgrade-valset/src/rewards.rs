@@ -126,9 +126,26 @@ fn calculate_share(total: &[u128], weight: u64, total_weight: u64) -> Vec<u128> 
 // Requires: total.len() == shares[i].len() for all i
 #[allow(dead_code)]
 fn remainder_to_first_recipient(total: &[u128], shares: &mut [Vec<u128>]) {
-    // TODO
-    let _ = total;
-    let _ = shares;
+    for i in 0..total.len() {
+        let sent: u128 = shares.iter().map(|v| v[i]).sum();
+        let remainder = total[i] - sent;
+        shares[0][i] += remainder;
+    }
+}
+
+#[allow(dead_code)]
+fn send_tokens(addr: Addr, shares: Vec<u128>, denoms: &[String]) -> CosmosMsg<TgradeMsg> {
+    let amount: Vec<Coin> = shares
+        .into_iter()
+        .zip(denoms)
+        .filter(|(s, _)| *s > 0)
+        .map(|(s, d)| coin(s, d))
+        .collect();
+    BankMsg::Send {
+        to_address: addr.into(),
+        amount,
+    }
+    .into()
 }
 
 #[cfg(test)]
