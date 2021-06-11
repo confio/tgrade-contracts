@@ -4,7 +4,7 @@ use std::convert::TryInto;
 
 use cosmwasm_std::{
     coin, entry_point, to_binary, Addr, BankMsg, Binary, BlockInfo, CosmosMsg, Deps, DepsMut, Env,
-    MessageInfo, Order, StdError, StdResult, Timestamp,
+    MessageInfo, Order, StdError, StdResult, Timestamp, Uint128,
 };
 
 use cw0::maybe_addr;
@@ -307,6 +307,7 @@ fn pay_block_rewards(
         .amount
         .u128();
     let total_reward = block_reward + other_reward;
+    let mut remainder = total_reward;
 
     // split it among the validators
     let total_power = pay_validators.iter().map(|v| v.power).sum::<u64>() as u128;
@@ -314,6 +315,7 @@ fn pay_block_rewards(
         .into_iter()
         .map(|val| {
             let reward = total_reward * (val.power as u128) / total_power;
+            remainder -= reward;
             BankMsg::Send {
                 to_address: val.operator.into(),
                 amount: vec![coin(reward, &denom)],
@@ -321,6 +323,14 @@ fn pay_block_rewards(
             .into()
         })
         .collect();
+    // all remainder to the first validator
+    if remainder > 0 {
+        // we know this is true, but the compiler doesn't
+        if let CosmosMsg::Bank(BankMsg::Send { ref mut amount, .. }) = &mut messages[0] {
+            // TODO: handle multiple currencies
+            amount[0].amount += Uint128::new(remainder);
+        }
+    }
 
     // create a minting action (and do this first)
     let minting = TgradeMsg::MintTokens {
@@ -1053,7 +1063,7 @@ mod test {
 
     // existing fees to distribute, (1500)
     // total not evenly divisible by 3 validators
-    // 21500 total, split over 3 => 3583, 7166, 10750 (+ 1 rollover to last)
+    // 21500 total, split over 3 => 3583, 7166, 10750 (+ 1 rollover to first)
     #[test]
     fn block_rewards_rollover() {
         let mut deps = mock_dependencies(&coins(1500, REWARD_DENOM));
@@ -1075,8 +1085,7 @@ mod test {
             }
             .into()
         );
-        // TODO: 10751 when fixed rounding
-        let expected_payouts = &[3583, 7166, 10750];
+        let expected_payouts = &[3583 + 1, 7166, 10750];
         for ((reward, val), payout) in msgs[1..].iter().zip(&pay_to).zip(expected_payouts) {
             assert_eq!(
                 reward,
