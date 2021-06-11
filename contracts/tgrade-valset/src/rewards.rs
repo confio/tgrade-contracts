@@ -34,9 +34,11 @@ pub fn pay_block_rewards(
     let amount = block_reward.amount;
 
     // query existing balance
-    let balance = deps.querier.query_balance(&env.contract.address, &denom)?;
+    // let balances = deps.querier.query_all_balances(&env.contract.address)?;
+    let balances = deps.querier.query_balance(&env.contract.address, &denom)?;
 
-    let mut messages = distribute_tokens(block_reward, balance, pay_validators);
+    // create the distribution messages
+    let mut messages = distribute_tokens(block_reward, balances, pay_validators);
 
     // create a minting action (and do this first)
     let minting = TgradeMsg::MintTokens {
@@ -86,6 +88,47 @@ fn distribute_tokens(
         }
     }
     messages
+}
+
+// TODO: test
+// takes the tokens and split into lookup table of denom and table of amount, you can zip these
+// together to get the actual balances
+#[allow(dead_code)]
+fn split_combine_tokens(balance: Vec<Coin>, block_reward: Coin) -> (Vec<String>, Vec<u128>) {
+    let (mut denoms, mut amounts): (Vec<String>, Vec<u128>) = balance
+        .into_iter()
+        .map(|c| (c.denom, c.amount.u128()))
+        .unzip();
+    match denoms.iter().position(|d| d == &block_reward.denom) {
+        Some(idx) => amounts[idx] += block_reward.amount.u128(),
+        None => {
+            denoms.push(block_reward.denom);
+            amounts.push(block_reward.amount.u128());
+        }
+    };
+    (denoms, amounts)
+}
+
+// TODO: test
+// produces the amounts to give to a given party, just amounts - denoms stored separately
+#[allow(dead_code)]
+fn calculate_share(total: &[u128], weight: u64, total_weight: u64) -> Vec<u128> {
+    let weight = weight as u128;
+    let total_weight = total_weight as u128;
+    total
+        .iter()
+        .map(|val| val * weight / total_weight)
+        .collect()
+}
+
+// TODO: test
+// This calculates any left over (total not included in shares), and adds it to shares[0]
+// Requires: total.len() == shares[i].len() for all i
+#[allow(dead_code)]
+fn remainder_to_first_recipient(total: &[u128], shares: &mut [Vec<u128>]) {
+    // TODO
+    let _ = total;
+    let _ = shares;
 }
 
 #[cfg(test)]
