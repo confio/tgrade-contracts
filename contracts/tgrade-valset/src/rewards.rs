@@ -1,13 +1,29 @@
 use crate::state::{ValidatorInfo, CONFIG};
-use cosmwasm_std::{coin, BankMsg, Coin, CosmosMsg, DepsMut, Env, StdResult, Uint128};
+use cosmwasm_std::{coin, Addr, BankMsg, Coin, CosmosMsg, DepsMut, Env, StdResult, Uint128};
 use tgrade_bindings::TgradeMsg;
+
+#[derive(Clone)]
+pub struct DistributionInfo {
+    pub addr: Addr,
+    pub weight: u64,
+}
+
+pub fn distribute_to_validators(validators: &[ValidatorInfo]) -> Vec<DistributionInfo> {
+    validators
+        .iter()
+        .map(|v| DistributionInfo {
+            addr: v.operator.clone(),
+            weight: v.power,
+        })
+        .collect()
+}
 
 /// Ensure you pass in non-empty pay-validators, it will panic if total validator weight is 0
 /// This handles all deps and calls into pure functions
 pub fn pay_block_rewards(
     deps: DepsMut,
     env: Env,
-    pay_validators: Vec<ValidatorInfo>,
+    pay_validators: Vec<DistributionInfo>,
     pay_epochs: u64,
 ) -> StdResult<Vec<CosmosMsg<TgradeMsg>>> {
     // calculate the desired block reward
@@ -37,7 +53,7 @@ pub fn pay_block_rewards(
 fn distribute_tokens(
     block_reward: Coin,
     balance: Coin,
-    pay_to: Vec<ValidatorInfo>,
+    pay_to: Vec<DistributionInfo>,
 ) -> Vec<CosmosMsg<TgradeMsg>> {
     let denom = block_reward.denom;
     let payout = block_reward.amount.u128();
@@ -48,14 +64,14 @@ fn distribute_tokens(
     let mut remainder = total_reward;
 
     // split it among the validators
-    let total_power = pay_to.iter().map(|v| v.power).sum::<u64>() as u128;
+    let total_power = pay_to.iter().map(|d| d.weight).sum::<u64>() as u128;
     let mut messages: Vec<CosmosMsg<TgradeMsg>> = pay_to
         .into_iter()
-        .map(|val| {
-            let reward = total_reward * (val.power as u128) / total_power;
+        .map(|d| {
+            let reward = total_reward * (d.weight as u128) / total_power;
             remainder -= reward;
             BankMsg::Send {
-                to_address: val.operator.into(),
+                to_address: d.addr.into(),
                 amount: vec![coin(reward, &denom)],
             }
             .into()
@@ -108,36 +124,40 @@ mod test {
         CONFIG.save(deps.storage, &cfg).unwrap();
     }
 
+    fn assert_mint(msg: &CosmosMsg<TgradeMsg>, to_mint: u128) {
+        assert_eq!(
+            msg,
+            &TgradeMsg::MintTokens {
+                denom: REWARD_DENOM.to_string(),
+                amount: to_mint.into(),
+                recipient: mock_env().contract.address.into(),
+            }
+            .into()
+        );
+    }
+
     // no sitting fees, evenly divisible by 3 validators
     #[test]
     fn block_rewards_basic() {
         let mut deps = mock_dependencies(&[]);
         set_block_rewards_config(deps.as_mut(), 6000);
         // powers: 1, 2, 3
-        let pay_to = validators(3);
+        let validators = validators(3);
+        let pay_to = distribute_to_validators(&validators);
 
         // we will pay out 2 epochs at 6000 divided by 6
         // this should be 2000, 4000, 6000 tokens
         let msgs = pay_block_rewards(deps.as_mut(), mock_env(), pay_to.clone(), 2).unwrap();
         assert_eq!(msgs.len(), 4);
+        assert_mint(&msgs[0], 12000u128);
 
-        assert_eq!(
-            &msgs[0],
-            &TgradeMsg::MintTokens {
-                denom: REWARD_DENOM.to_string(),
-                amount: 12000u128.into(),
-                recipient: mock_env().contract.address.into(),
-            }
-            .into()
-        );
-        for (idx, reward) in msgs[1..].iter().enumerate() {
-            let val = &pay_to[idx];
-            let expected_pay = (idx + 1) as u128 * 2000;
+        let expected_payouts = &[2000, 4000, 6000];
+        for ((reward, val), payout) in msgs[1..].iter().zip(&pay_to).zip(expected_payouts) {
             assert_eq!(
                 reward,
                 &BankMsg::Send {
-                    to_address: val.operator.to_string(),
-                    amount: coins(expected_pay, REWARD_DENOM),
+                    to_address: val.addr.to_string(),
+                    amount: coins(*payout, REWARD_DENOM),
                 }
                 .into()
             );
@@ -152,28 +172,21 @@ mod test {
         let mut deps = mock_dependencies(&coins(1500, REWARD_DENOM));
         set_block_rewards_config(deps.as_mut(), 10000);
         // powers: 1, 2, 3
-        let pay_to = validators(3);
+        let validators = validators(3);
+        let pay_to = distribute_to_validators(&validators);
 
         // we will pay out 2 epochs at 6000 divided by 6
         // this should be 2000, 4000, 6000 tokens
         let msgs = pay_block_rewards(deps.as_mut(), mock_env(), pay_to.clone(), 2).unwrap();
         assert_eq!(msgs.len(), 4);
+        assert_mint(&msgs[0], 20000u128);
 
-        assert_eq!(
-            &msgs[0],
-            &TgradeMsg::MintTokens {
-                denom: REWARD_DENOM.to_string(),
-                amount: 20000u128.into(),
-                recipient: mock_env().contract.address.into(),
-            }
-            .into()
-        );
         let expected_payouts = &[3583 + 1, 7166, 10750];
         for ((reward, val), payout) in msgs[1..].iter().zip(&pay_to).zip(expected_payouts) {
             assert_eq!(
                 reward,
                 &BankMsg::Send {
-                    to_address: val.operator.to_string(),
+                    to_address: val.addr.to_string(),
                     amount: coins(*payout, REWARD_DENOM),
                 }
                 .into()

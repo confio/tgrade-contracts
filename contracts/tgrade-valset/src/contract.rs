@@ -22,7 +22,7 @@ use crate::msg::{
     ConfigResponse, EpochResponse, ExecuteMsg, InstantiateMsg, ListActiveValidatorsResponse,
     ListValidatorKeysResponse, OperatorKey, QueryMsg, ValidatorKeyResponse,
 };
-use crate::rewards::pay_block_rewards;
+use crate::rewards::{distribute_to_validators, pay_block_rewards};
 use crate::state::{operators, Config, EpochInfo, ValidatorInfo, CONFIG, EPOCH, VALIDATORS};
 
 // version info for migration info
@@ -270,14 +270,14 @@ fn end_block(deps: DepsMut, env: Env) -> Result<Response, ContractError> {
     let validators = calculate_validators(deps.as_ref())?;
 
     let old_validators = VALIDATORS.load(deps.storage)?;
-    let pay_validators = old_validators.clone();
+    let pay_to = distribute_to_validators(&old_validators);
     VALIDATORS.save(deps.storage, &validators)?;
     // determine the diff to send back to tendermint
     let diff = calculate_diff(validators, old_validators);
 
     // provide payment if there is rewards to give
-    let messages = if pay_epochs > 0 && !pay_validators.is_empty() {
-        pay_block_rewards(deps, env, pay_validators, pay_epochs)?
+    let messages = if pay_epochs > 0 && !pay_to.is_empty() {
+        pay_block_rewards(deps, env, pay_to, pay_epochs)?
     } else {
         vec![]
     };
