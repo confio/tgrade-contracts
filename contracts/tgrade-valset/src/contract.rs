@@ -433,7 +433,8 @@ mod test {
         addrs, contract_valset, members, mock_app, mock_pubkey, nonmembers, valid_operator,
         valid_validator,
     };
-    use cosmwasm_std::{coin, Coin};
+    use cosmwasm_std::testing::{mock_dependencies, mock_env};
+    use cosmwasm_std::{coin, coins, Coin};
 
     const EPOCH_LENGTH: u64 = 100;
     const GROUP_OWNER: &str = "admin";
@@ -1001,5 +1002,52 @@ mod test {
             },
             diff
         );
+    }
+
+    fn set_block_rewards_config(deps: DepsMut, amount: u128) {
+        let cfg = Config {
+            membership: Tg4Contract(Addr::unchecked("group-contract")),
+            min_weight: 1,
+            max_validators: 100,
+            scaling: None,
+            epoch_reward: coin(amount, REWARD_DENOM),
+        };
+        CONFIG.save(deps.storage, &cfg).unwrap();
+    }
+
+    // no sitting fees, evenly divisible by 3 validators
+    #[test]
+    fn block_rewards_basic() {
+        let mut deps = mock_dependencies(&[]);
+        set_block_rewards_config(deps.as_mut(), 6000);
+        // powers: 1, 2, 3
+        let pay_to = validators(3);
+
+        // we will pay out 2 epochs at 6000 divided by 6
+        // this should be 2000, 4000, 6000 tokens
+        let msgs = pay_block_rewards(deps.as_mut(), mock_env(), pay_to.clone(), 2).unwrap();
+        assert_eq!(msgs.len(), 4);
+
+        assert_eq!(
+            &msgs[0],
+            &TgradeMsg::MintTokens {
+                denom: REWARD_DENOM.to_string(),
+                amount: 12000u128.into(),
+                recipient: mock_env().contract.address.into(),
+            }
+            .into()
+        );
+        for (idx, reward) in msgs[1..].iter().enumerate() {
+            let val = &pay_to[idx];
+            let expected_pay = (idx + 1) as u128 * 2000;
+            assert_eq!(
+                reward,
+                &BankMsg::Send {
+                    to_address: val.operator.to_string(),
+                    amount: coins(expected_pay, REWARD_DENOM),
+                }
+                .into()
+            );
+        }
     }
 }
