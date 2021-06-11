@@ -57,7 +57,8 @@ impl InstantiateMsg {
         if self.scaling == Some(0) {
             return Err(ContractError::InvalidScaling {});
         }
-        if self.epoch_reward.denom.len() < 3 {
+        // Current denom regexp in the SDK is [a-zA-Z][a-zA-Z0-9/]{2,127}
+        if self.epoch_reward.denom.len() < 2 || self.epoch_reward.denom.len() > 127 {
             return Err(ContractError::InvalidRewardDenom {});
         }
         for op in self.initial_keys.iter() {
