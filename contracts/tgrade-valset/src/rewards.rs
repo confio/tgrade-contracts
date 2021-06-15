@@ -34,8 +34,7 @@ pub fn pay_block_rewards(
     let amount = block_reward.amount;
 
     // query existing balance
-    // let balances = deps.querier.query_all_balances(&env.contract.address)?;
-    let balances = deps.querier.query_balance(&env.contract.address, &denom)?;
+    let balances = deps.querier.query_all_balances(&env.contract.address)?;
 
     // create the distribution messages
     let mut messages = distribute_tokens(block_reward, balances, pay_validators);
@@ -54,46 +53,27 @@ pub fn pay_block_rewards(
 
 fn distribute_tokens(
     block_reward: Coin,
-    balance: Coin,
+    balances: Vec<Coin>,
     pay_to: Vec<DistributionInfo>,
 ) -> Vec<CosmosMsg<TgradeMsg>> {
-    let denom = block_reward.denom;
-    let payout = block_reward.amount.u128();
-
-    // TODO: handle fees in other denoms
-    let other_reward = balance.amount.u128();
-    let total_reward = payout + other_reward;
-    let mut remainder = total_reward;
-
-    // split it among the validators
-    let total_power = pay_to.iter().map(|d| d.weight).sum::<u64>() as u128;
-    let mut messages: Vec<CosmosMsg<TgradeMsg>> = pay_to
-        .into_iter()
-        .map(|d| {
-            let reward = total_reward * (d.weight as u128) / total_power;
-            remainder -= reward;
-            BankMsg::Send {
-                to_address: d.addr.into(),
-                amount: vec![coin(reward, &denom)],
-            }
-            .into()
-        })
+    let (denoms, totals) = split_combine_tokens(balances, block_reward);
+    let total_weight = pay_to.iter().map(|d| d.weight).sum();
+    let mut shares: Vec<Vec<u128>> = pay_to
+        .iter()
+        .map(|v| calculate_share(&totals, v.weight, total_weight))
         .collect();
-    // all remainder to the first validator
-    if remainder > 0 {
-        // we know this is true, but the compiler doesn't
-        if let CosmosMsg::Bank(BankMsg::Send { ref mut amount, .. }) = &mut messages[0] {
-            // TODO: handle multiple currencies
-            amount[0].amount += Uint128::new(remainder);
-        }
-    }
-    messages
+    remainder_to_first_recipient(&totals, &mut shares);
+
+    pay_to
+        .into_iter()
+        .map(|v| v.addr)
+        .zip(shares.into_iter())
+        .map(|(addr, share)| send_tokens(addr, share, &denoms))
+        .collect()
 }
 
-// TODO: test
 // takes the tokens and split into lookup table of denom and table of amount, you can zip these
 // together to get the actual balances
-#[allow(dead_code)]
 fn split_combine_tokens(balance: Vec<Coin>, block_reward: Coin) -> (Vec<String>, Vec<u128>) {
     let (mut denoms, mut amounts): (Vec<String>, Vec<u128>) = balance
         .into_iter()
@@ -109,9 +89,7 @@ fn split_combine_tokens(balance: Vec<Coin>, block_reward: Coin) -> (Vec<String>,
     (denoms, amounts)
 }
 
-// TODO: test
 // produces the amounts to give to a given party, just amounts - denoms stored separately
-#[allow(dead_code)]
 fn calculate_share(total: &[u128], weight: u64, total_weight: u64) -> Vec<u128> {
     let weight = weight as u128;
     let total_weight = total_weight as u128;
@@ -121,10 +99,8 @@ fn calculate_share(total: &[u128], weight: u64, total_weight: u64) -> Vec<u128> 
         .collect()
 }
 
-// TODO: test
 // This calculates any left over (total not included in shares), and adds it to shares[0]
 // Requires: total.len() == shares[i].len() for all i
-#[allow(dead_code)]
 fn remainder_to_first_recipient(total: &[u128], shares: &mut [Vec<u128>]) {
     for i in 0..total.len() {
         let sent: u128 = shares.iter().map(|v| v[i]).sum();
@@ -133,7 +109,6 @@ fn remainder_to_first_recipient(total: &[u128], shares: &mut [Vec<u128>]) {
     }
 }
 
-#[allow(dead_code)]
 fn send_tokens(addr: Addr, shares: Vec<u128>, denoms: &[String]) -> CosmosMsg<TgradeMsg> {
     let amount: Vec<Coin> = shares
         .into_iter()
