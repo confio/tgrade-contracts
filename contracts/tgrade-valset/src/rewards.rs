@@ -58,6 +58,7 @@ fn distribute_tokens(
 ) -> Vec<CosmosMsg<TgradeMsg>> {
     let (denoms, totals) = split_combine_tokens(balances, block_reward);
     let total_weight = pay_to.iter().map(|d| d.weight).sum();
+
     let mut shares: Vec<Vec<u128>> = pay_to
         .iter()
         .map(|v| calculate_share(&totals, v.weight, total_weight))
@@ -296,17 +297,20 @@ mod test {
         }
     }
 
-    // existing fees to distribute, (1302 foobar, 1505 REWARD_DENOM, 1700 usdc)
+    // existing fees to distribute, (1302 foobar, 1505 REWARD_DENOM, 1700 usdc, 1 star)
     // total not evenly divisible by 4 validators (total weight 10)
     // 1302 foobar => 130 (+2), 260, 390, 520
     // 21505 REWARD_DENOM => 2150 (+1), 4301, 6451, 8602
     // 1700 usdc => 170, 340, 510, 680
+    // 1 star => 1, 0, 0, 0 (don't show up with 0)
     #[test]
     fn block_rewards_mixed_fees() {
         let fees = vec![
             coin(1302, "foobar"),
             coin(1505, REWARD_DENOM),
             coin(1700, "usdc"),
+            // ensure this doesn't appear in send_tokens except for the first one
+            coin(1, "star"),
         ];
         let mut deps = mock_dependencies(&fees);
         set_block_rewards_config(deps.as_mut(), 10000);
@@ -324,6 +328,7 @@ mod test {
                 coin(132, "foobar"),
                 coin(2151, REWARD_DENOM),
                 coin(170, "usdc"),
+                coin(1, "star"),
             ],
             vec![
                 coin(260, "foobar"),
