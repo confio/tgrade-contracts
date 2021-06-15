@@ -196,6 +196,73 @@ mod test {
         );
     }
 
+    #[test]
+    fn split_combine_no_fees() {
+        let (denoms, amounts) = split_combine_tokens(vec![], coin(7654, "foo"));
+        assert_eq!(denoms.len(), amounts.len());
+        assert_eq!(denoms.len(), 1);
+        assert_eq!(denoms, vec!["foo".to_string()]);
+        assert_eq!(amounts, vec![7654]);
+    }
+
+    #[test]
+    fn split_combine_fee_matches_reward() {
+        let (denoms, amounts) = split_combine_tokens(coins(2200, "foo"), coin(7654, "foo"));
+        assert_eq!(denoms.len(), amounts.len());
+        assert_eq!(denoms.len(), 1);
+        assert_eq!(denoms, vec!["foo".to_string()]);
+        assert_eq!(amounts, vec![9854]);
+    }
+
+    #[test]
+    fn fees_differ_rewards() {
+        let (denoms, amounts) = split_combine_tokens(
+            vec![coin(2200, "usdc"), coin(1100, "atom")],
+            coin(7654, "foo"),
+        );
+        assert_eq!(denoms.len(), amounts.len());
+        assert_eq!(denoms.len(), 3);
+        assert_eq!(
+            denoms,
+            vec!["usdc".to_string(), "atom".to_string(), "foo".to_string()]
+        );
+        assert_eq!(amounts, vec![2200, 1100, 7654]);
+    }
+
+    #[test]
+    fn calculate_shares_proper() {
+        // when no rounding
+        let shares = calculate_share(&[100, 200, 20], 10, 100);
+        assert_eq!(&shares, &[10, 20, 2]);
+
+        // with some rounding
+        let shares = calculate_share(&[57, 150, 4], 15, 45);
+        assert_eq!(&shares, &[19, 50, 1]);
+
+        // with some rounding
+        let shares = calculate_share(&[57, 150, 4], 22, 45);
+        assert_eq!(&shares, &[27, 73, 1]);
+
+        // with some rounding
+        let shares = calculate_share(&[57, 150, 4], 8, 45);
+        assert_eq!(&shares, &[10, 26, 0]);
+    }
+
+    #[test]
+    fn distribute_remainder() {
+        let total = &[57, 150, 4];
+        let mut shares = vec![vec![19, 50, 1], vec![27, 73, 1], vec![10, 26, 0]];
+        let expected = vec![
+            vec![20, 51, 3], // remainder = [1, 1, 2]
+            vec![27, 73, 1],
+            vec![10, 26, 0],
+        ];
+
+        remainder_to_first_recipient(total, &mut shares);
+
+        assert_eq!(&shares, &expected);
+    }
+
     // no sitting fees, evenly divisible by 3 validators
     #[test]
     fn block_rewards_basic() {
