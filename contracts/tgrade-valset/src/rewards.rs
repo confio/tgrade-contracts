@@ -295,4 +295,61 @@ mod test {
             );
         }
     }
+
+    // existing fees to distribute, (1302 foobar, 1505 REWARD_DENOM, 1700 usdc)
+    // total not evenly divisible by 4 validators (total weight 10)
+    // 1302 foobar => 130 (+2), 260, 390, 520
+    // 21505 REWARD_DENOM => 2150 (+1), 4301, 6451, 8602
+    // 1700 usdc => 170, 340, 510, 680
+    #[test]
+    fn block_rewards_mixed_fees() {
+        let fees = vec![
+            coin(1302, "foobar"),
+            coin(1505, REWARD_DENOM),
+            coin(1700, "usdc"),
+        ];
+        let mut deps = mock_dependencies(&fees);
+        set_block_rewards_config(deps.as_mut(), 10000);
+        // powers: 1, 2, 3, 4
+        let validators = validators(4);
+        let pay_to = distribute_to_validators(&validators);
+
+        let msgs = pay_block_rewards(deps.as_mut(), mock_env(), pay_to.clone(), 2).unwrap();
+        assert_eq!(msgs.len(), 5);
+        assert_mint(&msgs[0], 20000u128);
+
+        // this should match the values shown in the function comment
+        let expected_payouts = &[
+            vec![
+                coin(132, "foobar"),
+                coin(2151, REWARD_DENOM),
+                coin(170, "usdc"),
+            ],
+            vec![
+                coin(260, "foobar"),
+                coin(4301, REWARD_DENOM),
+                coin(340, "usdc"),
+            ],
+            vec![
+                coin(390, "foobar"),
+                coin(6451, REWARD_DENOM),
+                coin(510, "usdc"),
+            ],
+            vec![
+                coin(520, "foobar"),
+                coin(8602, REWARD_DENOM),
+                coin(680, "usdc"),
+            ],
+        ];
+        for ((reward, val), payout) in msgs[1..].iter().zip(&pay_to).zip(expected_payouts) {
+            assert_eq!(
+                reward,
+                &BankMsg::Send {
+                    to_address: val.addr.to_string(),
+                    amount: payout.clone(),
+                }
+                .into()
+            );
+        }
+    }
 }
