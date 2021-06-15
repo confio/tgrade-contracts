@@ -22,6 +22,7 @@ use crate::msg::{
     ConfigResponse, EpochResponse, ExecuteMsg, InstantiateMsg, ListActiveValidatorsResponse,
     ListValidatorKeysResponse, OperatorKey, QueryMsg, ValidatorKeyResponse,
 };
+use crate::rewards::{distribute_to_validators, pay_block_rewards};
 use crate::state::{operators, Config, EpochInfo, ValidatorInfo, CONFIG, EPOCH, VALIDATORS};
 
 // version info for migration info
@@ -52,6 +53,7 @@ pub fn instantiate(
         min_weight: msg.min_weight,
         max_validators: msg.max_validators,
         scaling: msg.scaling,
+        epoch_reward: msg.epoch_reward,
     };
     CONFIG.save(deps.storage, &cfg)?;
 
@@ -253,6 +255,13 @@ fn end_block(deps: DepsMut, env: Env) -> Result<Response, ContractError> {
     if cur_epoch <= epoch.current_epoch && !is_genesis_block(&env.block) {
         return Ok(Response::default());
     }
+    // we don't pay the first epoch, as this may be huge if contract starts at non-zero height
+    let pay_epochs = if epoch.current_epoch == 0 {
+        0
+    } else {
+        cur_epoch - epoch.current_epoch
+    };
+
     // ensure to update this so we wait until next epoch to run this again
     epoch.current_epoch = cur_epoch;
     EPOCH.save(deps.storage, &epoch)?;
@@ -261,10 +270,19 @@ fn end_block(deps: DepsMut, env: Env) -> Result<Response, ContractError> {
     let validators = calculate_validators(deps.as_ref())?;
 
     let old_validators = VALIDATORS.load(deps.storage)?;
+    let pay_to = distribute_to_validators(&old_validators);
     VALIDATORS.save(deps.storage, &validators)?;
     // determine the diff to send back to tendermint
     let diff = calculate_diff(validators, old_validators);
+
+    // provide payment if there is rewards to give
+    let messages = if pay_epochs > 0 && !pay_to.is_empty() {
+        pay_block_rewards(deps, env, pay_to, pay_epochs)?
+    } else {
+        vec![]
+    };
     let res = Response {
+        messages,
         data: Some(to_binary(&diff)?),
         ..Response::default()
     };
@@ -374,6 +392,7 @@ mod test {
         addrs, contract_valset, members, mock_app, mock_pubkey, nonmembers, valid_operator,
         valid_validator,
     };
+    use cosmwasm_std::{coin, Coin};
 
     const EPOCH_LENGTH: u64 = 100;
     const GROUP_OWNER: &str = "admin";
@@ -384,6 +403,14 @@ mod test {
 
     // Number of validators for tests
     const VALIDATORS: usize = 32;
+
+    // 500 usdc per block
+    const REWARD_AMOUNT: u128 = 50_000;
+    const REWARD_DENOM: &str = "usdc";
+
+    fn epoch_reward() -> Coin {
+        coin(REWARD_AMOUNT, REWARD_DENOM)
+    }
 
     fn validators(count: usize) -> Vec<ValidatorInfo> {
         let mut p: u64 = 0;
@@ -446,6 +473,7 @@ mod test {
             min_weight,
             max_validators,
             epoch_length: EPOCH_LENGTH,
+            epoch_reward: epoch_reward(),
             initial_keys: members.chain(nonmembers).collect(),
             scaling: None,
         }
@@ -471,6 +499,7 @@ mod test {
                 membership: Tg4Contract(group_addr),
                 min_weight: 5,
                 max_validators: 10,
+                epoch_reward: epoch_reward(),
                 scaling: None
             }
         );
@@ -682,12 +711,11 @@ mod test {
         assert_eq!(0, active.validators.len());
 
         // Trigger end block run through sudo call
-        let _ = app
-            .sudo(
-                valset_addr.clone(),
-                &TgradeSudoMsg::EndWithValidatorUpdate {},
-            )
-            .unwrap();
+        app.sudo(
+            valset_addr.clone(),
+            &TgradeSudoMsg::EndWithValidatorUpdate {},
+        )
+        .unwrap();
 
         // End block has run now, so active validators list is updated
         let active: ListActiveValidatorsResponse = app

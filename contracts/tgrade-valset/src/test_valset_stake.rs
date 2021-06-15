@@ -1,5 +1,5 @@
 #![cfg(test)]
-use cosmwasm_std::{Addr, Coin, Uint128};
+use cosmwasm_std::{coin, Addr, Coin, Uint128};
 
 use cw0::Duration;
 use cw20::Denom;
@@ -32,6 +32,14 @@ const MIN_BOND: u128 = 100;
 // these control how many pubkeys get set in the valset init
 const PREREGISTER_MEMBERS: u32 = 24;
 const MIN_WEIGHT: u64 = 2;
+
+// 500 usdc per block
+const REWARD_AMOUNT: u128 = 50_000;
+const REWARD_DENOM: &str = "usdc";
+
+fn epoch_reward() -> Coin {
+    coin(REWARD_AMOUNT, REWARD_DENOM)
+}
 
 fn contract_stake() -> Box<dyn Contract<TgradeMsg>> {
     let contract = ContractWrapper::new_with_empty(
@@ -80,6 +88,7 @@ fn init_msg(stake_addr: &str, max_validators: u32, min_weight: u64) -> Instantia
         min_weight,
         max_validators,
         epoch_length: EPOCH_LENGTH,
+        epoch_reward: epoch_reward(),
         initial_keys: members,
         scaling: None,
     }
@@ -129,7 +138,8 @@ fn init_and_query_state() {
             membership: Tg4Contract(stake_addr),
             min_weight: 5,
             max_validators: 10,
-            scaling: None
+            scaling: None,
+            epoch_reward: epoch_reward()
         }
     );
 

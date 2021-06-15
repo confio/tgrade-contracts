@@ -1,7 +1,7 @@
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
-use cosmwasm_std::Addr;
+use cosmwasm_std::{Addr, Coin};
 use cw_storage_plus::{Index, IndexList, IndexedMap, Item, UniqueIndex};
 use tg4::Tg4Contract;
 
@@ -24,6 +24,11 @@ pub struct Config {
     /// A scaling factor to multiply tg4-group weights to produce the tendermint validator power
     /// (TODO: should we allow this to reduce weight? Like 1/1000?)
     pub scaling: Option<u32>,
+    /// Total reward paid out each epoch. This will be split among all validators during the last
+    /// epoch.
+    /// (epoch_reward.amount * 86_400 * 30 / epoch_length) is reward tokens to mint each month.
+    /// Ensure this is sensible in relation to the total token supply.
+    pub epoch_reward: Coin,
 }
 
 #[derive(Serialize, Deserialize, Clone, PartialEq, JsonSchema, Debug)]
