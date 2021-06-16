@@ -13,8 +13,8 @@ use cw_storage_plus::Bound;
 
 use tg4::Tg4Contract;
 use tgrade_bindings::{
-    request_privileges, Ed25519Pubkey, Privilege, PrivilegeChangeMsg, Pubkey,
-    TgradeMsg, TgradeSudoMsg, ValidatorDiff, ValidatorUpdate,
+    request_privileges, Ed25519Pubkey, Privilege, PrivilegeChangeMsg, Pubkey, TgradeMsg,
+    TgradeSudoMsg, ValidatorDiff, ValidatorUpdate,
 };
 
 use crate::error::ContractError;
