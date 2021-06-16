@@ -1,7 +1,9 @@
+use crate::TgradeMsg;
+use cosmwasm_std::CosmosMsg;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
-#[derive(Serialize, Deserialize, Clone, PartialEq, JsonSchema, Debug)]
+#[derive(Serialize, Deserialize, Clone, PartialEq, JsonSchema, Debug, Copy)]
 #[serde(rename_all = "snake_case")]
 pub enum Privilege {
     /// contracts registered here are called the beginning of each block with possible double-sign evidence
@@ -26,4 +28,11 @@ pub enum Privilege {
 pub enum PrivilegeMsg {
     Request(Privilege),
     Release(Privilege),
+}
+
+pub fn request_privileges(privileges: &[Privilege]) -> Vec<CosmosMsg<TgradeMsg>> {
+    privileges
+        .iter()
+        .map(|x| PrivilegeMsg::Request(*x).into())
+        .collect()
 }

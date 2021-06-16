@@ -6,7 +6,7 @@ mod sudo;
 mod validator;
 
 pub use gov::{GovProposal, ParamChange, ProtoAny};
-pub use hooks::{Privilege, PrivilegeMsg};
+pub use hooks::{request_privileges, Privilege, PrivilegeMsg};
 pub use msg::{BlockParams, ConsensusParams, EvidenceParams, TgradeMsg};
 pub use query::{ListPrivilegedResponse, TgradeQuery, ValidatorVoteResponse};
 pub use sudo::{Evidence, EvidenceType, PrivilegeChangeMsg, TgradeSudoMsg, ValidatorDiff};
