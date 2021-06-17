@@ -192,7 +192,7 @@ fn update_batch_after_escrow_paid(
 
 /// Call when the batch is ready to become voters (all paid or expiration hit).
 /// This checks all members if they have paid up, and if so makes them full voters.
-/// As well as makign members voter, it will update and save the batch and the
+/// As well as making members voter, it will update and save the batch and the
 /// total vote count.
 fn convert_all_paid_members_to_voters(
     storage: &mut dyn Storage,
