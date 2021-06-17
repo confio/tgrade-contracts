@@ -5,7 +5,7 @@ use std::fmt;
 use crate::error::ContractError;
 use crate::expiration::ReadyAt;
 use cosmwasm_std::{
-    attr, Addr, Attribute, BlockInfo, Decimal, StdError, StdResult, Storage, Timestamp, Uint128,
+    attr, Addr, Attribute, BlockInfo, Decimal, StdError, StdResult, Storage, Uint128,
 };
 use cw3::{Status, Vote};
 use cw_storage_plus::{
@@ -251,7 +251,7 @@ pub const ESCROWS: Map<&Addr, EscrowStatus> = Map::new("escrows");
 #[derive(Serialize, Deserialize, Clone, PartialEq, JsonSchema, Debug)]
 pub struct Batch {
     /// Timestamp (seconds) when all members are no longer pending
-    pub grace_ends_at: u64,
+    pub grace_ends_at: ReadyAt,
     /// How many must still pay in their escrow before the batch is early authorized
     pub waiting_escrow: u32,
     /// All paid members promoted. We do this once when grace ends or waiting escrow hits 0.
@@ -264,7 +264,7 @@ pub struct Batch {
 impl Batch {
     // Returns true if either all members have paid, or grace period is over
     pub fn can_promote(&self, block: &BlockInfo) -> bool {
-        self.waiting_escrow == 0 || block.time >= Timestamp::from_seconds(self.grace_ends_at)
+        self.waiting_escrow == 0 || block.time >= self.grace_ends_at.0
     }
 }
 
@@ -287,7 +287,7 @@ pub fn batches<'a>() -> IndexedMap<'a, U64Key, Batch, BatchIndexes<'a>> {
         promotion_time: MultiIndex::new(
             |b: &Batch, pk: Vec<u8>| {
                 let promoted = if b.batch_promoted { 1u8 } else { 0u8 };
-                (promoted.into(), b.grace_ends_at.into(), pk.into())
+                (promoted.into(), b.grace_ends_at.nanos().into(), pk.into())
             },
             "batch",
             "batch__promotion",

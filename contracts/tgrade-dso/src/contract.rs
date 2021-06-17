@@ -697,7 +697,7 @@ pub fn proposal_add_voting_members(
         .map(|addr| deps.api.addr_validate(&addr))
         .collect::<StdResult<Vec<_>>>()?;
     let batch = Batch {
-        grace_ends_at: env.block.time.plus_seconds(grace_period).nanos() / 1_000_000_000,
+        grace_ends_at: ReadyAt(env.block.time.plus_seconds(grace_period)),
         waiting_escrow: to_add.len() as u32,
         batch_promoted: false,
         members: addrs.clone(),
