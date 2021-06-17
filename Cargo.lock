@@ -74,9 +74,9 @@ dependencies = [
 
 [[package]]
 name = "cosmwasm-schema"
-version = "0.14.0"
+version = "0.14.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "d6a9a6a4ca3b4d7b56f943312a65857cdfc84424f9c2773889f4cd17f36fba61"
+checksum = "04159eec9b583671db7923ff2b979736dfb8f0152347cab9fd02373c22e1a870"
 dependencies = [
  "schemars",
  "serde_json",
