@@ -1,9 +1,9 @@
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
+use crate::expiration::ReadyAt;
 use crate::state::{EscrowStatus, ProposalContent, Votes, VotingRules};
 use cosmwasm_std::{Decimal, Uint128};
-use cw0::Expiration;
 use cw3::{Status, Vote};
 
 #[derive(Serialize, Deserialize, Clone, PartialEq, JsonSchema, Debug)]
@@ -128,7 +128,7 @@ pub struct ProposalResponse {
     pub description: String,
     pub proposal: ProposalContent,
     pub status: Status,
-    pub expires: Expiration,
+    pub voting_finishes: ReadyAt,
     /// This is the threshold that is applied to this proposal. Both the rules of the voting contract,
     /// as well as the total_weight of the voting group may have changed since this time. That means
     /// that the generic `Threshold{}` query does not provide valid information for existing proposals.

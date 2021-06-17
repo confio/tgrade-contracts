@@ -4,13 +4,14 @@ use cosmwasm_std::{
     attr, coin, to_binary, Addr, Attribute, BankMsg, Binary, BlockInfo, CosmosMsg, Deps, DepsMut,
     Env, MessageInfo, Order, Response, StdError, StdResult, Storage, Uint128,
 };
-use cw0::{maybe_addr, Expiration};
+use cw0::maybe_addr;
 use cw2::set_contract_version;
 use cw3::{Status, Vote};
 use cw_storage_plus::{Bound, PrimaryKey, U64Key};
 use tg4::{Member, MemberListResponse, MemberResponse, TotalWeightResponse};
 
 use crate::error::ContractError;
+use crate::expiration::ReadyAt;
 use crate::msg::{
     DsoResponse, EscrowResponse, ExecuteMsg, InstantiateMsg, ProposalListResponse,
     ProposalResponse, QueryMsg, VoteInfo, VoteListResponse, VoteResponse,
@@ -18,7 +19,7 @@ use crate::msg::{
 use crate::state::{
     batches, create_batch, create_proposal, members, parse_id, save_ballot, Ballot, Batch, Dso,
     DsoAdjustments, EscrowStatus, MemberStatus, Proposal, ProposalContent, Votes, VotingRules,
-    BALLOTS, BALLOTS_BY_VOTER, DSO, ESCROWS, PROPOSALS, PROPOSAL_BY_EXPIRY, TOTAL,
+    BALLOTS, BALLOTS_BY_VOTER, DSO, ESCROWS, PROPOSALS, PROPOSAL_BY_FINISH_TIME, TOTAL,
 };
 
 // version info for migration info
@@ -315,7 +316,7 @@ pub fn execute_propose(
         title,
         description,
         start_height: env.block.height,
-        expires: Expiration::AtTime(env.block.time.plus_seconds(dso.rules.voting_period_secs())),
+        voting_finishes: ReadyAt(env.block.time.plus_seconds(dso.rules.voting_period_secs())),
         proposal,
         status: Status::Open,
         votes: Votes::yes(vote_power),
@@ -358,7 +359,7 @@ pub fn execute_vote(
         return Err(ContractError::NotOpen {});
     }
     // Looking at Expiration:, if the block time == expiratation time, this counts as expired
-    if prop.expires.is_expired(&env.block) {
+    if prop.voting_finishes.is_ready(&env.block) {
         return Err(ContractError::Expired {});
     }
 
@@ -451,7 +452,7 @@ pub fn execute_close(
     {
         return Err(ContractError::WrongCloseStatus {});
     }
-    if !prop.expires.is_expired(&env.block) {
+    if !prop.voting_finishes.is_ready(&env.block) {
         return Err(ContractError::NotExpired {});
     }
 
@@ -548,7 +549,7 @@ fn adjust_open_proposals_for_leaver(
     // find all open proposals that have not yet expired
     let now = env.block.time.nanos() / 1_000_000_000;
     let start = Bound::Exclusive(U64Key::from(now).into());
-    let open_prop_ids = PROPOSAL_BY_EXPIRY
+    let open_prop_ids = PROPOSAL_BY_FINISH_TIME
         .range(deps.storage, Some(start), None, Order::Ascending)
         .collect::<StdResult<Vec<_>>>()?;
 
@@ -957,7 +958,7 @@ pub(crate) fn query_proposal(deps: Deps, env: Env, id: u64) -> StdResult<Proposa
         description: prop.description,
         proposal: prop.proposal,
         status,
-        expires: prop.expires,
+        voting_finishes: prop.voting_finishes,
         rules: prop.rules,
         total_weight: prop.total_weight,
         votes: prop.votes,
@@ -998,7 +999,7 @@ fn map_proposal(
         description: prop.description,
         proposal: prop.proposal,
         status,
-        expires: prop.expires,
+        voting_finishes: prop.voting_finishes,
         rules: prop.rules,
         total_weight: prop.total_weight,
         votes: prop.votes,

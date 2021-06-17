@@ -3,10 +3,10 @@ use serde::{Deserialize, Serialize};
 use std::fmt;
 
 use crate::error::ContractError;
+use crate::expiration::ReadyAt;
 use cosmwasm_std::{
     attr, Addr, Attribute, BlockInfo, Decimal, StdError, StdResult, Storage, Timestamp, Uint128,
 };
-use cw0::Expiration;
 use cw3::{Status, Vote};
 use cw_storage_plus::{
     Index, IndexList, IndexedMap, IndexedSnapshotMap, Item, Map, MultiIndex, Strategy, U64Key,
@@ -326,7 +326,7 @@ pub struct Proposal {
     pub title: String,
     pub description: String,
     pub start_height: u64,
-    pub expires: Expiration,
+    pub voting_finishes: ReadyAt,
     pub proposal: ProposalContent,
     pub status: Status,
     /// pass requirements
@@ -386,7 +386,7 @@ impl Proposal {
         if status == Status::Open && self.is_passed(block) {
             status = Status::Passed;
         }
-        if status == Status::Open && self.expires.is_expired(block) {
+        if status == Status::Open && self.voting_finishes.is_ready(block) {
             status = Status::Rejected;
         }
 
@@ -413,7 +413,7 @@ impl Proposal {
         if self.votes.total() < votes_needed(self.total_weight, quorum) {
             return false;
         }
-        if self.expires.is_expired(block) {
+        if self.voting_finishes.is_ready(block) {
             // If expired, we compare Yes votes against the total number of votes (minus abstain).
             let opinions = self.votes.total() - self.votes.abstain;
             self.votes.yes >= votes_needed(opinions, threshold)
@@ -454,7 +454,7 @@ pub const PROPOSALS: Map<U64Key, Proposal> = Map::new("proposals");
 // This maps expiration timestamp (seconds) to Proposal primary key,
 // needed for bounded size queries in adjust_open_proposals_for_leaver
 // Just add in create_proposal
-pub const PROPOSAL_BY_EXPIRY: Map<U64Key, u64> = Map::new("proposals_by_expiry");
+pub const PROPOSAL_BY_FINISH_TIME: Map<U64Key, u64> = Map::new("proposals_by_expiry");
 
 pub fn save_ballot(
     storage: &mut dyn Storage,
@@ -467,14 +467,10 @@ pub fn save_ballot(
 }
 
 pub fn create_proposal(store: &mut dyn Storage, proposal: &Proposal) -> StdResult<u64> {
-    let expiry = match proposal.expires {
-        Expiration::AtTime(timestamp) => timestamp.nanos() / 1_000_000_000,
-        _ => return Err(StdError::generic_err("proposals only expire on timestamp")),
-    };
     let id: u64 = PROPOSAL_COUNT.may_load(store)?.unwrap_or_default() + 1;
     PROPOSAL_COUNT.save(store, &id)?;
     PROPOSALS.save(store, id.into(), proposal)?;
-    PROPOSAL_BY_EXPIRY.save(store, expiry.into(), &id)?;
+    PROPOSAL_BY_FINISH_TIME.save(store, proposal.voting_finishes.nanos().into(), &id)?;
     Ok(id)
 }
 
@@ -528,15 +524,15 @@ mod test {
         is_expired: bool,
     ) -> bool {
         let block = mock_env().block;
-        let expires = match is_expired {
-            true => Expiration::AtHeight(block.height - 5),
-            false => Expiration::AtHeight(block.height + 100),
+        let voting_finishes = match is_expired {
+            true => ReadyAt(block.time.minus_seconds(10)),
+            false => ReadyAt(block.time.plus_seconds(30)),
         };
         let prop = Proposal {
             title: "Demo".to_string(),
             description: "Info".to_string(),
             start_height: 100,
-            expires,
+            voting_finishes,
             proposal: ProposalContent::AddRemoveNonVotingMembers {
                 add: vec![],
                 remove: vec![],
