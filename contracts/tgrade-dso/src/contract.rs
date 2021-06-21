@@ -123,7 +123,7 @@ pub fn execute_deposit_escrow(
                 escrow.status = MemberStatus::PendingPaid { batch_id: batch };
                 ESCROWS.save(deps.storage, &info.sender, &escrow)?;
                 // Now check if this batch is ready...
-                promote_batch_if_ready(deps, env, batch, &info.sender)?
+                update_batch_after_escrow_paid(deps, env, batch, &info.sender)?
             } else {
                 // Otherwise, just update the paid value until later
                 ESCROWS.save(deps.storage, &info.sender, &escrow)?;
@@ -150,16 +150,16 @@ pub fn execute_deposit_escrow(
     })
 }
 
-/// Call when `promoted` has now paid in sufficient escrow.
+/// Call when `paid_escrow` has now paid in sufficient escrow.
 /// Checks if this user can be promoted to `Voter`. Also checks if other "pending"
 /// voters in the batch can be promoted.
 ///
 /// Returns a list of attributes for each user promoted
-fn promote_batch_if_ready(
+fn update_batch_after_escrow_paid(
     deps: DepsMut,
     env: Env,
     batch_id: u64,
-    promoted: &Addr,
+    paid_escrow: &Addr,
 ) -> Result<Vec<Attribute>, ContractError> {
     // We first check and update this batch state
     let mut batch = batches().load(deps.storage, batch_id.into())?;
@@ -170,24 +170,33 @@ fn promote_batch_if_ready(
     let height = env.block.height;
     let attrs = match (batch.can_promote(&env.block), batch.batch_promoted) {
         (true, true) => {
+            batches().save(deps.storage, batch_id.into(), &batch)?;
             // just promote this one, everyone else has been promoted
-            promote_if_paid(deps.storage, promoted, height)?;
+            convert_to_voter_if_paid(deps.storage, paid_escrow, height)?;
             // update the total with the new weight
             TOTAL.update::<_, StdError>(deps.storage, |old| Ok(old + VOTING_WEIGHT))?;
-            vec![attr("promoted", promoted)]
+            vec![attr("promoted", paid_escrow)]
         }
-        (true, false) => promote_batch(deps.storage, &mut batch, height)?,
+        (true, false) => {
+            convert_all_paid_members_to_voters(deps.storage, batch_id, &mut batch, height)?
+        }
         // not ready yet
-        _ => vec![],
+        _ => {
+            batches().save(deps.storage, batch_id.into(), &batch)?;
+            vec![]
+        }
     };
-
-    batches().save(deps.storage, batch_id.into(), &batch)?;
 
     Ok(attrs)
 }
 
-fn promote_batch(
+/// Call when the batch is ready to become voters (all paid or expiration hit).
+/// This checks all members if they have paid up, and if so makes them full voters.
+/// As well as making members voter, it will update and save the batch and the
+/// total vote count.
+fn convert_all_paid_members_to_voters(
     storage: &mut dyn Storage,
+    batch_id: u64,
     batch: &mut Batch,
     height: u64,
 ) -> StdResult<Vec<Attribute>> {
@@ -195,21 +204,31 @@ fn promote_batch(
     let mut added = 0;
     let mut attrs = Vec::with_capacity(batch.members.len());
     for waiting in batch.members.iter() {
-        if promote_if_paid(storage, waiting, height)? {
+        if convert_to_voter_if_paid(storage, waiting, height)? {
             attrs.push(attr("promoted", waiting));
             added += VOTING_WEIGHT;
         }
     }
+    // make this a promoted and save
     batch.batch_promoted = true;
+    batches().save(storage, batch_id.into(), &batch)?;
+
     // update the total with the new weight
-    TOTAL.update::<_, StdError>(storage, |old| Ok(old + added))?;
+    if added > 0 {
+        TOTAL.update::<_, StdError>(storage, |old| Ok(old + added))?;
+    }
+
     Ok(attrs)
 }
 
-/// Returns true if this address was eligible for promotion, false otherwise
+/// Returns true if this address was fully paid, false otherwise.
 /// Make sure you update TOTAL after calling this
 /// (Not done here, so we can update TOTAL once when promoting a whole batch)
-fn promote_if_paid(storage: &mut dyn Storage, to_promote: &Addr, height: u64) -> StdResult<bool> {
+fn convert_to_voter_if_paid(
+    storage: &mut dyn Storage,
+    to_promote: &Addr,
+    height: u64,
+) -> StdResult<bool> {
     let mut escrow = ESCROWS.load(storage, to_promote)?;
     // if this one was not yet paid up, do nothing
     if !escrow.status.is_pending_paid() {
@@ -612,8 +631,8 @@ fn check_pending(
 
     for (key, mut batch) in ready {
         let batch_id = parse_id(&key)?;
-        let attrs = promote_batch(storage, &mut batch, block.height)?;
-        batch_map.save(storage, batch_id.into(), &batch)?;
+        let attrs =
+            convert_all_paid_members_to_voters(storage, batch_id, &mut batch, block.height)?;
         attributes.push(attr("batch", batch_id));
         attributes.extend(attrs);
     }
