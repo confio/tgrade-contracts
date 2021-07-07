@@ -1,13 +1,12 @@
-use cosmwasm_std::{
-    entry_point, to_binary, Binary, CosmosMsg, Deps, DepsMut, Env, MessageInfo, Response, StdResult,
+use cosmwasm_std::{Binary, CosmosMsg, Deps, DepsMut, entry_point, Env, MessageInfo, Response, StdResult, SubMsg, to_binary};
+
+use tgrade_bindings::{
+    GovProposal, Privilege, PrivilegeChangeMsg, PrivilegeMsg, TgradeMsg, TgradeSudoMsg,
 };
 
 use crate::error::ContractError;
 use crate::msg::{ExecuteMsg, InstantiateMsg, OwnerResponse, QueryMsg};
 use crate::state::{Config, CONFIG};
-use tgrade_bindings::{
-    GovProposal, Privilege, PrivilegeChangeMsg, PrivilegeMsg, TgradeMsg, TgradeSudoMsg,
-};
 
 // Note, you can use StdResult in some functions where you do not
 // make use of the custom errors
@@ -51,7 +50,7 @@ pub fn execute_execute(
         return Err(ContractError::Unauthorized {});
     }
     Ok(Response {
-        messages,
+        messages: messages.into_iter().map(|m| SubMsg::new(m)).collect(),
         ..Response::default()
     })
 }
@@ -67,13 +66,13 @@ pub fn execute_proposal(
     if info.sender != config.owner {
         return Err(ContractError::Unauthorized {});
     }
-    let msg = TgradeMsg::ExecuteGovProposal {
+    let msg = SubMsg::new(TgradeMsg::ExecuteGovProposal {
         title,
         description,
         proposal,
-    };
+    });
     Ok(Response {
-        messages: vec![msg.into()],
+        messages: vec![msg],
         ..Response::default()
     })
 }
@@ -107,14 +106,14 @@ pub fn sudo(
 fn privilege_change(_deps: DepsMut, change: PrivilegeChangeMsg) -> Response<TgradeMsg> {
     match change {
         PrivilegeChangeMsg::Promoted {} => {
-            let messages = vec![PrivilegeMsg::Request(Privilege::GovProposalExecutor).into()];
+            let messages = vec![SubMsg::new(PrivilegeMsg::Request(Privilege::GovProposalExecutor))];
             Response {
                 messages,
                 ..Response::default()
             }
         }
         PrivilegeChangeMsg::Demoted {} => {
-            let messages = vec![PrivilegeMsg::Release(Privilege::GovProposalExecutor).into()];
+            let messages = vec![SubMsg::new(PrivilegeMsg::Release(Privilege::GovProposalExecutor))];
             Response {
                 messages,
                 ..Response::default()
@@ -125,9 +124,10 @@ fn privilege_change(_deps: DepsMut, change: PrivilegeChangeMsg) -> Response<Tgra
 
 #[cfg(test)]
 mod tests {
-    use super::*;
+    use cosmwasm_std::{BankMsg, coins, from_binary, Uint128};
     use cosmwasm_std::testing::{mock_dependencies, mock_env, mock_info};
-    use cosmwasm_std::{coins, from_binary, BankMsg, Uint128};
+
+    use super::*;
 
     #[test]
     fn proper_initialization() {
@@ -194,7 +194,7 @@ mod tests {
             description: description.to_string(),
             proposal: proposal.clone(),
         }
-        .into();
+            .into();
 
         let info = mock_info(creator, &[]);
         let msg = ExecuteMsg::Proposal {

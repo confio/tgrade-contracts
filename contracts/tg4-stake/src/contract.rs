@@ -1,9 +1,6 @@
 #[cfg(not(feature = "library"))]
 use cosmwasm_std::entry_point;
-use cosmwasm_std::{
-    attr, coin, coins, to_binary, Addr, BankMsg, Binary, Coin, CosmosMsg, Deps, DepsMut, Env,
-    MessageInfo, Order, Response, StdError, StdResult, Storage, Uint128,
-};
+use cosmwasm_std::{attr, coin, coins, to_binary, Addr, BankMsg, Binary, Coin, CosmosMsg, Deps, DepsMut, Env, MessageInfo, Order, Response, StdError, StdResult, Storage, Uint128, SubMsg};
 
 use cw0::{maybe_addr, NativeBalance};
 use cw2::set_contract_version;
@@ -37,9 +34,11 @@ pub fn instantiate(
 
     PREAUTH.set_auth(deps.storage, msg.preauths.unwrap_or_default())?;
 
+    const ZERO: Uint128 = Uint128::zero();
+    const ONE: Uint128 = Uint128::new(1);
     // min_bond is at least 1, so 0 stake -> non-membership
-    let min_bond = match msg.min_bond {
-        Uint128(0) => Uint128(1),
+    let min_bond: Uint128 = match msg.min_bond {
+        ZERO => ONE,
         v => v,
     };
 
@@ -171,9 +170,9 @@ pub fn execute_bond(
         attr("sender", sender),
     ];
     Ok(Response {
-        submessages: vec![],
-        messages,
+        messages: messages.into_iter().map(|m| SubMsg::new(m)).collect(),
         attributes,
+        events: vec![],
         data: None,
     })
 }
@@ -212,10 +211,9 @@ pub fn execute_unbond(
         attr("sender", info.sender),
     ];
     Ok(Response {
-        submessages: vec![],
-        messages,
+        messages: messages.into_iter().map(|m| SubMsg::new(m)).collect(),
         attributes,
-        data: None,
+        ..Response::default()
     })
 }
 
@@ -301,7 +299,7 @@ pub fn execute_claim(
         to_address: info.sender.clone().into(),
         amount,
     }
-    .into()];
+        .into()];
 
     let attributes = vec![
         attr("action", "claim"),
@@ -309,10 +307,9 @@ pub fn execute_claim(
         attr("sender", info.sender),
     ];
     Ok(Response {
-        submessages: vec![],
-        messages,
+        messages: messages.into_iter().map(|m: CosmosMsg| SubMsg::new(m)).collect(),
         attributes,
-        data: None,
+        ..Response::default()
     })
 }
 
@@ -641,11 +638,11 @@ mod tests {
             vec![
                 Member {
                     addr: USER2.into(),
-                    weight: 7
+                    weight: 7,
                 },
                 Member {
                     addr: USER1.into(),
-                    weight: 12
+                    weight: 12,
                 },
             ]
         );
@@ -658,8 +655,8 @@ mod tests {
             members,
             vec![Member {
                 addr: USER2.into(),
-                weight: 7
-            },]
+                weight: 7,
+            }, ]
         );
 
         // Next page
@@ -673,8 +670,8 @@ mod tests {
             members,
             vec![Member {
                 addr: USER1.into(),
-                weight: 12
-            },]
+                weight: 12,
+            }, ]
         );
 
         // Assert there's no more
@@ -702,15 +699,15 @@ mod tests {
             vec![
                 Member {
                     addr: USER1.into(),
-                    weight: 11
+                    weight: 11,
                 },
                 Member {
                     addr: USER2.into(),
-                    weight: 6
+                    weight: 6,
                 },
                 Member {
                     addr: USER3.into(),
-                    weight: 5
+                    weight: 5,
                 }
             ]
         );
@@ -725,8 +722,8 @@ mod tests {
             members,
             vec![Member {
                 addr: USER1.into(),
-                weight: 11
-            },]
+                weight: 11,
+            }, ]
         );
 
         // Next page
@@ -742,11 +739,11 @@ mod tests {
             vec![
                 Member {
                     addr: USER2.into(),
-                    weight: 6
+                    weight: 6,
                 },
                 Member {
                     addr: USER3.into(),
-                    weight: 5
+                    weight: 5,
                 }
             ]
         );
@@ -799,7 +796,7 @@ mod tests {
             ContractError::Std(StdError::overflow(OverflowError::new(
                 OverflowOperation::Sub,
                 5000,
-                5100
+                5100,
             )))
         );
     }
@@ -881,7 +878,7 @@ mod tests {
             mock_info(USER1, &[]),
             ExecuteMsg::Claim {},
         )
-        .unwrap_err();
+            .unwrap_err();
         assert_eq!(err, ContractError::NothingToClaim {});
 
         // now mature first section, withdraw that
@@ -894,14 +891,14 @@ mod tests {
             mock_info(USER1, &[]),
             ExecuteMsg::Claim {},
         )
-        .unwrap();
+            .unwrap();
         assert_eq!(
             res.messages,
             vec![BankMsg::Send {
                 to_address: USER1.into(),
                 amount: coins(4_500, DENOM),
             }
-            .into()]
+                .into()]
         );
 
         // second releases partially
@@ -911,14 +908,14 @@ mod tests {
             mock_info(USER2, &[]),
             ExecuteMsg::Claim {},
         )
-        .unwrap();
+            .unwrap();
         assert_eq!(
             res.messages,
             vec![BankMsg::Send {
                 to_address: USER2.into(),
                 amount: coins(2_600, DENOM),
             }
-            .into()]
+                .into()]
         );
 
         // but the third one cannot release
@@ -928,7 +925,7 @@ mod tests {
             mock_info(USER3, &[]),
             ExecuteMsg::Claim {},
         )
-        .unwrap_err();
+            .unwrap_err();
         assert_eq!(err, ContractError::NothingToClaim {});
 
         // claims updated properly
@@ -955,7 +952,7 @@ mod tests {
             mock_info(USER2, &[]),
             ExecuteMsg::Claim {},
         )
-        .unwrap();
+            .unwrap();
         assert_eq!(
             res.messages,
             vec![BankMsg::Send {
@@ -963,7 +960,7 @@ mod tests {
                 // 1_345 + 600 + 1_005
                 amount: coins(2_950, DENOM),
             }
-            .into()]
+                .into()]
         );
         assert_eq!(get_claims(deps.as_ref(), &Addr::unchecked(USER2)), vec![]);
     }
@@ -1000,7 +997,7 @@ mod tests {
             user_info.clone(),
             add_msg.clone(),
         )
-        .unwrap_err();
+            .unwrap_err();
         assert_eq!(err, PreauthError::NoPreauth {}.into());
 
         // cannot remove a non-registered contract

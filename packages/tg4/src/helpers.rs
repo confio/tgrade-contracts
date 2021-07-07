@@ -31,7 +31,7 @@ impl Tg4Contract {
         Ok(WasmMsg::Execute {
             contract_addr: self.addr().into(),
             msg: to_binary(&msg)?,
-            send: vec![],
+            funds: vec![]
         }
         .into())
     }

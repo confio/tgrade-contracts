@@ -1,8 +1,6 @@
 #[cfg(not(feature = "library"))]
 use cosmwasm_std::entry_point;
-use cosmwasm_std::{
-    attr, to_binary, Addr, Binary, Deps, DepsMut, Env, MessageInfo, Order, Response, StdResult,
-};
+use cosmwasm_std::{attr, to_binary, Addr, Binary, Deps, DepsMut, Env, MessageInfo, Order, Response, StdResult, SubMsg};
 use cw0::maybe_addr;
 use cw2::set_contract_version;
 use cw_storage_plus::{Bound, PrimaryKey, U64Key};
@@ -149,8 +147,8 @@ pub fn execute_update_members(
 ) -> Result<Response, ContractError> {
     let attributes = vec![
         attr("action", "update_members"),
-        attr("added", add.len()),
-        attr("removed", remove.len()),
+        attr("added", add.len().to_string()),
+        attr("removed", remove.len().to_string()),
         attr("sender", &info.sender),
     ];
 
@@ -159,10 +157,9 @@ pub fn execute_update_members(
     // call all registered hooks
     let messages = HOOKS.prepare_hooks(deps.storage, |h| diff.clone().into_cosmos_msg(h))?;
     Ok(Response {
-        submessages: vec![],
-        messages,
+        messages: messages.into_iter().map(|m| SubMsg::new(m)).collect(),
         attributes,
-        data: None,
+        ..Response::default()
     })
 }
 

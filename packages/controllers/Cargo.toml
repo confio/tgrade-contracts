@@ -1,6 +1,6 @@
 [package]
 name = "tg-controllers"
-version = "0.2.1"
+version = "0.2.2"
 authors = ["Ethan Frey <ethanfrey@users.noreply.github.com>"]
 edition = "2018"
 description = "Tgrade Controllers: helpers for various contracts"
@@ -10,9 +10,9 @@ homepage = "https://tgrade.finance"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-cosmwasm-std = { version = "0.14.0" }
-cw0 = { version = "0.6.1" }
-cw-storage-plus = { version = "0.6.1", features = ["iterator"] }
+cosmwasm-std = { version = "0.15.0" }
+cw0 = { git = 'https://github.com/CosmWasm/cosmwasm-plus', branch = 'main' }
+cw-storage-plus = { git = 'https://github.com/CosmWasm/cosmwasm-plus', branch = 'main' ,features = ["iterator"] }
 schemars = "0.8.1"
 serde = { version = "1.0.103", default-features = false, features = ["derive"] }
 thiserror = { version = "1.0.21" }

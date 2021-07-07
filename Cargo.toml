@@ -24,3 +24,14 @@ incremental = false
 [profile.release.package.tgrade-valset]
 codegen-units = 1
 incremental = false
+
+
+[patch.crates-io]
+cw0 = { git = 'https://github.com/CosmWasm/cosmwasm-plus', branch = 'main' }
+cw2 = { git = 'https://github.com/CosmWasm/cosmwasm-plus', branch = 'main' }
+cw3 = { git = 'https://github.com/CosmWasm/cosmwasm-plus', branch = 'main' }
+cw20 = { git = 'https://github.com/CosmWasm/cosmwasm-plus', branch = 'main' }
+cw-controllers = { git = 'https://github.com/CosmWasm/cosmwasm-plus', branch = 'main' }
+cw-multi-test = { git = 'https://github.com/CosmWasm/cosmwasm-plus', branch = 'main' }
+cw-storage-plus = { git = 'https://github.com/CosmWasm/cosmwasm-plus', branch = 'main' }
+cosmwasm-std = { git = 'https://github.com/CosmWasm/cosmwasm', version = '0.15.0' }

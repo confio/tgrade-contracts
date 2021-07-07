@@ -1,8 +1,6 @@
 #[cfg(not(feature = "library"))]
 use cosmwasm_std::entry_point;
-use cosmwasm_std::{
-    attr, to_binary, Binary, Deps, DepsMut, Env, MessageInfo, Order, Response, StdResult,
-};
+use cosmwasm_std::{attr, to_binary, Binary, Deps, DepsMut, Env, MessageInfo, Order, Response, StdResult, SubMsg};
 use cw0::maybe_addr;
 use cw2::set_contract_version;
 use cw_storage_plus::{Bound, PrimaryKey, U64Key};
@@ -50,7 +48,7 @@ pub fn instantiate(
 
     // TODO: what events to return here?
     Ok(Response {
-        messages,
+        messages: messages.into_iter().map(|m| SubMsg::new(m)).collect(),
         ..Response::default()
     })
 }
@@ -122,7 +120,7 @@ pub fn execute_member_changed(
 ) -> Result<Response, ContractError> {
     let attributes = vec![
         attr("action", "update_members"),
-        attr("changed", changes.diffs.len()),
+        attr("changed", changes.diffs.len().to_string()),
         attr("sender", &info.sender),
     ];
 
@@ -141,9 +139,9 @@ pub fn execute_member_changed(
     let messages = HOOKS.prepare_hooks(deps.storage, |h| diff.clone().into_cosmos_msg(h))?;
 
     Ok(Response {
-        submessages: vec![],
-        messages,
+        messages: messages.into_iter().map(|m| SubMsg::new(m)).collect(),
         attributes,
+        events: vec![],
         data: None,
     })
 }

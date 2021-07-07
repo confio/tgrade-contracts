@@ -2,10 +2,7 @@ use std::cmp::max;
 use std::collections::BTreeSet;
 use std::convert::TryInto;
 
-use cosmwasm_std::{
-    entry_point, to_binary, Addr, Binary, BlockInfo, Deps, DepsMut, Env, MessageInfo, Order,
-    StdError, StdResult, Timestamp,
-};
+use cosmwasm_std::{entry_point, to_binary, Addr, Binary, BlockInfo, Deps, DepsMut, Env, MessageInfo, Order, StdError, StdResult, Timestamp, SubMsg};
 
 use cw0::maybe_addr;
 use cw2::set_contract_version;
@@ -229,7 +226,7 @@ fn privilege_change(_deps: DepsMut, change: PrivilegeChangeMsg) -> Response {
             let messages =
                 request_privileges(&[Privilege::ValidatorSetUpdater, Privilege::TokenMinter]);
             Response {
-                messages,
+                messages: messages.into_iter().map(|m| SubMsg::new(m)).collect(),
                 ..Response::default()
             }
         }
@@ -283,7 +280,7 @@ fn end_block(deps: DepsMut, env: Env) -> Result<Response, ContractError> {
         vec![]
     };
     let res = Response {
-        messages,
+        messages: messages.into_iter().map(|m| SubMsg::new(m)).collect(),
         data: Some(to_binary(&diff)?),
         ..Response::default()
     };
