@@ -66,7 +66,7 @@ pub enum QueryMsg {
         start_after: Option<String>,
         limit: Option<u32>,
     },
-    /// Returns MembersListResponse, weight > 0 means active voting member, 0 means pending (not enough escrow)
+    /// Returns MembersListResponse, only active voting members (weight > 0)
     ListVotingMembers {
         start_after: Option<String>,
         limit: Option<u32>,
