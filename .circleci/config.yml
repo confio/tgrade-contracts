@@ -403,7 +403,7 @@ jobs:
       - run:
           name: Install check_contract
           # Uses --debug for compilation speed. Uses cosmwasm-0.14.0 `check_contract`
-          command: cargo install --debug --features iterator --example check_contract -- cosmwasm-vm
+          command: cargo install --debug --features iterator --example check_contract --version 0.14.0 -- cosmwasm-vm
       - save_cache:
           paths:
             - /usr/local/cargo/registry
