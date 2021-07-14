@@ -1,4 +1,4 @@
-use cosmwasm_std::CosmosMsg;
+use cosmwasm_std::SubMsg;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use tgrade_bindings::{GovProposal, TgradeMsg};
@@ -11,7 +11,7 @@ pub struct InstantiateMsg {}
 #[serde(rename_all = "snake_case")]
 pub enum ExecuteMsg {
     Execute {
-        msgs: Vec<CosmosMsg<TgradeMsg>>,
+        msgs: Vec<SubMsg<TgradeMsg>>,
     },
     Proposal {
         title: String,

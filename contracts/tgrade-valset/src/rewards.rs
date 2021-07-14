@@ -1,5 +1,5 @@
 use crate::state::{ValidatorInfo, CONFIG};
-use cosmwasm_std::{coin, Addr, BankMsg, Coin, CosmosMsg, DepsMut, Env, StdResult, Uint128};
+use cosmwasm_std::{coin, Addr, BankMsg, Coin, DepsMut, Env, StdResult, SubMsg, Uint128};
 use tgrade_bindings::TgradeMsg;
 
 #[derive(Clone)]
@@ -25,7 +25,7 @@ pub fn pay_block_rewards(
     env: Env,
     pay_validators: Vec<DistributionInfo>,
     pay_epochs: u64,
-) -> StdResult<Vec<CosmosMsg<TgradeMsg>>> {
+) -> StdResult<Vec<SubMsg<TgradeMsg>>> {
     // calculate the desired block reward
     let config = CONFIG.load(deps.storage)?;
     let mut block_reward = config.epoch_reward;
@@ -40,12 +40,11 @@ pub fn pay_block_rewards(
     let mut messages = distribute_tokens(block_reward, balances, pay_validators);
 
     // create a minting action (and do this first)
-    let minting = TgradeMsg::MintTokens {
+    let minting = SubMsg::new(TgradeMsg::MintTokens {
         denom,
         amount,
         recipient: env.contract.address.into(),
-    }
-    .into();
+    });
     messages.insert(0, minting);
 
     Ok(messages)
@@ -55,7 +54,7 @@ fn distribute_tokens(
     block_reward: Coin,
     balances: Vec<Coin>,
     pay_to: Vec<DistributionInfo>,
-) -> Vec<CosmosMsg<TgradeMsg>> {
+) -> Vec<SubMsg<TgradeMsg>> {
     let (denoms, totals) = split_combine_tokens(balances, block_reward);
     let total_weight = pay_to.iter().map(|d| d.weight).sum();
 
@@ -110,18 +109,17 @@ fn remainder_to_first_recipient(total: &[u128], shares: &mut [Vec<u128>]) {
     }
 }
 
-fn send_tokens(addr: Addr, shares: Vec<u128>, denoms: &[String]) -> CosmosMsg<TgradeMsg> {
+fn send_tokens(addr: Addr, shares: Vec<u128>, denoms: &[String]) -> SubMsg<TgradeMsg> {
     let amount: Vec<Coin> = shares
         .into_iter()
         .zip(denoms)
         .filter(|(s, _)| *s > 0)
         .map(|(s, d)| coin(s, d))
         .collect();
-    BankMsg::Send {
+    SubMsg::new(BankMsg::Send {
         to_address: addr.into(),
         amount,
-    }
-    .into()
+    })
 }
 
 #[cfg(test)]
@@ -160,15 +158,14 @@ mod test {
         CONFIG.save(deps.storage, &cfg).unwrap();
     }
 
-    fn assert_mint(msg: &CosmosMsg<TgradeMsg>, to_mint: u128) {
+    fn assert_mint(msg: &SubMsg<TgradeMsg>, to_mint: u128) {
         assert_eq!(
             msg,
-            &TgradeMsg::MintTokens {
+            &SubMsg::new(TgradeMsg::MintTokens {
                 denom: REWARD_DENOM.to_string(),
                 amount: to_mint.into(),
                 recipient: mock_env().contract.address.into(),
-            }
-            .into()
+            })
         );
     }
 
@@ -258,11 +255,10 @@ mod test {
         for ((reward, val), payout) in msgs[1..].iter().zip(&pay_to).zip(expected_payouts) {
             assert_eq!(
                 reward,
-                &BankMsg::Send {
+                &SubMsg::new(BankMsg::Send {
                     to_address: val.addr.to_string(),
                     amount: coins(*payout, REWARD_DENOM),
-                }
-                .into()
+                })
             );
         }
     }
@@ -288,11 +284,10 @@ mod test {
         for ((reward, val), payout) in msgs[1..].iter().zip(&pay_to).zip(expected_payouts) {
             assert_eq!(
                 reward,
-                &BankMsg::Send {
+                &SubMsg::new(BankMsg::Send {
                     to_address: val.addr.to_string(),
                     amount: coins(*payout, REWARD_DENOM),
-                }
-                .into()
+                })
             );
         }
     }
@@ -349,11 +344,10 @@ mod test {
         for ((reward, val), payout) in msgs[1..].iter().zip(&pay_to).zip(expected_payouts) {
             assert_eq!(
                 reward,
-                &BankMsg::Send {
+                &SubMsg::new(BankMsg::Send {
                     to_address: val.addr.to_string(),
                     amount: payout.clone(),
-                }
-                .into()
+                })
             );
         }
     }

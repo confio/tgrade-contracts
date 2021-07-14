@@ -1,6 +1,6 @@
 #![cfg(test)]
 use super::*;
-use cosmwasm_std::{CosmosMsg, Deps};
+use cosmwasm_std::{Deps, SubMsg};
 
 const BDD_NAME: &str = "bddso";
 
@@ -52,7 +52,7 @@ fn setup_bdd(mut deps: DepsMut) {
     let start = mock_env();
     let msg = InstantiateMsg {
         name: BDD_NAME.to_string(),
-        escrow_amount: Uint128(ESCROW_FUNDS),
+        escrow_amount: Uint128::new(ESCROW_FUNDS),
         voting_period: 14,
         quorum: Decimal::percent(40),
         threshold: Decimal::percent(60),
@@ -170,15 +170,14 @@ fn leave(deps: DepsMut, addr: &str) -> Result<Response, ContractError> {
     execute(deps, now(), mock_info(addr, &[]), ExecuteMsg::LeaveDso {})
 }
 
-fn assert_payment(messages: Vec<CosmosMsg>, to_addr: &str, amount: u128) {
+fn assert_payment(messages: Vec<SubMsg>, to_addr: &str, amount: u128) {
     assert_eq!(1, messages.len());
     assert_eq!(
         &messages[0],
-        &BankMsg::Send {
+        &SubMsg::new(BankMsg::Send {
             to_address: to_addr.to_string(),
             amount: coins(amount, DENOM)
-        }
-        .into()
+        })
     );
 }
 

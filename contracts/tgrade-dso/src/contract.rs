@@ -1,8 +1,8 @@
 #[cfg(not(feature = "library"))]
 use cosmwasm_std::entry_point;
 use cosmwasm_std::{
-    attr, coin, to_binary, Addr, Attribute, BankMsg, Binary, BlockInfo, CosmosMsg, Deps, DepsMut,
-    Env, MessageInfo, Order, Response, StdError, StdResult, Storage, Uint128,
+    attr, coin, to_binary, Addr, Attribute, BankMsg, Binary, BlockInfo, Deps, DepsMut, Env,
+    MessageInfo, Order, Response, StdError, StdResult, Storage, SubMsg, Uint128,
 };
 use cw0::{maybe_addr, Expiration};
 use cw2::set_contract_version;
@@ -752,15 +752,14 @@ pub fn proposal_add_voting_members(
     })
 }
 
-fn send_tokens(to: &Addr, amount: &Uint128) -> Vec<CosmosMsg> {
+fn send_tokens(to: &Addr, amount: &Uint128) -> Vec<SubMsg> {
     if amount.is_zero() {
         vec![]
     } else {
-        vec![BankMsg::Send {
+        vec![SubMsg::new(BankMsg::Send {
             to_address: to.into(),
             amount: vec![coin(amount.u128(), DSO_DENOM)],
-        }
-        .into()]
+        })]
     }
 }
 

@@ -1,7 +1,7 @@
 #[cfg(not(feature = "library"))]
 use cosmwasm_std::entry_point;
 use cosmwasm_std::{
-    attr, to_binary, Binary, Deps, DepsMut, Env, MessageInfo, Order, Response, StdResult,
+    attr, to_binary, Binary, Deps, DepsMut, Env, MessageInfo, Order, Response, StdResult, SubMsg,
 };
 use cw0::maybe_addr;
 use cw2::set_contract_version;
@@ -138,13 +138,14 @@ pub fn execute_member_changed(
     }?;
 
     // call all registered hooks
-    let messages = HOOKS.prepare_hooks(deps.storage, |h| diff.clone().into_cosmos_msg(h))?;
+    let messages = HOOKS.prepare_hooks(deps.storage, |h| {
+        diff.clone().into_cosmos_msg(h).map(SubMsg::new)
+    })?;
 
     Ok(Response {
-        submessages: vec![],
         messages,
         attributes,
-        data: None,
+        ..Response::default()
     })
 }
 
@@ -416,8 +417,8 @@ mod tests {
         let group_id = app.store_code(contract_staking());
         let msg = tg4_stake::msg::InstantiateMsg {
             denom: Denom::Native(STAKE_DENOM.into()),
-            tokens_per_weight: Uint128(1),
-            min_bond: Uint128(100),
+            tokens_per_weight: Uint128::new(1),
+            min_bond: Uint128::new(100),
             unbonding_period: Duration::Time(3600),
             admin: Some(OWNER.into()),
             preauths: Some(1),
