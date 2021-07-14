@@ -1,5 +1,5 @@
 use crate::TgradeMsg;
-use cosmwasm_std::CosmosMsg;
+use cosmwasm_std::SubMsg;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
@@ -30,9 +30,9 @@ pub enum PrivilegeMsg {
     Release(Privilege),
 }
 
-pub fn request_privileges(privileges: &[Privilege]) -> Vec<CosmosMsg<TgradeMsg>> {
+pub fn request_privileges(privileges: &[Privilege]) -> Vec<SubMsg<TgradeMsg>> {
     privileges
         .iter()
-        .map(|x| PrivilegeMsg::Request(*x).into())
+        .map(|x| SubMsg::new(PrivilegeMsg::Request(*x)))
         .collect()
 }
