@@ -1,5 +1,5 @@
 use cosmwasm_std::{
-    entry_point, to_binary, Binary, CosmosMsg, Deps, DepsMut, Env, MessageInfo, Response, StdResult,
+    entry_point, to_binary, Binary, Deps, DepsMut, Env, MessageInfo, Response, StdResult, SubMsg,
 };
 
 use crate::error::ContractError;
@@ -44,7 +44,7 @@ pub fn execute(
 pub fn execute_execute(
     deps: DepsMut,
     info: MessageInfo,
-    messages: Vec<CosmosMsg<TgradeMsg>>,
+    messages: Vec<SubMsg<TgradeMsg>>,
 ) -> Result<Response<TgradeMsg>, ContractError> {
     let config = CONFIG.load(deps.storage)?;
     if info.sender != config.owner {
@@ -73,7 +73,7 @@ pub fn execute_proposal(
         proposal,
     };
     Ok(Response {
-        messages: vec![msg.into()],
+        messages: vec![SubMsg::new(msg)],
         ..Response::default()
     })
 }
@@ -107,14 +107,18 @@ pub fn sudo(
 fn privilege_change(_deps: DepsMut, change: PrivilegeChangeMsg) -> Response<TgradeMsg> {
     match change {
         PrivilegeChangeMsg::Promoted {} => {
-            let messages = vec![PrivilegeMsg::Request(Privilege::GovProposalExecutor).into()];
+            let messages = vec![SubMsg::new(PrivilegeMsg::Request(
+                Privilege::GovProposalExecutor,
+            ))];
             Response {
                 messages,
                 ..Response::default()
             }
         }
         PrivilegeChangeMsg::Demoted {} => {
-            let messages = vec![PrivilegeMsg::Release(Privilege::GovProposalExecutor).into()];
+            let messages = vec![SubMsg::new(PrivilegeMsg::Release(
+                Privilege::GovProposalExecutor,
+            ))];
             Response {
                 messages,
                 ..Response::default()
@@ -127,7 +131,7 @@ fn privilege_change(_deps: DepsMut, change: PrivilegeChangeMsg) -> Response<Tgra
 mod tests {
     use super::*;
     use cosmwasm_std::testing::{mock_dependencies, mock_env, mock_info};
-    use cosmwasm_std::{coins, from_binary, BankMsg, Uint128};
+    use cosmwasm_std::{coins, from_binary, BankMsg, CosmosMsg, Uint128};
 
     #[test]
     fn proper_initialization() {
@@ -162,10 +166,10 @@ mod tests {
         };
         let tgrade = TgradeMsg::MintTokens {
             denom: "btc".to_string(),
-            amount: Uint128(777777),
+            amount: Uint128::new(777777),
             recipient: "winner".to_string(),
         };
-        let msgs = vec![bank.into(), tgrade.into()];
+        let msgs = vec![SubMsg::new(bank), SubMsg::new(tgrade)];
         let info = mock_info(creator, &[]);
         let msg = ExecuteMsg::Execute { msgs: msgs.clone() };
         let res = execute(deps.as_mut(), mock_env(), info, msg).unwrap();
@@ -204,7 +208,7 @@ mod tests {
         };
         let res = execute(deps.as_mut(), mock_env(), info, msg).unwrap();
         assert_eq!(res.messages.len(), 1);
-        assert_eq!(&res.messages[0], &expected);
+        assert_eq!(&res.messages[0].msg, &expected);
     }
 
     // #[test]

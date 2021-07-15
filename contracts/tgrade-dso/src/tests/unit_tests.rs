@@ -1,6 +1,6 @@
 #![cfg(test)]
 use super::*;
-use cosmwasm_std::Deps;
+use cosmwasm_std::{Deps, SubMsg};
 
 #[test]
 fn instantiation_no_funds() {
@@ -27,7 +27,7 @@ fn instantiation_some_funds() {
     assert!(res.is_err());
     assert_eq!(
         res.err(),
-        Some(ContractError::InsufficientFunds(Uint128(1)))
+        Some(ContractError::InsufficientFunds(Uint128::new(1)))
     );
 }
 
@@ -45,7 +45,7 @@ fn instantiation_enough_funds() {
     // ensure dso query works
     let expected = DsoResponse {
         name: DSO_NAME.to_string(),
-        escrow_amount: Uint128(ESCROW_FUNDS),
+        escrow_amount: Uint128::new(ESCROW_FUNDS),
         rules: VotingRules {
             voting_period: 14, // days in all public interfaces
             quorum: Decimal::percent(40),
@@ -329,11 +329,10 @@ fn test_escrows() {
     );
     assert_eq!(
         res.messages,
-        vec![BankMsg::Send {
+        vec![SubMsg::new(BankMsg::Send {
             to_address: VOTING2.into(),
             amount: top_up
-        }
-        .into()]
+        })]
     )
 }
 
@@ -603,7 +602,7 @@ fn leaving_voter_cannot_vote_anymore() {
     let mut deps = mock_dependencies(&[]);
     let msg = InstantiateMsg {
         name: "Leaving votes".to_string(),
-        escrow_amount: Uint128(ESCROW_FUNDS),
+        escrow_amount: Uint128::new(ESCROW_FUNDS),
         voting_period: 7,
         quorum: Decimal::percent(50),
         threshold: Decimal::percent(60),

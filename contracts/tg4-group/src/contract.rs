@@ -2,6 +2,7 @@
 use cosmwasm_std::entry_point;
 use cosmwasm_std::{
     attr, to_binary, Addr, Binary, Deps, DepsMut, Env, MessageInfo, Order, Response, StdResult,
+    SubMsg,
 };
 use cw0::maybe_addr;
 use cw2::set_contract_version;
@@ -157,12 +158,13 @@ pub fn execute_update_members(
     // make the local update
     let diff = update_members(deps.branch(), env.block.height, info.sender, add, remove)?;
     // call all registered hooks
-    let messages = HOOKS.prepare_hooks(deps.storage, |h| diff.clone().into_cosmos_msg(h))?;
+    let messages = HOOKS.prepare_hooks(deps.storage, |h| {
+        diff.clone().into_cosmos_msg(h).map(SubMsg::new)
+    })?;
     Ok(Response {
-        submessages: vec![],
         messages,
         attributes,
-        data: None,
+        ..Response::default()
     })
 }
 
@@ -740,8 +742,15 @@ mod tests {
             MemberDiff::new(USER2, Some(6), None),
         ];
         let hook_msg = MemberChangedHookMsg { diffs };
-        let msg1 = hook_msg.clone().into_cosmos_msg(contract1).unwrap();
-        let msg2 = hook_msg.into_cosmos_msg(contract2).unwrap();
+        let msg1 = hook_msg
+            .clone()
+            .into_cosmos_msg(contract1)
+            .map(SubMsg::new)
+            .unwrap();
+        let msg2 = hook_msg
+            .into_cosmos_msg(contract2)
+            .map(SubMsg::new)
+            .unwrap();
         assert_eq!(res.messages, vec![msg1, msg2]);
     }
 

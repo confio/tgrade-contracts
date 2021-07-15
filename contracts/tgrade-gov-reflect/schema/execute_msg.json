@@ -17,7 +17,7 @@
             "msgs": {
               "type": "array",
               "items": {
-                "$ref": "#/definitions/CosmosMsg_for_TgradeMsg"
+                "$ref": "#/definitions/SubMsg_for_TgradeMsg"
               }
             }
           }
@@ -675,6 +675,47 @@
         }
       }
     },
+    "ReplyOn": {
+      "description": "Use this to define when the contract gets a response callback. If you only need it for errors or success you can select just those in order to save gas.",
+      "type": "string",
+      "enum": [
+        "always",
+        "error",
+        "success",
+        "never"
+      ]
+    },
+    "SubMsg_for_TgradeMsg": {
+      "description": "A submessage that will guarantee a `reply` call on success or error, depending on the `reply_on` setting. If you do not need to process the result, use regular messages instead.\n\nNote: On error the submessage execution will revert any partial state changes due to this message, but not revert any state changes in the calling contract. If this is required, it must be done manually in the `reply` entry point.",
+      "type": "object",
+      "required": [
+        "id",
+        "msg",
+        "reply_on"
+      ],
+      "properties": {
+        "gas_limit": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "format": "uint64",
+          "minimum": 0.0
+        },
+        "id": {
+          "description": "An arbitrary ID chosen by the contract. This is typically used to match `Reply`s in the `reply` entry point to the submessage.",
+          "type": "integer",
+          "format": "uint64",
+          "minimum": 0.0
+        },
+        "msg": {
+          "$ref": "#/definitions/CosmosMsg_for_TgradeMsg"
+        },
+        "reply_on": {
+          "$ref": "#/definitions/ReplyOn"
+        }
+      }
+    },
     "TgradeMsg": {
       "description": "A number of Custom messages that can be returned by 'privileged' contracts. Returning them from any other contract will return an error and abort the transaction.",
       "anyOf": [
@@ -812,12 +853,18 @@
               "type": "object",
               "required": [
                 "contract_addr",
-                "msg",
-                "send"
+                "funds",
+                "msg"
               ],
               "properties": {
                 "contract_addr": {
                   "type": "string"
+                },
+                "funds": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/definitions/Coin"
+                  }
                 },
                 "msg": {
                   "description": "msg is the json-encoded ExecuteMsg struct (as raw Binary)",
@@ -826,12 +873,6 @@
                       "$ref": "#/definitions/Binary"
                     }
                   ]
-                },
-                "send": {
-                  "type": "array",
-                  "items": {
-                    "$ref": "#/definitions/Coin"
-                  }
                 }
               }
             }
@@ -849,9 +890,9 @@
               "type": "object",
               "required": [
                 "code_id",
+                "funds",
                 "label",
-                "msg",
-                "send"
+                "msg"
               ],
               "properties": {
                 "admin": {
@@ -865,6 +906,12 @@
                   "format": "uint64",
                   "minimum": 0.0
                 },
+                "funds": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/definitions/Coin"
+                  }
+                },
                 "label": {
                   "description": "A human-readbale label for the contract",
                   "type": "string"
@@ -876,12 +923,6 @@
                       "$ref": "#/definitions/Binary"
                     }
                   ]
-                },
-                "send": {
-                  "type": "array",
-                  "items": {
-                    "$ref": "#/definitions/Coin"
-                  }
                 }
               }
             }

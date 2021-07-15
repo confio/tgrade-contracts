@@ -67,8 +67,8 @@ fn instantiate_stake(app: &mut App<TgradeMsg>) -> Addr {
     let stake_id = app.store_code(contract_stake());
     let msg = tg4_stake::msg::InstantiateMsg {
         denom: Denom::Native(BOND_DENOM.into()),
-        tokens_per_weight: Uint128(TOKENS_PER_WEIGHT),
-        min_bond: Uint128(MIN_BOND),
+        tokens_per_weight: Uint128::new(TOKENS_PER_WEIGHT),
+        min_bond: Uint128::new(MIN_BOND),
         unbonding_period: Duration::Time(1234),
         admin: Some(STAKE_OWNER.into()),
         preauths: None,
@@ -111,7 +111,7 @@ fn unbond(app: &mut App<TgradeMsg>, addr: &Addr, stake_addr: &Addr, tokens: u128
             addr.clone(),
             stake_addr.clone(),
             &ExecuteMsg::Unbond {
-                tokens: Uint128(tokens),
+                tokens: Uint128::new(tokens),
             },
             &[],
         )

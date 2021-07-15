@@ -2,8 +2,8 @@ use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
 use cosmwasm_std::{
-    from_slice, to_binary, to_vec, Addr, Binary, ContractResult, CosmosMsg, Empty, QuerierWrapper,
-    QueryRequest, StdError, StdResult, SystemResult, WasmMsg, WasmQuery,
+    from_slice, to_binary, to_vec, Addr, Binary, ContractResult, Empty, QuerierWrapper,
+    QueryRequest, StdError, StdResult, SubMsg, SystemResult, WasmMsg, WasmQuery,
 };
 
 use crate::msg::Tg4ExecuteMsg;
@@ -27,26 +27,25 @@ impl Tg4Contract {
         self.0.clone()
     }
 
-    fn encode_msg(&self, msg: Tg4ExecuteMsg) -> StdResult<CosmosMsg> {
-        Ok(WasmMsg::Execute {
+    fn encode_msg(&self, msg: Tg4ExecuteMsg) -> StdResult<SubMsg> {
+        Ok(SubMsg::new(WasmMsg::Execute {
             contract_addr: self.addr().into(),
             msg: to_binary(&msg)?,
-            send: vec![],
-        }
-        .into())
+            funds: vec![],
+        }))
     }
 
-    pub fn add_hook<T: Into<String>>(&self, addr: T) -> StdResult<CosmosMsg> {
+    pub fn add_hook<T: Into<String>>(&self, addr: T) -> StdResult<SubMsg> {
         let msg = Tg4ExecuteMsg::AddHook { addr: addr.into() };
         self.encode_msg(msg)
     }
 
-    pub fn remove_hook<T: Into<String>>(&self, addr: T) -> StdResult<CosmosMsg> {
+    pub fn remove_hook<T: Into<String>>(&self, addr: T) -> StdResult<SubMsg> {
         let msg = Tg4ExecuteMsg::AddHook { addr: addr.into() };
         self.encode_msg(msg)
     }
 
-    pub fn update_admin<T: Into<String>>(&self, admin: Option<T>) -> StdResult<CosmosMsg> {
+    pub fn update_admin<T: Into<String>>(&self, admin: Option<T>) -> StdResult<SubMsg> {
         let msg = Tg4ExecuteMsg::UpdateAdmin {
             admin: admin.map(|x| x.into()),
         };

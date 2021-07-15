@@ -2,7 +2,7 @@ use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
 
-use cosmwasm_std::{Addr, CosmosMsg, StdError, StdResult, Storage};
+use cosmwasm_std::{Addr, StdError, StdResult, Storage, SubMsg};
 use cw_storage_plus::Item;
 
 // this is copied from cw4
@@ -60,11 +60,11 @@ impl<'a> Hooks<'a> {
         Ok(hooks.into_iter().map(String::from).collect())
     }
 
-    pub fn prepare_hooks<F: Fn(Addr) -> StdResult<CosmosMsg>>(
+    pub fn prepare_hooks<F: Fn(Addr) -> StdResult<SubMsg>>(
         &self,
         storage: &dyn Storage,
         prep: F,
-    ) -> StdResult<Vec<CosmosMsg>> {
+    ) -> StdResult<Vec<SubMsg>> {
         self.0
             .may_load(storage)?
             .unwrap_or_default()
@@ -78,7 +78,7 @@ impl<'a> Hooks<'a> {
 mod test {
     use super::*;
     use cosmwasm_std::testing::mock_dependencies;
-    use cosmwasm_std::{coins, BankMsg, Deps};
+    use cosmwasm_std::{coins, BankMsg, CosmosMsg, Deps};
 
     const HOOKS: Hooks = Hooks::new("hooks");
 
@@ -125,11 +125,10 @@ mod test {
     #[test]
     fn prepare_hook() {
         let payout = |addr: Addr| {
-            Ok(BankMsg::Send {
+            Ok(SubMsg::new(BankMsg::Send {
                 to_address: addr.into(),
                 amount: coins(12345, "bonus"),
-            }
-            .into())
+            }))
         };
         let mut deps = mock_dependencies(&[]);
         let storage = deps.as_mut().storage;
@@ -140,7 +139,7 @@ mod test {
         let mut msgs = HOOKS.prepare_hooks(storage, payout).unwrap();
         assert_eq!(msgs.len(), 2);
         // get the last message
-        match msgs.pop().unwrap() {
+        match msgs.pop().unwrap().msg {
             CosmosMsg::Bank(BankMsg::Send { to_address, amount }) => {
                 assert_eq!(to_address.as_str(), "one");
                 assert_eq!(amount, coins(12345, "bonus"));

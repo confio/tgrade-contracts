@@ -51,7 +51,7 @@ fn do_instantiate(
 ) -> Result<Response, ContractError> {
     let msg = InstantiateMsg {
         name: DSO_NAME.to_string(),
-        escrow_amount: Uint128(ESCROW_FUNDS),
+        escrow_amount: Uint128::new(ESCROW_FUNDS),
         voting_period: 14,
         quorum: Decimal::percent(40),
         threshold: Decimal::percent(60),
@@ -155,25 +155,25 @@ fn assert_escrow_paid<S: Storage, A: Api, Q: Querier>(
 ) {
     let escrow0 = query_escrow(deps.as_ref(), INIT_ADMIN.into()).unwrap();
     match voting0_escrow {
-        Some(escrow) => assert_eq!(escrow0.unwrap().paid, Uint128(escrow)),
+        Some(escrow) => assert_eq!(escrow0.unwrap().paid, Uint128::new(escrow)),
         None => assert_eq!(escrow0, None),
     };
 
     let escrow1 = query_escrow(deps.as_ref(), VOTING1.into()).unwrap();
     match voting1_escrow {
-        Some(escrow) => assert_eq!(escrow1.unwrap().paid, Uint128(escrow)),
+        Some(escrow) => assert_eq!(escrow1.unwrap().paid, Uint128::new(escrow)),
         None => assert_eq!(escrow1, None),
     };
 
     let escrow2 = query_escrow(deps.as_ref(), VOTING2.into()).unwrap();
     match voting2_escrow {
-        Some(escrow) => assert_eq!(escrow2.unwrap().paid, Uint128(escrow)),
+        Some(escrow) => assert_eq!(escrow2.unwrap().paid, Uint128::new(escrow)),
         None => assert_eq!(escrow2, None),
     };
 
     let escrow3 = query_escrow(deps.as_ref(), VOTING3.into()).unwrap();
     match voting3_escrow {
-        Some(escrow) => assert_eq!(escrow3.unwrap().paid, Uint128(escrow)),
+        Some(escrow) => assert_eq!(escrow3.unwrap().paid, Uint128::new(escrow)),
         None => assert_eq!(escrow3, None),
     };
 }
