@@ -586,76 +586,88 @@ mod test {
 
         // first, expired (voting period over)
         // over quorum (40% of 30 = 12), over threshold (7/11 > 50%)
-        assert_eq!(
-            true,
-            check_is_passed(early_end.clone(), passing.clone(), 30, true)
-        );
-        assert_eq!(
-            true,
-            check_is_passed(no_early_end.clone(), passing.clone(), 30, true)
-        );
+        assert!(check_is_passed(
+            early_end.clone(),
+            passing.clone(),
+            30,
+            true
+        ));
+        assert!(check_is_passed(
+            no_early_end.clone(),
+            passing.clone(),
+            30,
+            true
+        ));
         // under quorum it is not passing (40% of 33 = 13.2 > 13)
-        assert_eq!(
-            false,
-            check_is_passed(early_end.clone(), passing.clone(), 33, true)
-        );
+        assert!(!check_is_passed(
+            early_end.clone(),
+            passing.clone(),
+            33,
+            true
+        ));
         // over quorum, threshold passes if we ignore abstain
         // 17 total votes w/ abstain => 40% quorum of 40 total
         // 6 yes / (6 yes + 4 no + 2 votes) => 50% threshold
-        assert_eq!(
-            true,
-            check_is_passed(early_end.clone(), passes_ignoring_abstain.clone(), 40, true)
-        );
+        assert!(check_is_passed(
+            early_end.clone(),
+            passes_ignoring_abstain.clone(),
+            40,
+            true
+        ));
         // over quorum, but under threshold fails also
-        assert_eq!(false, check_is_passed(early_end.clone(), failing, 20, true));
+        assert!(!check_is_passed(early_end.clone(), failing, 20, true));
 
         // now, check with open voting period
         // would pass if closed, but fail here, as remaining votes no -> fail
-        assert_eq!(
-            false,
-            check_is_passed(early_end.clone(), passing.clone(), 30, false)
-        );
+        assert!(!check_is_passed(
+            early_end.clone(),
+            passing.clone(),
+            30,
+            false
+        ));
         // same for non-early end
-        assert_eq!(
-            false,
-            check_is_passed(no_early_end.clone(), passing.clone(), 30, false)
-        );
-        assert_eq!(
-            false,
-            check_is_passed(
-                early_end.clone(),
-                passes_ignoring_abstain.clone(),
-                40,
-                false
-            )
-        );
+        assert!(!check_is_passed(
+            no_early_end.clone(),
+            passing.clone(),
+            30,
+            false
+        ));
+        assert!(!check_is_passed(
+            early_end.clone(),
+            passes_ignoring_abstain.clone(),
+            40,
+            false
+        ));
         // if we have threshold * total_weight as yes votes this must pass
-        assert_eq!(
-            true,
-            check_is_passed(early_end.clone(), passing.clone(), 14, false)
-        );
+        assert!(check_is_passed(
+            early_end.clone(),
+            passing.clone(),
+            14,
+            false
+        ));
         // false with no early end
-        assert_eq!(
-            false,
-            check_is_passed(no_early_end.clone(), passing.clone(), 14, false)
-        );
+        assert!(!check_is_passed(
+            no_early_end.clone(),
+            passing.clone(),
+            14,
+            false
+        ));
         // all votes have been cast, some abstain
-        assert_eq!(
-            true,
-            check_is_passed(
-                early_end.clone(),
-                passes_ignoring_abstain.clone(),
-                17,
-                false
-            )
-        );
+        assert!(check_is_passed(
+            early_end.clone(),
+            passes_ignoring_abstain.clone(),
+            17,
+            false
+        ));
         // false with no early end
-        assert_eq!(
-            false,
-            check_is_passed(no_early_end, passes_ignoring_abstain, 17, false)
-        );
+        assert!(!check_is_passed(
+            no_early_end,
+            passes_ignoring_abstain,
+            17,
+            false
+        ));
         // 3 votes uncast, if they all vote no, we have 7 yes, 7 no+veto, 2 abstain (out of 16)
-        assert_eq!(true, check_is_passed(early_end, passing, 16, false));
+        assert!(check_is_passed(early_end, passing, 16, false));
     }
 
     #[test]
@@ -676,14 +688,13 @@ mod test {
             abstain: 0,
             veto: 0,
         };
-        assert_eq!(
-            false,
-            check_is_passed(quorum.clone(), missing_voters.clone(), 15, false)
-        );
-        assert_eq!(
-            false,
-            check_is_passed(quorum.clone(), missing_voters, 15, true)
-        );
+        assert!(!check_is_passed(
+            quorum.clone(),
+            missing_voters.clone(),
+            15,
+            false
+        ));
+        assert!(!check_is_passed(quorum.clone(), missing_voters, 15, true));
 
         // 1 less yes, 3 vetos and this passes only when expired
         let wait_til_expired = Votes {
@@ -692,14 +703,13 @@ mod test {
             abstain: 0,
             veto: 3,
         };
-        assert_eq!(
-            false,
-            check_is_passed(quorum.clone(), wait_til_expired.clone(), 15, false)
-        );
-        assert_eq!(
-            true,
-            check_is_passed(quorum.clone(), wait_til_expired, 15, true)
-        );
+        assert!(!check_is_passed(
+            quorum.clone(),
+            wait_til_expired.clone(),
+            15,
+            false
+        ));
+        assert!(check_is_passed(quorum.clone(), wait_til_expired, 15, true));
 
         // 9 yes and 3 nos passes early
         let passes_early = Votes {
@@ -708,10 +718,12 @@ mod test {
             abstain: 0,
             veto: 0,
         };
-        assert_eq!(
-            true,
-            check_is_passed(quorum.clone(), passes_early.clone(), 15, false)
-        );
-        assert_eq!(true, check_is_passed(quorum, passes_early, 15, true));
+        assert!(check_is_passed(
+            quorum.clone(),
+            passes_early.clone(),
+            15,
+            false
+        ));
+        assert!(check_is_passed(quorum, passes_early, 15, true));
     }
 }
