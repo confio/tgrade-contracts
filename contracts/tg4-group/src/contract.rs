@@ -1,8 +1,7 @@
 #[cfg(not(feature = "library"))]
 use cosmwasm_std::entry_point;
 use cosmwasm_std::{
-    attr, to_binary, Addr, Binary, Deps, DepsMut, Env, MessageInfo, Order, Response, StdResult,
-    SubMsg,
+    to_binary, Addr, Binary, Deps, DepsMut, Env, MessageInfo, Order, Response, StdResult, SubMsg,
 };
 use cw0::maybe_addr;
 use cw2::set_contract_version;
@@ -104,15 +103,11 @@ pub fn execute_add_hook(
     HOOKS.add_hook(deps.storage, deps.api.addr_validate(&hook)?)?;
 
     // response
-    let attributes = vec![
-        attr("action", "add_hook"),
-        attr("hook", hook),
-        attr("sender", info.sender),
-    ];
-    Ok(Response {
-        attributes,
-        ..Response::default()
-    })
+    let res = Response::new()
+        .add_attribute("action", "add_hook")
+        .add_attribute("hook", hook)
+        .add_attribute("sender", info.sender);
+    Ok(res)
 }
 
 pub fn execute_remove_hook(
@@ -130,15 +125,11 @@ pub fn execute_remove_hook(
     HOOKS.remove_hook(deps.storage, hook_addr)?;
 
     // response
-    let attributes = vec![
-        attr("action", "remove_hook"),
-        attr("hook", hook),
-        attr("sender", info.sender),
-    ];
-    Ok(Response {
-        attributes,
-        ..Response::default()
-    })
+    let resp = Response::new()
+        .add_attribute("action", "remove_hook")
+        .add_attribute("hook", hook)
+        .add_attribute("sender", info.sender);
+    Ok(resp)
 }
 
 pub fn execute_update_members(
@@ -148,24 +139,19 @@ pub fn execute_update_members(
     add: Vec<Member>,
     remove: Vec<String>,
 ) -> Result<Response, ContractError> {
-    let attributes = vec![
-        attr("action", "update_members"),
-        attr("added", add.len()),
-        attr("removed", remove.len()),
-        attr("sender", &info.sender),
-    ];
+    let mut res = Response::new()
+        .add_attribute("action", "update_members")
+        .add_attribute("added", add.len().to_string())
+        .add_attribute("removed", remove.len().to_string())
+        .add_attribute("sender", &info.sender);
 
     // make the local update
     let diff = update_members(deps.branch(), env.block.height, info.sender, add, remove)?;
     // call all registered hooks
-    let messages = HOOKS.prepare_hooks(deps.storage, |h| {
+    res.messages = HOOKS.prepare_hooks(deps.storage, |h| {
         diff.clone().into_cosmos_msg(h).map(SubMsg::new)
     })?;
-    Ok(Response {
-        messages,
-        attributes,
-        ..Response::default()
-    })
+    Ok(res)
 }
 
 // the logic from execute_update_members extracted for easier import

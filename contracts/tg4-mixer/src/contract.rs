@@ -1,7 +1,7 @@
 #[cfg(not(feature = "library"))]
 use cosmwasm_std::entry_point;
 use cosmwasm_std::{
-    attr, to_binary, Binary, Deps, DepsMut, Env, MessageInfo, Order, Response, StdResult, SubMsg,
+    to_binary, Binary, Deps, DepsMut, Env, MessageInfo, Order, Response, StdResult, SubMsg,
 };
 use cw0::maybe_addr;
 use cw2::set_contract_version;
@@ -40,19 +40,14 @@ pub fn instantiate(
     GROUPS.save(deps.storage, &groups)?;
 
     // add hooks to listen for all changes
-    let messages = vec![
-        groups.left.add_hook(&env.contract.address)?,
-        groups.right.add_hook(&env.contract.address)?,
-    ];
+    // TODO: what events to return here?
+    let res = Response::new()
+        .add_submessage(groups.left.add_hook(&env.contract.address)?)
+        .add_submessage(groups.right.add_hook(&env.contract.address)?);
 
     // calculate initial state from current members on both sides
     initialize_members(deps, groups, env.block.height)?;
-
-    // TODO: what events to return here?
-    Ok(Response {
-        messages,
-        ..Response::default()
-    })
+    Ok(res)
 }
 
 fn verify_tg4_input(deps: Deps, addr: &str) -> Result<Tg4Contract, ContractError> {
@@ -120,11 +115,10 @@ pub fn execute_member_changed(
     info: MessageInfo,
     changes: MemberChangedHookMsg,
 ) -> Result<Response, ContractError> {
-    let attributes = vec![
-        attr("action", "update_members"),
-        attr("changed", changes.diffs.len()),
-        attr("sender", &info.sender),
-    ];
+    let mut res = Response::new()
+        .add_attribute("action", "update_members")
+        .add_attribute("changed", changes.diffs.len().to_string())
+        .add_attribute("sender", &info.sender);
 
     let groups = GROUPS.load(deps.storage)?;
 
@@ -138,15 +132,10 @@ pub fn execute_member_changed(
     }?;
 
     // call all registered hooks
-    let messages = HOOKS.prepare_hooks(deps.storage, |h| {
+    res.messages = HOOKS.prepare_hooks(deps.storage, |h| {
         diff.clone().into_cosmos_msg(h).map(SubMsg::new)
     })?;
-
-    Ok(Response {
-        messages,
-        attributes,
-        ..Response::default()
-    })
+    Ok(res)
 }
 
 // the logic from execute_update_members extracted for easier re-usability
@@ -203,15 +192,11 @@ pub fn execute_add_hook(
     HOOKS.add_hook(deps.storage, deps.api.addr_validate(&hook)?)?;
 
     // response
-    let attributes = vec![
-        attr("action", "add_hook"),
-        attr("hook", hook),
-        attr("sender", info.sender),
-    ];
-    Ok(Response {
-        attributes,
-        ..Response::default()
-    })
+    let res = Response::new()
+        .add_attribute("action", "add_hook")
+        .add_attribute("hook", hook)
+        .add_attribute("sender", info.sender);
+    Ok(res)
 }
 
 pub fn execute_remove_hook(
@@ -229,15 +214,11 @@ pub fn execute_remove_hook(
     HOOKS.remove_hook(deps.storage, hook_addr)?;
 
     // response
-    let attributes = vec![
-        attr("action", "remove_hook"),
-        attr("hook", hook),
-        attr("sender", info.sender),
-    ];
-    Ok(Response {
-        attributes,
-        ..Response::default()
-    })
+    let res = Response::new()
+        .add_attribute("action", "remove_hook")
+        .add_attribute("hook", hook)
+        .add_attribute("sender", info.sender);
+    Ok(res)
 }
 
 #[cfg_attr(not(feature = "library"), entry_point)]
@@ -348,7 +329,7 @@ mod tests {
     use cosmwasm_std::{coins, Addr, Empty, Uint128};
     use cw0::Duration;
     use cw20::Denom;
-    use cw_multi_test::{next_block, App, Contract, ContractWrapper, SimpleBank};
+    use cw_multi_test::{next_block, App, BankKeeper, Contract, ContractWrapper, Executor};
 
     const STAKE_DENOM: &str = "utgd";
     const OWNER: &str = "owner";
@@ -395,9 +376,9 @@ mod tests {
     fn mock_app() -> App {
         let env = mock_env();
         let api = Box::new(MockApi::default());
-        let bank = SimpleBank {};
+        let bank = BankKeeper::new();
 
-        App::new(api, env.block, bank, || Box::new(MockStorage::new()))
+        App::new(api, env.block, bank, Box::new(MockStorage::new()))
     }
 
     // uploads code and returns address of group contract
@@ -432,7 +413,7 @@ mod tests {
             // give them a balance
             let balance = coins(staker.weight as u128, STAKE_DENOM);
             let caller = Addr::unchecked(staker.addr);
-            app.set_bank_balance(&caller, balance.clone()).unwrap();
+            app.init_bank_balance(&caller, balance.clone()).unwrap();
 
             // they stake to the contract
             let msg = tg4_stake::msg::ExecuteMsg::Bond {};
@@ -565,7 +546,7 @@ mod tests {
 
         // stake some tokens, update the values
         let balance = coins(450, STAKE_DENOM);
-        app.set_bank_balance(&Addr::unchecked(VOTER5), balance.clone())
+        app.init_bank_balance(&Addr::unchecked(VOTER5), balance.clone())
             .unwrap();
         let msg = tg4_stake::msg::ExecuteMsg::Bond {};
         app.execute_contract(Addr::unchecked(VOTER5), staker_addr, &msg, &balance)
