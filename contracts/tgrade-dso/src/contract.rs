@@ -319,8 +319,7 @@ pub fn execute_propose(
     // of this proposal (which uses a snapshot)
     let mut last_block = env.block.clone();
     last_block.height -= 1;
-    let mut res = Response::new();
-    res.attributes = check_pending(deps.storage, &last_block, vec![])?;
+    let attrs = check_pending(deps.storage, &last_block)?;
 
     // create a proposal
     let dso = DSO.load(deps.storage)?;
@@ -345,7 +344,8 @@ pub fn execute_propose(
     };
     save_ballot(deps.storage, id, &info.sender, &ballot)?;
 
-    let res = res
+    let res = Response::new()
+        .add_attributes(attrs)
         .add_attribute("proposal_id", id.to_string())
         .add_attribute("action", "propose")
         .add_attribute("sender", info.sender);
@@ -573,21 +573,15 @@ pub fn execute_check_pending(
 ) -> Result<Response, ContractError> {
     cw0::nonpayable(&info)?;
 
-    let mut res = Response::new();
-    let start = vec![
-        attr("action", "check_pending"),
-        attr("sender", &info.sender),
-    ];
-    res.attributes = check_pending(deps.storage, &env.block, start)?;
+    let attrs = check_pending(deps.storage, &env.block)?;
+    let res = Response::new()
+        .add_attribute("action", "check_pending")
+        .add_attribute("sender", &info.sender)
+        .add_attributes(attrs);
     Ok(res)
 }
 
-fn check_pending(
-    storage: &mut dyn Storage,
-    block: &BlockInfo,
-    // the starting attributes (may be empty)
-    mut attributes: Vec<Attribute>,
-) -> StdResult<Vec<Attribute>> {
+fn check_pending(storage: &mut dyn Storage, block: &BlockInfo) -> StdResult<Vec<Attribute>> {
     let batch_map = batches();
 
     // Limit to batches that have not yet been promoted (0), using sub_prefix.
@@ -605,6 +599,7 @@ fn check_pending(
         .range(storage, None, Some(bound), Order::Ascending)
         .collect::<StdResult<Vec<_>>>()?;
 
+    let mut attributes = vec![];
     for (key, mut batch) in ready {
         let batch_id = parse_id(&key)?;
         // TODO: revisit this with multiple Events
@@ -659,9 +654,9 @@ pub fn proposal_edit_dso(
         return Err(ContractError::Unimplemented {});
     }
 
-    let mut res = Response::new();
-    res.attributes = adjustments.as_attributes();
-    let res = res.add_attribute("proposal", "edit_dso");
+    let res = Response::new()
+        .add_attributes(adjustments.as_attributes())
+        .add_attribute("proposal", "edit_dso");
 
     DSO.update::<_, ContractError>(deps.storage, |mut dso| {
         dso.apply_adjustments(adjustments);
