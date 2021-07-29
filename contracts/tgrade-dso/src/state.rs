@@ -123,16 +123,16 @@ impl DsoAdjustments {
             res.push(attr("escrow_amount", escrow_amount));
         }
         if let Some(voting_period) = self.voting_period {
-            res.push(attr("voting_period", voting_period));
+            res.push(attr("voting_period", voting_period.to_string()));
         }
         if let Some(quorum) = self.quorum {
-            res.push(attr("quorum", quorum));
+            res.push(attr("quorum", quorum.to_string()));
         }
         if let Some(threshold) = self.threshold {
-            res.push(attr("threshold", threshold));
+            res.push(attr("threshold", threshold.to_string()));
         }
         if let Some(allow_end_early) = self.allow_end_early {
-            res.push(attr("allow_end_early", allow_end_early));
+            res.push(attr("allow_end_early", allow_end_early.to_string()));
         }
         res
     }

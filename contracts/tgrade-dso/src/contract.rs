@@ -2,7 +2,7 @@
 use cosmwasm_std::entry_point;
 use cosmwasm_std::{
     attr, coin, to_binary, Addr, Attribute, BankMsg, Binary, BlockInfo, Deps, DepsMut, Env,
-    MessageInfo, Order, Response, StdError, StdResult, Storage, SubMsg, Uint128,
+    MessageInfo, Order, Response, StdError, StdResult, Storage,
 };
 use cw0::{maybe_addr, Expiration};
 use cw2::set_contract_version;
@@ -114,8 +114,13 @@ pub fn execute_deposit_escrow(
     let amount = cw0::must_pay(&info, DSO_DENOM)?;
     escrow.paid += amount;
 
+    let mut res = Response::new()
+        .add_attribute("action", "deposit_escrow")
+        .add_attribute("sender", &info.sender)
+        .add_attribute("amount", amount.to_string());
+
     // check to see if we update the pending status
-    let attrs = match escrow.status {
+    match escrow.status {
         MemberStatus::Pending { batch_id: batch } => {
             let required_escrow = DSO.load(deps.storage)?.escrow_amount;
             if escrow.paid >= required_escrow {
@@ -123,31 +128,20 @@ pub fn execute_deposit_escrow(
                 escrow.status = MemberStatus::PendingPaid { batch_id: batch };
                 ESCROWS.save(deps.storage, &info.sender, &escrow)?;
                 // Now check if this batch is ready...
-                update_batch_after_escrow_paid(deps, env, batch, &info.sender)?
+                let attrs = update_batch_after_escrow_paid(deps, env, batch, &info.sender)?;
+                res.attributes.extend(attrs);
             } else {
                 // Otherwise, just update the paid value until later
                 ESCROWS.save(deps.storage, &info.sender, &escrow)?;
-                vec![]
             }
+            Ok(res)
         }
         MemberStatus::PendingPaid { .. } | MemberStatus::Voting {} => {
             ESCROWS.save(deps.storage, &info.sender, &escrow)?;
-            vec![]
+            Ok(res)
         }
-        _ => return Err(ContractError::InvalidStatus(escrow.status)),
-    };
-
-    let mut attributes = vec![
-        attr("action", "deposit_escrow"),
-        attr("sender", info.sender),
-        attr("amount", amount),
-    ];
-    attributes.extend(attrs);
-
-    Ok(Response {
-        attributes,
-        ..Response::default()
-    })
+        _ => Err(ContractError::InvalidStatus(escrow.status)),
+    }
 }
 
 /// Call when `paid_escrow` has now paid in sufficient escrow.
@@ -274,12 +268,11 @@ pub fn execute_return_escrow(
         _ => return Err(ContractError::InvalidStatus(escrow.status)),
     };
 
-    let attributes = vec![attr("action", "return_escrow"), attr("amount", refund)];
+    let mut res = Response::new()
+        .add_attribute("action", "return_escrow")
+        .add_attribute("amount", refund);
     if refund.is_zero() {
-        return Ok(Response {
-            attributes,
-            ..Response::default()
-        });
+        return Ok(res);
     }
 
     // Update remaining escrow
@@ -294,13 +287,13 @@ pub fn execute_return_escrow(
     }
 
     // Refund tokens
-    let messages = send_tokens(&info.sender, &refund);
-
-    Ok(Response {
-        messages,
-        attributes,
-        ..Response::default()
-    })
+    if !refund.is_zero() {
+        res = res.add_message(BankMsg::Send {
+            to_address: info.sender.into(),
+            amount: vec![coin(refund.u128(), DSO_DENOM)],
+        });
+    }
+    Ok(res)
 }
 
 pub fn execute_propose(
@@ -326,7 +319,8 @@ pub fn execute_propose(
     // of this proposal (which uses a snapshot)
     let mut last_block = env.block.clone();
     last_block.height -= 1;
-    let mut attributes = check_pending(deps.storage, &last_block, vec![])?;
+    let mut res = Response::new();
+    res.attributes = check_pending(deps.storage, &last_block, vec![])?;
 
     // create a proposal
     let dso = DSO.load(deps.storage)?;
@@ -351,15 +345,11 @@ pub fn execute_propose(
     };
     save_ballot(deps.storage, id, &info.sender, &ballot)?;
 
-    attributes.extend_from_slice(&[
-        attr("action", "propose"),
-        attr("sender", info.sender),
-        attr("proposal_id", id),
-    ]);
-    Ok(Response {
-        attributes,
-        ..Response::default()
-    })
+    let res = res
+        .add_attribute("proposal_id", id.to_string())
+        .add_attribute("action", "propose")
+        .add_attribute("sender", info.sender);
+    Ok(res)
 }
 
 pub fn execute_vote(
@@ -413,15 +403,12 @@ pub fn execute_vote(
     prop.update_status(&env.block);
     PROPOSALS.save(deps.storage, proposal_id.into(), &prop)?;
 
-    Ok(Response {
-        attributes: vec![
-            attr("action", "vote"),
-            attr("sender", info.sender),
-            attr("proposal_id", proposal_id),
-            attr("status", format!("{:?}", prop.status)),
-        ],
-        ..Response::default()
-    })
+    let res = Response::new()
+        .add_attribute("action", "vote")
+        .add_attribute("sender", info.sender)
+        .add_attribute("proposal_id", proposal_id.to_string())
+        .add_attribute("status", format!("{:?}", prop.status));
+    Ok(res)
 }
 
 pub fn execute_execute(
@@ -446,9 +433,9 @@ pub fn execute_execute(
     PROPOSALS.save(deps.storage, proposal_id.into(), &prop)?;
 
     // execute the proposal
-    let mut res = proposal_execute(deps.branch(), env, prop.proposal)?;
-    res.add_attribute("action", "execute");
-    res.add_attribute("proposal_id", proposal_id.to_string());
+    let res = proposal_execute(deps.branch(), env, prop.proposal)?
+        .add_attribute("action", "execute")
+        .add_attribute("proposal_id", proposal_id.to_string());
 
     Ok(res)
 }
@@ -478,14 +465,11 @@ pub fn execute_close(
     prop.status = Status::Rejected;
     PROPOSALS.save(deps.storage, proposal_id.into(), &prop)?;
 
-    Ok(Response {
-        attributes: vec![
-            attr("action", "close"),
-            attr("sender", info.sender),
-            attr("proposal_id", proposal_id),
-        ],
-        ..Response::default()
-    })
+    let res = Response::new()
+        .add_attribute("action", "close")
+        .add_attribute("sender", info.sender)
+        .add_attribute("proposal_id", proposal_id.to_string());
+    Ok(res)
 }
 
 pub fn execute_leave_dso(
@@ -514,14 +498,11 @@ fn leave_immediately(deps: DepsMut, env: Env, leaver: Addr) -> Result<Response, 
     members().remove(deps.storage, &leaver, env.block.height)?;
     ESCROWS.remove(deps.storage, &leaver);
 
-    Ok(Response {
-        attributes: vec![
-            attr("action", "leave_dso"),
-            attr("type", "immediately"),
-            attr("sender", leaver),
-        ],
-        ..Response::default()
-    })
+    let res = Response::new()
+        .add_attribute("action", "leave_dso")
+        .add_attribute("type", "immediately")
+        .add_attribute("sender", leaver);
+    Ok(res)
 }
 
 fn trigger_long_leave(
@@ -548,15 +529,12 @@ fn trigger_long_leave(
     escrow.status = MemberStatus::Leaving { claim_at };
     ESCROWS.save(deps.storage, &leaver, &escrow)?;
 
-    Ok(Response {
-        attributes: vec![
-            attr("action", "leave_dso"),
-            attr("type", "delayed"),
-            attr("claim_at", claim_at),
-            attr("sender", leaver),
-        ],
-        ..Response::default()
-    })
+    let res = Response::new()
+        .add_attribute("action", "leave_dso")
+        .add_attribute("type", "delayed")
+        .add_attribute("claim_at", claim_at.to_string())
+        .add_attribute("sender", leaver);
+    Ok(res)
 }
 
 fn adjust_open_proposals_for_leaver(
@@ -595,15 +573,13 @@ pub fn execute_check_pending(
 ) -> Result<Response, ContractError> {
     cw0::nonpayable(&info)?;
 
+    let mut res = Response::new();
     let start = vec![
         attr("action", "check_pending"),
         attr("sender", &info.sender),
     ];
-    let attributes = check_pending(deps.storage, &env.block, start)?;
-    Ok(Response {
-        attributes,
-        ..Response::default()
-    })
+    res.attributes = check_pending(deps.storage, &env.block, start)?;
+    Ok(res)
 }
 
 fn check_pending(
@@ -631,9 +607,10 @@ fn check_pending(
 
     for (key, mut batch) in ready {
         let batch_id = parse_id(&key)?;
+        // TODO: revisit this with multiple Events
         let attrs =
             convert_all_paid_members_to_voters(storage, batch_id, &mut batch, block.height)?;
-        attributes.push(attr("batch", batch_id));
+        attributes.push(attr("batch", batch_id.to_string()));
         attributes.extend(attrs);
     }
 
@@ -662,18 +639,14 @@ pub fn proposal_add_remove_non_voting_members(
     add: Vec<String>,
     remove: Vec<String>,
 ) -> Result<Response, ContractError> {
-    let attributes = vec![
-        attr("proposal", "add_remove_non_voting_members"),
-        attr("added", add.len()),
-        attr("removed", remove.len()),
-    ];
+    let res = Response::new()
+        .add_attribute("proposal", "add_remove_non_voting_members")
+        .add_attribute("added", add.len().to_string())
+        .add_attribute("removed", remove.len().to_string());
 
     // make the local update
     let _diff = add_remove_non_voting_members(deps, env.block.height, add, remove)?;
-    Ok(Response {
-        attributes,
-        ..Response::default()
-    })
+    Ok(res)
 }
 
 pub fn proposal_edit_dso(
@@ -686,19 +659,16 @@ pub fn proposal_edit_dso(
         return Err(ContractError::Unimplemented {});
     }
 
-    let mut attributes = adjustments.as_attributes();
-    attributes.push(attr("proposal", "edit_dso"));
+    let mut res = Response::new();
+    res.attributes = adjustments.as_attributes();
+    let res = res.add_attribute("proposal", "edit_dso");
 
     DSO.update::<_, ContractError>(deps.storage, |mut dso| {
         dso.apply_adjustments(adjustments);
         Ok(dso)
     })?;
 
-    // make the local update
-    Ok(Response {
-        attributes,
-        ..Response::default()
-    })
+    Ok(res)
 }
 
 pub fn proposal_add_voting_members(
@@ -722,11 +692,10 @@ pub fn proposal_add_voting_members(
     };
     let batch_id = create_batch(deps.storage, &batch)?;
 
-    let attributes = vec![
-        attr("action", "add_voting_members"),
-        attr("added", to_add.len()),
-        attr("batch_id", batch_id),
-    ];
+    let res = Response::new()
+        .add_attribute("action", "add_voting_members")
+        .add_attribute("added", to_add.len().to_string())
+        .add_attribute("batch_id", batch_id.to_string());
 
     // use the same placeholder for everyone in the batch
     let escrow = EscrowStatus::pending(batch_id);
@@ -746,21 +715,7 @@ pub fn proposal_add_voting_members(
         }
     }
 
-    Ok(Response {
-        attributes,
-        ..Response::default()
-    })
-}
-
-fn send_tokens(to: &Addr, amount: &Uint128) -> Vec<SubMsg> {
-    if amount.is_zero() {
-        vec![]
-    } else {
-        vec![SubMsg::new(BankMsg::Send {
-            to_address: to.into(),
-            amount: vec![coin(amount.u128(), DSO_DENOM)],
-        })]
-    }
+    Ok(res)
 }
 
 // This is a helper used both on instantiation as well as on passed proposals
