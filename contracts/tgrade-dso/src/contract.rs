@@ -1,8 +1,8 @@
 #[cfg(not(feature = "library"))]
 use cosmwasm_std::entry_point;
 use cosmwasm_std::{
-    attr, coin, to_binary, Addr, Attribute, BankMsg, Binary, BlockInfo, Deps, DepsMut, Env,
-    MessageInfo, Order, Response, StdError, StdResult, Storage,
+    coin, to_binary, Addr, BankMsg, Binary, BlockInfo, Deps, DepsMut, Env, Event, MessageInfo,
+    Order, Response, StdError, StdResult, Storage,
 };
 use cw0::{maybe_addr, Expiration};
 use cw2::set_contract_version;
@@ -128,8 +128,10 @@ pub fn execute_deposit_escrow(
                 escrow.status = MemberStatus::PendingPaid { batch_id: batch };
                 ESCROWS.save(deps.storage, &info.sender, &escrow)?;
                 // Now check if this batch is ready...
-                let attrs = update_batch_after_escrow_paid(deps, env, batch, &info.sender)?;
-                res.attributes.extend(attrs);
+                if let Some(event) = update_batch_after_escrow_paid(deps, env, batch, &info.sender)?
+                {
+                    res = res.add_event(event);
+                }
             } else {
                 // Otherwise, just update the paid value until later
                 ESCROWS.save(deps.storage, &info.sender, &escrow)?;
@@ -154,7 +156,7 @@ fn update_batch_after_escrow_paid(
     env: Env,
     batch_id: u64,
     paid_escrow: &Addr,
-) -> Result<Vec<Attribute>, ContractError> {
+) -> Result<Option<Event>, ContractError> {
     // We first check and update this batch state
     let mut batch = batches().load(deps.storage, batch_id.into())?;
     // This will panic if we hit 0. That said, it can never go below 0 if we call this once per member.
@@ -162,27 +164,37 @@ fn update_batch_after_escrow_paid(
     batch.waiting_escrow -= 1;
 
     let height = env.block.height;
-    let attrs = match (batch.can_promote(&env.block), batch.batch_promoted) {
+    match (batch.can_promote(&env.block), batch.batch_promoted) {
         (true, true) => {
             batches().save(deps.storage, batch_id.into(), &batch)?;
             // just promote this one, everyone else has been promoted
-            convert_to_voter_if_paid(deps.storage, paid_escrow, height)?;
-            // update the total with the new weight
-            TOTAL.update::<_, StdError>(deps.storage, |old| Ok(old + VOTING_WEIGHT))?;
-            vec![attr("promoted", paid_escrow)]
+            if convert_to_voter_if_paid(deps.storage, paid_escrow, height)? {
+                // update the total with the new weight
+                TOTAL.update::<_, StdError>(deps.storage, |old| Ok(old + VOTING_WEIGHT))?;
+                let evt = Event::new(PROMOTE_TYPE)
+                    .add_attribute(BATCH_KEY, batch_id.to_string())
+                    .add_attribute(MEMBER_KEY, paid_escrow);
+                Ok(Some(evt))
+            } else {
+                Ok(None)
+            }
         }
         (true, false) => {
-            convert_all_paid_members_to_voters(deps.storage, batch_id, &mut batch, height)?
+            let evt =
+                convert_all_paid_members_to_voters(deps.storage, batch_id, &mut batch, height)?;
+            Ok(Some(evt))
         }
         // not ready yet
         _ => {
             batches().save(deps.storage, batch_id.into(), &batch)?;
-            vec![]
+            Ok(None)
         }
-    };
-
-    Ok(attrs)
+    }
 }
+
+const PROMOTE_TYPE: &str = "promoted";
+const BATCH_KEY: &str = "batch";
+const MEMBER_KEY: &str = "member";
 
 /// Call when the batch is ready to become voters (all paid or expiration hit).
 /// This checks all members if they have paid up, and if so makes them full voters.
@@ -193,13 +205,14 @@ fn convert_all_paid_members_to_voters(
     batch_id: u64,
     batch: &mut Batch,
     height: u64,
-) -> StdResult<Vec<Attribute>> {
+) -> StdResult<Event> {
+    let mut evt = Event::new(PROMOTE_TYPE).add_attribute(BATCH_KEY, batch_id.to_string());
+
     // try to promote them all
     let mut added = 0;
-    let mut attrs = Vec::with_capacity(batch.members.len());
     for waiting in batch.members.iter() {
         if convert_to_voter_if_paid(storage, waiting, height)? {
-            attrs.push(attr("promoted", waiting));
+            evt = evt.add_attribute(MEMBER_KEY, waiting);
             added += VOTING_WEIGHT;
         }
     }
@@ -212,7 +225,7 @@ fn convert_all_paid_members_to_voters(
         TOTAL.update::<_, StdError>(storage, |old| Ok(old + added))?;
     }
 
-    Ok(attrs)
+    Ok(evt)
 }
 
 /// Returns true if this address was fully paid, false otherwise.
@@ -319,7 +332,7 @@ pub fn execute_propose(
     // of this proposal (which uses a snapshot)
     let mut last_block = env.block.clone();
     last_block.height -= 1;
-    let attrs = check_pending(deps.storage, &last_block)?;
+    let events = check_pending(deps.storage, &last_block)?;
 
     // create a proposal
     let dso = DSO.load(deps.storage)?;
@@ -345,10 +358,10 @@ pub fn execute_propose(
     save_ballot(deps.storage, id, &info.sender, &ballot)?;
 
     let res = Response::new()
-        .add_attributes(attrs)
         .add_attribute("proposal_id", id.to_string())
         .add_attribute("action", "propose")
-        .add_attribute("sender", info.sender);
+        .add_attribute("sender", info.sender)
+        .add_events(events);
     Ok(res)
 }
 
@@ -573,15 +586,15 @@ pub fn execute_check_pending(
 ) -> Result<Response, ContractError> {
     cw0::nonpayable(&info)?;
 
-    let attrs = check_pending(deps.storage, &env.block)?;
+    let events = check_pending(deps.storage, &env.block)?;
     let res = Response::new()
         .add_attribute("action", "check_pending")
         .add_attribute("sender", &info.sender)
-        .add_attributes(attrs);
+        .add_events(events);
     Ok(res)
 }
 
-fn check_pending(storage: &mut dyn Storage, block: &BlockInfo) -> StdResult<Vec<Attribute>> {
+fn check_pending(storage: &mut dyn Storage, block: &BlockInfo) -> StdResult<Vec<Event>> {
     let batch_map = batches();
 
     // Limit to batches that have not yet been promoted (0), using sub_prefix.
@@ -599,17 +612,14 @@ fn check_pending(storage: &mut dyn Storage, block: &BlockInfo) -> StdResult<Vec<
         .range(storage, None, Some(bound), Order::Ascending)
         .collect::<StdResult<Vec<_>>>()?;
 
-    let mut attributes = vec![];
+    let mut events = vec![];
     for (key, mut batch) in ready {
         let batch_id = parse_id(&key)?;
-        // TODO: revisit this with multiple Events
-        let attrs =
-            convert_all_paid_members_to_voters(storage, batch_id, &mut batch, block.height)?;
-        attributes.push(attr("batch", batch_id.to_string()));
-        attributes.extend(attrs);
+        let evt = convert_all_paid_members_to_voters(storage, batch_id, &mut batch, block.height)?;
+        events.push(evt);
     }
 
-    Ok(attributes)
+    Ok(events)
 }
 
 pub fn proposal_execute(
