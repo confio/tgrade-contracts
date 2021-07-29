@@ -103,11 +103,11 @@ fn execute_register_validator_key(
         None => operators().save(deps.storage, &info.sender, &pubkey)?,
     };
 
-    let mut res = Response::new();
-    res.add_attribute("action", "register_validator_key");
-    res.add_attribute("operator", info.sender);
-    res.add_attribute("pubkey_type", "ed25519");
-    res.add_attribute("pubkey_value", pubkey.to_base64());
+    let res = Response::new()
+        .add_attribute("action", "register_validator_key")
+        .add_attribute("operator", info.sender)
+        .add_attribute("pubkey_type", "ed25519")
+        .add_attribute("pubkey_value", pubkey.to_base64());
     Ok(res)
 }
 
@@ -226,16 +226,14 @@ pub fn sudo(deps: DepsMut, env: Env, msg: TgradeSudoMsg) -> Result<Response, Con
 fn privilege_change(_deps: DepsMut, change: PrivilegeChangeMsg) -> Response {
     match change {
         PrivilegeChangeMsg::Promoted {} => {
-            let messages =
+            let mut res = Response::new();
+            res.messages =
                 request_privileges(&[Privilege::ValidatorSetUpdater, Privilege::TokenMinter]);
-            Response {
-                messages,
-                ..Response::default()
-            }
+            res
         }
         PrivilegeChangeMsg::Demoted {} => {
             // TODO: signal this is frozen?
-            Response::default()
+            Response::new()
         }
     }
 }
@@ -277,15 +275,9 @@ fn end_block(deps: DepsMut, env: Env) -> Result<Response, ContractError> {
     let diff = calculate_diff(validators, old_validators);
 
     // provide payment if there is rewards to give
-    let messages = if pay_epochs > 0 && !pay_to.is_empty() {
-        pay_block_rewards(deps, env, pay_to, pay_epochs)?
-    } else {
-        vec![]
-    };
-    let res = Response {
-        messages,
-        data: Some(to_binary(&diff)?),
-        ..Response::default()
+    let mut res = Response::new().set_data(to_binary(&diff)?);
+    if pay_epochs > 0 && !pay_to.is_empty() {
+        res.messages = pay_block_rewards(deps, env, pay_to, pay_epochs)?
     };
     Ok(res)
 }
@@ -386,7 +378,7 @@ fn calculate_diff(cur_vals: Vec<ValidatorInfo>, old_vals: Vec<ValidatorInfo>) ->
 
 #[cfg(test)]
 mod test {
-    use cw_multi_test::{App, Contract, ContractWrapper};
+    use cw_multi_test::{App, Contract, ContractWrapper, Executor};
 
     use super::*;
     use crate::test_helpers::{

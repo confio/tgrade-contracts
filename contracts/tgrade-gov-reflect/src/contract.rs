@@ -50,10 +50,9 @@ pub fn execute_execute(
     if info.sender != config.owner {
         return Err(ContractError::Unauthorized {});
     }
-    Ok(Response {
-        messages,
-        ..Response::default()
-    })
+    let mut res = Response::new();
+    res.messages = messages;
+    Ok(res)
 }
 
 pub fn execute_proposal(
@@ -72,10 +71,9 @@ pub fn execute_proposal(
         description,
         proposal,
     };
-    Ok(Response {
-        messages: vec![SubMsg::new(msg)],
-        ..Response::default()
-    })
+    let mut res = Response::new();
+    res.messages = vec![SubMsg::new(msg)];
+    Ok(res)
 }
 
 #[entry_point]
@@ -107,22 +105,10 @@ pub fn sudo(
 fn privilege_change(_deps: DepsMut, change: PrivilegeChangeMsg) -> Response<TgradeMsg> {
     match change {
         PrivilegeChangeMsg::Promoted {} => {
-            let messages = vec![SubMsg::new(PrivilegeMsg::Request(
-                Privilege::GovProposalExecutor,
-            ))];
-            Response {
-                messages,
-                ..Response::default()
-            }
+            Response::new().add_message(PrivilegeMsg::Request(Privilege::GovProposalExecutor))
         }
         PrivilegeChangeMsg::Demoted {} => {
-            let messages = vec![SubMsg::new(PrivilegeMsg::Release(
-                Privilege::GovProposalExecutor,
-            ))];
-            Response {
-                messages,
-                ..Response::default()
-            }
+            Response::new().add_message(PrivilegeMsg::Release(Privilege::GovProposalExecutor))
         }
     }
 }

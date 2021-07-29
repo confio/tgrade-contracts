@@ -1,7 +1,7 @@
 #![cfg(test)]
 use cosmwasm_std::testing::{mock_env, MockApi, MockStorage};
 use cosmwasm_std::{Addr, Binary};
-use cw_multi_test::{App, Contract, ContractWrapper, SimpleBank};
+use cw_multi_test::{App, BankKeeper, Contract, ContractWrapper};
 
 use tg4::Member;
 use tgrade_bindings::{Pubkey, TgradeMsg};
@@ -14,18 +14,18 @@ const ED25519_PUBKEY_LENGTH: usize = 32;
 pub fn mock_app() -> App<TgradeMsg> {
     let env = mock_env();
     let api = Box::new(MockApi::default());
-    let bank = SimpleBank {};
+    let bank = BankKeeper::new();
 
-    App::new(api, env.block, bank, || Box::new(MockStorage::new()))
+    App::new(api, env.block, bank, Box::new(MockStorage::new()))
 }
 
 pub fn contract_valset() -> Box<dyn Contract<TgradeMsg>> {
-    let contract = ContractWrapper::new_with_sudo(
+    let contract = ContractWrapper::new(
         crate::contract::execute,
         crate::contract::instantiate,
         crate::contract::query,
-        crate::contract::sudo,
-    );
+    )
+    .with_sudo(crate::contract::sudo);
     Box::new(contract)
 }
 
