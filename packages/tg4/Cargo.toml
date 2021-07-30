@@ -1,6 +1,6 @@
 [package]
 name = "tg4"
-version = "0.2.1"
+version = "0.3.0-rc1"
 authors = ["Ethan Frey <ethanfrey@users.noreply.github.com>"]
 edition = "2018"
 description = "Tgrade-4 Interface: Groups Members"
