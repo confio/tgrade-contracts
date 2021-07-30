@@ -9,7 +9,7 @@ use tgrade_bindings::TgradeMsg;
 
 use tg4_stake::msg::ExecuteMsg;
 
-use cw_multi_test::{App, Contract, ContractWrapper};
+use cw_multi_test::{App, Contract, ContractWrapper, Executor};
 
 use crate::msg::{
     ConfigResponse, EpochResponse, InstantiateMsg, ListActiveValidatorsResponse, QueryMsg,
@@ -210,7 +210,7 @@ fn simulate_validators() {
     // First, let's fund the operators
     let operator_funds = cosmwasm_std::coins(OPERATOR_FUNDS, BOND_DENOM);
     for op_addr in &operators {
-        app.set_bank_balance(&op_addr, operator_funds.clone())
+        app.init_bank_balance(&op_addr, operator_funds.clone())
             .unwrap();
     }
 

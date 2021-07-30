@@ -1,8 +1,8 @@
 #[cfg(not(feature = "library"))]
 use cosmwasm_std::entry_point;
 use cosmwasm_std::{
-    attr, coin, coins, to_binary, Addr, BankMsg, Binary, Coin, Deps, DepsMut, Env, MessageInfo,
-    Order, Response, StdError, StdResult, Storage, SubMsg, Uint128,
+    coin, coins, to_binary, Addr, BankMsg, Binary, Coin, Deps, DepsMut, Env, MessageInfo, Order,
+    Response, StdError, StdResult, Storage, SubMsg, Uint128,
 };
 
 use cw0::{maybe_addr, NativeBalance};
@@ -91,15 +91,11 @@ pub fn execute_add_hook(
     HOOKS.add_hook(deps.storage, deps.api.addr_validate(&hook)?)?;
 
     // response
-    let attributes = vec![
-        attr("action", "add_hook"),
-        attr("hook", hook),
-        attr("sender", info.sender),
-    ];
-    Ok(Response {
-        attributes,
-        ..Response::default()
-    })
+    let res = Response::new()
+        .add_attribute("action", "add_hook")
+        .add_attribute("hook", hook)
+        .add_attribute("sender", info.sender);
+    Ok(res)
 }
 
 pub fn execute_remove_hook(
@@ -117,15 +113,11 @@ pub fn execute_remove_hook(
     HOOKS.remove_hook(deps.storage, hook_addr)?;
 
     // response
-    let attributes = vec![
-        attr("action", "remove_hook"),
-        attr("hook", hook),
-        attr("sender", info.sender),
-    ];
-    Ok(Response {
-        attributes,
-        ..Response::default()
-    })
+    let res = Response::new()
+        .add_attribute("action", "remove_hook")
+        .add_attribute("hook", hook)
+        .add_attribute("sender", info.sender);
+    Ok(res)
 }
 
 pub fn execute_bond(
@@ -158,24 +150,13 @@ pub fn execute_bond(
         Ok(stake.unwrap_or_default() + amount)
     })?;
 
-    let messages = update_membership(
-        deps.storage,
-        sender.clone(),
-        new_stake,
-        &cfg,
-        env.block.height,
-    )?;
+    let mut res = Response::new()
+        .add_attribute("action", "bond")
+        .add_attribute("amount", amount)
+        .add_attribute("sender", &sender);
+    res.messages = update_membership(deps.storage, sender, new_stake, &cfg, env.block.height)?;
 
-    let attributes = vec![
-        attr("action", "bond"),
-        attr("amount", amount),
-        attr("sender", sender),
-    ];
-    Ok(Response {
-        messages,
-        attributes,
-        ..Response::default()
-    })
+    Ok(res)
 }
 
 pub fn execute_unbond(
@@ -198,24 +179,13 @@ pub fn execute_unbond(
         cfg.unbonding_period.after(&env.block),
     )?;
 
-    let messages = update_membership(
-        deps.storage,
-        info.sender.clone(),
-        new_stake,
-        &cfg,
-        env.block.height,
-    )?;
+    let mut res = Response::new()
+        .add_attribute("action", "unbond")
+        .add_attribute("amount", amount)
+        .add_attribute("sender", &info.sender);
+    res.messages = update_membership(deps.storage, info.sender, new_stake, &cfg, env.block.height)?;
 
-    let attributes = vec![
-        attr("action", "unbond"),
-        attr("amount", amount),
-        attr("sender", info.sender),
-    ];
-    Ok(Response {
-        messages,
-        attributes,
-        ..Response::default()
-    })
+    Ok(res)
 }
 
 pub fn must_pay_funds(balance: &NativeBalance, denom: &str) -> Result<Uint128, ContractError> {
@@ -297,22 +267,15 @@ pub fn execute_claim(
         }
     }
 
-    let amount_str = coins_to_string(&amount);
-    let messages = vec![SubMsg::new(BankMsg::Send {
-        to_address: info.sender.clone().into(),
-        amount,
-    })];
-
-    let attributes = vec![
-        attr("action", "claim"),
-        attr("tokens", amount_str),
-        attr("sender", info.sender),
-    ];
-    Ok(Response {
-        messages,
-        attributes,
-        ..Response::default()
-    })
+    let res = Response::new()
+        .add_attribute("action", "claim")
+        .add_attribute("tokens", coins_to_string(&amount))
+        .add_attribute("sender", &info.sender)
+        .add_message(BankMsg::Send {
+            to_address: info.sender.into(),
+            amount,
+        });
+    Ok(res)
 }
 
 // TODO: put in cosmwasm-std
