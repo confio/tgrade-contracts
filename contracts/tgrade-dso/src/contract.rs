@@ -612,14 +612,13 @@ fn check_pending(storage: &mut dyn Storage, block: &BlockInfo) -> StdResult<Vec<
         .range(storage, None, Some(bound), Order::Ascending)
         .collect::<StdResult<Vec<_>>>()?;
 
-    let mut events = vec![];
-    for (key, mut batch) in ready {
-        let batch_id = parse_id(&key)?;
-        let evt = convert_all_paid_members_to_voters(storage, batch_id, &mut batch, block.height)?;
-        events.push(evt);
-    }
-
-    Ok(events)
+    ready
+        .into_iter()
+        .map(|(key, mut batch)| {
+            let batch_id = parse_id(&key)?;
+            convert_all_paid_members_to_voters(storage, batch_id, &mut batch, block.height)
+        })
+        .collect()
 }
 
 pub fn proposal_execute(
