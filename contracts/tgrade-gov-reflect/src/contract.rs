@@ -50,9 +50,7 @@ pub fn execute_execute(
     if info.sender != config.owner {
         return Err(ContractError::Unauthorized {});
     }
-    let mut res = Response::new();
-    res.messages = messages;
-    Ok(res)
+    Ok(Response::new().add_submessages(messages))
 }
 
 pub fn execute_proposal(
@@ -71,9 +69,7 @@ pub fn execute_proposal(
         description,
         proposal,
     };
-    let mut res = Response::new();
-    res.messages = vec![SubMsg::new(msg)];
-    Ok(res)
+    Ok(Response::new().add_message(msg))
 }
 
 #[entry_point]

@@ -226,10 +226,9 @@ pub fn sudo(deps: DepsMut, env: Env, msg: TgradeSudoMsg) -> Result<Response, Con
 fn privilege_change(_deps: DepsMut, change: PrivilegeChangeMsg) -> Response {
     match change {
         PrivilegeChangeMsg::Promoted {} => {
-            let mut res = Response::new();
-            res.messages =
+            let msgs =
                 request_privileges(&[Privilege::ValidatorSetUpdater, Privilege::TokenMinter]);
-            res
+            Response::new().add_submessages(msgs)
         }
         PrivilegeChangeMsg::Demoted {} => {
             // TODO: signal this is frozen?
