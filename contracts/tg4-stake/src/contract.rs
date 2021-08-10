@@ -15,7 +15,9 @@ use tg4::{
 };
 
 use crate::error::ContractError;
-use crate::msg::{ExecuteMsg, InstantiateMsg, PreauthResponse, QueryMsg, StakedResponse};
+use crate::msg::{
+    ExecuteMsg, InstantiateMsg, PreauthResponse, QueryMsg, StakedResponse, UnbondingPeriodResponse,
+};
 use crate::state::{members, Config, ADMIN, CLAIMS, CONFIG, HOOKS, PREAUTH, STAKE, TOTAL};
 
 // version info for migration info
@@ -313,6 +315,12 @@ pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
         QueryMsg::Preauths {} => {
             let preauths = PREAUTH.get_auth(deps.storage)?;
             to_binary(&PreauthResponse { preauths })
+        }
+        QueryMsg::UnbondingPeriod {} => {
+            let Config {
+                unbonding_period, ..
+            } = CONFIG.load(deps.storage)?;
+            to_binary(&UnbondingPeriodResponse { unbonding_period })
         }
     }
 }
