@@ -44,6 +44,18 @@
       "additionalProperties": false
     },
     {
+      "type": "object",
+      "required": [
+        "unbonding_period"
+      ],
+      "properties": {
+        "unbonding_period": {
+          "type": "object"
+        }
+      },
+      "additionalProperties": false
+    },
+    {
       "description": "Return AdminResponse",
       "type": "object",
       "required": [

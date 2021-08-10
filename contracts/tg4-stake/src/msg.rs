@@ -53,6 +53,8 @@ pub enum QueryMsg {
     Staked {
         address: String,
     },
+    // Returns the unbonding period of this contract
+    UnbondingPeriod {},
 
     /// Return AdminResponse
     Admin {},
@@ -87,4 +89,9 @@ pub struct StakedResponse {
 #[derive(Serialize, Deserialize, Clone, PartialEq, JsonSchema, Debug)]
 pub struct PreauthResponse {
     pub preauths: u64,
+}
+
+#[derive(Serialize, Deserialize, Clone, PartialEq, JsonSchema, Debug)]
+pub struct UnbondingPeriodResponse {
+    pub unbonding_period: Duration,
 }

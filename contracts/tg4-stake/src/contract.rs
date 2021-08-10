@@ -15,7 +15,9 @@ use tg4::{
 };
 
 use crate::error::ContractError;
-use crate::msg::{ExecuteMsg, InstantiateMsg, PreauthResponse, QueryMsg, StakedResponse};
+use crate::msg::{
+    ExecuteMsg, InstantiateMsg, PreauthResponse, QueryMsg, StakedResponse, UnbondingPeriodResponse,
+};
 use crate::state::{members, Config, ADMIN, CLAIMS, CONFIG, HOOKS, PREAUTH, STAKE, TOTAL};
 
 // version info for migration info
@@ -314,6 +316,12 @@ pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
             let preauths = PREAUTH.get_auth(deps.storage)?;
             to_binary(&PreauthResponse { preauths })
         }
+        QueryMsg::UnbondingPeriod {} => {
+            let Config {
+                unbonding_period, ..
+            } = CONFIG.load(deps.storage)?;
+            to_binary(&UnbondingPeriodResponse { unbonding_period })
+        }
     }
 }
 
@@ -490,6 +498,16 @@ mod tests {
 
         let res = query_total_weight(deps.as_ref()).unwrap();
         assert_eq!(0, res.weight);
+    }
+
+    #[test]
+    fn unbonding_period_query_works() {
+        let mut deps = mock_dependencies(&[]);
+        default_instantiate(deps.as_mut());
+
+        let raw = query(deps.as_ref(), mock_env(), QueryMsg::UnbondingPeriod {}).unwrap();
+        let res: UnbondingPeriodResponse = from_slice(&raw).unwrap();
+        assert_eq!(res.unbonding_period, Duration::Height(UNBONDING_BLOCKS));
     }
 
     fn get_member(deps: Deps, addr: String, at_height: Option<u64>) -> Option<u64> {
