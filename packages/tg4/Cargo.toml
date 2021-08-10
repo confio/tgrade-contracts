@@ -8,9 +8,9 @@ repository = "https://github.com/confio/tgrade-contracts"
 homepage = "https://tgrade.finance"
 
 [dependencies]
-cosmwasm-std = { version = "0.16.0-rc5" }
+cosmwasm-std = { version = "0.16.0" }
 schemars = "0.8.1"
 serde = { version = "1.0.103", default-features = false, features = ["derive"] }
 
 [dev-dependencies]
-cosmwasm-schema = { version = "0.16.0-rc5" }
+cosmwasm-schema = { version = "0.16.0" }
