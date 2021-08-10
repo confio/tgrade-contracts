@@ -93,6 +93,7 @@ pub fn execute(
         ExecuteMsg::RegisterValidatorKey { pubkey, metadata } => {
             execute_register_validator_key(deps, env, info, pubkey, metadata)
         }
+        ExecuteMsg::UpdateMetadata(metadata) => execute_update_metadata(deps, env, info, metadata),
     }
 }
 
@@ -119,6 +120,30 @@ fn execute_register_validator_key(
         .add_attribute("pubkey_value", operator.pubkey.to_base64())
         .add_attribute("moniker", moniker);
 
+    Ok(res)
+}
+
+fn execute_update_metadata(
+    deps: DepsMut,
+    _env: Env,
+    info: MessageInfo,
+    metadata: ValidatorMetadata,
+) -> Result<Response, ContractError> {
+    let moniker = metadata.moniker.clone();
+    metadata.validate()?;
+
+    operators().update(deps.storage, &info.sender, |info| match info {
+        Some(mut old) => {
+            old.metadata = metadata;
+            Ok(old)
+        }
+        None => Err(ContractError::Unauthorized {}),
+    })?;
+
+    let res = Response::new()
+        .add_attribute("action", "update_metadata")
+        .add_attribute("operator", &info.sender)
+        .add_attribute("moniker", moniker);
     Ok(res)
 }
 

@@ -26,6 +26,18 @@
         }
       },
       "additionalProperties": false
+    },
+    {
+      "type": "object",
+      "required": [
+        "update_metadata"
+      ],
+      "properties": {
+        "update_metadata": {
+          "$ref": "#/definitions/ValidatorMetadata"
+        }
+      },
+      "additionalProperties": false
     }
   ],
   "definitions": {

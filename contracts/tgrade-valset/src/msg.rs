@@ -121,6 +121,7 @@ pub enum ExecuteMsg {
         pubkey: Pubkey,
         metadata: ValidatorMetadata,
     },
+    UpdateMetadata(ValidatorMetadata),
 }
 
 #[derive(Serialize, Deserialize, Clone, PartialEq, JsonSchema, Debug)]
