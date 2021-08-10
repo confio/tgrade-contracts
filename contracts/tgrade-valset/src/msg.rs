@@ -266,7 +266,7 @@ mod test {
         assert_eq!(err, ContractError::InvalidPubkey {});
 
         // fails if no denom set for reward
-        let mut invalid = proper.clone();
+        let mut invalid = proper;
         invalid.epoch_reward.denom = "".into();
         let err = invalid.validate().unwrap_err();
         assert_eq!(err, ContractError::InvalidRewardDenom {});
