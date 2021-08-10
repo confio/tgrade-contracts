@@ -391,10 +391,9 @@ mod test {
     use cw_multi_test::{App, Contract, ContractWrapper, Executor};
 
     use super::*;
-    use crate::msg::ValidatorMetadata;
     use crate::test_helpers::{
-        addrs, contract_valset, members, mock_app, mock_pubkey, nonmembers, valid_operator,
-        valid_validator,
+        addrs, contract_valset, members, mock_app, mock_metadata, mock_pubkey, nonmembers,
+        valid_operator, valid_validator,
     };
     use cosmwasm_std::{coin, Coin};
 
@@ -488,10 +487,6 @@ mod test {
             epoch_reward: epoch_reward(),
             initial_keys: members.chain(nonmembers).collect(),
             scaling: None,
-            metadata: ValidatorMetadata {
-                moniker: "Cool Stake".into(),
-                ..ValidatorMetadata::default()
-            },
         }
     }
 
@@ -684,6 +679,7 @@ mod test {
                 valset_addr.clone(),
                 &ExecuteMsg::RegisterValidatorKey {
                     pubkey: mock_pubkey(new_operator.as_bytes()),
+                    metadata: mock_metadata("master"),
                 },
                 &[],
             )

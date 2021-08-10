@@ -212,10 +212,6 @@ mod test {
             epoch_reward: coin(7777, "foobar"),
             initial_keys: vec![valid_operator("foo"), valid_operator("bar")],
             scaling: None,
-            metadata: ValidatorMetadata {
-                moniker: "Cool Stake".into(),
-                ..ValidatorMetadata::default()
-            },
         };
         proper.validate().unwrap();
 
@@ -264,11 +260,5 @@ mod test {
         invalid.epoch_reward.denom = "".into();
         let err = invalid.validate().unwrap_err();
         assert_eq!(err, ContractError::InvalidRewardDenom {});
-
-        // fails if no moniker set
-        let mut invalid = proper;
-        invalid.metadata.moniker = "".into();
-        let err = invalid.validate().unwrap_err();
-        assert_eq!(err, ContractError::InvalidMoniker {});
     }
 }
