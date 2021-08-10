@@ -32,6 +32,9 @@ pub enum ContractError {
     #[error("Scaling must be unset or greater than zero")]
     InvalidScaling {},
 
+    #[error("The moniker field must not be empty")]
+    InvalidMoniker {},
+
     #[error("Tendermint pubkey must be 32 bytes long")]
     InvalidPubkey {},
 

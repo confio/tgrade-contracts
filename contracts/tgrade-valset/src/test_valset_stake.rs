@@ -13,7 +13,7 @@ use cw_multi_test::{App, Contract, ContractWrapper, Executor};
 
 use crate::msg::{
     ConfigResponse, EpochResponse, InstantiateMsg, ListActiveValidatorsResponse, QueryMsg,
-    ValidatorKeyResponse,
+    ValidatorKeyResponse, ValidatorMetadata,
 };
 use crate::state::ValidatorInfo;
 use crate::test_helpers::{addrs, contract_valset, mock_app, valid_operator};
@@ -106,6 +106,10 @@ fn init_msg(stake_addr: &str, max_validators: u32, min_weight: u64) -> Instantia
         epoch_reward: epoch_reward(),
         initial_keys: members,
         scaling: None,
+        metadata: ValidatorMetadata {
+            moniker: "Cool Stake".into(),
+            ..ValidatorMetadata::default()
+        },
     }
 }
 

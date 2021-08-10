@@ -380,6 +380,7 @@ mod test {
     use cw_multi_test::{App, Contract, ContractWrapper, Executor};
 
     use super::*;
+    use crate::msg::ValidatorMetadata;
     use crate::test_helpers::{
         addrs, contract_valset, members, mock_app, mock_pubkey, nonmembers, valid_operator,
         valid_validator,
@@ -476,6 +477,10 @@ mod test {
             epoch_reward: epoch_reward(),
             initial_keys: members.chain(nonmembers).collect(),
             scaling: None,
+            metadata: ValidatorMetadata {
+                moniker: "Cool Stake".into(),
+                ..ValidatorMetadata::default()
+            },
         }
     }
 

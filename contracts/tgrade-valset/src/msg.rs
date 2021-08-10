@@ -9,7 +9,6 @@ use crate::state::{Config, ValidatorInfo};
 use cosmwasm_std::Coin;
 
 #[derive(Serialize, Deserialize, Clone, PartialEq, JsonSchema, Debug)]
-#[serde(rename_all = "snake_case")]
 pub struct InstantiateMsg {
     /// address of a cw4 contract with the raw membership used to feed the validator set
     pub membership: String,
@@ -41,6 +40,9 @@ pub struct InstantiateMsg {
     /// A scaling factor to multiply cw4-group weights to produce the tendermint validator power
     /// (TODO: should we allow this to reduce weight? Like 1/1000?)
     pub scaling: Option<u32>,
+
+    /// This stores metadata on the validator used for describing it in queries
+    pub metadata: ValidatorMetadata,
 }
 
 impl InstantiateMsg {
@@ -63,6 +65,34 @@ impl InstantiateMsg {
         }
         for op in self.initial_keys.iter() {
             op.validate()?
+        }
+        self.metadata.validate()
+    }
+}
+
+/// Validator Metadata modeled after the Cosmos SDK staking module
+#[derive(Serialize, Deserialize, Clone, PartialEq, JsonSchema, Debug, Default)]
+pub struct ValidatorMetadata {
+    /// The validator's name (required)
+    pub moniker: String,
+
+    /// The optional identity signature (ex. UPort or Keybase)
+    pub identity: Option<String>,
+
+    /// The validator's (optional) website
+    pub website: Option<String>,
+
+    /// The validator's (optional) security contact email
+    pub security_contact: Option<String>,
+
+    /// The validator's (optional) details
+    pub details: Option<String>,
+}
+
+impl ValidatorMetadata {
+    pub fn validate(&self) -> Result<(), ContractError> {
+        if self.moniker.is_empty() {
+            return Err(ContractError::InvalidMoniker {});
         }
         Ok(())
     }
@@ -173,6 +203,10 @@ mod test {
             epoch_reward: coin(7777, "foobar"),
             initial_keys: vec![valid_operator("foo"), valid_operator("bar")],
             scaling: None,
+            metadata: ValidatorMetadata {
+                moniker: "Cool Stake".into(),
+                ..ValidatorMetadata::default()
+            },
         };
         proper.validate().unwrap();
 
@@ -217,9 +251,15 @@ mod test {
         assert_eq!(err, ContractError::InvalidPubkey {});
 
         // fails if no denom set for reward
-        let mut invalid = proper;
+        let mut invalid = proper.clone();
         invalid.epoch_reward.denom = "".into();
         let err = invalid.validate().unwrap_err();
         assert_eq!(err, ContractError::InvalidRewardDenom {});
+
+        // fails if no moniker set
+        let mut invalid = proper;
+        invalid.metadata.moniker = "".into();
+        let err = invalid.validate().unwrap_err();
+        assert_eq!(err, ContractError::InvalidMoniker {});
     }
 }
