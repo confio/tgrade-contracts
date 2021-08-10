@@ -500,6 +500,16 @@ mod tests {
         assert_eq!(0, res.weight);
     }
 
+    #[test]
+    fn unbonding_period_query_works() {
+        let mut deps = mock_dependencies(&[]);
+        default_instantiate(deps.as_mut());
+
+        let raw = query(deps.as_ref(), mock_env(), QueryMsg::UnbondingPeriod {}).unwrap();
+        let res: UnbondingPeriodResponse = from_slice(&raw).unwrap();
+        assert_eq!(res.unbonding_period, Duration::Height(UNBONDING_BLOCKS));
+    }
+
     fn get_member(deps: Deps, addr: String, at_height: Option<u64>) -> Option<u64> {
         let raw = query(deps, mock_env(), QueryMsg::Member { addr, at_height }).unwrap();
         let res: MemberResponse = from_slice(&raw).unwrap();
