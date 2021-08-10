@@ -23,7 +23,7 @@
       "required": [
         "metadata",
         "operator",
-        "validator_pubkey"
+        "pubkey"
       ],
       "properties": {
         "metadata": {
@@ -32,7 +32,7 @@
         "operator": {
           "type": "string"
         },
-        "validator_pubkey": {
+        "pubkey": {
           "$ref": "#/definitions/Pubkey"
         }
       }

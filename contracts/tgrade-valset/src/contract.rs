@@ -199,7 +199,7 @@ fn list_validator_keys(
             Ok(OperatorResponse {
                 operator,
                 metadata: info.metadata,
-                validator_pubkey: info.pubkey.into(),
+                pubkey: info.pubkey.into(),
             })
         })
         .take(limit)
@@ -555,7 +555,9 @@ mod test {
                 },
             )
             .unwrap();
-        assert_eq!(val.pubkey.unwrap(), op.validator_pubkey);
+        let val = val.validator.unwrap();
+        assert_eq!(val.pubkey, op.validator_pubkey);
+        assert_eq!(val.metadata, op.metadata);
     }
 
     // TODO: test this with other cutoffs... higher max_vals, higher min_weight so they cannot all be filled
@@ -624,9 +626,10 @@ mod test {
             .into_iter()
             .map(|addr| {
                 let val = valid_operator(&addr);
-                OperatorKey {
+                OperatorResponse {
                     operator: val.operator,
-                    validator_pubkey: val.validator_pubkey,
+                    pubkey: val.validator_pubkey,
+                    metadata: mock_metadata(&addr),
                 }
             })
             .collect();
@@ -652,9 +655,10 @@ mod test {
             .into_iter()
             .map(|addr| {
                 let val = valid_operator(&addr);
-                OperatorKey {
+                OperatorResponse {
                     operator: val.operator,
-                    validator_pubkey: val.validator_pubkey,
+                    pubkey: val.validator_pubkey,
+                    metadata: mock_metadata(&addr),
                 }
             })
             .collect();
@@ -702,9 +706,10 @@ mod test {
             .unwrap();
         assert_eq!(validator_keys.validators.len(), 1);
 
-        let expected: Vec<_> = vec![OperatorKey {
+        let expected: Vec<_> = vec![OperatorResponse {
             operator: new_operator.into(),
-            validator_pubkey: mock_pubkey(new_operator.as_bytes()),
+            pubkey: mock_pubkey(new_operator.as_bytes()),
+            metadata: mock_metadata("master"),
         }];
         assert_eq!(expected, validator_keys.validators);
     }

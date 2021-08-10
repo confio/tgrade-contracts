@@ -168,7 +168,7 @@ pub struct EpochResponse {
 #[derive(Serialize, Deserialize, Clone, PartialEq, JsonSchema, Debug)]
 pub struct OperatorResponse {
     pub operator: String,
-    pub validator_pubkey: Pubkey,
+    pub pubkey: Pubkey,
     pub metadata: ValidatorMetadata,
 }
 
@@ -176,7 +176,7 @@ impl OperatorResponse {
     pub fn from_info(info: OperatorInfo, operator: String) -> Self {
         OperatorResponse {
             operator,
-            validator_pubkey: info.pubkey.into(),
+            pubkey: info.pubkey.into(),
             metadata: info.metadata,
         }
     }

@@ -197,7 +197,9 @@ fn init_and_query_state() {
             },
         )
         .unwrap();
-    assert_eq!(val.pubkey.unwrap(), op.validator_pubkey);
+    let val = val.validator.unwrap();
+    assert_eq!(val.pubkey, op.validator_pubkey);
+    assert_eq!(val.metadata, op.metadata);
 }
 
 #[test]
