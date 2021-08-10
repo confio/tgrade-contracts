@@ -20,10 +20,12 @@ use tgrade_bindings::{
 use crate::error::ContractError;
 use crate::msg::{
     ConfigResponse, EpochResponse, ExecuteMsg, InstantiateMsg, ListActiveValidatorsResponse,
-    ListValidatorKeysResponse, OperatorKey, QueryMsg, ValidatorKeyResponse,
+    ListValidatorKeysResponse, OperatorKey, QueryMsg, ValidatorKeyResponse, ValidatorMetadata,
 };
 use crate::rewards::{distribute_to_validators, pay_block_rewards};
-use crate::state::{operators, Config, EpochInfo, ValidatorInfo, CONFIG, EPOCH, VALIDATORS};
+use crate::state::{
+    operators, Config, EpochInfo, OperatorInfo, ValidatorInfo, CONFIG, EPOCH, VALIDATORS,
+};
 
 // version info for migration info
 const CONTRACT_NAME: &str = "crates.io:tgrade-valset";
@@ -70,7 +72,11 @@ pub fn instantiate(
     for op in msg.initial_keys.into_iter() {
         let oper = deps.api.addr_validate(&op.operator)?;
         let pubkey: Ed25519Pubkey = op.validator_pubkey.try_into()?;
-        operators().save(deps.storage, &oper, &pubkey)?;
+        let info = OperatorInfo {
+            pubkey,
+            metadata: op.metadata,
+        };
+        operators().save(deps.storage, &oper, &info)?;
     }
 
     Ok(Response::default())
@@ -84,8 +90,8 @@ pub fn execute(
     msg: ExecuteMsg,
 ) -> Result<Response, ContractError> {
     match msg {
-        ExecuteMsg::RegisterValidatorKey { pubkey } => {
-            execute_register_validator_key(deps, env, info, pubkey)
+        ExecuteMsg::RegisterValidatorKey { pubkey, metadata } => {
+            execute_register_validator_key(deps, env, info, pubkey, metadata)
         }
     }
 }
@@ -95,19 +101,24 @@ fn execute_register_validator_key(
     _env: Env,
     info: MessageInfo,
     pubkey: Pubkey,
+    metadata: ValidatorMetadata,
 ) -> Result<Response, ContractError> {
     let pubkey: Ed25519Pubkey = pubkey.try_into()?;
+    let moniker = metadata.moniker.clone();
 
+    let operator = OperatorInfo { pubkey, metadata };
     match operators().may_load(deps.storage, &info.sender)? {
         Some(_) => return Err(ContractError::OperatorRegistered {}),
-        None => operators().save(deps.storage, &info.sender, &pubkey)?,
+        None => operators().save(deps.storage, &info.sender, &operator)?,
     };
 
     let res = Response::new()
         .add_attribute("action", "register_validator_key")
-        .add_attribute("operator", info.sender)
+        .add_attribute("operator", &info.sender)
         .add_attribute("pubkey_type", "ed25519")
-        .add_attribute("pubkey_value", pubkey.to_base64());
+        .add_attribute("pubkey_value", operator.pubkey.to_base64())
+        .add_attribute("moniker", moniker);
+
     Ok(res)
 }
 
@@ -160,9 +171,9 @@ fn query_validator_key(
     operator: String,
 ) -> Result<ValidatorKeyResponse, ContractError> {
     let operator = deps.api.addr_validate(&operator)?;
-    let pubkey = operators().may_load(deps.storage, &operator)?;
+    let info = operators().may_load(deps.storage, &operator)?;
     Ok(ValidatorKeyResponse {
-        pubkey: pubkey.map(|p| p.into()),
+        pubkey: info.map(|i| i.pubkey.into()),
     })
 }
 
@@ -187,7 +198,7 @@ fn list_validator_keys(
             let operator = String::from_utf8(key)?;
             Ok(OperatorKey {
                 operator,
-                validator_pubkey: validator_pubkey.into(),
+                validator_pubkey: validator_pubkey.pubkey.into(),
             })
         })
         .take(limit)
@@ -314,9 +325,9 @@ fn calculate_validators(deps: Deps) -> Result<Vec<ValidatorInfo>, ContractError>
                 operators()
                     .load(deps.storage, &m_addr)
                     .ok()
-                    .map(|validator_pubkey| ValidatorInfo {
+                    .map(|op| ValidatorInfo {
                         operator: m_addr,
-                        validator_pubkey: validator_pubkey.into(),
+                        validator_pubkey: op.pubkey.into(),
                         power: m.weight * scaling,
                     })
             })

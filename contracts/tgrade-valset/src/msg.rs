@@ -35,14 +35,11 @@ pub struct InstantiateMsg {
     /// Initial operators and validator keys registered.
     /// If you do not set this, the validators need to register themselves before
     /// making this privileged/calling the EndBlockers, so we have a non-empty validator set
-    pub initial_keys: Vec<OperatorKey>,
+    pub initial_keys: Vec<OperatorInitInfo>,
 
     /// A scaling factor to multiply cw4-group weights to produce the tendermint validator power
     /// (TODO: should we allow this to reduce weight? Like 1/1000?)
     pub scaling: Option<u32>,
-
-    /// This stores metadata on the validator used for describing it in queries
-    pub metadata: ValidatorMetadata,
 }
 
 impl InstantiateMsg {
@@ -66,7 +63,7 @@ impl InstantiateMsg {
         for op in self.initial_keys.iter() {
             op.validate()?
         }
-        self.metadata.validate()
+        Ok(())
     }
 }
 
@@ -100,17 +97,26 @@ impl ValidatorMetadata {
 
 /// Maps an sdk address to a Tendermint pubkey.
 #[derive(Serialize, Deserialize, Clone, PartialEq, JsonSchema, Debug)]
+pub struct OperatorInitInfo {
+    pub operator: String,
+    /// TODO: better name to specify this is the Tendermint pubkey for consensus?
+    pub validator_pubkey: Pubkey,
+    pub metadata: ValidatorMetadata,
+}
+
+impl OperatorInitInfo {
+    pub fn validate(&self) -> Result<(), ContractError> {
+        Ed25519Pubkey::try_from(&self.validator_pubkey)?;
+        self.metadata.validate()
+    }
+}
+
+/// Maps an sdk address to a Tendermint pubkey.
+#[derive(Serialize, Deserialize, Clone, PartialEq, JsonSchema, Debug)]
 pub struct OperatorKey {
     pub operator: String,
     /// TODO: better name to specify this is the Tendermint pubkey for consensus?
     pub validator_pubkey: Pubkey,
-}
-
-impl OperatorKey {
-    pub fn validate(&self) -> Result<(), ContractError> {
-        Ed25519Pubkey::try_from(&self.validator_pubkey)?;
-        Ok(())
-    }
 }
 
 #[derive(Serialize, Deserialize, Clone, PartialEq, JsonSchema, Debug)]
@@ -119,7 +125,10 @@ pub enum ExecuteMsg {
     /// Links info.sender (operator) to this Tendermint consensus key.
     /// The operator cannot re-register another key.
     /// No two operators may have the same consensus_key.
-    RegisterValidatorKey { pubkey: Pubkey },
+    RegisterValidatorKey {
+        pubkey: Pubkey,
+        metadata: ValidatorMetadata,
+    },
 }
 
 #[derive(Serialize, Deserialize, Clone, PartialEq, JsonSchema, Debug)]
