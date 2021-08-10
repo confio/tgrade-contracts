@@ -13,7 +13,7 @@ use cw_multi_test::{App, Contract, ContractWrapper, Executor};
 
 use crate::msg::{
     ConfigResponse, EpochResponse, InstantiateMsg, ListActiveValidatorsResponse, QueryMsg,
-    ValidatorKeyResponse,
+    ValidatorResponse,
 };
 use crate::state::ValidatorInfo;
 use crate::test_helpers::{addrs, contract_valset, mock_app, valid_operator};
@@ -188,11 +188,11 @@ fn init_and_query_state() {
         .last()
         .unwrap();
 
-    let val: ValidatorKeyResponse = app
+    let val: ValidatorResponse = app
         .wrap()
         .query_wasm_smart(
             &valset_addr,
-            &QueryMsg::ValidatorKey {
+            &QueryMsg::Validator {
                 operator: op.operator,
             },
         )

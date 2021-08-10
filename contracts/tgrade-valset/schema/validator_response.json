@@ -1,13 +1,13 @@
 {
   "$schema": "http://json-schema.org/draft-07/schema#",
-  "title": "ValidatorKeyResponse",
+  "title": "ValidatorResponse",
   "type": "object",
   "properties": {
-    "pubkey": {
+    "validator": {
       "description": "This is unset if no validator registered",
       "anyOf": [
         {
-          "$ref": "#/definitions/Pubkey"
+          "$ref": "#/definitions/OperatorResponse"
         },
         {
           "type": "null"
@@ -19,6 +19,25 @@
     "Binary": {
       "description": "Binary is a wrapper around Vec<u8> to add base64 de/serialization with serde. It also adds some helper methods to help encode inline.\n\nThis is only needed as serde-json-{core,wasm} has a horrible encoding for Vec<u8>",
       "type": "string"
+    },
+    "OperatorResponse": {
+      "type": "object",
+      "required": [
+        "metadata",
+        "operator",
+        "validator_pubkey"
+      ],
+      "properties": {
+        "metadata": {
+          "$ref": "#/definitions/ValidatorMetadata"
+        },
+        "operator": {
+          "type": "string"
+        },
+        "validator_pubkey": {
+          "$ref": "#/definitions/Pubkey"
+        }
+      }
     },
     "Pubkey": {
       "description": "A Tendermint validator pubkey.\n\nSee https://github.com/tendermint/tendermint/blob/master/proto/tendermint/crypto/keys.proto for a list of available types. Sr25519 is added here as it is likely to join the party.\n\nThis type is optimized for the JSON interface. No data validation on the enum cases is performed. If you don't trust the data source, you can create a `ValidatedPubkey` enum that mirrors this type and uses fixed sized data fields.",
@@ -63,6 +82,47 @@
           "additionalProperties": false
         }
       ]
+    },
+    "ValidatorMetadata": {
+      "description": "Validator Metadata modeled after the Cosmos SDK staking module",
+      "type": "object",
+      "required": [
+        "moniker"
+      ],
+      "properties": {
+        "details": {
+          "description": "The validator's (optional) details",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "identity": {
+          "description": "The optional identity signature (ex. UPort or Keybase)",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "moniker": {
+          "description": "The validator's name (required)",
+          "type": "string"
+        },
+        "security_contact": {
+          "description": "The validator's (optional) security contact email",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "website": {
+          "description": "The validator's (optional) website",
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      }
     }
   }
 }

@@ -5,7 +5,7 @@ use std::convert::TryFrom;
 use tgrade_bindings::{Ed25519Pubkey, Pubkey};
 
 use crate::error::ContractError;
-use crate::state::{Config, ValidatorInfo};
+use crate::state::{Config, OperatorInfo, ValidatorInfo};
 use cosmwasm_std::Coin;
 
 #[derive(Serialize, Deserialize, Clone, PartialEq, JsonSchema, Debug)]
@@ -111,14 +111,6 @@ impl OperatorInitInfo {
     }
 }
 
-/// Maps an sdk address to a Tendermint pubkey.
-#[derive(Serialize, Deserialize, Clone, PartialEq, JsonSchema, Debug)]
-pub struct OperatorKey {
-    pub operator: String,
-    /// TODO: better name to specify this is the Tendermint pubkey for consensus?
-    pub validator_pubkey: Pubkey,
-}
-
 #[derive(Serialize, Deserialize, Clone, PartialEq, JsonSchema, Debug)]
 #[serde(rename_all = "snake_case")]
 pub enum ExecuteMsg {
@@ -140,9 +132,9 @@ pub enum QueryMsg {
     Epoch {},
 
     /// Returns the validator key (if present) for the given operator
-    ValidatorKey { operator: String },
-    /// Paginate over all operators.
-    ListValidatorKeys {
+    Validator { operator: String },
+    /// Paginate over all operators, using operator address as pagination
+    ListValidators {
         start_after: Option<String>,
         limit: Option<u32>,
     },
@@ -172,15 +164,33 @@ pub struct EpochResponse {
     pub next_update_time: u64,
 }
 
+// data behind one operator
 #[derive(Serialize, Deserialize, Clone, PartialEq, JsonSchema, Debug)]
-pub struct ValidatorKeyResponse {
-    /// This is unset if no validator registered
-    pub pubkey: Option<Pubkey>,
+pub struct OperatorResponse {
+    pub operator: String,
+    pub validator_pubkey: Pubkey,
+    pub metadata: ValidatorMetadata,
+}
+
+impl OperatorResponse {
+    pub fn from_info(info: OperatorInfo, operator: String) -> Self {
+        OperatorResponse {
+            operator,
+            validator_pubkey: info.pubkey.into(),
+            metadata: info.metadata,
+        }
+    }
 }
 
 #[derive(Serialize, Deserialize, Clone, PartialEq, JsonSchema, Debug)]
-pub struct ListValidatorKeysResponse {
-    pub operators: Vec<OperatorKey>,
+pub struct ValidatorResponse {
+    /// This is unset if no validator registered
+    pub validator: Option<OperatorResponse>,
+}
+
+#[derive(Serialize, Deserialize, Clone, PartialEq, JsonSchema, Debug)]
+pub struct ListValidatorResponse {
+    pub validators: Vec<OperatorResponse>,
 }
 
 #[derive(Serialize, Deserialize, Clone, PartialEq, JsonSchema, Debug)]
