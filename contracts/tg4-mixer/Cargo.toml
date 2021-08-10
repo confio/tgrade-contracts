@@ -19,20 +19,20 @@ backtraces = ["cosmwasm-std/backtraces"]
 library = []
 
 [dependencies]
-cw0 = { version = "0.8.0-rc1" }
-cw2 = { version = "0.8.0-rc1" }
-cw20 = { version = "0.8.0-rc1" }
-cw-storage-plus = { version = "0.8.0-rc1" }
+cw0 = { version = "0.8.0-rc3" }
+cw2 = { version = "0.8.0-rc3" }
+cw20 = { version = "0.8.0-rc3" }
+cw-storage-plus = { version = "0.8.0-rc3" }
 tg4 = { path = "../../packages/tg4", version = "0.3.0-rc1" }
 tg-controllers = { path = "../../packages/controllers", version = "0.3.0-rc1" }
-cosmwasm-std = { version = "0.16.0-rc5" }
+cosmwasm-std = { version = "0.16.0" }
 integer-sqrt = { version = "0.1.5" }
 schemars = "0.8"
 serde = { version = "1.0.103", default-features = false, features = ["derive"] }
 thiserror = { version = "1.0.21" }
 
 [dev-dependencies]
-cw-multi-test = { version = "0.8.0-rc1" }
-cosmwasm-schema = { version = "0.16.0-rc5" }
+cw-multi-test = { version = "0.8.0-rc3" }
+cosmwasm-schema = { version = "0.16.0" }
 tg4-group = { path = "../tg4-group", version = "0.3.0-rc1", features = ["library"] }
 tg4-stake = { path = "../tg4-stake", version = "0.3.0-rc1", features = ["library"] }

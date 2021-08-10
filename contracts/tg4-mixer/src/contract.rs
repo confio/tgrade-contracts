@@ -375,37 +375,46 @@ mod tests {
 
     fn mock_app() -> App {
         let env = mock_env();
-        let api = Box::new(MockApi::default());
+        let api = MockApi::default();
         let bank = BankKeeper::new();
 
-        App::new(api, env.block, bank, Box::new(MockStorage::new()))
+        App::new(api, env.block, bank, MockStorage::new())
     }
 
     // uploads code and returns address of group contract
     fn instantiate_group(app: &mut App, members: Vec<Member>) -> Addr {
+        let admin = Some(OWNER.into());
         let group_id = app.store_code(contract_group());
         let msg = tg4_group::msg::InstantiateMsg {
-            admin: Some(OWNER.into()),
+            admin: admin.clone(),
             members,
             preauths: Some(1),
         };
-        app.instantiate_contract(group_id, Addr::unchecked(OWNER), &msg, &[], "group")
+        app.instantiate_contract(group_id, Addr::unchecked(OWNER), &msg, &[], "group", admin)
             .unwrap()
     }
 
     // uploads code and returns address of group contract
     fn instantiate_staking(app: &mut App, stakers: Vec<Member>) -> Addr {
+        let admin = Some(OWNER.into());
         let group_id = app.store_code(contract_staking());
         let msg = tg4_stake::msg::InstantiateMsg {
             denom: Denom::Native(STAKE_DENOM.into()),
             tokens_per_weight: Uint128::new(1),
             min_bond: Uint128::new(100),
             unbonding_period: Duration::Time(3600),
-            admin: Some(OWNER.into()),
+            admin: admin.clone(),
             preauths: Some(1),
         };
         let contract = app
-            .instantiate_contract(group_id, Addr::unchecked(OWNER), &msg, &[], "staking")
+            .instantiate_contract(
+                group_id,
+                Addr::unchecked(OWNER),
+                &msg,
+                &[],
+                "staking",
+                admin,
+            )
             .unwrap();
 
         // stake any needed tokens
@@ -431,7 +440,7 @@ mod tests {
             right_group: right.to_string(),
             preauths: None,
         };
-        app.instantiate_contract(flex_id, Addr::unchecked(OWNER), &msg, &[], "mixer")
+        app.instantiate_contract(flex_id, Addr::unchecked(OWNER), &msg, &[], "mixer", None)
             .unwrap()
     }
 
