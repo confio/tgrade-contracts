@@ -434,20 +434,28 @@ mod test {
     ) -> Addr {
         let valset_id = app.store_code(contract_valset());
         let msg = init_msg(stake, max_validators, min_weight);
-        app.instantiate_contract(valset_id, Addr::unchecked(GROUP_OWNER), &msg, &[], "flex")
-            .unwrap()
+        app.instantiate_contract(
+            valset_id,
+            Addr::unchecked(GROUP_OWNER),
+            &msg,
+            &[],
+            "flex",
+            None,
+        )
+        .unwrap()
     }
 
     // the group has a list of
     fn instantiate_group(app: &mut App<TgradeMsg>, num_members: u32) -> Addr {
         let group_id = app.store_code(contract_group());
+        let admin = Some(GROUP_OWNER.into());
         let msg = tg4_group::msg::InstantiateMsg {
-            admin: Some(GROUP_OWNER.into()),
+            admin: admin.clone(),
             members: members(num_members),
             preauths: None,
         };
         let owner = Addr::unchecked(GROUP_OWNER);
-        app.instantiate_contract(group_id, owner, &msg, &[], "group")
+        app.instantiate_contract(group_id, owner, &msg, &[], "group", admin)
             .unwrap()
     }
 

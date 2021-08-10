@@ -59,22 +59,37 @@ pub fn instantiate_valset(
 ) -> Addr {
     let valset_id = app.store_code(contract_valset());
     let msg = init_msg(&stake.to_string(), max_validators, min_weight);
-    app.instantiate_contract(valset_id, Addr::unchecked(STAKE_OWNER), &msg, &[], "flex")
-        .unwrap()
+    app.instantiate_contract(
+        valset_id,
+        Addr::unchecked(STAKE_OWNER),
+        &msg,
+        &[],
+        "flex",
+        None,
+    )
+    .unwrap()
 }
 
 fn instantiate_stake(app: &mut App<TgradeMsg>) -> Addr {
     let stake_id = app.store_code(contract_stake());
+    let admin = Some(STAKE_OWNER.into());
     let msg = tg4_stake::msg::InstantiateMsg {
         denom: Denom::Native(BOND_DENOM.into()),
         tokens_per_weight: Uint128::new(TOKENS_PER_WEIGHT),
         min_bond: Uint128::new(MIN_BOND),
         unbonding_period: Duration::Time(1234),
-        admin: Some(STAKE_OWNER.into()),
+        admin: admin.clone(),
         preauths: None,
     };
-    app.instantiate_contract(stake_id, Addr::unchecked(STAKE_OWNER), &msg, &[], "stake")
-        .unwrap()
+    app.instantiate_contract(
+        stake_id,
+        Addr::unchecked(STAKE_OWNER),
+        &msg,
+        &[],
+        "stake",
+        admin,
+    )
+    .unwrap()
 }
 
 // registers first PREREGISTER_MEMBERS members with pubkeys
