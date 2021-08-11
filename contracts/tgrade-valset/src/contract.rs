@@ -129,8 +129,8 @@ fn execute_update_metadata(
     info: MessageInfo,
     metadata: ValidatorMetadata,
 ) -> Result<Response, ContractError> {
-    let moniker = metadata.moniker.clone();
     metadata.validate()?;
+    let moniker = metadata.moniker.clone();
 
     operators().update(deps.storage, &info.sender, |info| match info {
         Some(mut old) => {

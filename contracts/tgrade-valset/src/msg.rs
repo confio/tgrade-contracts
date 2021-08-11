@@ -86,9 +86,11 @@ pub struct ValidatorMetadata {
     pub details: Option<String>,
 }
 
+const MIN_MONIKER_LENGTH: usize = 3;
+
 impl ValidatorMetadata {
     pub fn validate(&self) -> Result<(), ContractError> {
-        if self.moniker.is_empty() {
+        if self.moniker.len() < MIN_MONIKER_LENGTH {
             return Err(ContractError::InvalidMoniker {});
         }
         Ok(())
@@ -132,7 +134,7 @@ pub enum QueryMsg {
     /// Returns EpochResponse - get info on current and next epochs
     Epoch {},
 
-    /// Returns the validator key (if present) for the given operator
+    /// Returns the validator key and associated metadata (if present) for the given operator
     Validator { operator: String },
     /// Paginate over all operators, using operator address as pagination
     ListValidators {
