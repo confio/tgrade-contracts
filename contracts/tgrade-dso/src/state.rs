@@ -197,10 +197,10 @@ impl EscrowStatus {
     }
 
     // return an escrow for a new pending voting member
-    pub fn pending(batch_id: u64) -> Self {
+    pub fn pending(proposal_id: u64) -> Self {
         EscrowStatus {
             paid: Uint128::zero(),
-            status: MemberStatus::Pending { batch_id },
+            status: MemberStatus::Pending { proposal_id },
         }
     }
 }
@@ -211,9 +211,9 @@ pub enum MemberStatus {
     /// Normal member, not allowed to vote
     NonVoting {},
     /// Approved for voting, need to pay in
-    Pending { batch_id: u64 },
+    Pending { proposal_id: u64 },
     /// Approved for voting, and paid in. Waiting for rest of batch
-    PendingPaid { batch_id: u64 },
+    PendingPaid { proposal_id: u64 },
     /// Full-fledged voting member
     Voting {},
     /// Marked as leaving. Escrow frozen until `claim_at`
@@ -296,14 +296,9 @@ pub fn batches<'a>() -> IndexedMap<'a, U64Key, Batch, BatchIndexes<'a>> {
     IndexedMap::new("batch", indexes)
 }
 
-pub const BATCH_COUNT: Item<u64> = Item::new("batch_count");
-// pub const BATCHES: Map<U64Key, Batch> = Map::new("batch");
-
-pub fn create_batch(store: &mut dyn Storage, batch: &Batch) -> StdResult<u64> {
-    let id: u64 = BATCH_COUNT.may_load(store)?.unwrap_or_default() + 1;
-    BATCH_COUNT.save(store, &id)?;
-    batches().save(store, id.into(), batch)?;
-    Ok(id)
+pub fn create_batch(store: &mut dyn Storage, batch_id: u64, batch: &Batch) -> StdResult<()> {
+    batches().save(store, batch_id.into(), batch)?;
+    Ok(())
 }
 
 #[derive(Serialize, Deserialize, Clone, PartialEq, JsonSchema, Debug)]

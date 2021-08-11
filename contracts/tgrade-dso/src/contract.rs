@@ -121,11 +121,11 @@ pub fn execute_deposit_escrow(
 
     // check to see if we update the pending status
     match escrow.status {
-        MemberStatus::Pending { batch_id: batch } => {
+        MemberStatus::Pending { proposal_id: batch } => {
             let required_escrow = DSO.load(deps.storage)?.escrow_amount;
             if escrow.paid >= required_escrow {
                 // If we paid enough, we can move into Paid, Pending Voter
-                escrow.status = MemberStatus::PendingPaid { batch_id: batch };
+                escrow.status = MemberStatus::PendingPaid { proposal_id: batch };
                 ESCROWS.save(deps.storage, &info.sender, &escrow)?;
                 // Now check if this batch is ready...
                 if let Some(event) = update_batch_after_escrow_paid(deps, env, batch, &info.sender)?
@@ -148,17 +148,17 @@ pub fn execute_deposit_escrow(
 
 /// Call when `paid_escrow` has now paid in sufficient escrow.
 /// Checks if this user can be promoted to `Voter`. Also checks if other "pending"
-/// voters in the batch can be promoted.
+/// voters in the proposal can be promoted.
 ///
 /// Returns a list of attributes for each user promoted
 fn update_batch_after_escrow_paid(
     deps: DepsMut,
     env: Env,
-    batch_id: u64,
+    proposal_id: u64,
     paid_escrow: &Addr,
 ) -> Result<Option<Event>, ContractError> {
     // We first check and update this batch state
-    let mut batch = batches().load(deps.storage, batch_id.into())?;
+    let mut batch = batches().load(deps.storage, proposal_id.into())?;
     // This will panic if we hit 0. That said, it can never go below 0 if we call this once per member.
     // And we trigger batch promotion below if this does hit 0 (batch.can_promote() == true)
     batch.waiting_escrow -= 1;
@@ -166,13 +166,13 @@ fn update_batch_after_escrow_paid(
     let height = env.block.height;
     match (batch.can_promote(&env.block), batch.batch_promoted) {
         (true, true) => {
-            batches().save(deps.storage, batch_id.into(), &batch)?;
+            batches().save(deps.storage, proposal_id.into(), &batch)?;
             // just promote this one, everyone else has been promoted
             if convert_to_voter_if_paid(deps.storage, paid_escrow, height)? {
                 // update the total with the new weight
                 TOTAL.update::<_, StdError>(deps.storage, |old| Ok(old + VOTING_WEIGHT))?;
                 let evt = Event::new(PROMOTE_TYPE)
-                    .add_attribute(BATCH_KEY, batch_id.to_string())
+                    .add_attribute(BATCH_KEY, proposal_id.to_string())
                     .add_attribute(MEMBER_KEY, paid_escrow);
                 Ok(Some(evt))
             } else {
@@ -181,12 +181,12 @@ fn update_batch_after_escrow_paid(
         }
         (true, false) => {
             let evt =
-                convert_all_paid_members_to_voters(deps.storage, batch_id, &mut batch, height)?;
+                convert_all_paid_members_to_voters(deps.storage, proposal_id, &mut batch, height)?;
             Ok(Some(evt))
         }
         // not ready yet
         _ => {
-            batches().save(deps.storage, batch_id.into(), &batch)?;
+            batches().save(deps.storage, proposal_id.into(), &batch)?;
             Ok(None)
         }
     }
@@ -446,7 +446,7 @@ pub fn execute_execute(
     PROPOSALS.save(deps.storage, proposal_id.into(), &prop)?;
 
     // execute the proposal
-    let res = proposal_execute(deps.branch(), env, prop.proposal)?
+    let res = proposal_execute(deps.branch(), env, proposal_id, prop.proposal)?
         .add_attribute("action", "execute")
         .add_attribute("proposal_id", proposal_id.to_string());
 
@@ -624,6 +624,7 @@ fn check_pending(storage: &mut dyn Storage, block: &BlockInfo) -> StdResult<Vec<
 pub fn proposal_execute(
     deps: DepsMut,
     env: Env,
+    proposal_id: u64,
     proposal: ProposalContent,
 ) -> Result<Response, ContractError> {
     match proposal {
@@ -632,7 +633,7 @@ pub fn proposal_execute(
         }
         ProposalContent::EditDso(adjustments) => proposal_edit_dso(deps, env, adjustments),
         ProposalContent::AddVotingMembers { voters } => {
-            proposal_add_voting_members(deps, env, voters)
+            proposal_add_voting_members(deps, env, proposal_id, voters)
         }
     }
 }
@@ -678,6 +679,7 @@ pub fn proposal_edit_dso(
 pub fn proposal_add_voting_members(
     deps: DepsMut,
     env: Env,
+    proposal_id: u64,
     to_add: Vec<String>,
 ) -> Result<Response, ContractError> {
     let height = env.block.height;
@@ -694,15 +696,15 @@ pub fn proposal_add_voting_members(
         batch_promoted: false,
         members: addrs.clone(),
     };
-    let batch_id = create_batch(deps.storage, &batch)?;
+    create_batch(deps.storage, proposal_id, &batch)?;
 
     let res = Response::new()
         .add_attribute("action", "add_voting_members")
         .add_attribute("added", to_add.len().to_string())
-        .add_attribute("batch_id", batch_id.to_string());
+        .add_attribute("proposal_id", proposal_id.to_string());
 
-    // use the same placeholder for everyone in the batch
-    let escrow = EscrowStatus::pending(batch_id);
+    // use the same placeholder for everyone in the proposal
+    let escrow = EscrowStatus::pending(proposal_id);
     // make the local additions
     // Add all new voting members and update total
     for add in addrs.into_iter() {
