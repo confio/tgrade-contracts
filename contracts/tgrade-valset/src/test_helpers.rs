@@ -6,7 +6,7 @@ use cw_multi_test::{App, BankKeeper, Contract, ContractWrapper};
 use tg4::Member;
 use tgrade_bindings::{Pubkey, TgradeMsg};
 
-use crate::msg::OperatorKey;
+use crate::msg::{OperatorInitInfo, ValidatorMetadata};
 use crate::state::ValidatorInfo;
 
 const ED25519_PUBKEY_LENGTH: usize = 32;
@@ -53,17 +53,27 @@ pub fn nonmembers(count: u32) -> Vec<String> {
         .collect()
 }
 
-pub fn valid_operator(seed: &str) -> OperatorKey {
-    OperatorKey {
+pub fn valid_operator(seed: &str) -> OperatorInitInfo {
+    OperatorInitInfo {
         operator: seed.into(),
         validator_pubkey: mock_pubkey(seed.as_bytes()),
+        metadata: mock_metadata(seed),
     }
 }
 
-pub fn invalid_operator() -> OperatorKey {
-    OperatorKey {
+pub fn invalid_operator() -> OperatorInitInfo {
+    OperatorInitInfo {
         operator: "foobar".into(),
         validator_pubkey: Pubkey::Ed25519(b"too-short".into()),
+        metadata: mock_metadata(""),
+    }
+}
+
+pub fn mock_metadata(seed: &str) -> ValidatorMetadata {
+    ValidatorMetadata {
+        moniker: seed.into(),
+        details: Some(format!("I'm really {}", seed)),
+        ..ValidatorMetadata::default()
     }
 }
 

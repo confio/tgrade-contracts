@@ -120,7 +120,7 @@ impl Ord for Pubkey {
 /// let address = ed25519_pubkey.to_address();
 /// assert_eq!(address, hex!("0CDA3F47EF3C4906693B170EF650EB968C5F4B2C"));
 /// ```
-#[derive(Serialize, Deserialize, Clone, Debug)]
+#[derive(Serialize, Deserialize, Clone, Debug, JsonSchema, PartialEq)]
 pub struct Ed25519Pubkey([u8; 32]);
 
 impl Ed25519Pubkey {

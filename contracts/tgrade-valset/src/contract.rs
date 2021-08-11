@@ -20,10 +20,12 @@ use tgrade_bindings::{
 use crate::error::ContractError;
 use crate::msg::{
     ConfigResponse, EpochResponse, ExecuteMsg, InstantiateMsg, ListActiveValidatorsResponse,
-    ListValidatorKeysResponse, OperatorKey, QueryMsg, ValidatorKeyResponse,
+    ListValidatorResponse, OperatorResponse, QueryMsg, ValidatorMetadata, ValidatorResponse,
 };
 use crate::rewards::{distribute_to_validators, pay_block_rewards};
-use crate::state::{operators, Config, EpochInfo, ValidatorInfo, CONFIG, EPOCH, VALIDATORS};
+use crate::state::{
+    operators, Config, EpochInfo, OperatorInfo, ValidatorInfo, CONFIG, EPOCH, VALIDATORS,
+};
 
 // version info for migration info
 const CONTRACT_NAME: &str = "crates.io:tgrade-valset";
@@ -70,7 +72,11 @@ pub fn instantiate(
     for op in msg.initial_keys.into_iter() {
         let oper = deps.api.addr_validate(&op.operator)?;
         let pubkey: Ed25519Pubkey = op.validator_pubkey.try_into()?;
-        operators().save(deps.storage, &oper, &pubkey)?;
+        let info = OperatorInfo {
+            pubkey,
+            metadata: op.metadata,
+        };
+        operators().save(deps.storage, &oper, &info)?;
     }
 
     Ok(Response::default())
@@ -84,9 +90,10 @@ pub fn execute(
     msg: ExecuteMsg,
 ) -> Result<Response, ContractError> {
     match msg {
-        ExecuteMsg::RegisterValidatorKey { pubkey } => {
-            execute_register_validator_key(deps, env, info, pubkey)
+        ExecuteMsg::RegisterValidatorKey { pubkey, metadata } => {
+            execute_register_validator_key(deps, env, info, pubkey, metadata)
         }
+        ExecuteMsg::UpdateMetadata(metadata) => execute_update_metadata(deps, env, info, metadata),
     }
 }
 
@@ -95,19 +102,48 @@ fn execute_register_validator_key(
     _env: Env,
     info: MessageInfo,
     pubkey: Pubkey,
+    metadata: ValidatorMetadata,
 ) -> Result<Response, ContractError> {
     let pubkey: Ed25519Pubkey = pubkey.try_into()?;
+    let moniker = metadata.moniker.clone();
 
+    let operator = OperatorInfo { pubkey, metadata };
     match operators().may_load(deps.storage, &info.sender)? {
         Some(_) => return Err(ContractError::OperatorRegistered {}),
-        None => operators().save(deps.storage, &info.sender, &pubkey)?,
+        None => operators().save(deps.storage, &info.sender, &operator)?,
     };
 
     let res = Response::new()
         .add_attribute("action", "register_validator_key")
-        .add_attribute("operator", info.sender)
+        .add_attribute("operator", &info.sender)
         .add_attribute("pubkey_type", "ed25519")
-        .add_attribute("pubkey_value", pubkey.to_base64());
+        .add_attribute("pubkey_value", operator.pubkey.to_base64())
+        .add_attribute("moniker", moniker);
+
+    Ok(res)
+}
+
+fn execute_update_metadata(
+    deps: DepsMut,
+    _env: Env,
+    info: MessageInfo,
+    metadata: ValidatorMetadata,
+) -> Result<Response, ContractError> {
+    metadata.validate()?;
+    let moniker = metadata.moniker.clone();
+
+    operators().update(deps.storage, &info.sender, |info| match info {
+        Some(mut old) => {
+            old.metadata = metadata;
+            Ok(old)
+        }
+        None => Err(ContractError::Unauthorized {}),
+    })?;
+
+    let res = Response::new()
+        .add_attribute("action", "update_metadata")
+        .add_attribute("operator", &info.sender)
+        .add_attribute("moniker", moniker);
     Ok(res)
 }
 
@@ -116,10 +152,10 @@ pub fn query(deps: Deps, env: Env, msg: QueryMsg) -> Result<Binary, ContractErro
     match msg {
         QueryMsg::Config {} => Ok(to_binary(&query_config(deps, env)?)?),
         QueryMsg::Epoch {} => Ok(to_binary(&query_epoch(deps, env)?)?),
-        QueryMsg::ValidatorKey { operator } => {
+        QueryMsg::Validator { operator } => {
             Ok(to_binary(&query_validator_key(deps, env, operator)?)?)
         }
-        QueryMsg::ListValidatorKeys { start_after, limit } => Ok(to_binary(&list_validator_keys(
+        QueryMsg::ListValidators { start_after, limit } => Ok(to_binary(&list_validator_keys(
             deps,
             env,
             start_after,
@@ -158,11 +194,11 @@ fn query_validator_key(
     deps: Deps,
     _env: Env,
     operator: String,
-) -> Result<ValidatorKeyResponse, ContractError> {
-    let operator = deps.api.addr_validate(&operator)?;
-    let pubkey = operators().may_load(deps.storage, &operator)?;
-    Ok(ValidatorKeyResponse {
-        pubkey: pubkey.map(|p| p.into()),
+) -> Result<ValidatorResponse, ContractError> {
+    let operator_addr = deps.api.addr_validate(&operator)?;
+    let info = operators().may_load(deps.storage, &operator_addr)?;
+    Ok(ValidatorResponse {
+        validator: info.map(|i| OperatorResponse::from_info(i, operator)),
     })
 }
 
@@ -175,7 +211,7 @@ fn list_validator_keys(
     _env: Env,
     start_after: Option<String>,
     limit: Option<u32>,
-) -> Result<ListValidatorKeysResponse, ContractError> {
+) -> Result<ListValidatorResponse, ContractError> {
     let limit = limit.unwrap_or(DEFAULT_LIMIT).min(MAX_LIMIT) as usize;
     let start_after = maybe_addr(deps.api, start_after)?;
     let start = start_after.map(|addr| Bound::exclusive(addr.as_str()));
@@ -183,18 +219,19 @@ fn list_validator_keys(
     let operators: StdResult<Vec<_>> = operators()
         .range(deps.storage, start, None, Order::Ascending)
         .map(|r| {
-            let (key, validator_pubkey) = r?;
+            let (key, info) = r?;
             let operator = String::from_utf8(key)?;
-            Ok(OperatorKey {
+            Ok(OperatorResponse {
                 operator,
-                validator_pubkey: validator_pubkey.into(),
+                metadata: info.metadata,
+                pubkey: info.pubkey.into(),
             })
         })
         .take(limit)
         .collect();
 
-    Ok(ListValidatorKeysResponse {
-        operators: operators?,
+    Ok(ListValidatorResponse {
+        validators: operators?,
     })
 }
 
@@ -314,9 +351,9 @@ fn calculate_validators(deps: Deps) -> Result<Vec<ValidatorInfo>, ContractError>
                 operators()
                     .load(deps.storage, &m_addr)
                     .ok()
-                    .map(|validator_pubkey| ValidatorInfo {
+                    .map(|op| ValidatorInfo {
                         operator: m_addr,
-                        validator_pubkey: validator_pubkey.into(),
+                        validator_pubkey: op.pubkey.into(),
                         power: m.weight * scaling,
                     })
             })
@@ -381,8 +418,8 @@ mod test {
 
     use super::*;
     use crate::test_helpers::{
-        addrs, contract_valset, members, mock_app, mock_pubkey, nonmembers, valid_operator,
-        valid_validator,
+        addrs, contract_valset, members, mock_app, mock_metadata, mock_pubkey, nonmembers,
+        valid_operator, valid_validator,
     };
     use cosmwasm_std::{coin, Coin};
 
@@ -534,16 +571,18 @@ mod test {
             .last()
             .unwrap();
 
-        let val: ValidatorKeyResponse = app
+        let val: ValidatorResponse = app
             .wrap()
             .query_wasm_smart(
                 &valset_addr,
-                &QueryMsg::ValidatorKey {
+                &QueryMsg::Validator {
                     operator: op.operator,
                 },
             )
             .unwrap();
-        assert_eq!(val.pubkey.unwrap(), op.validator_pubkey);
+        let val = val.validator.unwrap();
+        assert_eq!(val.pubkey, op.validator_pubkey);
+        assert_eq!(val.metadata, op.metadata);
     }
 
     // TODO: test this with other cutoffs... higher max_vals, higher min_weight so they cannot all be filled
@@ -583,6 +622,65 @@ mod test {
     }
 
     #[test]
+    fn update_metadata_works() {
+        let mut app = mock_app();
+
+        // make a simple group
+        let group_addr = instantiate_group(&mut app, 36);
+        // make a valset that references it (this does init)
+        let valset_addr = instantiate_valset(&mut app, group_addr, 10, 5);
+
+        // get my initial metadata
+        let operator = addrs(3).pop().unwrap();
+        let query = QueryMsg::Validator {
+            operator: operator.clone(),
+        };
+        let val_info: ValidatorResponse =
+            app.wrap().query_wasm_smart(&valset_addr, &query).unwrap();
+        let val_init = val_info.validator.unwrap();
+        assert_eq!(val_init.metadata, mock_metadata(&operator));
+
+        // update the validator metadata
+        let updated = ValidatorMetadata {
+            moniker: "funny boy".to_string(),
+            identity: Some("one".to_string()),
+            website: None,
+            security_contact: Some("security@google.com".to_string()),
+            details: None,
+        };
+        let exec = ExecuteMsg::UpdateMetadata(updated.clone());
+        app.execute_contract(Addr::unchecked(&operator), valset_addr.clone(), &exec, &[])
+            .unwrap();
+
+        // it should be what we set
+        let val_info: ValidatorResponse =
+            app.wrap().query_wasm_smart(&valset_addr, &query).unwrap();
+        let val = val_info.validator.unwrap();
+        assert_eq!(val.metadata, updated);
+        // nothing else changed
+        assert_eq!(val.pubkey, val_init.pubkey);
+        assert_eq!(val.operator, val_init.operator);
+
+        // test that we cannot set empty moniker
+        let bad_update = ExecuteMsg::UpdateMetadata(ValidatorMetadata::default());
+        let err = app
+            .execute_contract(
+                Addr::unchecked(&operator),
+                valset_addr.clone(),
+                &bad_update,
+                &[],
+            )
+            .unwrap_err();
+        assert_eq!(err, (ContractError::InvalidMoniker {}).to_string());
+
+        // test that non-members cannot set data
+        let err = app
+            .execute_contract(Addr::unchecked("random"), valset_addr, &exec, &[])
+            .unwrap_err();
+        assert_eq!(err, (ContractError::Unauthorized {}).to_string());
+    }
+
+    #[test]
     fn validator_list() {
         let mut app = mock_app();
 
@@ -593,18 +691,18 @@ mod test {
 
         // List validator keys
         // First come the non-members
-        let validator_keys: ListValidatorKeysResponse = app
+        let validator_keys: ListValidatorResponse = app
             .wrap()
             .query_wasm_smart(
                 &valset_addr,
-                &QueryMsg::ListValidatorKeys {
+                &QueryMsg::ListValidators {
                     start_after: None,
                     limit: Some(PREREGISTER_NONMEMBERS),
                 },
             )
             .unwrap();
         assert_eq!(
-            validator_keys.operators.len(),
+            validator_keys.validators.len(),
             PREREGISTER_NONMEMBERS as usize
         );
 
@@ -612,52 +710,57 @@ mod test {
             .into_iter()
             .map(|addr| {
                 let val = valid_operator(&addr);
-                OperatorKey {
+                OperatorResponse {
                     operator: val.operator,
-                    validator_pubkey: val.validator_pubkey,
+                    pubkey: val.validator_pubkey,
+                    metadata: mock_metadata(&addr),
                 }
             })
             .collect();
-        assert_eq!(expected, validator_keys.operators);
+        assert_eq!(expected, validator_keys.validators);
 
         // Then come the members (2nd batch, different  limit)
-        let validator_keys: ListValidatorKeysResponse = app
+        let validator_keys: ListValidatorResponse = app
             .wrap()
             .query_wasm_smart(
                 &valset_addr,
-                &QueryMsg::ListValidatorKeys {
-                    start_after: Some(validator_keys.operators.last().unwrap().operator.clone()),
+                &QueryMsg::ListValidators {
+                    start_after: Some(validator_keys.validators.last().unwrap().operator.clone()),
                     limit: Some(PREREGISTER_MEMBERS),
                 },
             )
             .unwrap();
-        assert_eq!(validator_keys.operators.len(), PREREGISTER_MEMBERS as usize);
+        assert_eq!(
+            validator_keys.validators.len(),
+            PREREGISTER_MEMBERS as usize
+        );
 
         let expected: Vec<_> = addrs(PREREGISTER_MEMBERS)
             .into_iter()
             .map(|addr| {
                 let val = valid_operator(&addr);
-                OperatorKey {
+                OperatorResponse {
                     operator: val.operator,
-                    validator_pubkey: val.validator_pubkey,
+                    pubkey: val.validator_pubkey,
+                    metadata: mock_metadata(&addr),
                 }
             })
             .collect();
-        assert_eq!(expected, validator_keys.operators);
+        assert_eq!(expected, validator_keys.validators);
 
         // And that's all
-        let last = validator_keys.operators.last().unwrap().operator.clone();
-        let validator_keys: ListValidatorKeysResponse = app
+        let last = validator_keys.validators.last().unwrap().operator.clone();
+        let validator_keys: ListValidatorResponse = app
             .wrap()
             .query_wasm_smart(
                 &valset_addr,
-                &QueryMsg::ListValidatorKeys {
+                &QueryMsg::ListValidators {
                     start_after: Some(last.clone()),
                     limit: None,
                 },
             )
             .unwrap();
-        assert_eq!(validator_keys.operators.len(), 0);
+        assert_eq!(validator_keys.validators.len(), 0);
 
         // Validator list modifications
         // Add a new operator
@@ -668,29 +771,31 @@ mod test {
                 valset_addr.clone(),
                 &ExecuteMsg::RegisterValidatorKey {
                     pubkey: mock_pubkey(new_operator.as_bytes()),
+                    metadata: mock_metadata("master"),
                 },
                 &[],
             )
             .unwrap();
 
         // Then come the operator
-        let validator_keys: ListValidatorKeysResponse = app
+        let validator_keys: ListValidatorResponse = app
             .wrap()
             .query_wasm_smart(
                 &valset_addr,
-                &QueryMsg::ListValidatorKeys {
+                &QueryMsg::ListValidators {
                     start_after: Some(last),
                     limit: None,
                 },
             )
             .unwrap();
-        assert_eq!(validator_keys.operators.len(), 1);
+        assert_eq!(validator_keys.validators.len(), 1);
 
-        let expected: Vec<_> = vec![OperatorKey {
+        let expected: Vec<_> = vec![OperatorResponse {
             operator: new_operator.into(),
-            validator_pubkey: mock_pubkey(new_operator.as_bytes()),
+            pubkey: mock_pubkey(new_operator.as_bytes()),
+            metadata: mock_metadata("master"),
         }];
-        assert_eq!(expected, validator_keys.operators);
+        assert_eq!(expected, validator_keys.validators);
     }
 
     #[test]

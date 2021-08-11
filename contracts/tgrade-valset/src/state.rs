@@ -5,6 +5,7 @@ use cosmwasm_std::{Addr, Coin};
 use cw_storage_plus::{Index, IndexList, IndexedMap, Item, UniqueIndex};
 use tg4::Tg4Contract;
 
+use crate::msg::ValidatorMetadata;
 use tgrade_bindings::{Ed25519Pubkey, Pubkey};
 
 #[derive(Serialize, Deserialize, Clone, PartialEq, JsonSchema, Debug)]
@@ -61,22 +62,30 @@ pub const EPOCH: Item<EpochInfo> = Item::new("epoch");
 /// This will be empty only on the first run.
 pub const VALIDATORS: Item<Vec<ValidatorInfo>> = Item::new("validators");
 
+/// This stores the immutible info for an operator. Both their Tendermint key as well as
+/// their metadata
+#[derive(Serialize, Deserialize, Clone, JsonSchema, Debug, PartialEq)]
+pub struct OperatorInfo {
+    pub pubkey: Ed25519Pubkey,
+    pub metadata: ValidatorMetadata,
+}
+
 /// All this to get a unique secondary index on the pubkey, so we can ensure uniqueness.
 /// (It also allows reverse lookup from the pubkey to operator address if needed)
-pub fn operators<'a>() -> IndexedMap<'a, &'a Addr, Ed25519Pubkey, OperatorIndexes<'a>> {
+pub fn operators<'a>() -> IndexedMap<'a, &'a Addr, OperatorInfo, OperatorIndexes<'a>> {
     let indexes = OperatorIndexes {
-        pubkey: UniqueIndex::new(|d| d.to_vec(), "operators__pubkey"),
+        pubkey: UniqueIndex::new(|d| d.pubkey.to_vec(), "operators__pubkey"),
     };
     IndexedMap::new("operators", indexes)
 }
 
 pub struct OperatorIndexes<'a> {
-    pub pubkey: UniqueIndex<'a, Vec<u8>, Ed25519Pubkey>,
+    pub pubkey: UniqueIndex<'a, Vec<u8>, OperatorInfo>,
 }
 
-impl<'a> IndexList<Ed25519Pubkey> for OperatorIndexes<'a> {
-    fn get_indexes(&'_ self) -> Box<dyn Iterator<Item = &'_ dyn Index<Ed25519Pubkey>> + '_> {
-        let v: Vec<&dyn Index<Ed25519Pubkey>> = vec![&self.pubkey];
+impl<'a> IndexList<OperatorInfo> for OperatorIndexes<'a> {
+    fn get_indexes(&'_ self) -> Box<dyn Iterator<Item = &'_ dyn Index<OperatorInfo>> + '_> {
+        let v: Vec<&dyn Index<OperatorInfo>> = vec![&self.pubkey];
         Box::new(v.into_iter())
     }
 }

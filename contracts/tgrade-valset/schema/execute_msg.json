@@ -12,13 +12,29 @@
         "register_validator_key": {
           "type": "object",
           "required": [
+            "metadata",
             "pubkey"
           ],
           "properties": {
+            "metadata": {
+              "$ref": "#/definitions/ValidatorMetadata"
+            },
             "pubkey": {
               "$ref": "#/definitions/Pubkey"
             }
           }
+        }
+      },
+      "additionalProperties": false
+    },
+    {
+      "type": "object",
+      "required": [
+        "update_metadata"
+      ],
+      "properties": {
+        "update_metadata": {
+          "$ref": "#/definitions/ValidatorMetadata"
         }
       },
       "additionalProperties": false
@@ -72,6 +88,47 @@
           "additionalProperties": false
         }
       ]
+    },
+    "ValidatorMetadata": {
+      "description": "Validator Metadata modeled after the Cosmos SDK staking module",
+      "type": "object",
+      "required": [
+        "moniker"
+      ],
+      "properties": {
+        "details": {
+          "description": "The validator's (optional) details",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "identity": {
+          "description": "The optional identity signature (ex. UPort or Keybase)",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "moniker": {
+          "description": "The validator's name (required)",
+          "type": "string"
+        },
+        "security_contact": {
+          "description": "The validator's (optional) security contact email",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "website": {
+          "description": "The validator's (optional) website",
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      }
     }
   }
 }

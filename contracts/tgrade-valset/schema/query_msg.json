@@ -29,13 +29,13 @@
       "additionalProperties": false
     },
     {
-      "description": "Returns the validator key (if present) for the given operator",
+      "description": "Returns the validator key and associated metadata (if present) for the given operator",
       "type": "object",
       "required": [
-        "validator_key"
+        "validator"
       ],
       "properties": {
-        "validator_key": {
+        "validator": {
           "type": "object",
           "required": [
             "operator"
@@ -50,13 +50,13 @@
       "additionalProperties": false
     },
     {
-      "description": "Paginate over all operators.",
+      "description": "Paginate over all operators, using operator address as pagination",
       "type": "object",
       "required": [
-        "list_validator_keys"
+        "list_validators"
       ],
       "properties": {
-        "list_validator_keys": {
+        "list_validators": {
           "type": "object",
           "properties": {
             "limit": {

@@ -5,11 +5,10 @@ use std::convert::TryFrom;
 use tgrade_bindings::{Ed25519Pubkey, Pubkey};
 
 use crate::error::ContractError;
-use crate::state::{Config, ValidatorInfo};
+use crate::state::{Config, OperatorInfo, ValidatorInfo};
 use cosmwasm_std::Coin;
 
 #[derive(Serialize, Deserialize, Clone, PartialEq, JsonSchema, Debug)]
-#[serde(rename_all = "snake_case")]
 pub struct InstantiateMsg {
     /// address of a cw4 contract with the raw membership used to feed the validator set
     pub membership: String,
@@ -36,7 +35,7 @@ pub struct InstantiateMsg {
     /// Initial operators and validator keys registered.
     /// If you do not set this, the validators need to register themselves before
     /// making this privileged/calling the EndBlockers, so we have a non-empty validator set
-    pub initial_keys: Vec<OperatorKey>,
+    pub initial_keys: Vec<OperatorInitInfo>,
 
     /// A scaling factor to multiply cw4-group weights to produce the tendermint validator power
     /// (TODO: should we allow this to reduce weight? Like 1/1000?)
@@ -68,18 +67,49 @@ impl InstantiateMsg {
     }
 }
 
+/// Validator Metadata modeled after the Cosmos SDK staking module
+#[derive(Serialize, Deserialize, Clone, PartialEq, JsonSchema, Debug, Default)]
+pub struct ValidatorMetadata {
+    /// The validator's name (required)
+    pub moniker: String,
+
+    /// The optional identity signature (ex. UPort or Keybase)
+    pub identity: Option<String>,
+
+    /// The validator's (optional) website
+    pub website: Option<String>,
+
+    /// The validator's (optional) security contact email
+    pub security_contact: Option<String>,
+
+    /// The validator's (optional) details
+    pub details: Option<String>,
+}
+
+const MIN_MONIKER_LENGTH: usize = 3;
+
+impl ValidatorMetadata {
+    pub fn validate(&self) -> Result<(), ContractError> {
+        if self.moniker.len() < MIN_MONIKER_LENGTH {
+            return Err(ContractError::InvalidMoniker {});
+        }
+        Ok(())
+    }
+}
+
 /// Maps an sdk address to a Tendermint pubkey.
 #[derive(Serialize, Deserialize, Clone, PartialEq, JsonSchema, Debug)]
-pub struct OperatorKey {
+pub struct OperatorInitInfo {
     pub operator: String,
     /// TODO: better name to specify this is the Tendermint pubkey for consensus?
     pub validator_pubkey: Pubkey,
+    pub metadata: ValidatorMetadata,
 }
 
-impl OperatorKey {
+impl OperatorInitInfo {
     pub fn validate(&self) -> Result<(), ContractError> {
         Ed25519Pubkey::try_from(&self.validator_pubkey)?;
-        Ok(())
+        self.metadata.validate()
     }
 }
 
@@ -89,7 +119,11 @@ pub enum ExecuteMsg {
     /// Links info.sender (operator) to this Tendermint consensus key.
     /// The operator cannot re-register another key.
     /// No two operators may have the same consensus_key.
-    RegisterValidatorKey { pubkey: Pubkey },
+    RegisterValidatorKey {
+        pubkey: Pubkey,
+        metadata: ValidatorMetadata,
+    },
+    UpdateMetadata(ValidatorMetadata),
 }
 
 #[derive(Serialize, Deserialize, Clone, PartialEq, JsonSchema, Debug)]
@@ -100,10 +134,10 @@ pub enum QueryMsg {
     /// Returns EpochResponse - get info on current and next epochs
     Epoch {},
 
-    /// Returns the validator key (if present) for the given operator
-    ValidatorKey { operator: String },
-    /// Paginate over all operators.
-    ListValidatorKeys {
+    /// Returns the validator key and associated metadata (if present) for the given operator
+    Validator { operator: String },
+    /// Paginate over all operators, using operator address as pagination
+    ListValidators {
         start_after: Option<String>,
         limit: Option<u32>,
     },
@@ -133,15 +167,33 @@ pub struct EpochResponse {
     pub next_update_time: u64,
 }
 
+// data behind one operator
 #[derive(Serialize, Deserialize, Clone, PartialEq, JsonSchema, Debug)]
-pub struct ValidatorKeyResponse {
-    /// This is unset if no validator registered
-    pub pubkey: Option<Pubkey>,
+pub struct OperatorResponse {
+    pub operator: String,
+    pub pubkey: Pubkey,
+    pub metadata: ValidatorMetadata,
+}
+
+impl OperatorResponse {
+    pub fn from_info(info: OperatorInfo, operator: String) -> Self {
+        OperatorResponse {
+            operator,
+            pubkey: info.pubkey.into(),
+            metadata: info.metadata,
+        }
+    }
 }
 
 #[derive(Serialize, Deserialize, Clone, PartialEq, JsonSchema, Debug)]
-pub struct ListValidatorKeysResponse {
-    pub operators: Vec<OperatorKey>,
+pub struct ValidatorResponse {
+    /// This is unset if no validator registered
+    pub validator: Option<OperatorResponse>,
+}
+
+#[derive(Serialize, Deserialize, Clone, PartialEq, JsonSchema, Debug)]
+pub struct ListValidatorResponse {
+    pub validators: Vec<OperatorResponse>,
 }
 
 #[derive(Serialize, Deserialize, Clone, PartialEq, JsonSchema, Debug)]

@@ -1,16 +1,18 @@
 {
   "$schema": "http://json-schema.org/draft-07/schema#",
-  "title": "ListValidatorKeysResponse",
+  "title": "ValidatorResponse",
   "type": "object",
-  "required": [
-    "operators"
-  ],
   "properties": {
-    "operators": {
-      "type": "array",
-      "items": {
-        "$ref": "#/definitions/OperatorKey"
-      }
+    "validator": {
+      "description": "This is unset if no validator registered",
+      "anyOf": [
+        {
+          "$ref": "#/definitions/OperatorResponse"
+        },
+        {
+          "type": "null"
+        }
+      ]
     }
   },
   "definitions": {
@@ -18,24 +20,22 @@
       "description": "Binary is a wrapper around Vec<u8> to add base64 de/serialization with serde. It also adds some helper methods to help encode inline.\n\nThis is only needed as serde-json-{core,wasm} has a horrible encoding for Vec<u8>",
       "type": "string"
     },
-    "OperatorKey": {
-      "description": "Maps an sdk address to a Tendermint pubkey.",
+    "OperatorResponse": {
       "type": "object",
       "required": [
+        "metadata",
         "operator",
-        "validator_pubkey"
+        "pubkey"
       ],
       "properties": {
+        "metadata": {
+          "$ref": "#/definitions/ValidatorMetadata"
+        },
         "operator": {
           "type": "string"
         },
-        "validator_pubkey": {
-          "description": "TODO: better name to specify this is the Tendermint pubkey for consensus?",
-          "allOf": [
-            {
-              "$ref": "#/definitions/Pubkey"
-            }
-          ]
+        "pubkey": {
+          "$ref": "#/definitions/Pubkey"
         }
       }
     },
@@ -82,6 +82,47 @@
           "additionalProperties": false
         }
       ]
+    },
+    "ValidatorMetadata": {
+      "description": "Validator Metadata modeled after the Cosmos SDK staking module",
+      "type": "object",
+      "required": [
+        "moniker"
+      ],
+      "properties": {
+        "details": {
+          "description": "The validator's (optional) details",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "identity": {
+          "description": "The optional identity signature (ex. UPort or Keybase)",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "moniker": {
+          "description": "The validator's name (required)",
+          "type": "string"
+        },
+        "security_contact": {
+          "description": "The validator's (optional) security contact email",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "website": {
+          "description": "The validator's (optional) website",
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      }
     }
   }
 }
