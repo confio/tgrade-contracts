@@ -2,6 +2,8 @@
 use super::*;
 use cosmwasm_std::{Deps, SubMsg};
 
+use crate::tests::bdd_tests::{PROPOSAL_ID_1, PROPOSAL_ID_2};
+
 #[test]
 fn instantiation_no_funds() {
     let mut deps = mock_dependencies(&[]);
@@ -78,7 +80,8 @@ fn test_add_voting_members_overlapping_batches() {
 
     // add new members, and one of them pays in
     let delay1 = 10;
-    proposal_add_voting_members(deps.as_mut(), later(&start, delay1), batch1).unwrap();
+    proposal_add_voting_members(deps.as_mut(), later(&start, delay1), PROPOSAL_ID_1, batch1)
+        .unwrap();
     let info = mock_info(VOTING1, &escrow_funds());
     execute_deposit_escrow(deps.as_mut(), later(&start, delay1 + 1), info).unwrap();
 
@@ -92,7 +95,8 @@ fn test_add_voting_members_overlapping_batches() {
 
     // make a second batch one week later
     let delay2 = 86_400 * 7;
-    proposal_add_voting_members(deps.as_mut(), later(&start, delay2), batch2).unwrap();
+    proposal_add_voting_members(deps.as_mut(), later(&start, delay2), PROPOSAL_ID_2, batch2)
+        .unwrap();
     // and both pay in
     let info = mock_info(SECOND1, &escrow_funds());
     execute_deposit_escrow(deps.as_mut(), later(&start, delay2 + 1), info).unwrap();
@@ -133,9 +137,15 @@ fn test_escrows() {
     do_instantiate(deps.as_mut(), info, vec![]).unwrap();
 
     let voting_status = MemberStatus::Voting {};
-    let paid_status = MemberStatus::PendingPaid { batch_id: 1 };
-    let pending_status = MemberStatus::Pending { batch_id: 1 };
-    let pending_status2 = MemberStatus::Pending { batch_id: 2 };
+    let paid_status = MemberStatus::PendingPaid {
+        proposal_id: PROPOSAL_ID_1,
+    };
+    let pending_status = MemberStatus::Pending {
+        proposal_id: PROPOSAL_ID_1,
+    };
+    let pending_status2 = MemberStatus::Pending {
+        proposal_id: PROPOSAL_ID_2,
+    };
 
     // Assert the voting set is proper
     assert_voting(&deps, Some(1), None, None, None, None);
@@ -144,7 +154,7 @@ fn test_escrows() {
     env.block.height += 1;
     // Add a couple voting members
     let add = vec![VOTING1.into(), VOTING2.into()];
-    proposal_add_voting_members(deps.as_mut(), env.clone(), add).unwrap();
+    proposal_add_voting_members(deps.as_mut(), env.clone(), PROPOSAL_ID_1, add).unwrap();
 
     // Weights properly
     assert_voting(&deps, Some(1), Some(0), Some(0), None, None);
@@ -272,7 +282,7 @@ fn test_escrows() {
     // Third member is added
     let add = vec![VOTING3.into()];
     env.block.height += 1;
-    proposal_add_voting_members(deps.as_mut(), env.clone(), add).unwrap();
+    proposal_add_voting_members(deps.as_mut(), env.clone(), PROPOSAL_ID_2, add).unwrap();
 
     // Third member tops-up with less than enough funds
     let info = mock_info(VOTING3, &[coin(ESCROW_FUNDS - 1, "utgd")]);
@@ -616,6 +626,7 @@ fn leaving_voter_cannot_vote_anymore() {
     proposal_add_voting_members(
         deps.as_mut(),
         later(&start, 10),
+        PROPOSAL_ID_1,
         vec![
             VOTING1.into(),
             VOTING2.into(),

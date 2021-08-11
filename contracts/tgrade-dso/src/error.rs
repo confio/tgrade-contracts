@@ -63,6 +63,9 @@ pub enum ContractError {
     #[error("Already voted on this proposal")]
     AlreadyVoted {},
 
+    #[error("Proposal {0} already used to add voting members")]
+    AlreadyUsedProposal(u64),
+
     #[error("Proposal must have passed and not yet been executed")]
     WrongExecuteStatus {},
 

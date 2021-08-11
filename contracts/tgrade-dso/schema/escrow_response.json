@@ -61,10 +61,10 @@
             "pending": {
               "type": "object",
               "required": [
-                "batch_id"
+                "proposal_id"
               ],
               "properties": {
-                "batch_id": {
+                "proposal_id": {
                   "type": "integer",
                   "format": "uint64",
                   "minimum": 0.0
@@ -84,10 +84,10 @@
             "pending_paid": {
               "type": "object",
               "required": [
-                "batch_id"
+                "proposal_id"
               ],
               "properties": {
-                "batch_id": {
+                "proposal_id": {
                   "type": "integer",
                   "format": "uint64",
                   "minimum": 0.0
