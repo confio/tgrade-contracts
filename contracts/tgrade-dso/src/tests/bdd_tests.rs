@@ -22,6 +22,8 @@ const LEAVING_ESCROW: u128 = ESCROW_FUNDS + 777808;
 pub(crate) const PROPOSAL_ID_1: u64 = 1;
 pub(crate) const PROPOSAL_ID_2: u64 = 2;
 const PROPOSAL_ID_3: u64 = 3;
+const PROPOSAL_ID_4: u64 = 4;
+const PROPOSAL_ID_5: u64 = 5;
 const PENDING_STARTS: u64 = 500;
 const PENDING_ENDS: u64 = PENDING_STARTS + 14 * 86_400 + 1;
 
@@ -430,7 +432,7 @@ fn re_adding_existing_members() {
     assert_escrow(deps.as_ref(), VOTING, VOTING_ESCROW);
 
     // NO OP: add voting who is already voting
-    proposal_add_voting_members(deps.as_mut(), now(), PROPOSAL_ID_1, vec![VOTING.into()]).unwrap();
+    proposal_add_voting_members(deps.as_mut(), now(), PROPOSAL_ID_3, vec![VOTING.into()]).unwrap();
     assert!(matches!(
         get_status(deps.as_ref(), VOTING),
         MemberStatus::Voting {}
@@ -450,7 +452,7 @@ fn re_adding_existing_members() {
     proposal_add_voting_members(
         deps.as_mut(),
         now(),
-        PROPOSAL_ID_2,
+        PROPOSAL_ID_4,
         vec![PENDING_SOME.into()],
     )
     .unwrap();
@@ -470,7 +472,7 @@ fn re_adding_existing_members() {
     assert_escrow(deps.as_ref(), NON_VOTING, 0);
 
     // SUCCEED: add voting who is already non-voting
-    proposal_add_voting_members(deps.as_mut(), now(), PROPOSAL_ID_3, vec![NON_VOTING.into()])
+    proposal_add_voting_members(deps.as_mut(), now(), PROPOSAL_ID_5, vec![NON_VOTING.into()])
         .unwrap();
     assert!(matches!(
         get_status(deps.as_ref(), NON_VOTING),

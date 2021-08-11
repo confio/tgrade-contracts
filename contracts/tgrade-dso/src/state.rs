@@ -296,11 +296,6 @@ pub fn batches<'a>() -> IndexedMap<'a, U64Key, Batch, BatchIndexes<'a>> {
     IndexedMap::new("batch", indexes)
 }
 
-pub fn create_batch(store: &mut dyn Storage, batch_id: u64, batch: &Batch) -> StdResult<()> {
-    batches().save(store, batch_id.into(), batch)?;
-    Ok(())
-}
-
 #[derive(Serialize, Deserialize, Clone, PartialEq, JsonSchema, Debug)]
 #[serde(rename_all = "snake_case")]
 pub enum ProposalContent {

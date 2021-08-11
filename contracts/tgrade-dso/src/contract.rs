@@ -16,9 +16,9 @@ use crate::msg::{
     ProposalResponse, QueryMsg, VoteInfo, VoteListResponse, VoteResponse,
 };
 use crate::state::{
-    batches, create_batch, create_proposal, members, parse_id, save_ballot, Ballot, Batch, Dso,
-    DsoAdjustments, EscrowStatus, MemberStatus, Proposal, ProposalContent, Votes, VotingRules,
-    BALLOTS, BALLOTS_BY_VOTER, DSO, ESCROWS, PROPOSALS, PROPOSAL_BY_EXPIRY, TOTAL,
+    batches, create_proposal, members, parse_id, save_ballot, Ballot, Batch, Dso, DsoAdjustments,
+    EscrowStatus, MemberStatus, Proposal, ProposalContent, Votes, VotingRules, BALLOTS,
+    BALLOTS_BY_VOTER, DSO, ESCROWS, PROPOSALS, PROPOSAL_BY_EXPIRY, TOTAL,
 };
 
 // version info for migration info
@@ -696,7 +696,10 @@ pub fn proposal_add_voting_members(
         batch_promoted: false,
         members: addrs.clone(),
     };
-    create_batch(deps.storage, proposal_id, &batch)?;
+    batches().update(deps.storage, proposal_id.into(), |old| match old {
+        Some(_) => Err(ContractError::AlreadyUsedProposal(proposal_id)),
+        None => Ok(batch),
+    })?;
 
     let res = Response::new()
         .add_attribute("action", "add_voting_members")
