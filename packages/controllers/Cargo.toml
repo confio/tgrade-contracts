@@ -1,6 +1,6 @@
 [package]
 name = "tg-controllers"
-version = "0.3.0-rc1"
+version = "0.3.0-rc2"
 authors = ["Ethan Frey <ethanfrey@users.noreply.github.com>"]
 edition = "2018"
 description = "Tgrade Controllers: helpers for various contracts"
