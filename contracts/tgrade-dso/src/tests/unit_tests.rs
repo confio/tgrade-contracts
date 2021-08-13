@@ -176,7 +176,7 @@ fn test_escrows() {
             Escrow {
                 addr: INIT_ADMIN.into(),
                 escrow_status: EscrowStatus {
-                    paid: Uint128::new(1000000),
+                    paid: Uint128::new(ESCROW_FUNDS),
                     status: voting_status,
                 },
             },
@@ -212,6 +212,33 @@ fn test_escrows() {
     );
     // Check escrows / auths are updated
     assert_escrow_paid(&deps, Some(ESCROW_FUNDS), Some(ESCROW_FUNDS), Some(0), None);
+    // Check escrows list
+    assert_escrows(
+        &deps,
+        vec![
+            Escrow {
+                addr: INIT_ADMIN.into(),
+                escrow_status: EscrowStatus {
+                    paid: Uint128::new(ESCROW_FUNDS),
+                    status: voting_status,
+                },
+            },
+            Escrow {
+                addr: VOTING1.into(),
+                escrow_status: EscrowStatus {
+                    paid: Uint128::new(ESCROW_FUNDS),
+                    status: paid_status,
+                },
+            },
+            Escrow {
+                addr: VOTING2.into(),
+                escrow_status: EscrowStatus {
+                    paid: Uint128::new(0),
+                    status: pending_status,
+                },
+            },
+        ],
+    );
 
     // Second voting member tops-up but without enough funds
     let info = mock_info(VOTING2, &[coin(ESCROW_FUNDS - 1, "utgd")]);
@@ -233,6 +260,33 @@ fn test_escrows() {
         Some(paid_status),
         Some(pending_status),
         None,
+    );
+    // Escrows list (not) updated properly
+    assert_escrows(
+        &deps,
+        vec![
+            Escrow {
+                addr: INIT_ADMIN.into(),
+                escrow_status: EscrowStatus {
+                    paid: Uint128::new(ESCROW_FUNDS),
+                    status: voting_status,
+                },
+            },
+            Escrow {
+                addr: VOTING1.into(),
+                escrow_status: EscrowStatus {
+                    paid: Uint128::new(ESCROW_FUNDS),
+                    status: paid_status,
+                },
+            },
+            Escrow {
+                addr: VOTING2.into(),
+                escrow_status: EscrowStatus {
+                    paid: Uint128::new(ESCROW_FUNDS - 1),
+                    status: pending_status,
+                },
+            },
+        ],
     );
 
     // Second voting member adds just enough funds
@@ -256,6 +310,34 @@ fn test_escrows() {
         Some(ESCROW_FUNDS),
         Some(ESCROW_FUNDS),
         None,
+    );
+
+    // Check escrows list is updated properly
+    assert_escrows(
+        &deps,
+        vec![
+            Escrow {
+                addr: INIT_ADMIN.into(),
+                escrow_status: EscrowStatus {
+                    paid: Uint128::new(ESCROW_FUNDS),
+                    status: voting_status,
+                },
+            },
+            Escrow {
+                addr: VOTING1.into(),
+                escrow_status: EscrowStatus {
+                    paid: Uint128::new(ESCROW_FUNDS),
+                    status: voting_status,
+                },
+            },
+            Escrow {
+                addr: VOTING2.into(),
+                escrow_status: EscrowStatus {
+                    paid: Uint128::new(ESCROW_FUNDS),
+                    status: voting_status,
+                },
+            },
+        ],
     );
 
     // Second voting member adds more than enough funds
