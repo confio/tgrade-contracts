@@ -30,12 +30,12 @@ pub enum ExecuteMsg {
 pub enum QueryMsg {
     /// Return TotalWeightResponse
     TotalWeight {},
-    /// Returns MembersListResponse
+    /// Returns MemberListResponse
     ListMembers {
         start_after: Option<String>,
         limit: Option<u32>,
     },
-    /// Returns MembersListResponse, sorted by weight descending
+    /// Returns MemberListResponse, sorted by weight descending
     ListMembersByWeight {
         start_after: Option<Member>,
         limit: Option<u32>,

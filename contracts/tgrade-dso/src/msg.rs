@@ -62,17 +62,17 @@ pub enum QueryMsg {
     Dso {},
     /// Return TotalWeightResponse
     TotalWeight {},
-    /// Returns MembersListResponse, for all (voting and non-voting) members
+    /// Returns MemberListResponse, for all (voting and non-voting) members
     ListMembers {
         start_after: Option<String>,
         limit: Option<u32>,
     },
-    /// Returns MembersListResponse, only active voting members (weight > 0)
+    /// Returns MemberListResponse, only active voting members (weight > 0)
     ListVotingMembers {
         start_after: Option<String>,
         limit: Option<u32>,
     },
-    /// Returns MembersListResponse, only weight == 0 members
+    /// Returns MemberListResponse, only weight == 0 members
     ListNonVotingMembers {
         start_after: Option<String>,
         limit: Option<u32>,
