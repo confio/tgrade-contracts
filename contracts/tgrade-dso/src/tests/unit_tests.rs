@@ -2,6 +2,7 @@
 use super::*;
 use cosmwasm_std::{Deps, SubMsg};
 
+use crate::state::EscrowStatus;
 use crate::tests::bdd_tests::{PROPOSAL_ID_1, PROPOSAL_ID_2};
 
 #[test]
@@ -167,6 +168,33 @@ fn test_escrows() {
         Some(pending_status),
         Some(pending_status),
         None,
+    );
+    // And escrows list
+    assert_escrows(
+        &deps,
+        vec![
+            Escrow {
+                addr: INIT_ADMIN.into(),
+                escrow_status: EscrowStatus {
+                    paid: Uint128::new(1000000),
+                    status: voting_status,
+                },
+            },
+            Escrow {
+                addr: VOTING1.into(),
+                escrow_status: EscrowStatus {
+                    paid: Uint128::new(0),
+                    status: pending_status,
+                },
+            },
+            Escrow {
+                addr: VOTING2.into(),
+                escrow_status: EscrowStatus {
+                    paid: Uint128::new(0),
+                    status: pending_status,
+                },
+            },
+        ],
     );
 
     // First voting member tops-up with enough funds

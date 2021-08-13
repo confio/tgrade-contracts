@@ -173,6 +173,13 @@ pub struct Escrow {
     pub escrow_status: EscrowStatus,
 }
 
+#[cfg(test)]
+impl Escrow {
+    pub fn cmp_by_addr(left: &Escrow, right: &Escrow) -> std::cmp::Ordering {
+        left.addr.cmp(&right.addr)
+    }
+}
+
 #[derive(Serialize, Deserialize, Clone, PartialEq, JsonSchema, Debug)]
 pub struct EscrowListResponse {
     pub escrows: Vec<Escrow>,

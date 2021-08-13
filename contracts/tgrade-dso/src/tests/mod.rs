@@ -15,7 +15,9 @@ use tg4::{member_key, TOTAL_KEY};
 
 use crate::contract::*;
 use crate::error::ContractError;
-use crate::msg::{DsoResponse, ExecuteMsg, InstantiateMsg, ProposalResponse, QueryMsg, VoteInfo};
+use crate::msg::{
+    DsoResponse, Escrow, ExecuteMsg, InstantiateMsg, ProposalResponse, QueryMsg, VoteInfo,
+};
 use crate::state::{DsoAdjustments, MemberStatus, ProposalContent, VotingRules};
 
 const INIT_ADMIN: &str = "juan";
@@ -32,6 +34,18 @@ const NONVOTING2: &str = "paul";
 const NONVOTING3: &str = "jimmy";
 const SECOND1: &str = "more";
 const SECOND2: &str = "peeps";
+
+macro_rules! assert_sorted_eq {
+    ($left:expr, $right:expr, $cmp:expr $(,)?) => {
+        let mut left = $left;
+        left.sort_by(&$cmp);
+
+        let mut right = $right;
+        right.sort_by($cmp);
+
+        assert_eq!(left, right);
+    };
+}
 
 fn escrow_funds() -> Vec<Coin> {
     coins(ESCROW_FUNDS, DENOM)
@@ -208,6 +222,14 @@ fn assert_escrow_status<S: Storage, A: Api, Q: Querier>(
         Some(status) => assert_eq!(escrow3.unwrap().status, status),
         None => assert_eq!(escrow3, None),
     };
+}
+
+fn assert_escrows<S: Storage, A: Api, Q: Querier>(
+    deps: &OwnedDeps<S, A, Q>,
+    member_escrows: Vec<Escrow>,
+) {
+    let escrows = list_escrows(deps.as_ref(), None, None).unwrap().escrows;
+    assert_sorted_eq!(member_escrows, escrows, Escrow::cmp_by_addr);
 }
 
 /// This makes a new proposal at env (height and time)
