@@ -109,6 +109,11 @@ pub enum QueryMsg {
         start_before: Option<u64>,
         limit: Option<u32>,
     },
+    /// Returns an EscrowListResponse, with all members that have escrow.
+    ListEscrows {
+        start_after: Option<String>,
+        limit: Option<u32>,
+    },
 }
 
 pub type EscrowResponse = Option<EscrowStatus>;
@@ -160,4 +165,15 @@ pub struct VoteListResponse {
 #[derive(Serialize, Deserialize, Clone, PartialEq, JsonSchema, Debug)]
 pub struct VoteResponse {
     pub vote: Option<VoteInfo>,
+}
+
+#[derive(Serialize, Deserialize, Clone, PartialEq, JsonSchema, Debug)]
+pub struct Escrow {
+    pub addr: String,
+    pub escrow_status: EscrowStatus,
+}
+
+#[derive(Serialize, Deserialize, Clone, PartialEq, JsonSchema, Debug)]
+pub struct EscrowListResponse {
+    pub escrows: Vec<Escrow>,
 }
