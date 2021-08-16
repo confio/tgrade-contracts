@@ -171,7 +171,7 @@ fn test_escrows() {
     );
     // And escrows list
     assert_escrows(
-        &deps,
+        deps.as_ref(),
         vec![
             Escrow {
                 addr: INIT_ADMIN.into(),
@@ -214,7 +214,7 @@ fn test_escrows() {
     assert_escrow_paid(&deps, Some(ESCROW_FUNDS), Some(ESCROW_FUNDS), Some(0), None);
     // Check escrows list
     assert_escrows(
-        &deps,
+        deps.as_ref(),
         vec![
             Escrow {
                 addr: INIT_ADMIN.into(),
@@ -263,7 +263,7 @@ fn test_escrows() {
     );
     // Escrows list (not) updated properly
     assert_escrows(
-        &deps,
+        deps.as_ref(),
         vec![
             Escrow {
                 addr: INIT_ADMIN.into(),
@@ -314,7 +314,7 @@ fn test_escrows() {
 
     // Check escrows list is updated properly
     assert_escrows(
-        &deps,
+        deps.as_ref(),
         vec![
             Escrow {
                 addr: INIT_ADMIN.into(),

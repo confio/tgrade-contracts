@@ -8,7 +8,7 @@ use std::fmt::Debug;
 
 use cosmwasm_std::testing::{mock_dependencies, mock_env, mock_info};
 use cosmwasm_std::{
-    attr, coin, coins, from_slice, Api, Attribute, BankMsg, Coin, Decimal, DepsMut, Env,
+    attr, coin, coins, from_slice, Api, Attribute, BankMsg, Coin, Decimal, Deps, DepsMut, Env,
     MessageInfo, OwnedDeps, Querier, Response, Storage, Uint128,
 };
 
@@ -231,11 +231,8 @@ fn assert_escrow_status<S: Storage, A: Api, Q: Querier>(
 }
 
 #[track_caller]
-fn assert_escrows<S: Storage, A: Api, Q: Querier>(
-    deps: &OwnedDeps<S, A, Q>,
-    member_escrows: Vec<Escrow>,
-) {
-    let escrows = list_escrows(deps.as_ref(), None, None).unwrap().escrows;
+fn assert_escrows(deps: Deps, member_escrows: Vec<Escrow>) {
+    let escrows = list_escrows(deps, None, None).unwrap().escrows;
     assert_sorted_eq(member_escrows, escrows, &Escrow::cmp_by_addr);
 }
 
