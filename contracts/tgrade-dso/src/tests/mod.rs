@@ -230,6 +230,7 @@ fn assert_escrow_status<S: Storage, A: Api, Q: Querier>(
     };
 }
 
+#[track_caller]
 fn assert_escrows<S: Storage, A: Api, Q: Querier>(
     deps: &OwnedDeps<S, A, Q>,
     member_escrows: Vec<Escrow>,
