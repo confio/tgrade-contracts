@@ -3,6 +3,9 @@
 mod bdd_tests;
 mod unit_tests;
 
+use std::cmp::PartialEq;
+use std::fmt::Debug;
+
 use cosmwasm_std::testing::{mock_dependencies, mock_env, mock_info};
 use cosmwasm_std::{
     attr, coin, coins, from_slice, Api, Attribute, BankMsg, Coin, Decimal, DepsMut, Env,
@@ -35,16 +38,19 @@ const NONVOTING3: &str = "jimmy";
 const SECOND1: &str = "more";
 const SECOND2: &str = "peeps";
 
-macro_rules! assert_sorted_eq {
-    ($left:expr, $right:expr, $cmp:expr $(,)?) => {
-        let mut left = $left;
-        left.sort_by(&$cmp);
+#[track_caller]
+fn assert_sorted_eq<F, T>(left: Vec<T>, right: Vec<T>, cmp: &F)
+where
+    T: Debug + PartialEq,
+    F: Fn(&T, &T) -> std::cmp::Ordering,
+{
+    let mut l = left;
+    l.sort_by(cmp);
 
-        let mut right = $right;
-        right.sort_by($cmp);
+    let mut r = right;
+    r.sort_by(cmp);
 
-        assert_eq!(left, right);
-    };
+    assert_eq!(l, r);
 }
 
 fn escrow_funds() -> Vec<Coin> {
@@ -229,7 +235,7 @@ fn assert_escrows<S: Storage, A: Api, Q: Querier>(
     member_escrows: Vec<Escrow>,
 ) {
     let escrows = list_escrows(deps.as_ref(), None, None).unwrap().escrows;
-    assert_sorted_eq!(member_escrows, escrows, Escrow::cmp_by_addr);
+    assert_sorted_eq(member_escrows, escrows, &Escrow::cmp_by_addr);
 }
 
 /// This makes a new proposal at env (height and time)
