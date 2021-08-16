@@ -3,9 +3,12 @@
 mod bdd_tests;
 mod unit_tests;
 
+use std::cmp::PartialEq;
+use std::fmt::Debug;
+
 use cosmwasm_std::testing::{mock_dependencies, mock_env, mock_info};
 use cosmwasm_std::{
-    attr, coin, coins, from_slice, Api, Attribute, BankMsg, Coin, Decimal, DepsMut, Env,
+    attr, coin, coins, from_slice, Api, Attribute, BankMsg, Coin, Decimal, Deps, DepsMut, Env,
     MessageInfo, OwnedDeps, Querier, Response, Storage, Uint128,
 };
 
@@ -15,7 +18,9 @@ use tg4::{member_key, TOTAL_KEY};
 
 use crate::contract::*;
 use crate::error::ContractError;
-use crate::msg::{DsoResponse, ExecuteMsg, InstantiateMsg, ProposalResponse, QueryMsg, VoteInfo};
+use crate::msg::{
+    DsoResponse, Escrow, ExecuteMsg, InstantiateMsg, ProposalResponse, QueryMsg, VoteInfo,
+};
 use crate::state::{DsoAdjustments, MemberStatus, ProposalContent, VotingRules};
 
 const INIT_ADMIN: &str = "juan";
@@ -32,6 +37,21 @@ const NONVOTING2: &str = "paul";
 const NONVOTING3: &str = "jimmy";
 const SECOND1: &str = "more";
 const SECOND2: &str = "peeps";
+
+#[track_caller]
+fn assert_sorted_eq<F, T>(left: Vec<T>, right: Vec<T>, cmp: &F)
+where
+    T: Debug + PartialEq,
+    F: Fn(&T, &T) -> std::cmp::Ordering,
+{
+    let mut l = left;
+    l.sort_by(cmp);
+
+    let mut r = right;
+    r.sort_by(cmp);
+
+    assert_eq!(l, r);
+}
 
 fn escrow_funds() -> Vec<Coin> {
     coins(ESCROW_FUNDS, DENOM)
@@ -208,6 +228,12 @@ fn assert_escrow_status<S: Storage, A: Api, Q: Querier>(
         Some(status) => assert_eq!(escrow3.unwrap().status, status),
         None => assert_eq!(escrow3, None),
     };
+}
+
+#[track_caller]
+fn assert_escrows(deps: Deps, member_escrows: Vec<Escrow>) {
+    let escrows = list_escrows(deps, None, None).unwrap().escrows;
+    assert_sorted_eq(member_escrows, escrows, &Escrow::cmp_by_addr);
 }
 
 /// This makes a new proposal at env (height and time)

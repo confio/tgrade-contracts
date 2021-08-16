@@ -5,8 +5,8 @@ use cosmwasm_schema::{export_schema, export_schema_with_title, remove_schemas, s
 
 pub use tg4::{MemberListResponse, MemberResponse, TotalWeightResponse};
 pub use tgrade_dso::msg::{
-    DsoResponse, EscrowResponse, ExecuteMsg, InstantiateMsg, ProposalListResponse,
-    ProposalResponse, QueryMsg, VoteListResponse, VoteResponse,
+    DsoResponse, EscrowListResponse, EscrowResponse, ExecuteMsg, InstantiateMsg,
+    ProposalListResponse, ProposalResponse, QueryMsg, VoteListResponse, VoteResponse,
 };
 pub use tgrade_dso::state::ProposalContent;
 
@@ -29,4 +29,5 @@ fn main() {
     export_schema(&schema_for!(ProposalListResponse), &out_dir);
     export_schema(&schema_for!(VoteResponse), &out_dir);
     export_schema(&schema_for!(VoteListResponse), &out_dir);
+    export_schema(&schema_for!(EscrowListResponse), &out_dir);
 }

@@ -29,7 +29,7 @@
       "additionalProperties": false
     },
     {
-      "description": "Returns MembersListResponse, for all (voting and non-voting) members",
+      "description": "Returns MemberListResponse, for all (voting and non-voting) members",
       "type": "object",
       "required": [
         "list_members"
@@ -58,7 +58,7 @@
       "additionalProperties": false
     },
     {
-      "description": "Returns MembersListResponse, only active voting members (weight > 0)",
+      "description": "Returns MemberListResponse, only active voting members (weight > 0)",
       "type": "object",
       "required": [
         "list_voting_members"
@@ -87,7 +87,7 @@
       "additionalProperties": false
     },
     {
-      "description": "Returns MembersListResponse, only weight == 0 members",
+      "description": "Returns MemberListResponse, only weight == 0 members",
       "type": "object",
       "required": [
         "list_non_voting_members"
@@ -321,6 +321,35 @@
             },
             "voter": {
               "type": "string"
+            }
+          }
+        }
+      },
+      "additionalProperties": false
+    },
+    {
+      "description": "Returns an EscrowListResponse, with all members that have escrow.",
+      "type": "object",
+      "required": [
+        "list_escrows"
+      ],
+      "properties": {
+        "list_escrows": {
+          "type": "object",
+          "properties": {
+            "limit": {
+              "type": [
+                "integer",
+                "null"
+              ],
+              "format": "uint32",
+              "minimum": 0.0
+            },
+            "start_after": {
+              "type": [
+                "string",
+                "null"
+              ]
             }
           }
         }

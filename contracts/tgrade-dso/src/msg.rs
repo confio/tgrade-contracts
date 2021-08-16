@@ -62,17 +62,17 @@ pub enum QueryMsg {
     Dso {},
     /// Return TotalWeightResponse
     TotalWeight {},
-    /// Returns MembersListResponse, for all (voting and non-voting) members
+    /// Returns MemberListResponse, for all (voting and non-voting) members
     ListMembers {
         start_after: Option<String>,
         limit: Option<u32>,
     },
-    /// Returns MembersListResponse, only active voting members (weight > 0)
+    /// Returns MemberListResponse, only active voting members (weight > 0)
     ListVotingMembers {
         start_after: Option<String>,
         limit: Option<u32>,
     },
-    /// Returns MembersListResponse, only weight == 0 members
+    /// Returns MemberListResponse, only weight == 0 members
     ListNonVotingMembers {
         start_after: Option<String>,
         limit: Option<u32>,
@@ -107,6 +107,11 @@ pub enum QueryMsg {
     ListVotesByVoter {
         voter: String,
         start_before: Option<u64>,
+        limit: Option<u32>,
+    },
+    /// Returns an EscrowListResponse, with all members that have escrow.
+    ListEscrows {
+        start_after: Option<String>,
         limit: Option<u32>,
     },
 }
@@ -160,4 +165,22 @@ pub struct VoteListResponse {
 #[derive(Serialize, Deserialize, Clone, PartialEq, JsonSchema, Debug)]
 pub struct VoteResponse {
     pub vote: Option<VoteInfo>,
+}
+
+#[derive(Serialize, Deserialize, Clone, PartialEq, JsonSchema, Debug)]
+pub struct Escrow {
+    pub addr: String,
+    pub escrow_status: EscrowStatus,
+}
+
+#[cfg(test)]
+impl Escrow {
+    pub fn cmp_by_addr(left: &Escrow, right: &Escrow) -> std::cmp::Ordering {
+        left.addr.cmp(&right.addr)
+    }
+}
+
+#[derive(Serialize, Deserialize, Clone, PartialEq, JsonSchema, Debug)]
+pub struct EscrowListResponse {
+    pub escrows: Vec<Escrow>,
 }

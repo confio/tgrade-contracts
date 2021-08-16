@@ -82,7 +82,7 @@
       "additionalProperties": false
     },
     {
-      "description": "Returns MembersListResponse",
+      "description": "Returns MemberListResponse",
       "type": "object",
       "required": [
         "list_members"
@@ -111,7 +111,7 @@
       "additionalProperties": false
     },
     {
-      "description": "Returns MembersListResponse, sorted by weight descending.",
+      "description": "Returns MemberListResponse, sorted by weight descending.",
       "type": "object",
       "required": [
         "list_members_by_weight"

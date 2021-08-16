@@ -12,8 +12,8 @@ use tg4::{Member, MemberListResponse, MemberResponse, TotalWeightResponse};
 
 use crate::error::ContractError;
 use crate::msg::{
-    DsoResponse, EscrowResponse, ExecuteMsg, InstantiateMsg, ProposalListResponse,
-    ProposalResponse, QueryMsg, VoteInfo, VoteListResponse, VoteResponse,
+    DsoResponse, Escrow, EscrowListResponse, EscrowResponse, ExecuteMsg, InstantiateMsg,
+    ProposalListResponse, ProposalResponse, QueryMsg, VoteInfo, VoteListResponse, VoteResponse,
 };
 use crate::state::{
     batches, create_proposal, members, parse_id, save_ballot, Ballot, Batch, Dso, DsoAdjustments,
@@ -811,6 +811,9 @@ pub fn query(deps: Deps, env: Env, msg: QueryMsg) -> StdResult<Binary> {
             start_before,
             limit,
         } => to_binary(&list_votes_by_voter(deps, voter, start_before, limit)?),
+        QueryMsg::ListEscrows { start_after, limit } => {
+            to_binary(&list_escrows(deps, start_after, limit)?)
+        }
     }
 }
 
@@ -928,6 +931,30 @@ pub(crate) fn list_non_voting_members(
         .collect();
 
     Ok(MemberListResponse { members: members? })
+}
+
+pub(crate) fn list_escrows(
+    deps: Deps,
+    start_after: Option<String>,
+    limit: Option<u32>,
+) -> StdResult<EscrowListResponse> {
+    let limit = limit.unwrap_or(DEFAULT_LIMIT).min(MAX_LIMIT) as usize;
+    let addr = maybe_addr(deps.api, start_after)?;
+    let start = addr.map(|addr| Bound::exclusive(addr.as_ref()));
+
+    let escrows: StdResult<Vec<_>> = ESCROWS
+        .range(deps.storage, start, None, Order::Ascending)
+        .take(limit)
+        .map(|item| {
+            let (key, escrow_status) = item?;
+            Ok(Escrow {
+                addr: unsafe { String::from_utf8_unchecked(key) },
+                escrow_status,
+            })
+        })
+        .collect();
+
+    Ok(EscrowListResponse { escrows: escrows? })
 }
 
 pub(crate) fn query_proposal(deps: Deps, env: Env, id: u64) -> StdResult<ProposalResponse> {
