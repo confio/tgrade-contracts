@@ -23,8 +23,8 @@ pub enum TgradeSudoMsg {
     EndWithValidatorUpdate {},
     PrivilegeChange(PrivilegeChangeMsg),
     /// This allows updating (tg4-)group membership via sudo.
-    /// Use case: for post-genesis validators, we want to set some initial engagement points/ weight.
-    /// Note: If the member already exists, its weight will be reset to the weight send here.
+    /// Use case: for post-genesis validators, we want to set some initial engagement points / weight.
+    /// Note: If the member already exists, its weight will be reset to the weight sent here.
     UpdateMember {
         member: Member,
     },
