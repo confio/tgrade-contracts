@@ -10,6 +10,7 @@ use tg4::{
     HooksResponse, Member, MemberChangedHookMsg, MemberDiff, MemberListResponse, MemberResponse,
     TotalWeightResponse,
 };
+use tgrade_bindings::TgradeSudoMsg;
 
 use crate::error::ContractError;
 use crate::msg::{ExecuteMsg, InstantiateMsg, PreauthResponse, QueryMsg};
@@ -146,7 +147,32 @@ pub fn execute_update_members(
         .add_attribute("sender", &info.sender);
 
     // make the local update
-    let diff = update_members(deps.branch(), env.block.height, info.sender, add, remove)?;
+    let diff = update_members(
+        deps.branch(),
+        env.block.height,
+        Some(info.sender),
+        add,
+        remove,
+    )?;
+    // call all registered hooks
+    res.messages = HOOKS.prepare_hooks(deps.storage, |h| {
+        diff.clone().into_cosmos_msg(h).map(SubMsg::new)
+    })?;
+    Ok(res)
+}
+
+pub fn sudo_add_member(
+    mut deps: DepsMut,
+    env: Env,
+    add: Member,
+) -> Result<Response, ContractError> {
+    let mut res = Response::new()
+        .add_attribute("action", "sudo_add_member")
+        .add_attribute("addr", add.addr.clone())
+        .add_attribute("weight", add.weight.to_string());
+
+    // make the local update
+    let diff = update_members(deps.branch(), env.block.height, None, vec![add], vec![])?;
     // call all registered hooks
     res.messages = HOOKS.prepare_hooks(deps.storage, |h| {
         diff.clone().into_cosmos_msg(h).map(SubMsg::new)
@@ -158,11 +184,14 @@ pub fn execute_update_members(
 pub fn update_members(
     deps: DepsMut,
     height: u64,
-    sender: Addr,
+    sender: Option<Addr>,
     to_add: Vec<Member>,
     to_remove: Vec<String>,
 ) -> Result<MemberChangedHookMsg, ContractError> {
-    ADMIN.assert_admin(deps.as_ref(), &sender)?;
+    match sender {
+        None => {} // sudo calls have no sender info
+        Some(sender) => ADMIN.assert_admin(deps.as_ref(), &sender)?,
+    }
 
     let mut total = TOTAL.load(deps.storage)?;
     let mut diffs: Vec<MemberDiff> = vec![];
@@ -191,6 +220,14 @@ pub fn update_members(
 
     TOTAL.save(deps.storage, &total)?;
     Ok(MemberChangedHookMsg { diffs })
+}
+
+#[cfg_attr(not(feature = "library"), entry_point)]
+pub fn sudo(deps: DepsMut, env: Env, msg: TgradeSudoMsg) -> Result<Response, ContractError> {
+    match msg {
+        TgradeSudoMsg::UpdateMember { member } => sudo_add_member(deps, env, member),
+        _ => Err(ContractError::UnknownSudoType {}),
+    }
 }
 
 #[cfg_attr(not(feature = "library"), entry_point)]
@@ -514,7 +551,7 @@ mod tests {
         let err = update_members(
             deps.as_mut(),
             height + 5,
-            Addr::unchecked(USER1),
+            Some(Addr::unchecked(USER1)),
             add.clone(),
             remove.clone(),
         )
@@ -532,7 +569,7 @@ mod tests {
         update_members(
             deps.as_mut(),
             height + 10,
-            Addr::unchecked(INIT_ADMIN),
+            Some(Addr::unchecked(INIT_ADMIN)),
             add,
             remove,
         )
@@ -563,7 +600,7 @@ mod tests {
         update_members(
             deps.as_mut(),
             height,
-            Addr::unchecked(INIT_ADMIN),
+            Some(Addr::unchecked(INIT_ADMIN)),
             add,
             remove,
         )
@@ -595,7 +632,7 @@ mod tests {
         update_members(
             deps.as_mut(),
             height,
-            Addr::unchecked(INIT_ADMIN),
+            Some(Addr::unchecked(INIT_ADMIN)),
             add,
             remove,
         )

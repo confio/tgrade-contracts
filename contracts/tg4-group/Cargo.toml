@@ -24,7 +24,8 @@ cw2 = { version = "0.8.0" }
 cw-controllers = { version = "0.8.0" }
 cw-storage-plus = { version = "0.8.0" }
 tg4 = { path = "../../packages/tg4", version = "0.3.0-rc2" }
-tg-controllers = { path = "../../packages/controllers", version = "0.3.0-rc2" }
+tg-controllers = { version = "0.3.0-rc2", path = "../../packages/controllers" }
+tgrade-bindings = { version = "0.3.0-rc2", path = "../../packages/bindings" }
 cosmwasm-std = { version = "0.16.0" }
 schemars = "0.8"
 serde = { version = "1.0.103", default-features = false, features = ["derive"] }
