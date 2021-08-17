@@ -1,0 +1,47 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "SudoMsg",
+  "anyOf": [
+    {
+      "description": "This allows updating group membership via sudo. Use case: for post-genesis validators, we want to set some initial engagement points / weight. Note: If the member already exists, its weight will be reset to the weight sent here.",
+      "type": "object",
+      "required": [
+        "update_member"
+      ],
+      "properties": {
+        "update_member": {
+          "type": "object",
+          "required": [
+            "member"
+          ],
+          "properties": {
+            "member": {
+              "$ref": "#/definitions/Member"
+            }
+          }
+        }
+      },
+      "additionalProperties": false
+    }
+  ],
+  "definitions": {
+    "Member": {
+      "description": "A group member has a weight associated with them. This may all be equal, or may have meaning in the app that makes use of the group (eg. voting power)",
+      "type": "object",
+      "required": [
+        "addr",
+        "weight"
+      ],
+      "properties": {
+        "addr": {
+          "type": "string"
+        },
+        "weight": {
+          "type": "integer",
+          "format": "uint64",
+          "minimum": 0.0
+        }
+      }
+    }
+  }
+}

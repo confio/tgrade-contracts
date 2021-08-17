@@ -132,7 +132,7 @@
           "additionalProperties": false
         },
         {
-          "description": "This is called when a contract looses \"privileged status\"",
+          "description": "This is called when a contract loses \"privileged status\"",
           "type": "object",
           "required": [
             "demoted"

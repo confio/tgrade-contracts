@@ -1,7 +1,7 @@
 #[cfg(not(feature = "library"))]
 use cosmwasm_std::entry_point;
 use cosmwasm_std::{
-    to_binary, Addr, Binary, Deps, DepsMut, Env, MessageInfo, Order, Response, StdResult, SubMsg,
+    to_binary, Binary, Deps, DepsMut, Env, MessageInfo, Order, Response, StdResult, SubMsg,
 };
 use cw0::maybe_addr;
 use cw2::set_contract_version;
@@ -12,7 +12,7 @@ use tg4::{
 };
 
 use crate::error::ContractError;
-use crate::msg::{ExecuteMsg, InstantiateMsg, PreauthResponse, QueryMsg};
+use crate::msg::{ExecuteMsg, InstantiateMsg, PreauthResponse, QueryMsg, SudoMsg};
 use crate::state::{members, ADMIN, HOOKS, PREAUTH, TOTAL};
 
 // version info for migration info
@@ -145,8 +145,29 @@ pub fn execute_update_members(
         .add_attribute("removed", remove.len().to_string())
         .add_attribute("sender", &info.sender);
 
+    ADMIN.assert_admin(deps.as_ref(), &info.sender)?;
+
     // make the local update
-    let diff = update_members(deps.branch(), env.block.height, info.sender, add, remove)?;
+    let diff = update_members(deps.branch(), env.block.height, add, remove)?;
+    // call all registered hooks
+    res.messages = HOOKS.prepare_hooks(deps.storage, |h| {
+        diff.clone().into_cosmos_msg(h).map(SubMsg::new)
+    })?;
+    Ok(res)
+}
+
+pub fn sudo_add_member(
+    mut deps: DepsMut,
+    env: Env,
+    add: Member,
+) -> Result<Response, ContractError> {
+    let mut res = Response::new()
+        .add_attribute("action", "sudo_add_member")
+        .add_attribute("addr", add.addr.clone())
+        .add_attribute("weight", add.weight.to_string());
+
+    // make the local update
+    let diff = update_members(deps.branch(), env.block.height, vec![add], vec![])?;
     // call all registered hooks
     res.messages = HOOKS.prepare_hooks(deps.storage, |h| {
         diff.clone().into_cosmos_msg(h).map(SubMsg::new)
@@ -158,12 +179,9 @@ pub fn execute_update_members(
 pub fn update_members(
     deps: DepsMut,
     height: u64,
-    sender: Addr,
     to_add: Vec<Member>,
     to_remove: Vec<String>,
 ) -> Result<MemberChangedHookMsg, ContractError> {
-    ADMIN.assert_admin(deps.as_ref(), &sender)?;
-
     let mut total = TOTAL.load(deps.storage)?;
     let mut diffs: Vec<MemberDiff> = vec![];
 
@@ -191,6 +209,13 @@ pub fn update_members(
 
     TOTAL.save(deps.storage, &total)?;
     Ok(MemberChangedHookMsg { diffs })
+}
+
+#[cfg_attr(not(feature = "library"), entry_point)]
+pub fn sudo(deps: DepsMut, env: Env, msg: SudoMsg) -> Result<Response, ContractError> {
+    match msg {
+        SudoMsg::UpdateMember { member } => sudo_add_member(deps, env, member),
+    }
 }
 
 #[cfg_attr(not(feature = "library"), entry_point)]
@@ -299,6 +324,12 @@ mod tests {
     const USER1: &str = "somebody";
     const USER2: &str = "else";
     const USER3: &str = "funny";
+
+    fn mock_env_height(height_offset: u64) -> Env {
+        let mut env = mock_env();
+        env.block.height += height_offset;
+        env
+    }
 
     fn do_instantiate(deps: DepsMut) {
         let msg = InstantiateMsg {
@@ -465,6 +496,7 @@ mod tests {
         assert_eq!(members.len(), 0);
     }
 
+    #[track_caller]
     fn assert_users<S: Storage, A: Api, Q: Querier>(
         deps: &OwnedDeps<S, A, Q>,
         user1_weight: Option<u64>,
@@ -510,15 +542,12 @@ mod tests {
         let remove = vec![USER1.into()];
 
         // non-admin cannot update
-        let height = mock_env().block.height;
-        let err = update_members(
-            deps.as_mut(),
-            height + 5,
-            Addr::unchecked(USER1),
-            add.clone(),
-            remove.clone(),
-        )
-        .unwrap_err();
+        let env = mock_env_height(5);
+        let info = mock_info(USER1, &[]);
+        let height = env.block.height - 5;
+
+        let err = execute_update_members(deps.as_mut(), env, info, add.clone(), remove.clone())
+            .unwrap_err();
         assert_eq!(err, AdminError::NotAdmin {}.into());
 
         // Test the values from instantiate
@@ -528,15 +557,10 @@ mod tests {
         // This will get us the values at the start of the block after instantiate (expected initial values)
         assert_users(&deps, Some(11), Some(6), None, Some(height + 1));
 
+        let env = mock_env_height(10);
+        let info = mock_info(INIT_ADMIN, &[]);
         // admin updates properly
-        update_members(
-            deps.as_mut(),
-            height + 10,
-            Addr::unchecked(INIT_ADMIN),
-            add,
-            remove,
-        )
-        .unwrap();
+        execute_update_members(deps.as_mut(), env, info, add, remove).unwrap();
 
         // updated properly
         assert_users(&deps, None, Some(6), Some(15), None);
@@ -558,16 +582,11 @@ mod tests {
         }];
         let remove = vec![USER3.into()];
 
+        let env = mock_env();
+        let info = mock_info(INIT_ADMIN, &[]);
+
         // admin updates properly
-        let height = mock_env().block.height;
-        update_members(
-            deps.as_mut(),
-            height,
-            Addr::unchecked(INIT_ADMIN),
-            add,
-            remove,
-        )
-        .unwrap();
+        execute_update_members(deps.as_mut(), env, info, add, remove).unwrap();
         assert_users(&deps, Some(4), Some(6), None, None);
     }
 
@@ -590,17 +609,82 @@ mod tests {
         ];
         let remove = vec![USER1.into()];
 
+        let env = mock_env();
+        let info = mock_info(INIT_ADMIN, &[]);
+
         // admin updates properly
-        let height = mock_env().block.height;
-        update_members(
-            deps.as_mut(),
-            height,
-            Addr::unchecked(INIT_ADMIN),
-            add,
-            remove,
-        )
-        .unwrap();
+        execute_update_members(deps.as_mut(), env, info, add, remove).unwrap();
         assert_users(&deps, None, Some(6), Some(5), None);
+    }
+
+    #[test]
+    fn sudo_add_new_member() {
+        let mut deps = mock_dependencies(&[]);
+        do_instantiate(deps.as_mut());
+
+        // add a new member
+        let add = Member {
+            addr: USER3.into(),
+            weight: 15,
+        };
+
+        let env = mock_env();
+        let height = env.block.height;
+
+        // Test the values from instantiate
+        assert_users(&deps, Some(11), Some(6), None, None);
+        // Note all values were set at height, the beginning of that block was all None
+        assert_users(&deps, None, None, None, Some(height));
+        // This will get us the values at the start of the block after instantiate (expected initial values)
+        assert_users(&deps, Some(11), Some(6), None, Some(height + 1));
+
+        let env = mock_env_height(10);
+
+        sudo_add_member(deps.as_mut(), env, add).unwrap();
+
+        // snapshot still shows old value
+        assert_users(&deps, Some(11), Some(6), None, Some(height + 10));
+
+        // updated properly in next snapshot
+        assert_users(&deps, Some(11), Some(6), Some(15), Some(height + 11));
+
+        // updated properly
+        assert_users(&deps, Some(11), Some(6), Some(15), None);
+    }
+
+    #[test]
+    fn sudo_update_existing_member() {
+        let mut deps = mock_dependencies(&[]);
+        do_instantiate(deps.as_mut());
+
+        // update an existing member
+        let add = Member {
+            addr: USER2.into(),
+            weight: 1,
+        };
+
+        let env = mock_env();
+        let height = env.block.height;
+
+        // Test the values from instantiate
+        assert_users(&deps, Some(11), Some(6), None, None);
+        // Note all values were set at height, the beginning of that block was all None
+        assert_users(&deps, None, None, None, Some(height));
+        // This will get us the values at the start of the block after instantiate (expected initial values)
+        assert_users(&deps, Some(11), Some(6), None, Some(height + 1));
+
+        let env = mock_env_height(10);
+
+        sudo_add_member(deps.as_mut(), env, add).unwrap();
+
+        // snapshot still shows old value
+        assert_users(&deps, Some(11), Some(6), None, Some(height + 10));
+
+        // updated properly in next snapshot
+        assert_users(&deps, Some(11), Some(1), None, Some(height + 11));
+
+        // updated properly
+        assert_users(&deps, Some(11), Some(1), None, None);
     }
 
     #[test]

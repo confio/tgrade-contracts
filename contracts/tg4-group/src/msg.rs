@@ -59,6 +59,15 @@ pub enum QueryMsg {
 }
 
 #[derive(Serialize, Deserialize, Clone, PartialEq, JsonSchema, Debug)]
+#[serde(rename_all = "snake_case")]
+pub enum SudoMsg {
+    /// This allows updating group membership via sudo.
+    /// Use case: for post-genesis validators, we want to set some initial engagement points / weight.
+    /// Note: If the member already exists, its weight will be reset to the weight sent here.
+    UpdateMember { member: Member },
+}
+
+#[derive(Serialize, Deserialize, Clone, PartialEq, JsonSchema, Debug)]
 pub struct PreauthResponse {
     pub preauths: u64,
 }

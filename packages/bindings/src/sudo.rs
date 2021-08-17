@@ -30,7 +30,7 @@ pub enum PrivilegeChangeMsg {
     /// It is a proper place to call `RegisterXXX` methods that require this status.
     /// Contracts that require this should be in a "frozen" state until they get this callback.
     Promoted {},
-    /// This is called when a contract looses "privileged status"
+    /// This is called when a contract loses "privileged status"
     Demoted {},
 }
 
