@@ -496,6 +496,7 @@ mod tests {
         assert_eq!(members.len(), 0);
     }
 
+    #[track_caller]
     fn assert_users<S: Storage, A: Api, Q: Querier>(
         deps: &OwnedDeps<S, A, Q>,
         user1_weight: Option<u64>,
@@ -614,6 +615,70 @@ mod tests {
         // admin updates properly
         execute_update_members(deps.as_mut(), env, info, add, remove).unwrap();
         assert_users(&deps, None, Some(6), Some(5), None);
+    }
+
+    #[test]
+    fn sudo_add_new_member() {
+        let mut deps = mock_dependencies(&[]);
+        do_instantiate(deps.as_mut());
+
+        // add a new member
+        let add = Member {
+            addr: USER3.into(),
+            weight: 15,
+        };
+
+        let env = mock_env();
+        let height = env.block.height;
+
+        // Test the values from instantiate
+        assert_users(&deps, Some(11), Some(6), None, None);
+        // Note all values were set at height, the beginning of that block was all None
+        assert_users(&deps, None, None, None, Some(height));
+        // This will get us the values at the start of the block after instantiate (expected initial values)
+        assert_users(&deps, Some(11), Some(6), None, Some(height + 1));
+
+        let env = mock_env_height(10);
+
+        sudo_add_member(deps.as_mut(), env, add).unwrap();
+
+        // updated properly
+        assert_users(&deps, Some(11), Some(6), Some(15), None);
+
+        // snapshot still shows old value
+        assert_users(&deps, Some(11), Some(6), None, Some(height + 10));
+    }
+
+    #[test]
+    fn sudo_update_existing_member() {
+        let mut deps = mock_dependencies(&[]);
+        do_instantiate(deps.as_mut());
+
+        // update an existing member
+        let add = Member {
+            addr: USER2.into(),
+            weight: 1,
+        };
+
+        let env = mock_env();
+        let height = env.block.height;
+
+        // Test the values from instantiate
+        assert_users(&deps, Some(11), Some(6), None, None);
+        // Note all values were set at height, the beginning of that block was all None
+        assert_users(&deps, None, None, None, Some(height));
+        // This will get us the values at the start of the block after instantiate (expected initial values)
+        assert_users(&deps, Some(11), Some(6), None, Some(height + 1));
+
+        let env = mock_env_height(10);
+
+        sudo_add_member(deps.as_mut(), env, add).unwrap();
+
+        // updated properly
+        assert_users(&deps, Some(11), Some(1), None, None);
+
+        // snapshot still shows old value
+        assert_users(&deps, Some(11), Some(6), None, Some(height + 10));
     }
 
     #[test]
