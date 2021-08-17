@@ -1,6 +1,8 @@
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
+use tg4::Member;
+
 use crate::validator::{Validator, ValidatorUpdate};
 
 #[derive(Serialize, Deserialize, Clone, PartialEq, JsonSchema, Debug)]
@@ -20,6 +22,12 @@ pub enum TgradeSudoMsg {
     /// which will be used to change the validator set.
     EndWithValidatorUpdate {},
     PrivilegeChange(PrivilegeChangeMsg),
+    /// This allows updating (tg4-)group membership via sudo.
+    /// Use case: for post-genesis validators, we want to set some initial engagement points/ weight.
+    /// Note: If the member already exists, its weight will be reset to the weight send here.
+    UpdateMember {
+        member: Member,
+    },
 }
 
 #[derive(Serialize, Deserialize, Clone, PartialEq, JsonSchema, Debug)]
@@ -30,7 +38,7 @@ pub enum PrivilegeChangeMsg {
     /// It is a proper place to call `RegisterXXX` methods that require this status.
     /// Contracts that require this should be in a "frozen" state until they get this callback.
     Promoted {},
-    /// This is called when a contract looses "privileged status"
+    /// This is called when a contract loses "privileged status"
     Demoted {},
 }
 
