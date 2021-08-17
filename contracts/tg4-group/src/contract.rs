@@ -325,6 +325,12 @@ mod tests {
     const USER2: &str = "else";
     const USER3: &str = "funny";
 
+    fn mock_env_height(height_offset: u64) -> Env {
+        let mut env = mock_env();
+        env.block.height += height_offset;
+        env
+    }
+
     fn do_instantiate(deps: DepsMut) {
         let msg = InstantiateMsg {
             admin: Some(INIT_ADMIN.into()),
@@ -535,15 +541,12 @@ mod tests {
         let remove = vec![USER1.into()];
 
         // non-admin cannot update
-        let height = mock_env().block.height;
-        let err = update_members(
-            deps.as_mut(),
-            height + 5,
-            Some(Addr::unchecked(USER1)),
-            add.clone(),
-            remove.clone(),
-        )
-        .unwrap_err();
+        let env = mock_env_height(5);
+        let info = mock_info(USER1, &[]);
+        let height = env.block.height - 5;
+
+        let err = execute_update_members(deps.as_mut(), env, info, add.clone(), remove.clone())
+            .unwrap_err();
         assert_eq!(err, AdminError::NotAdmin {}.into());
 
         // Test the values from instantiate
@@ -553,15 +556,10 @@ mod tests {
         // This will get us the values at the start of the block after instantiate (expected initial values)
         assert_users(&deps, Some(11), Some(6), None, Some(height + 1));
 
+        let env = mock_env_height(10);
+        let info = mock_info(INIT_ADMIN, &[]);
         // admin updates properly
-        update_members(
-            deps.as_mut(),
-            height + 10,
-            Some(Addr::unchecked(INIT_ADMIN)),
-            add,
-            remove,
-        )
-        .unwrap();
+        execute_update_members(deps.as_mut(), env, info, add, remove).unwrap();
 
         // updated properly
         assert_users(&deps, None, Some(6), Some(15), None);
@@ -583,16 +581,11 @@ mod tests {
         }];
         let remove = vec![USER3.into()];
 
+        let env = mock_env();
+        let info = mock_info(INIT_ADMIN, &[]);
+
         // admin updates properly
-        let height = mock_env().block.height;
-        update_members(
-            deps.as_mut(),
-            height,
-            Some(Addr::unchecked(INIT_ADMIN)),
-            add,
-            remove,
-        )
-        .unwrap();
+        execute_update_members(deps.as_mut(), env, info, add, remove).unwrap();
         assert_users(&deps, Some(4), Some(6), None, None);
     }
 
@@ -615,16 +608,11 @@ mod tests {
         ];
         let remove = vec![USER1.into()];
 
+        let env = mock_env();
+        let info = mock_info(INIT_ADMIN, &[]);
+
         // admin updates properly
-        let height = mock_env().block.height;
-        update_members(
-            deps.as_mut(),
-            height,
-            Some(Addr::unchecked(INIT_ADMIN)),
-            add,
-            remove,
-        )
-        .unwrap();
+        execute_update_members(deps.as_mut(), env, info, add, remove).unwrap();
         assert_users(&deps, None, Some(6), Some(5), None);
     }
 
