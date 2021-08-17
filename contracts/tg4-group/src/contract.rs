@@ -642,11 +642,14 @@ mod tests {
 
         sudo_add_member(deps.as_mut(), env, add).unwrap();
 
-        // updated properly
-        assert_users(&deps, Some(11), Some(6), Some(15), None);
-
         // snapshot still shows old value
         assert_users(&deps, Some(11), Some(6), None, Some(height + 10));
+
+        // updated properly in next snapshot
+        assert_users(&deps, Some(11), Some(6), Some(15), Some(height + 11));
+
+        // updated properly
+        assert_users(&deps, Some(11), Some(6), Some(15), None);
     }
 
     #[test]
@@ -674,11 +677,14 @@ mod tests {
 
         sudo_add_member(deps.as_mut(), env, add).unwrap();
 
-        // updated properly
-        assert_users(&deps, Some(11), Some(1), None, None);
-
         // snapshot still shows old value
         assert_users(&deps, Some(11), Some(6), None, Some(height + 10));
+
+        // updated properly in next snapshot
+        assert_users(&deps, Some(11), Some(1), None, Some(height + 11));
+
+        // updated properly
+        assert_users(&deps, Some(11), Some(1), None, None);
     }
 
     #[test]
