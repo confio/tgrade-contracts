@@ -1,7 +1,7 @@
 #[cfg(not(feature = "library"))]
 use cosmwasm_std::entry_point;
 use cosmwasm_std::{
-    to_binary, Addr, Binary, Deps, DepsMut, Env, MessageInfo, Order, Response, StdResult, SubMsg,
+    to_binary, Binary, Deps, DepsMut, Env, MessageInfo, Order, Response, StdResult, SubMsg,
 };
 use cw0::maybe_addr;
 use cw2::set_contract_version;
@@ -145,14 +145,10 @@ pub fn execute_update_members(
         .add_attribute("removed", remove.len().to_string())
         .add_attribute("sender", &info.sender);
 
+    ADMIN.assert_admin(deps.as_ref(), &info.sender)?;
+
     // make the local update
-    let diff = update_members(
-        deps.branch(),
-        env.block.height,
-        Some(info.sender),
-        add,
-        remove,
-    )?;
+    let diff = update_members(deps.branch(), env.block.height, add, remove)?;
     // call all registered hooks
     res.messages = HOOKS.prepare_hooks(deps.storage, |h| {
         diff.clone().into_cosmos_msg(h).map(SubMsg::new)
@@ -171,7 +167,7 @@ pub fn sudo_add_member(
         .add_attribute("weight", add.weight.to_string());
 
     // make the local update
-    let diff = update_members(deps.branch(), env.block.height, None, vec![add], vec![])?;
+    let diff = update_members(deps.branch(), env.block.height, vec![add], vec![])?;
     // call all registered hooks
     res.messages = HOOKS.prepare_hooks(deps.storage, |h| {
         diff.clone().into_cosmos_msg(h).map(SubMsg::new)
@@ -183,15 +179,9 @@ pub fn sudo_add_member(
 pub fn update_members(
     deps: DepsMut,
     height: u64,
-    sender: Option<Addr>,
     to_add: Vec<Member>,
     to_remove: Vec<String>,
 ) -> Result<MemberChangedHookMsg, ContractError> {
-    match sender {
-        None => {} // sudo calls have no sender info
-        Some(sender) => ADMIN.assert_admin(deps.as_ref(), &sender)?,
-    }
-
     let mut total = TOTAL.load(deps.storage)?;
     let mut diffs: Vec<MemberDiff> = vec![];
 
