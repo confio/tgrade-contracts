@@ -695,6 +695,7 @@ dependencies = [
  "serde",
  "tg-controllers",
  "tg4",
+ "tgrade-bindings",
  "thiserror",
 ]
 
@@ -748,6 +749,7 @@ dependencies = [
  "schemars",
  "serde",
  "sha2",
+ "tg4",
 ]
 
 [[package]]
