@@ -10,10 +10,9 @@ use tg4::{
     HooksResponse, Member, MemberChangedHookMsg, MemberDiff, MemberListResponse, MemberResponse,
     TotalWeightResponse,
 };
-use tgrade_bindings::TgradeSudoMsg;
 
 use crate::error::ContractError;
-use crate::msg::{ExecuteMsg, InstantiateMsg, PreauthResponse, QueryMsg};
+use crate::msg::{ExecuteMsg, InstantiateMsg, PreauthResponse, QueryMsg, SudoMsg};
 use crate::state::{members, ADMIN, HOOKS, PREAUTH, TOTAL};
 
 // version info for migration info
@@ -223,10 +222,9 @@ pub fn update_members(
 }
 
 #[cfg_attr(not(feature = "library"), entry_point)]
-pub fn sudo(deps: DepsMut, env: Env, msg: TgradeSudoMsg) -> Result<Response, ContractError> {
+pub fn sudo(deps: DepsMut, env: Env, msg: SudoMsg) -> Result<Response, ContractError> {
     match msg {
-        TgradeSudoMsg::UpdateMember { member } => sudo_add_member(deps, env, member),
-        _ => Err(ContractError::UnknownSudoType {}),
+        SudoMsg::UpdateMember { member } => sudo_add_member(deps, env, member),
     }
 }
 

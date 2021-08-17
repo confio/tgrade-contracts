@@ -20,7 +20,4 @@ pub enum ContractError {
 
     #[error("Unauthorized")]
     Unauthorized {},
-
-    #[error("Received system callback we didn't expect")]
-    UnknownSudoType {},
 }

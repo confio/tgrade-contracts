@@ -1,8 +1,6 @@
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
-use tg4::Member;
-
 use crate::validator::{Validator, ValidatorUpdate};
 
 #[derive(Serialize, Deserialize, Clone, PartialEq, JsonSchema, Debug)]
@@ -22,12 +20,6 @@ pub enum TgradeSudoMsg {
     /// which will be used to change the validator set.
     EndWithValidatorUpdate {},
     PrivilegeChange(PrivilegeChangeMsg),
-    /// This allows updating (tg4-)group membership via sudo.
-    /// Use case: for post-genesis validators, we want to set some initial engagement points / weight.
-    /// Note: If the member already exists, its weight will be reset to the weight sent here.
-    UpdateMember {
-        member: Member,
-    },
 }
 
 #[derive(Serialize, Deserialize, Clone, PartialEq, JsonSchema, Debug)]
