@@ -64,6 +64,27 @@
         }
       },
       "additionalProperties": false
+    },
+    {
+      "description": "This allows updating (tg4-)group membership via sudo. Use case: for post-genesis validators, we want to set some initial engagement points/ weight. Note: If the member already exists, its weight will be reset to the weight send here.",
+      "type": "object",
+      "required": [
+        "update_member"
+      ],
+      "properties": {
+        "update_member": {
+          "type": "object",
+          "required": [
+            "member"
+          ],
+          "properties": {
+            "member": {
+              "$ref": "#/definitions/Member"
+            }
+          }
+        }
+      },
+      "additionalProperties": false
     }
   ],
   "definitions": {
@@ -115,6 +136,24 @@
         "light_client_attack"
       ]
     },
+    "Member": {
+      "description": "A group member has a weight associated with them. This may all be equal, or may have meaning in the app that makes use of the group (eg. voting power)",
+      "type": "object",
+      "required": [
+        "addr",
+        "weight"
+      ],
+      "properties": {
+        "addr": {
+          "type": "string"
+        },
+        "weight": {
+          "type": "integer",
+          "format": "uint64",
+          "minimum": 0.0
+        }
+      }
+    },
     "PrivilegeChangeMsg": {
       "description": "These are called on a contract when it is made privileged or demoted",
       "anyOf": [
@@ -132,7 +171,7 @@
           "additionalProperties": false
         },
         {
-          "description": "This is called when a contract looses \"privileged status\"",
+          "description": "This is called when a contract loses \"privileged status\"",
           "type": "object",
           "required": [
             "demoted"
