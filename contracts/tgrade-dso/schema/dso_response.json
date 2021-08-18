@@ -44,7 +44,8 @@
       "type": "object",
       "required": [
         "amount",
-        "grace_ends_at"
+        "grace_ends_at",
+        "proposal_id"
       ],
       "properties": {
         "amount": {
@@ -57,6 +58,12 @@
         },
         "grace_ends_at": {
           "description": "Timestamp (seconds) when the pending escrow is enforced",
+          "type": "integer",
+          "format": "uint64",
+          "minimum": 0.0
+        },
+        "proposal_id": {
+          "description": "Associated proposal_id",
           "type": "integer",
           "format": "uint64",
           "minimum": 0.0
