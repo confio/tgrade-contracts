@@ -27,6 +27,8 @@ pub struct Dso {
 /// Pending escrow
 #[derive(Serialize, Deserialize, Clone, PartialEq, JsonSchema, Debug)]
 pub struct PendingEscrow {
+    /// Associated proposal_id
+    pub proposal_id: u64,
     /// Pending escrow amount
     pub amount: Uint128,
     /// Timestamp (seconds) when the pending escrow is enforced
@@ -106,6 +108,7 @@ impl Dso {
     pub fn apply_adjustments(
         &mut self,
         env: Env,
+        proposal_id: u64,
         adjustments: DsoAdjustments,
     ) -> Result<(), ContractError> {
         if let Some(name) = adjustments.name {
@@ -119,6 +122,7 @@ impl Dso {
             // Set pending escrow
             let grace_period = self.rules.voting_period_secs();
             self.escrow_pending = Some(PendingEscrow {
+                proposal_id,
                 amount: escrow_amount,
                 grace_ends_at: env.block.time.plus_seconds(grace_period).nanos() / 1_000_000_000,
             });

@@ -619,7 +619,9 @@ fn check_pending(storage: &mut dyn Storage, block: &BlockInfo) -> StdResult<Vec<
                 let addr = Addr::unchecked(unsafe { String::from_utf8_unchecked(key) });
                 let new_escrow_status = EscrowStatus {
                     paid: escrow_status.paid,
-                    status: MemberStatus::Pending { proposal_id: 0 }, // FIXME: Store proposal_id in dso's PendingEscrow
+                    status: MemberStatus::Pending {
+                        proposal_id: pending_escrow.proposal_id,
+                    },
                 };
                 ESCROWS.save(storage, &addr, &new_escrow_status)?;
             }
@@ -662,7 +664,9 @@ pub fn proposal_execute(
         ProposalContent::AddRemoveNonVotingMembers { add, remove } => {
             proposal_add_remove_non_voting_members(deps, env, add, remove)
         }
-        ProposalContent::EditDso(adjustments) => proposal_edit_dso(deps, env, adjustments),
+        ProposalContent::EditDso(adjustments) => {
+            proposal_edit_dso(deps, env, proposal_id, adjustments)
+        }
         ProposalContent::AddVotingMembers { voters } => {
             proposal_add_voting_members(deps, env, proposal_id, voters)
         }
@@ -688,6 +692,7 @@ pub fn proposal_add_remove_non_voting_members(
 pub fn proposal_edit_dso(
     deps: DepsMut,
     env: Env,
+    proposal_id: u64,
     adjustments: DsoAdjustments,
 ) -> Result<Response, ContractError> {
     let res = Response::new()
@@ -695,7 +700,7 @@ pub fn proposal_edit_dso(
         .add_attribute("proposal", "edit_dso");
 
     DSO.update::<_, ContractError>(deps.storage, |mut dso| {
-        dso.apply_adjustments(env, adjustments)?;
+        dso.apply_adjustments(env, proposal_id, adjustments)?;
         Ok(dso)
     })?;
 
