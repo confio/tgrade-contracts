@@ -39,6 +39,9 @@ pub enum ContractError {
     #[error("{0}")]
     Payment(#[from] PaymentError),
 
+    #[error("There is a pending escrow already set")]
+    PendingEscrowAlreadySet,
+
     #[error("Trying to remove a voting member: {0}")]
     VotingMember(String),
 

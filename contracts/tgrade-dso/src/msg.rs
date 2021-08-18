@@ -1,7 +1,7 @@
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
-use crate::state::{EscrowStatus, ProposalContent, Votes, VotingRules};
+use crate::state::{EscrowStatus, PendingEscrow, ProposalContent, Votes, VotingRules};
 use cosmwasm_std::{Decimal, Uint128};
 use cw0::Expiration;
 use cw3::{Status, Vote};
@@ -124,6 +124,7 @@ pub struct DsoResponse {
     pub name: String,
     /// The required escrow amount, in the default denom (utgd)
     pub escrow_amount: Uint128,
+    pub escrow_pending: Option<PendingEscrow>,
     pub rules: VotingRules,
 }
 

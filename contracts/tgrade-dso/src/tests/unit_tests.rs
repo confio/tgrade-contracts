@@ -49,6 +49,7 @@ fn instantiation_enough_funds() {
     let expected = DsoResponse {
         name: DSO_NAME.to_string(),
         escrow_amount: Uint128::new(ESCROW_FUNDS),
+        escrow_pending: None,
         rules: VotingRules {
             voting_period: 14, // days in all public interfaces
             quorum: Decimal::percent(40),

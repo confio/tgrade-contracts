@@ -42,6 +42,7 @@ pub fn instantiate(
     let dso = Dso {
         name: msg.name,
         escrow_amount: msg.escrow_amount,
+        escrow_pending: None,
         rules: VotingRules {
             voting_period: msg.voting_period,
             quorum: msg.quorum,
@@ -656,20 +657,15 @@ pub fn proposal_add_remove_non_voting_members(
 
 pub fn proposal_edit_dso(
     deps: DepsMut,
-    _env: Env,
+    env: Env,
     adjustments: DsoAdjustments,
 ) -> Result<Response, ContractError> {
-    // TODO: enable escrow handling (this is a complex case)
-    if adjustments.escrow_amount.is_some() {
-        return Err(ContractError::Unimplemented {});
-    }
-
     let res = Response::new()
         .add_attributes(adjustments.as_attributes())
         .add_attribute("proposal", "edit_dso");
 
     DSO.update::<_, ContractError>(deps.storage, |mut dso| {
-        dso.apply_adjustments(adjustments);
+        dso.apply_adjustments(env, adjustments)?;
         Ok(dso)
     })?;
 
@@ -826,11 +822,13 @@ pub(crate) fn query_dso(deps: Deps) -> StdResult<DsoResponse> {
     let Dso {
         name,
         escrow_amount,
+        escrow_pending,
         rules,
     } = DSO.load(deps.storage)?;
     Ok(DsoResponse {
         name,
         escrow_amount,
+        escrow_pending,
         rules,
     })
 }

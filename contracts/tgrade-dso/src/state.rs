@@ -4,7 +4,8 @@ use std::fmt;
 
 use crate::error::ContractError;
 use cosmwasm_std::{
-    attr, Addr, Attribute, BlockInfo, Decimal, StdError, StdResult, Storage, Timestamp, Uint128,
+    attr, Addr, Attribute, BlockInfo, Decimal, Env, StdError, StdResult, Storage, Timestamp,
+    Uint128,
 };
 use cw0::Expiration;
 use cw3::{Status, Vote};
@@ -19,12 +20,23 @@ use tg4::TOTAL_KEY;
 pub struct Dso {
     pub name: String,
     pub escrow_amount: Uint128,
+    pub escrow_pending: Option<PendingEscrow>,
     pub rules: VotingRules,
+}
+
+/// Pending escrow
+#[derive(Serialize, Deserialize, Clone, PartialEq, JsonSchema, Debug)]
+pub struct PendingEscrow {
+    /// Pending escrow amount
+    pub amount: Uint128,
+    /// Timestamp (seconds) when the pending escrow is enforced
+    pub grace_ends_at: u64,
 }
 
 #[derive(Serialize, Deserialize, Clone, PartialEq, Debug, JsonSchema)]
 pub struct VotingRules {
-    /// Length of voting period in days
+    /// Length of voting period in days.
+    /// Also used to define when escrow_pending is enforced.
     pub voting_period: u32,
     /// quorum requirement (0.0-1.0)
     pub quorum: Decimal,
@@ -60,9 +72,9 @@ impl VotingRules {
 
 #[derive(Serialize, Deserialize, Clone, PartialEq, Debug, JsonSchema)]
 pub struct DsoAdjustments {
-    /// Length of voting period in days
+    /// Escrow name
     pub name: Option<String>,
-    /// Length of voting period in days
+    /// Escrow amount to apply after grace period (computed using voting_period)
     pub escrow_amount: Option<Uint128>,
     /// Length of voting period in days
     pub voting_period: Option<u32>,
@@ -91,13 +103,27 @@ impl Dso {
         Ok(())
     }
 
-    pub fn apply_adjustments(&mut self, adjustments: DsoAdjustments) {
+    pub fn apply_adjustments(
+        &mut self,
+        env: Env,
+        adjustments: DsoAdjustments,
+    ) -> Result<(), ContractError> {
         if let Some(name) = adjustments.name {
             self.name = name;
         }
         if let Some(escrow_amount) = adjustments.escrow_amount {
-            self.escrow_amount = escrow_amount;
+            // Error if pending escrow already set
+            if self.escrow_pending.is_some() {
+                return Err(ContractError::PendingEscrowAlreadySet {});
+            }
+            // Set pending escrow
+            let grace_period = self.rules.voting_period_secs();
+            self.escrow_pending = Some(PendingEscrow {
+                amount: escrow_amount,
+                grace_ends_at: env.block.time.plus_seconds(grace_period).nanos() / 1_000_000_000,
+            });
         }
+        // FIXME? Set voting_period before setting escrow_pending
         if let Some(voting_period) = adjustments.voting_period {
             self.rules.voting_period = voting_period;
         }
@@ -110,6 +136,7 @@ impl Dso {
         if let Some(allow_end_early) = adjustments.allow_end_early {
             self.rules.allow_end_early = allow_end_early;
         }
+        Ok(())
     }
 }
 
