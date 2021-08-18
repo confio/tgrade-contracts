@@ -114,6 +114,9 @@ impl Dso {
         if let Some(name) = adjustments.name {
             self.name = name;
         }
+        if let Some(voting_period) = adjustments.voting_period {
+            self.rules.voting_period = voting_period;
+        }
         if let Some(escrow_amount) = adjustments.escrow_amount {
             // Error if pending escrow already set
             if self.escrow_pending.is_some() {
@@ -126,10 +129,6 @@ impl Dso {
                 amount: escrow_amount,
                 grace_ends_at: env.block.time.plus_seconds(grace_period).nanos() / 1_000_000_000,
             });
-        }
-        // FIXME? Set voting_period before setting escrow_pending
-        if let Some(voting_period) = adjustments.voting_period {
-            self.rules.voting_period = voting_period;
         }
         if let Some(quorum) = adjustments.quorum {
             self.rules.quorum = quorum;
