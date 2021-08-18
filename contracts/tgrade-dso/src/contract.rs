@@ -596,6 +596,35 @@ pub fn execute_check_pending(
 }
 
 fn check_pending(storage: &mut dyn Storage, block: &BlockInfo) -> StdResult<Vec<Event>> {
+    // Check if there's a pending escrow, and update escrow_amount if grace period is expired
+    let mut dso = DSO.load(storage)?;
+    if let Some(pending_escrow) = dso.escrow_pending {
+        if block.time.seconds() >= pending_escrow.grace_ends_at {
+            dso.escrow_amount = pending_escrow.amount;
+            dso.escrow_pending = None;
+            DSO.save(storage, &dso)?;
+
+            // Iterate over all Voters and demote those with not enough escrow to Pending
+            let demoted: Vec<(Vec<u8>, EscrowStatus)> = ESCROWS
+                .range(storage, None, None, Order::Ascending)
+                .filter(|r| {
+                    r.is_err()
+                        || r.as_ref().unwrap().1.status == MemberStatus::Voting {}
+                            && r.as_ref().unwrap().1.paid < dso.escrow_amount
+                })
+                .collect::<StdResult<_>>()?;
+
+            for (key, escrow_status) in demoted {
+                let addr = Addr::unchecked(unsafe { String::from_utf8_unchecked(key) });
+                let new_escrow_status = EscrowStatus {
+                    paid: escrow_status.paid,
+                    status: MemberStatus::Pending { proposal_id: 0 }, // FIXME: Store proposal_id in dso's PendingEscrow
+                };
+                ESCROWS.save(storage, &addr, &new_escrow_status)?;
+            }
+        }
+    }
+
     let batch_map = batches();
 
     // Limit to batches that have not yet been promoted (0), using sub_prefix.

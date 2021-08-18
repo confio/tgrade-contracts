@@ -51,6 +51,7 @@ pub enum ExecuteMsg {
     LeaveDso {},
     /// This checks any batches whose grace period has passed, and who have not all paid escrow.
     /// Run through these groups and promote anyone who has paid escrow.
+    /// This also checks if there's a pending escrow that needs to be applied.
     CheckPending {},
 }
 
