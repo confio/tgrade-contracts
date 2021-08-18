@@ -608,12 +608,13 @@ fn check_pending(storage: &mut dyn Storage, block: &BlockInfo) -> StdResult<Vec<
             let demoted: Vec<(Vec<u8>, EscrowStatus)> = ESCROWS
                 .range(storage, None, None, Order::Ascending)
                 .filter(|r| {
-                    r.is_err()
-                        || r.as_ref().unwrap().1.status == MemberStatus::Voting {}
-                            && r.as_ref().unwrap().1.paid < dso.escrow_amount
+                    r.is_err() || {
+                        let escrow_status = &r.as_ref().unwrap().1;
+                        escrow_status.status == MemberStatus::Voting {}
+                            && escrow_status.paid < dso.escrow_amount
+                    }
                 })
                 .collect::<StdResult<_>>()?;
-
             for (key, escrow_status) in demoted {
                 let addr = Addr::unchecked(unsafe { String::from_utf8_unchecked(key) });
                 let new_escrow_status = EscrowStatus {
