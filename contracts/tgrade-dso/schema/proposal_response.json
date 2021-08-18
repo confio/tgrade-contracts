@@ -72,7 +72,7 @@
           ]
         },
         "escrow_amount": {
-          "description": "Length of voting period in days",
+          "description": "Escrow amount to apply after grace period (computed using voting_period)",
           "anyOf": [
             {
               "$ref": "#/definitions/Uint128"
@@ -83,7 +83,7 @@
           ]
         },
         "name": {
-          "description": "Length of voting period in days",
+          "description": "Escrow name",
           "type": [
             "string",
             "null"
@@ -325,7 +325,7 @@
           ]
         },
         "voting_period": {
-          "description": "Length of voting period in days",
+          "description": "Length of voting period in days. Also used to define when escrow_pending is enforced.",
           "type": "integer",
           "format": "uint32",
           "minimum": 0.0
