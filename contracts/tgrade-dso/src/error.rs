@@ -30,6 +30,9 @@ pub enum ContractError {
     #[error("Invalid escrow, must be at least 1 TGD. Paid {0} utgd")]
     InvalidEscrow(Uint128),
 
+    #[error("Invalid pending escrow, must be at least 1 TGD. Paid {0} utgd")]
+    InvalidPendingEscrow(Uint128),
+
     #[error("No funds provided")]
     NoFunds,
 

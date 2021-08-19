@@ -102,6 +102,11 @@ impl Dso {
         if self.escrow_amount.u128() < 1_000_000 {
             return Err(ContractError::InvalidEscrow(self.escrow_amount));
         }
+        if let Some(pending_escrow) = &self.escrow_pending {
+            if pending_escrow.amount.u128() < 1_000_000 {
+                return Err(ContractError::InvalidPendingEscrow(pending_escrow.amount));
+            }
+        }
         Ok(())
     }
 
