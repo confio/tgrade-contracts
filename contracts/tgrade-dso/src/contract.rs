@@ -121,6 +121,7 @@ pub fn execute_deposit_escrow(
         .add_attribute("amount", amount.to_string());
 
     // check to see if we update the pending status
+    // FIXME?: Call check_pending_escrow here? (not needed, AFAIK)
     match escrow.status {
         MemberStatus::Pending { proposal_id: batch } => {
             let required_escrow = DSO.load(deps.storage)?.get_escrow();
@@ -381,7 +382,7 @@ pub fn execute_vote(
     if prop.status != Status::Open && prop.status != Status::Passed {
         return Err(ContractError::NotOpen {});
     }
-    // Looking at Expiration:, if the block time == expiratation time, this counts as expired
+    // Looking at Expiration: if the block time == expiration time, this counts as expired
     if prop.expires.is_expired(&env.block) {
         return Err(ContractError::Expired {});
     }
@@ -394,6 +395,11 @@ pub fn execute_vote(
     if vote_power == 0 {
         return Err(ContractError::Unauthorized {});
     }
+
+    // Check pending escrow before loading escrow status
+    // FIXME? Call the full check_pending (not needed, AFAIK. Also, this form would be compatible with the original version)
+    check_pending_escrow(deps.storage, &env.block)?;
+
     // ensure the voter is not currently leaving the dso (must be currently a voter)
     let escrow = ESCROWS.load(deps.storage, &info.sender)?;
     if !escrow.status.is_voting() {
@@ -598,6 +604,12 @@ pub fn execute_check_pending(
 
 fn check_pending(storage: &mut dyn Storage, block: &BlockInfo) -> StdResult<Vec<Event>> {
     // Check if there's a pending escrow, and update escrow_amount if grace period is expired
+    check_pending_escrow(storage, block)?;
+    // Then, check pending batches
+    check_pending_batches(storage, block)
+}
+
+fn check_pending_escrow(storage: &mut dyn Storage, block: &BlockInfo) -> StdResult<()> {
     let mut dso = DSO.load(storage)?;
     if let Some(pending_escrow) = dso.escrow_pending {
         if block.time.seconds() >= pending_escrow.grace_ends_at {
@@ -630,7 +642,10 @@ fn check_pending(storage: &mut dyn Storage, block: &BlockInfo) -> StdResult<Vec<
             }
         }
     }
+    Ok(())
+}
 
+fn check_pending_batches(storage: &mut dyn Storage, block: &BlockInfo) -> StdResult<Vec<Event>> {
     let batch_map = batches();
 
     // Limit to batches that have not yet been promoted (0), using sub_prefix.
