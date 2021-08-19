@@ -139,7 +139,7 @@ impl Dso {
         if let Some(allow_end_early) = adjustments.allow_end_early {
             self.rules.allow_end_early = allow_end_early;
         }
-        Ok(())
+        self.validate()
     }
 }
 
