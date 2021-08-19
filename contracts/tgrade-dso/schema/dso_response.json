@@ -17,6 +17,7 @@
       ]
     },
     "escrow_pending": {
+      "description": "The pending escrow amount, if any",
       "anyOf": [
         {
           "$ref": "#/definitions/PendingEscrow"

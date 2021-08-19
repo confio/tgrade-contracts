@@ -125,6 +125,7 @@ pub struct DsoResponse {
     pub name: String,
     /// The required escrow amount, in the default denom (utgd)
     pub escrow_amount: Uint128,
+    /// The pending escrow amount, if any
     pub escrow_pending: Option<PendingEscrow>,
     pub rules: VotingRules,
 }
