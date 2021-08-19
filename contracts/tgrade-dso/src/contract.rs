@@ -55,7 +55,7 @@ pub fn instantiate(
     // Store sender as initial member, and define its weight / state
     // based on init_funds
     let amount = cw0::must_pay(&info, DSO_DENOM)?;
-    if amount < dso.escrow_amount {
+    if amount < dso.get_escrow() {
         return Err(ContractError::InsufficientFunds(amount));
     }
 
@@ -123,7 +123,7 @@ pub fn execute_deposit_escrow(
     // check to see if we update the pending status
     match escrow.status {
         MemberStatus::Pending { proposal_id: batch } => {
-            let required_escrow = DSO.load(deps.storage)?.escrow_amount;
+            let required_escrow = DSO.load(deps.storage)?.get_escrow();
             if escrow.paid >= required_escrow {
                 // If we paid enough, we can move into Paid, Pending Voter
                 escrow.status = MemberStatus::PendingPaid { proposal_id: batch };
@@ -267,7 +267,8 @@ pub fn execute_return_escrow(
     let refund = match escrow.status {
         // voters can deduct as long as they maintain the required escrow
         MemberStatus::Voting {} => {
-            let min = DSO.load(deps.storage)?.escrow_amount;
+            // TODO: Confirm we use the pending escrow (if any) for refunding, instead of the current escrow_amount
+            let min = DSO.load(deps.storage)?.get_escrow();
             escrow.paid.checked_sub(min)?
         }
         // leaving voters can claim as long as claim_at has passed
@@ -600,18 +601,20 @@ fn check_pending(storage: &mut dyn Storage, block: &BlockInfo) -> StdResult<Vec<
     let mut dso = DSO.load(storage)?;
     if let Some(pending_escrow) = dso.escrow_pending {
         if block.time.seconds() >= pending_escrow.grace_ends_at {
+            // FIXME: Encapsulate this, and make escrow_amount private for safety
             dso.escrow_amount = pending_escrow.amount;
             dso.escrow_pending = None;
             DSO.save(storage, &dso)?;
 
-            // Iterate over all Voters and demote those with not enough escrow to Pending
+            // Iterate over all Voting, and demote those with not enough escrow to Pending
+            let escrow_amount = pending_escrow.amount;
             let demoted: Vec<_> = ESCROWS
                 .range(storage, None, None, Order::Ascending)
                 .filter(|r| {
                     r.is_err() || {
                         let escrow_status = &r.as_ref().unwrap().1;
                         escrow_status.status == MemberStatus::Voting {}
-                            && escrow_status.paid < dso.escrow_amount
+                            && escrow_status.paid < escrow_amount
                     }
                 })
                 .collect::<StdResult<_>>()?;

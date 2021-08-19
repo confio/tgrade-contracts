@@ -146,6 +146,14 @@ impl Dso {
         }
         self.validate()
     }
+
+    /// Gets the pending escrow, if any, or the current escrow amount
+    pub fn get_escrow(&self) -> Uint128 {
+        match &self.escrow_pending {
+            Some(pending_escrow) => pending_escrow.amount,
+            None => self.escrow_amount,
+        }
+    }
 }
 
 impl DsoAdjustments {
