@@ -605,7 +605,7 @@ fn check_pending(storage: &mut dyn Storage, block: &BlockInfo) -> StdResult<Vec<
             DSO.save(storage, &dso)?;
 
             // Iterate over all Voters and demote those with not enough escrow to Pending
-            let demoted: Vec<(Vec<u8>, EscrowStatus)> = ESCROWS
+            let demoted: Vec<_> = ESCROWS
                 .range(storage, None, None, Order::Ascending)
                 .filter(|r| {
                     r.is_err() || {
