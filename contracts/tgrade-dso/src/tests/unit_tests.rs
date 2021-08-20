@@ -657,6 +657,57 @@ fn propose_new_voting_rules() {
 }
 
 #[test]
+fn propose_new_voting_rules_validation() {
+    let mut deps = mock_dependencies(&[]);
+    let info = mock_info(INIT_ADMIN, &escrow_funds());
+    do_instantiate(deps.as_mut(), info, vec![]).unwrap();
+
+    let rules = query_dso(deps.as_ref()).unwrap().rules;
+    assert_eq!(
+        rules,
+        VotingRules {
+            voting_period: 14,
+            quorum: Decimal::percent(40),
+            threshold: Decimal::percent(60),
+            allow_end_early: true,
+        }
+    );
+
+    // make a new proposal
+    let prop = ProposalContent::EditDso(DsoAdjustments {
+        name: Some("".into()),
+        escrow_amount: None,
+        voting_period: None,
+        quorum: None,
+        threshold: None,
+        allow_end_early: None,
+    });
+    let msg = ExecuteMsg::Propose {
+        title: "Streamline voting process".to_string(),
+        description: "Make some adjustments".to_string(),
+        proposal: prop,
+    };
+    let mut env = mock_env();
+    env.block.height += 10;
+    let res = execute(deps.as_mut(), env.clone(), mock_info(INIT_ADMIN, &[]), msg).unwrap();
+    let proposal_id = parse_prop_id(&res.attributes);
+
+    // ensure it passed (already via principal voter)
+    let prop = query_proposal(deps.as_ref(), env.clone(), proposal_id).unwrap();
+    assert_eq!(prop.status, Status::Passed);
+
+    // execute it
+    let res = execute(
+        deps.as_mut(),
+        env,
+        mock_info(NONVOTING1, &[]),
+        ExecuteMsg::Execute { proposal_id },
+    );
+    assert!(res.is_err());
+    assert_eq!(res.unwrap_err(), ContractError::EmptyName {})
+}
+
+#[test]
 fn raw_queries_work() {
     let info = mock_info(INIT_ADMIN, &escrow_funds());
     let mut deps = mock_dependencies(&[]);
