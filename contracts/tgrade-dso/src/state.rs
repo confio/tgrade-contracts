@@ -132,7 +132,7 @@ impl Dso {
             self.escrow_pending = Some(PendingEscrow {
                 proposal_id,
                 amount: escrow_amount,
-                grace_ends_at: env.block.time.plus_seconds(grace_period).nanos() / 1_000_000_000,
+                grace_ends_at: env.block.time.plus_seconds(grace_period).seconds(),
             });
         }
         if let Some(quorum) = adjustments.quorum {
@@ -501,7 +501,7 @@ pub fn save_ballot(
 
 pub fn create_proposal(store: &mut dyn Storage, proposal: &Proposal) -> StdResult<u64> {
     let expiry = match proposal.expires {
-        Expiration::AtTime(timestamp) => timestamp.nanos() / 1_000_000_000,
+        Expiration::AtTime(timestamp) => timestamp.seconds(),
         _ => return Err(StdError::generic_err("proposals only expire on timestamp")),
     };
     let id: u64 = PROPOSAL_COUNT.may_load(store)?.unwrap_or_default() + 1;

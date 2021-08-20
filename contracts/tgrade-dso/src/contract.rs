@@ -274,7 +274,7 @@ pub fn execute_return_escrow(
         }
         // leaving voters can claim as long as claim_at has passed
         MemberStatus::Leaving { claim_at } => {
-            if claim_at <= env.block.time.nanos() / 1_000_000_000 {
+            if claim_at <= env.block.time.seconds() {
                 escrow.paid
             } else {
                 return Err(ContractError::CannotClaimYet(claim_at));
@@ -546,7 +546,7 @@ fn trigger_long_leave(
 
     // in all case, we become a leaving member and set the claim on our escrow
     let dso = DSO.load(deps.storage)?;
-    let claim_at = (env.block.time.nanos() / 1_000_000_000) + (dso.rules.voting_period_secs() * 2);
+    let claim_at = env.block.time.seconds() + dso.rules.voting_period_secs() * 2;
     escrow.status = MemberStatus::Leaving { claim_at };
     ESCROWS.save(deps.storage, &leaver, &escrow)?;
 
@@ -564,7 +564,7 @@ fn adjust_open_proposals_for_leaver(
     leaver: &Addr,
 ) -> Result<(), ContractError> {
     // find all open proposals that have not yet expired
-    let now = env.block.time.nanos() / 1_000_000_000;
+    let now = env.block.time.seconds();
     let start = Bound::Exclusive(U64Key::from(now).into());
     let open_prop_ids = PROPOSAL_BY_EXPIRY
         .range(deps.storage, Some(start), None, Order::Ascending)
@@ -658,7 +658,7 @@ fn check_pending_batches(storage: &mut dyn Storage, block: &BlockInfo) -> StdRes
     // Limit to batches that have not yet been promoted (0), using sub_prefix.
     // Iterate which have expired at or less than the current time (now), using a bound.
     // These are all eligible for timeout-based promotion
-    let now = block.time.nanos() / 1_000_000_000;
+    let now = block.time.seconds();
     // as we want to keep the last item (pk) unbounded, we increment time by 1 and use exclusive (below the next tick)
     let max_key = (U64Key::from(now + 1), U64Key::from(0)).joined_key();
     let bound = Bound::Exclusive(max_key);
@@ -747,7 +747,7 @@ pub fn proposal_add_voting_members(
         .map(|addr| deps.api.addr_validate(&addr))
         .collect::<StdResult<Vec<_>>>()?;
     let batch = Batch {
-        grace_ends_at: env.block.time.plus_seconds(grace_period).nanos() / 1_000_000_000,
+        grace_ends_at: env.block.time.plus_seconds(grace_period).seconds(),
         waiting_escrow: to_add.len() as u32,
         batch_promoted: false,
         members: addrs.clone(),
