@@ -585,6 +585,18 @@ fn edit_dso_increase_escrow_voting_demoted_after_grace_period() {
     assert_membership(deps.as_ref(), VOTING, Some(1));
     assert_eq!(query_total_weight(deps.as_ref()).unwrap().weight, 1);
 
+    // Call CheckPending before grace period ends
+    execute(
+        deps.as_mut(),
+        later(&mock_env(), 86399),
+        mock_info(VOTING, &[]),
+        ExecuteMsg::CheckPending {},
+    )
+    .unwrap();
+    // check still voting
+    assert_membership(deps.as_ref(), VOTING, Some(1));
+    assert_eq!(query_total_weight(deps.as_ref()).unwrap().weight, 1);
+
     // New grace period (1 day) ends
     execute(
         deps.as_mut(),
@@ -603,6 +615,8 @@ fn edit_dso_increase_escrow_voting_demoted_after_grace_period() {
             status: MemberStatus::Pending { proposal_id },
         }),
     );
-    // Check weight demoted to zero
+    // Check member's weight demoted to zero
     assert_membership(deps.as_ref(), VOTING, Some(0));
+    // Check total decreased accordingly
+    assert_eq!(query_total_weight(deps.as_ref()).unwrap().weight, 0);
 }
