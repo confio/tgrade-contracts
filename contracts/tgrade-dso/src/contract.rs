@@ -121,7 +121,7 @@ pub fn execute_deposit_escrow(
         .add_attribute("amount", amount.to_string());
 
     // check to see if we update the pending status
-    // FIXME?: Call check_pending_escrow here? (not needed, AFAIK)
+    // FIXME?: Call check_pending_escrow here (not needed, AFAIK)
     match escrow.status {
         MemberStatus::Pending { proposal_id: batch } => {
             let required_escrow = DSO.load(deps.storage)?.get_escrow();
@@ -639,6 +639,8 @@ fn check_pending_escrow(storage: &mut dyn Storage, block: &BlockInfo) -> StdResu
                     },
                 };
                 ESCROWS.save(storage, &addr, &new_escrow_status)?;
+                // And remove voting weight
+                members().save(storage, &addr, &0, block.height)?;
             }
         }
     }
