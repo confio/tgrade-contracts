@@ -639,8 +639,13 @@ fn check_pending_escrow(storage: &mut dyn Storage, block: &BlockInfo) -> StdResu
                     },
                 };
                 ESCROWS.save(storage, &addr, &new_escrow_status)?;
-                // And remove voting weight
+                // Remove voting weight
                 members().save(storage, &addr, &0, block.height)?;
+                // And adjust TOTAL
+                TOTAL.update::<_, StdError>(storage, |old| {
+                    old.checked_sub(VOTING_WEIGHT)
+                        .ok_or_else(|| StdError::generic_err("Total underflow"))
+                })?;
             }
         }
     }
