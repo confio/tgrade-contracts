@@ -1,6 +1,9 @@
 #![cfg(test)]
-use super::*;
 use cosmwasm_std::{Deps, SubMsg};
+
+use crate::state::EscrowStatus;
+
+use super::*;
 
 const BDD_NAME: &str = "bddso";
 
@@ -37,9 +40,16 @@ fn now() -> Env {
     later(&mock_env(), NOW)
 }
 
+#[track_caller]
 fn assert_membership(deps: Deps, addr: &str, expected: Option<u64>) {
     let val = query_member(deps, addr.into(), None).unwrap();
     assert_eq!(val.weight, expected);
+}
+
+#[track_caller]
+fn assert_escrow_status(deps: Deps, addr: &str, expected_status: Option<EscrowStatus>) {
+    let escrow_status = query_escrow(deps, addr.into()).unwrap();
+    assert_eq!(escrow_status, expected_status);
 }
 
 // this will panic on non-members, returns status for those with one
@@ -164,6 +174,23 @@ fn demo_proposal() -> ExecuteMsg {
     }
 }
 
+fn edit_dso_proposal() -> ExecuteMsg {
+    let proposal = ProposalContent::EditDso(DsoAdjustments {
+        name: None,
+        escrow_amount: Some(Uint128::new(ESCROW_FUNDS * 3)),
+        voting_period: Some(1),
+        quorum: None,
+        threshold: None,
+        allow_end_early: None,
+    });
+    ExecuteMsg::Propose {
+        title: "Triple Escrow Amount Proposal".to_string(),
+        description: "To test who can still vote after grace period (also changed to 1 day) ends"
+            .to_string(),
+        proposal,
+    }
+}
+
 // // voting member creates a new proposal and returns the id
 // fn create_proposal(deps: DepsMut) -> u64 {
 //
@@ -171,6 +198,10 @@ fn demo_proposal() -> ExecuteMsg {
 
 fn propose(deps: DepsMut, addr: &str) -> Result<Response, ContractError> {
     execute(deps, now(), mock_info(addr, &[]), demo_proposal())
+}
+
+fn propose_edit_dso(deps: DepsMut, addr: &str) -> Result<Response, ContractError> {
+    execute(deps, now(), mock_info(addr, &[]), edit_dso_proposal())
 }
 
 fn leave(deps: DepsMut, addr: &str) -> Result<Response, ContractError> {
@@ -522,4 +553,56 @@ fn remove_existing_members() {
     proposal_add_remove_non_voting_members(deps.as_mut(), now(), vec![], vec![NON_VOTING.into()])
         .unwrap();
     assert_membership(deps.as_ref(), NON_VOTING, None);
+}
+
+#[test]
+fn edit_dso_increase_escrow_voting_demoted_after_grace_period() {
+    let mut deps = mock_dependencies(&[]);
+    let env = mock_env();
+    setup_bdd(deps.as_mut());
+
+    // assert voting member
+    assert_membership(deps.as_ref(), VOTING, Some(1));
+
+    // creates edit dso proposal (tripling escrow amount)
+    let res = propose_edit_dso(deps.as_mut(), VOTING).unwrap();
+    let proposal_id = parse_prop_id(&res.attributes);
+
+    // ensure it passed (already via principal voter)
+    let prop = query_proposal(deps.as_ref(), env.clone(), proposal_id).unwrap();
+    assert_eq!(prop.status, Status::Passed);
+
+    // execute it
+    execute(
+        deps.as_mut(),
+        env,
+        mock_info(NONVOTING1, &[]),
+        ExecuteMsg::Execute { proposal_id },
+    )
+    .unwrap();
+
+    // check still voting
+    assert_membership(deps.as_ref(), VOTING, Some(1));
+    assert_eq!(query_total_weight(deps.as_ref()).unwrap().weight, 1);
+
+    // New grace period (1 day) ends
+    execute(
+        deps.as_mut(),
+        later(&mock_env(), 86400),
+        mock_info(VOTING, &[]),
+        ExecuteMsg::CheckPending {},
+    )
+    .unwrap();
+
+    // Check Voting and not enough escrow demoted to Pending
+    assert_escrow_status(
+        deps.as_ref(),
+        VOTING,
+        Some(EscrowStatus {
+            paid: Uint128::new(VOTING_ESCROW),
+            status: MemberStatus::Pending { proposal_id },
+        }),
+    );
+    // Check weight demoted to zero
+    assert_membership(deps.as_ref(), VOTING, Some(0));
 }
