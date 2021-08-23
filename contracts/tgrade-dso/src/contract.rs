@@ -2,7 +2,7 @@
 use cosmwasm_std::entry_point;
 use cosmwasm_std::{
     coin, to_binary, Addr, BankMsg, Binary, BlockInfo, Deps, DepsMut, Env, Event, MessageInfo,
-    Order, Response, StdError, StdResult, Storage,
+    Order, Response, StdError, StdResult, Storage, Uint128,
 };
 use cw0::{maybe_addr, Expiration};
 use cw2::set_contract_version;
@@ -607,40 +607,87 @@ fn check_pending_escrow(storage: &mut dyn Storage, block: &BlockInfo) -> StdResu
     let mut dso = DSO.load(storage)?;
     if let Some(pending_escrow) = dso.escrow_pending {
         if block.time.seconds() >= pending_escrow.grace_ends_at {
-            // FIXME: Encapsulate this, and make escrow_amount private for safety
+            // Demote all Voting without enough escrow to Pending (pending_escrow > escrow_amount)
+            // Promote all Pending with enough escrow to PendingPaid (pending_escrow < escrow_amount)
+            pending_escrow_demote_promote_members(
+                storage,
+                pending_escrow.proposal_id,
+                dso.escrow_amount,
+                pending_escrow.amount,
+                block.height,
+            )?;
+
+            // Enforce new escrow from now on
             dso.escrow_amount = pending_escrow.amount;
             dso.escrow_pending = None;
             DSO.save(storage, &dso)?;
-
-            // Iterate over all Voting, and demote those with not enough escrow to Pending
-            let escrow_amount = pending_escrow.amount;
-            let demoted: Vec<_> = ESCROWS
-                .range(storage, None, None, Order::Ascending)
-                .filter(|r| {
-                    r.is_err() || {
-                        let escrow_status = &r.as_ref().unwrap().1;
-                        escrow_status.status == MemberStatus::Voting {}
-                            && escrow_status.paid < escrow_amount
+        }
+    }
+    Ok(())
+}
+/// If new_escrow_amount > escrow_amount:
+/// Iterates over all Voting, and demotes those with not enough escrow to Pending.
+/// Else if new_escrow_amount < escrow_amount:
+/// Iterates over all Pending, and promotes those with enough escrow to PendingPaid
+fn pending_escrow_demote_promote_members(
+    storage: &mut dyn Storage,
+    proposal_id: u64,
+    escrow_amount: Uint128,
+    new_escrow_amount: Uint128,
+    height: u64,
+) -> StdResult<()> {
+    if new_escrow_amount > escrow_amount {
+        let demoted: Vec<_> = ESCROWS
+            .range(storage, None, None, Order::Ascending)
+            .filter(|r| {
+                r.is_err() || {
+                    let escrow_status = &r.as_ref().unwrap().1;
+                    escrow_status.status == MemberStatus::Voting {}
+                        && escrow_status.paid < new_escrow_amount
+                }
+            })
+            .collect::<StdResult<_>>()?;
+        for (key, escrow_status) in demoted {
+            let addr = Addr::unchecked(unsafe { String::from_utf8_unchecked(key) });
+            let new_escrow_status = EscrowStatus {
+                paid: escrow_status.paid,
+                status: MemberStatus::Pending { proposal_id },
+            };
+            ESCROWS.save(storage, &addr, &new_escrow_status)?;
+            // Remove voting weight
+            members().save(storage, &addr, &0, height)?;
+            // And adjust TOTAL
+            TOTAL.update::<_, StdError>(storage, |old| {
+                old.checked_sub(VOTING_WEIGHT)
+                    .ok_or_else(|| StdError::generic_err("Total underflow"))
+            })?;
+        }
+    } else if new_escrow_amount < escrow_amount {
+        let promoted: Vec<_> = ESCROWS
+            .range(storage, None, None, Order::Ascending)
+            .filter(|r| {
+                r.is_err() || {
+                    let escrow_status = &r.as_ref().unwrap().1;
+                    match escrow_status.status {
+                        MemberStatus::Pending { .. } => escrow_status.paid >= new_escrow_amount,
+                        _ => false,
                     }
-                })
-                .collect::<StdResult<_>>()?;
-            for (key, escrow_status) in demoted {
-                let addr = Addr::unchecked(unsafe { String::from_utf8_unchecked(key) });
-                let new_escrow_status = EscrowStatus {
-                    paid: escrow_status.paid,
-                    status: MemberStatus::Pending {
-                        proposal_id: pending_escrow.proposal_id,
-                    },
-                };
-                ESCROWS.save(storage, &addr, &new_escrow_status)?;
-                // Remove voting weight
-                members().save(storage, &addr, &0, block.height)?;
-                // And adjust TOTAL
-                TOTAL.update::<_, StdError>(storage, |old| {
-                    old.checked_sub(VOTING_WEIGHT)
-                        .ok_or_else(|| StdError::generic_err("Total underflow"))
-                })?;
-            }
+                }
+            })
+            .collect::<StdResult<_>>()?;
+        for (key, escrow_status) in promoted {
+            let addr = Addr::unchecked(unsafe { String::from_utf8_unchecked(key) });
+            // Get _original_ proposal_id, i.e. don't reset proposal_id (So this member is still
+            // promoted with its batch).
+            let proposal_id = match escrow_status.status {
+                MemberStatus::Pending { proposal_id } => proposal_id,
+                _ => unreachable!(),
+            };
+            let new_escrow_status = EscrowStatus {
+                paid: escrow_status.paid,
+                status: MemberStatus::PendingPaid { proposal_id },
+            };
+            ESCROWS.save(storage, &addr, &new_escrow_status)?;
         }
     }
     Ok(())
