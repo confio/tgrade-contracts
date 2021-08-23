@@ -121,7 +121,6 @@ pub fn execute_deposit_escrow(
         .add_attribute("amount", amount.to_string());
 
     // check to see if we update the pending status
-    // FIXME?: Call check_pending_escrow here (not needed, AFAIK)
     match escrow.status {
         MemberStatus::Pending { proposal_id: batch } => {
             let required_escrow = DSO.load(deps.storage)?.get_escrow();
@@ -395,10 +394,6 @@ pub fn execute_vote(
     if vote_power == 0 {
         return Err(ContractError::Unauthorized {});
     }
-
-    // Check pending escrow before loading escrow status
-    // FIXME? Call the full check_pending (not needed, AFAIK. Also, this form would be compatible with the original version)
-    check_pending_escrow(deps.storage, &env.block)?;
 
     // ensure the voter is not currently leaving the dso (must be currently a voter)
     let escrow = ESCROWS.load(deps.storage, &info.sender)?;
