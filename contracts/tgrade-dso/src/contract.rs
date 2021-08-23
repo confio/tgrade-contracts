@@ -636,6 +636,7 @@ fn pending_escrow_demote_promote_members(
     new_escrow_amount: Uint128,
     height: u64,
 ) -> StdResult<()> {
+    #[allow(clippy::comparison_chain)]
     if new_escrow_amount > escrow_amount {
         let demoted: Vec<_> = ESCROWS
             .range(storage, None, None, Order::Ascending)
