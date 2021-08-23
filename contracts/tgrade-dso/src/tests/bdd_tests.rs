@@ -4,6 +4,7 @@ use cosmwasm_std::{Deps, SubMsg};
 use crate::state::EscrowStatus;
 
 use super::*;
+use crate::error::ContractError::Unauthorized;
 
 const BDD_NAME: &str = "bddso";
 
@@ -619,4 +620,38 @@ fn edit_dso_increase_escrow_voting_demoted_after_grace_period() {
     assert_membership(deps.as_ref(), VOTING, Some(0));
     // Check total decreased accordingly
     assert_eq!(query_total_weight(deps.as_ref()).unwrap().weight, 0);
+}
+
+#[test]
+fn edit_dso_increase_escrow_enforced_before_new_proposal() {
+    let mut deps = mock_dependencies(&[]);
+    let env = mock_env();
+    setup_bdd(deps.as_mut());
+
+    // assert voting member
+    assert_membership(deps.as_ref(), VOTING, Some(1));
+
+    // creates edit dso proposal (tripling escrow amount)
+    let res = propose_edit_dso(deps.as_mut(), VOTING).unwrap();
+    let proposal_id = parse_prop_id(&res.attributes);
+
+    // ensure it passed (already via principal voter)
+    let prop = query_proposal(deps.as_ref(), env.clone(), proposal_id).unwrap();
+    assert_eq!(prop.status, Status::Passed);
+
+    // execute it
+    execute(
+        deps.as_mut(),
+        env,
+        mock_info(NONVOTING1, &[]),
+        ExecuteMsg::Execute { proposal_id },
+    )
+    .unwrap();
+
+    // create new proposal (after new grace period (1 day))
+    let res = propose(deps.as_mut(), VOTING);
+
+    // check proposal creation error
+    assert!(res.is_err());
+    assert_eq!(res.unwrap_err(), Unauthorized {});
 }
