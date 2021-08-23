@@ -26,7 +26,7 @@ use crate::state::{DsoAdjustments, MemberStatus, ProposalContent, VotingRules};
 const INIT_ADMIN: &str = "juan";
 
 const DSO_NAME: &str = "test_dso";
-const ESCROW_FUNDS: u128 = 1_000_000;
+const ESCROW_FUNDS: u128 = 2_000_000;
 const DENOM: &str = "utgd";
 
 const VOTING1: &str = "miles";

@@ -634,7 +634,10 @@ fn propose_new_voting_rules() {
     // check the proper attributes returned
     assert_eq!(res.attributes.len(), 8);
     assert_eq!(&res.attributes[0], &attr("name", "New Name!"));
-    assert_eq!(&res.attributes[1], &attr("escrow_amount", "2000000"));
+    assert_eq!(
+        &res.attributes[1],
+        &attr("escrow_amount", (ESCROW_FUNDS * 2).to_string())
+    );
     assert_eq!(&res.attributes[2], &attr("voting_period", "7"));
     assert_eq!(&res.attributes[3], &attr("threshold", "0.51"));
     assert_eq!(&res.attributes[4], &attr("allow_end_early", "true"));

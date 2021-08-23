@@ -175,10 +175,10 @@ fn demo_proposal() -> ExecuteMsg {
     }
 }
 
-fn edit_dso_proposal() -> ExecuteMsg {
+fn edit_dso_proposal(escrow_funds: u128) -> ExecuteMsg {
     let proposal = ProposalContent::EditDso(DsoAdjustments {
         name: None,
-        escrow_amount: Some(Uint128::new(ESCROW_FUNDS * 3)),
+        escrow_amount: Some(Uint128::new(escrow_funds)),
         voting_period: Some(1),
         quorum: None,
         threshold: None,
@@ -201,8 +201,17 @@ fn propose(deps: DepsMut, addr: &str) -> Result<Response, ContractError> {
     execute(deps, now(), mock_info(addr, &[]), demo_proposal())
 }
 
-fn propose_edit_dso(deps: DepsMut, addr: &str) -> Result<Response, ContractError> {
-    execute(deps, now(), mock_info(addr, &[]), edit_dso_proposal())
+fn propose_edit_dso(
+    deps: DepsMut,
+    addr: &str,
+    escrow_amount: u128,
+) -> Result<Response, ContractError> {
+    execute(
+        deps,
+        now(),
+        mock_info(addr, &[]),
+        edit_dso_proposal(escrow_amount),
+    )
 }
 
 fn leave(deps: DepsMut, addr: &str) -> Result<Response, ContractError> {
@@ -363,7 +372,7 @@ fn pending_paid_timeout_to_voter() {
     )
     .unwrap();
 
-    // assert non-voting member
+    // assert voting member
     assert_membership(deps.as_ref(), PENDING_PAID, Some(1));
     assert!(matches!(
         get_status(deps.as_ref(), PENDING_PAID),
@@ -566,7 +575,7 @@ fn edit_dso_increase_escrow_voting_demoted_after_grace_period() {
     assert_membership(deps.as_ref(), VOTING, Some(1));
 
     // creates edit dso proposal (tripling escrow amount)
-    let res = propose_edit_dso(deps.as_mut(), VOTING).unwrap();
+    let res = propose_edit_dso(deps.as_mut(), VOTING, ESCROW_FUNDS * 3).unwrap();
     let proposal_id = parse_prop_id(&res.attributes);
 
     // ensure it passed (already via principal voter)
@@ -623,6 +632,89 @@ fn edit_dso_increase_escrow_voting_demoted_after_grace_period() {
 }
 
 #[test]
+fn edit_dso_decrease_escrow_pending_promoted_after_grace_period() {
+    let mut deps = mock_dependencies(&[]);
+    let env = mock_env();
+    setup_bdd(deps.as_mut());
+
+    // assert voting member
+    assert_membership(deps.as_ref(), VOTING, Some(1));
+
+    // creates edit dso proposal (half escrow amount)
+    let res = propose_edit_dso(deps.as_mut(), VOTING, ESCROW_FUNDS / 2).unwrap();
+    let proposal_id = parse_prop_id(&res.attributes);
+
+    // ensure it passed (already via principal voter)
+    let prop = query_proposal(deps.as_ref(), env.clone(), proposal_id).unwrap();
+    assert_eq!(prop.status, Status::Passed);
+
+    // execute it
+    execute(
+        deps.as_mut(),
+        env,
+        mock_info(NONVOTING1, &[]),
+        ExecuteMsg::Execute { proposal_id },
+    )
+    .unwrap();
+
+    // check PENDING_SOME still Pending
+    assert_escrow_status(
+        deps.as_ref(),
+        PENDING_SOME,
+        Some(EscrowStatus {
+            paid: Uint128::new(SOME_ESCROW),
+            status: MemberStatus::Pending {
+                proposal_id: PROPOSAL_ID_1,
+            },
+        }),
+    );
+
+    // Call CheckPending before grace period ends
+    execute(
+        deps.as_mut(),
+        later(&mock_env(), 86399),
+        mock_info(VOTING, &[]),
+        ExecuteMsg::CheckPending {},
+    )
+    .unwrap();
+
+    // check PENDING_SOME still Pending
+    assert_escrow_status(
+        deps.as_ref(),
+        PENDING_SOME,
+        Some(EscrowStatus {
+            paid: Uint128::new(SOME_ESCROW),
+            status: MemberStatus::Pending {
+                proposal_id: PROPOSAL_ID_1,
+            },
+        }),
+    );
+
+    // New grace period (1 day) ends
+    execute(
+        deps.as_mut(),
+        later(&mock_env(), 86400),
+        mock_info(VOTING, &[]),
+        ExecuteMsg::CheckPending {},
+    )
+    .unwrap();
+
+    // Check PENDING_SOME (enough escrow) promoted to PendingPaid (under original proposal)
+    assert_escrow_status(
+        deps.as_ref(),
+        PENDING_SOME,
+        Some(EscrowStatus {
+            paid: Uint128::new(SOME_ESCROW),
+            status: MemberStatus::PendingPaid {
+                proposal_id: PROPOSAL_ID_1,
+            },
+        }),
+    );
+    // After PROPOSAL_ID_1 expiration, this member will also be promoted to Voting
+    // (tested in `pending_paid_timeout_to_voter`).
+}
+
+#[test]
 fn edit_dso_increase_escrow_enforced_before_new_proposal() {
     let mut deps = mock_dependencies(&[]);
     let env = mock_env();
@@ -632,7 +724,7 @@ fn edit_dso_increase_escrow_enforced_before_new_proposal() {
     assert_membership(deps.as_ref(), VOTING, Some(1));
 
     // creates edit dso proposal (tripling escrow amount)
-    let res = propose_edit_dso(deps.as_mut(), VOTING).unwrap();
+    let res = propose_edit_dso(deps.as_mut(), VOTING, ESCROW_FUNDS * 3).unwrap();
     let proposal_id = parse_prop_id(&res.attributes);
 
     // ensure it passed (already via principal voter)
