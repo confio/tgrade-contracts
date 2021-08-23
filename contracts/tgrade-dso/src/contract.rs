@@ -319,6 +319,12 @@ pub fn execute_propose(
     description: String,
     proposal: ProposalContent,
 ) -> Result<Response, ContractError> {
+    // trigger check_pending (we should get this cheaper)
+    // Note, we check this at the end of last block, so they will actually be included in the voters
+    // of this proposal (which uses a snapshot)
+    let mut last_block = env.block.clone();
+    last_block.height -= 1;
+    let events = check_pending(deps.storage, &last_block)?;
     cw0::nonpayable(&info)?;
 
     // only voting members  can create a proposal
@@ -328,13 +334,6 @@ pub fn execute_propose(
     if vote_power == 0 {
         return Err(ContractError::Unauthorized {});
     }
-
-    // trigger check_pending (we should get this cheaper)
-    // Note, we check this at the end of last block, so they will actually be included in the voters
-    // of this proposal (which uses a snapshot)
-    let mut last_block = env.block.clone();
-    last_block.height -= 1;
-    let events = check_pending(deps.storage, &last_block)?;
 
     // create a proposal
     let dso = DSO.load(deps.storage)?;
