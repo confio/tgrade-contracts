@@ -610,7 +610,7 @@ fn check_pending_escrow(storage: &mut dyn Storage, block: &BlockInfo) -> StdResu
         if block.time.seconds() >= pending_escrow.grace_ends_at {
             // Demote all Voting without enough escrow to Pending (pending_escrow > escrow_amount)
             // Promote all Pending with enough escrow to PendingPaid (pending_escrow < escrow_amount)
-            let evts = pending_escrow_demote_promote_members(
+            let evt = pending_escrow_demote_promote_members(
                 storage,
                 pending_escrow.proposal_id,
                 dso.escrow_amount,
@@ -623,7 +623,9 @@ fn check_pending_escrow(storage: &mut dyn Storage, block: &BlockInfo) -> StdResu
             dso.escrow_pending = None;
             DSO.save(storage, &dso)?;
 
-            return Ok(evts);
+            if let Some(evt) = evt {
+                return Ok(vec![evt]);
+            }
         }
     }
     Ok(vec![])
@@ -639,7 +641,7 @@ fn pending_escrow_demote_promote_members(
     escrow_amount: Uint128,
     new_escrow_amount: Uint128,
     height: u64,
-) -> StdResult<Vec<Event>> {
+) -> StdResult<Option<Event>> {
     #[allow(clippy::comparison_chain)]
     if new_escrow_amount > escrow_amount {
         let demoted: Vec<_> = ESCROWS
@@ -663,7 +665,7 @@ fn pending_escrow_demote_promote_members(
             })?;
             evt = evt.add_attribute(MEMBER_KEY, addr);
         }
-        return Ok(vec![evt]);
+        return Ok(Some(evt));
     } else if new_escrow_amount < escrow_amount {
         let promoted: Vec<_> = ESCROWS
             .range(storage, None, None, Order::Ascending)
@@ -675,26 +677,26 @@ fn pending_escrow_demote_promote_members(
                 },
             })
             .collect::<StdResult<_>>()?;
-        let mut evts = vec![];
+        let mut evt = Event::new(PROMOTE_TYPE).add_attribute(PROPOSAL_KEY, proposal_id.to_string());
         for (key, mut escrow_status) in promoted {
             let addr = Addr::unchecked(unsafe { String::from_utf8_unchecked(key) });
             // Get _original_ proposal_id, i.e. don't reset proposal_id (So this member is still
             // promoted with its batch).
-            let proposal_id = match escrow_status.status {
+            let original_proposal_id = match escrow_status.status {
                 MemberStatus::Pending { proposal_id } => proposal_id,
                 _ => unreachable!(),
             };
-            escrow_status.status = MemberStatus::PendingPaid { proposal_id };
+            escrow_status.status = MemberStatus::PendingPaid {
+                proposal_id: original_proposal_id,
+            };
             ESCROWS.save(storage, &addr, &escrow_status)?;
-            evts.push(
-                Event::new(PROMOTE_TYPE)
-                    .add_attribute(PROPOSAL_KEY, proposal_id.to_string())
-                    .add_attribute(MEMBER_KEY, addr),
-            );
+            evt = evt
+                .add_attribute("original_proposal", original_proposal_id.to_string())
+                .add_attribute(MEMBER_KEY, addr);
         }
-        return Ok(evts);
+        return Ok(Some(evt));
     }
-    Ok(vec![])
+    Ok(None)
 }
 
 fn check_pending_batches(storage: &mut dyn Storage, block: &BlockInfo) -> StdResult<Vec<Event>> {
