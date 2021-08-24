@@ -16,6 +16,8 @@ use cw_storage_plus::{
 use std::convert::TryInto;
 use tg4::TOTAL_KEY;
 
+const ONE_TGD: u128 = 1_000_000; // One million µTGD
+
 #[derive(Serialize, Deserialize, Clone, PartialEq, Debug)]
 pub struct Dso {
     pub name: String,
@@ -99,11 +101,11 @@ impl Dso {
             return Err(ContractError::LongName {});
         }
         // 1 million utgd = 1 TGD
-        if self.escrow_amount.u128() < 1_000_000 {
+        if self.escrow_amount.u128() < ONE_TGD {
             return Err(ContractError::InvalidEscrow(self.escrow_amount));
         }
         if let Some(pending_escrow) = &self.escrow_pending {
-            if pending_escrow.amount.u128() < 1_000_000 {
+            if pending_escrow.amount.u128() < ONE_TGD {
                 return Err(ContractError::InvalidPendingEscrow(pending_escrow.amount));
             }
         }
