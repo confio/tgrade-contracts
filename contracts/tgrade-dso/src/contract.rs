@@ -173,7 +173,7 @@ fn update_batch_after_escrow_paid(
                 // update the total with the new weight
                 TOTAL.update::<_, StdError>(deps.storage, |old| Ok(old + VOTING_WEIGHT))?;
                 let evt = Event::new(PROMOTE_TYPE)
-                    .add_attribute(BATCH_KEY, proposal_id.to_string())
+                    .add_attribute(PROPOSAL_KEY, proposal_id.to_string())
                     .add_attribute(MEMBER_KEY, paid_escrow);
                 Ok(Some(evt))
             } else {
@@ -193,8 +193,9 @@ fn update_batch_after_escrow_paid(
     }
 }
 
+const DEMOTE_TYPE: &str = "demoted";
 const PROMOTE_TYPE: &str = "promoted";
-const BATCH_KEY: &str = "batch";
+const PROPOSAL_KEY: &str = "proposal";
 const MEMBER_KEY: &str = "member";
 
 /// Call when the batch is ready to become voters (all paid or expiration hit).
@@ -207,7 +208,7 @@ fn convert_all_paid_members_to_voters(
     batch: &mut Batch,
     height: u64,
 ) -> StdResult<Event> {
-    let mut evt = Event::new(PROMOTE_TYPE).add_attribute(BATCH_KEY, batch_id.to_string());
+    let mut evt = Event::new(PROMOTE_TYPE).add_attribute(PROPOSAL_KEY, batch_id.to_string());
 
     // try to promote them all
     let mut added = 0;
@@ -597,18 +598,19 @@ pub fn execute_check_pending(
 
 fn check_pending(storage: &mut dyn Storage, block: &BlockInfo) -> StdResult<Vec<Event>> {
     // Check if there's a pending escrow, and update escrow_amount if grace period is expired
-    check_pending_escrow(storage, block)?;
+    let mut evts = check_pending_escrow(storage, block)?;
     // Then, check pending batches
-    check_pending_batches(storage, block)
+    evts.extend_from_slice(&check_pending_batches(storage, block)?);
+    Ok(evts)
 }
 
-fn check_pending_escrow(storage: &mut dyn Storage, block: &BlockInfo) -> StdResult<()> {
+fn check_pending_escrow(storage: &mut dyn Storage, block: &BlockInfo) -> StdResult<Vec<Event>> {
     let mut dso = DSO.load(storage)?;
     if let Some(pending_escrow) = dso.escrow_pending {
         if block.time.seconds() >= pending_escrow.grace_ends_at {
             // Demote all Voting without enough escrow to Pending (pending_escrow > escrow_amount)
             // Promote all Pending with enough escrow to PendingPaid (pending_escrow < escrow_amount)
-            pending_escrow_demote_promote_members(
+            let evts = pending_escrow_demote_promote_members(
                 storage,
                 pending_escrow.proposal_id,
                 dso.escrow_amount,
@@ -620,10 +622,13 @@ fn check_pending_escrow(storage: &mut dyn Storage, block: &BlockInfo) -> StdResu
             dso.escrow_amount = pending_escrow.amount;
             dso.escrow_pending = None;
             DSO.save(storage, &dso)?;
+
+            return Ok(evts);
         }
     }
-    Ok(())
+    Ok(vec![])
 }
+
 /// If new_escrow_amount > escrow_amount:
 /// Iterates over all Voting, and demotes those with not enough escrow to Pending.
 /// Else if new_escrow_amount < escrow_amount:
@@ -634,7 +639,7 @@ fn pending_escrow_demote_promote_members(
     escrow_amount: Uint128,
     new_escrow_amount: Uint128,
     height: u64,
-) -> StdResult<()> {
+) -> StdResult<Vec<Event>> {
     #[allow(clippy::comparison_chain)]
     if new_escrow_amount > escrow_amount {
         let demoted: Vec<_> = ESCROWS
@@ -644,6 +649,7 @@ fn pending_escrow_demote_promote_members(
                 Ok((_, es)) => es.status == MemberStatus::Voting {} && es.paid < new_escrow_amount,
             })
             .collect::<StdResult<_>>()?;
+        let mut evt = Event::new(DEMOTE_TYPE).add_attribute(PROPOSAL_KEY, proposal_id.to_string());
         for (key, mut escrow_status) in demoted {
             let addr = Addr::unchecked(unsafe { String::from_utf8_unchecked(key) });
             escrow_status.status = MemberStatus::Pending { proposal_id };
@@ -655,7 +661,9 @@ fn pending_escrow_demote_promote_members(
                 old.checked_sub(VOTING_WEIGHT)
                     .ok_or_else(|| StdError::generic_err("Total underflow"))
             })?;
+            evt = evt.add_attribute(MEMBER_KEY, addr);
         }
+        return Ok(vec![evt]);
     } else if new_escrow_amount < escrow_amount {
         let promoted: Vec<_> = ESCROWS
             .range(storage, None, None, Order::Ascending)
@@ -667,6 +675,7 @@ fn pending_escrow_demote_promote_members(
                 },
             })
             .collect::<StdResult<_>>()?;
+        let mut evts = vec![];
         for (key, mut escrow_status) in promoted {
             let addr = Addr::unchecked(unsafe { String::from_utf8_unchecked(key) });
             // Get _original_ proposal_id, i.e. don't reset proposal_id (So this member is still
@@ -677,9 +686,15 @@ fn pending_escrow_demote_promote_members(
             };
             escrow_status.status = MemberStatus::PendingPaid { proposal_id };
             ESCROWS.save(storage, &addr, &escrow_status)?;
+            evts.push(
+                Event::new(PROMOTE_TYPE)
+                    .add_attribute(PROPOSAL_KEY, proposal_id.to_string())
+                    .add_attribute(MEMBER_KEY, addr),
+            );
         }
+        return Ok(evts);
     }
-    Ok(())
+    Ok(vec![])
 }
 
 fn check_pending_batches(storage: &mut dyn Storage, block: &BlockInfo) -> StdResult<Vec<Event>> {
