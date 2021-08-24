@@ -129,13 +129,15 @@ impl Dso {
             if self.escrow_pending.is_some() {
                 return Err(ContractError::PendingEscrowAlreadySet {});
             }
-            // Set pending escrow
-            let grace_period = self.rules.voting_period_secs();
-            self.escrow_pending = Some(PendingEscrow {
-                proposal_id,
-                amount: escrow_amount,
-                grace_ends_at: env.block.time.plus_seconds(grace_period).seconds(),
-            });
+            if escrow_amount != self.escrow_amount {
+                // Set pending escrow
+                let grace_period = self.rules.voting_period_secs();
+                self.escrow_pending = Some(PendingEscrow {
+                    proposal_id,
+                    amount: escrow_amount,
+                    grace_ends_at: env.block.time.plus_seconds(grace_period).seconds(),
+                });
+            }
         }
         if let Some(quorum) = adjustments.quorum {
             self.rules.quorum = quorum;
