@@ -13,6 +13,7 @@ use cw_storage_plus::{
     Index, IndexList, IndexedMap, IndexedSnapshotMap, Item, Map, MultiIndex, Strategy, U64Key,
     U8Key,
 };
+use std::cmp::max;
 use std::convert::TryInto;
 use tg4::TOTAL_KEY;
 
@@ -151,12 +152,15 @@ impl Dso {
         self.validate()
     }
 
-    /// Gets the pending escrow, if any, or the current escrow amount
+    /// Gets the max of the pending escrow (if any) and the current escrow amount
     pub fn get_escrow(&self) -> Uint128 {
-        match &self.escrow_pending {
-            Some(pending_escrow) => pending_escrow.amount,
-            None => self.escrow_amount,
-        }
+        max(
+            self.escrow_amount,
+            self.escrow_pending
+                .as_ref()
+                .map(|p| p.amount)
+                .unwrap_or_default(),
+        )
     }
 }
 
