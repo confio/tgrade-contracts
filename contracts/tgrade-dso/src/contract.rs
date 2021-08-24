@@ -640,21 +640,15 @@ fn pending_escrow_demote_promote_members(
     if new_escrow_amount > escrow_amount {
         let demoted: Vec<_> = ESCROWS
             .range(storage, None, None, Order::Ascending)
-            .filter(|r| {
-                r.is_err() || {
-                    let escrow_status = &r.as_ref().unwrap().1;
-                    escrow_status.status == MemberStatus::Voting {}
-                        && escrow_status.paid < new_escrow_amount
-                }
+            .filter(|r| match r.as_ref() {
+                Err(_) => true,
+                Ok((_, es)) => es.status == MemberStatus::Voting {} && es.paid < new_escrow_amount,
             })
             .collect::<StdResult<_>>()?;
-        for (key, escrow_status) in demoted {
+        for (key, mut escrow_status) in demoted {
             let addr = Addr::unchecked(unsafe { String::from_utf8_unchecked(key) });
-            let new_escrow_status = EscrowStatus {
-                paid: escrow_status.paid,
-                status: MemberStatus::Pending { proposal_id },
-            };
-            ESCROWS.save(storage, &addr, &new_escrow_status)?;
+            escrow_status.status = MemberStatus::Pending { proposal_id };
+            ESCROWS.save(storage, &addr, &escrow_status)?;
             // Remove voting weight
             members().save(storage, &addr, &0, height)?;
             // And adjust TOTAL
@@ -666,17 +660,15 @@ fn pending_escrow_demote_promote_members(
     } else if new_escrow_amount < escrow_amount {
         let promoted: Vec<_> = ESCROWS
             .range(storage, None, None, Order::Ascending)
-            .filter(|r| {
-                r.is_err() || {
-                    let escrow_status = &r.as_ref().unwrap().1;
-                    match escrow_status.status {
-                        MemberStatus::Pending { .. } => escrow_status.paid >= new_escrow_amount,
-                        _ => false,
-                    }
-                }
+            .filter(|r| match r.as_ref() {
+                Err(_) => true,
+                Ok((_, es)) => match es.status {
+                    MemberStatus::Pending { .. } => es.paid >= new_escrow_amount,
+                    _ => false,
+                },
             })
             .collect::<StdResult<_>>()?;
-        for (key, escrow_status) in promoted {
+        for (key, mut escrow_status) in promoted {
             let addr = Addr::unchecked(unsafe { String::from_utf8_unchecked(key) });
             // Get _original_ proposal_id, i.e. don't reset proposal_id (So this member is still
             // promoted with its batch).
@@ -684,11 +676,8 @@ fn pending_escrow_demote_promote_members(
                 MemberStatus::Pending { proposal_id } => proposal_id,
                 _ => unreachable!(),
             };
-            let new_escrow_status = EscrowStatus {
-                paid: escrow_status.paid,
-                status: MemberStatus::PendingPaid { proposal_id },
-            };
-            ESCROWS.save(storage, &addr, &new_escrow_status)?;
+            escrow_status.status = MemberStatus::PendingPaid { proposal_id };
+            ESCROWS.save(storage, &addr, &escrow_status)?;
         }
     }
     Ok(())
