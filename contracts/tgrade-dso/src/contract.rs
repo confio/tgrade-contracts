@@ -267,7 +267,6 @@ pub fn execute_return_escrow(
     let refund = match escrow.status {
         // voters can deduct as long as they maintain the required escrow
         MemberStatus::Voting {} => {
-            // TODO: Confirm we use the pending escrow (if any) for refunding, instead of the current escrow_amount
             let min = DSO.load(deps.storage)?.get_escrow();
             escrow.paid.checked_sub(min)?
         }
