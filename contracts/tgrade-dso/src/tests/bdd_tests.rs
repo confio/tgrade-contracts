@@ -672,6 +672,18 @@ fn edit_dso_increase_escrow_voting_demoted_after_grace_period() {
     assert_membership(deps.as_ref(), VOTING, Some(0));
     // Check total decreased accordingly
     assert_eq!(query_total_weight(deps.as_ref()).unwrap().weight, 0);
+
+    // Voting now pays in the new required escrow
+    execute(
+        deps.as_mut(),
+        later(&mock_env(), 86401),
+        mock_info(VOTING, &coins(ESCROW_FUNDS, DENOM)),
+        ExecuteMsg::DepositEscrow {},
+    )
+    .unwrap();
+
+    // Check he recovers voting rights
+    assert_membership(deps.as_ref(), VOTING, Some(1));
 }
 
 #[test]
