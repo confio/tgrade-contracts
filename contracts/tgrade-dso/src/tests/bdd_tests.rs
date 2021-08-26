@@ -765,8 +765,23 @@ fn edit_dso_decrease_escrow_pending_promoted_after_grace_period() {
             },
         }),
     );
-    // After PROPOSAL_ID_1 expiration, this member will also be promoted to Voting
-    // (tested in `pending_paid_timeout_to_voter`).
+
+    // Check that after PROPOSAL_ID_1 expiration, this member will also be promoted to Voting.
+    // (also tested in `pending_paid_timeout_to_voter`)
+    execute(
+        deps.as_mut(),
+        later(&mock_env(), PENDING_ENDS),
+        mock_info(PENDING_SOME, &[]),
+        ExecuteMsg::CheckPending {},
+    )
+    .unwrap();
+
+    // assert voting member
+    assert_membership(deps.as_ref(), PENDING_SOME, Some(1));
+    assert!(matches!(
+        get_status(deps.as_ref(), PENDING_SOME),
+        MemberStatus::Voting {}
+    ));
 }
 
 #[test]
