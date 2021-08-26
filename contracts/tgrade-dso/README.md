@@ -4,7 +4,7 @@ This is an implementation of the [tg4 spec](../../packages/tg4/README.md)
 with the aim of implementing a DSO (Decentralized Social Organization).
 It implements all the elements of the tg4 spec.
 
-Besides, tg4-based voting and non-voting participants membership, it also defines and
+Besides tg4-based voting and non-voting participants membership, it also defines and
 implements DSO-related functionality for managing escrow deposits and redemptions,
 and for proposals voting, based on [CW3](https://github.com/CosmWasm/cosmwasm-plus/tree/master/packages/cw3).
 
@@ -158,6 +158,8 @@ as part of *CheckPending* (and before proposal creation). The original proposal 
 new pending paid members will be promoted to *Voting* together with their original batch.
 
 #### Notes:
+  - If both, the voting period and the escrow amount are changed in the same proposal, we use the *new* voting period
+as the grace period for applying the new escrow.
   - Open proposals are currently not being adjusted when a member is promoted / demoted due to a change in the escrow amount.
 We just honour the snapshot from the beginning of the proposal. This is for simplicity, but could change in the future
 to be more in line with the *Leave* condition, where open proposals are being adjusted.
