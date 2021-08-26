@@ -1,7 +1,7 @@
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
-use crate::state::{EscrowStatus, ProposalContent, Votes, VotingRules};
+use crate::state::{EscrowStatus, PendingEscrow, ProposalContent, Votes, VotingRules};
 use cosmwasm_std::{Decimal, Uint128};
 use cw0::Expiration;
 use cw3::{Status, Vote};
@@ -51,6 +51,7 @@ pub enum ExecuteMsg {
     LeaveDso {},
     /// This checks any batches whose grace period has passed, and who have not all paid escrow.
     /// Run through these groups and promote anyone who has paid escrow.
+    /// This also checks if there's a pending escrow that needs to be applied.
     CheckPending {},
 }
 
@@ -124,6 +125,8 @@ pub struct DsoResponse {
     pub name: String,
     /// The required escrow amount, in the default denom (utgd)
     pub escrow_amount: Uint128,
+    /// The pending escrow amount, if any
+    pub escrow_pending: Option<PendingEscrow>,
     pub rules: VotingRules,
 }
 

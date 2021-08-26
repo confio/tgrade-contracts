@@ -54,6 +54,11 @@ All voting and non-voting member updates (additions and removals),
 voting member slashing, as well as permissions assignment and revocation for
 non-voting participants, must be done through voting.
 
+- Edit the DSO:
+
+This allows changing the DSO name, voting period, etc.
+For the special case of changing the escrow amount, see the [Escrow Changed](#escrow-changed) section below.
+
 - Close the DSO.
 This implies redeeming all the funds, and removing / blocking the DSO so that
 it cannot be accessed anymore.
@@ -66,11 +71,11 @@ This is becoming complex, and hard to reason about, so we need to discuss the fu
 
 - *Non Member* - Everyone starts here and may return here. No special rights in the DSO
 
-- *Non Voting Member* - On a successful proposal, an *non member* may be converted to a non-voting member. Another proposal
-  may convert them to a *non member*, or they may choose such a transition themself.
+- *Non Voting Member* - On a successful proposal, an *non-member* may be converted to a non-voting member. Another proposal
+  may convert them to a *non-member*, or they may choose such a transition themselves.
 
-- *Pending Voter* - On a successful proposal, a *non member* or *non voting member* may be converted to a *pending voter*.
-  They have the same rights as a *non voting member* (participate in the DSO), but cannot yet vote. A pending voter may
+- *Pending Voter* - On a successful proposal, a *non-member* or *non-voting member* may be converted to a *pending voter*.
+  They have the same rights as a *non-voting member* (participate in the DSO), but cannot yet vote. A pending voter may
   *deposit escrow*. Once their escrow deposit is equal or greater than the required escrow, they become
   *pending, paid voter*.
 
@@ -81,7 +86,7 @@ This is becoming complex, and hard to reason about, so we need to discuss the fu
   to raise it and *return* escrow down to the minimum required escrow, but no lower. There are 3 transitions out:
   - Voluntary leave: transition to *Leaving Voter*
   - Punishment: transition to a *Non Member* and escrow is distributed to whoever DSO Governance decides
-  - Partial Slashing: transtion to a *Pending Voter* and a portion of the escrow is confiscated. They can then deposit
+  - Partial Slashing: transition to a *Pending Voter* and a portion of the escrow is confiscated. They can then deposit
     more escrow to become a *Voter* or remain a *Non Voting Member*
   - By Escrow Increased
 
@@ -130,18 +135,34 @@ vote on it.
 When transitioning from *Voter* to *Pending Voter* due to "Partial Slashing", they are assigned a batch of size 1,
 meaning they will become a full voter once they have paid all escrow dues.
 
-### Escrow Increased
+### Escrow Changed
 
-If the escrow is increased, many Voters may no longer have the minimum escrow. We handle this in batches of ones with a grace period to allow
-them to top-up before enforcing the new escrow. Rather than add more states to capture *Voters* or *Pending, Paid Voters*
+If the escrow is *increased*, many *Voting* members may no longer have the minimum escrow. We handle this in a batch for the *EditDso* proposal, with a grace period to allow
+them to top-up before enforcing the new escrow. Rather than add more states to capture *Voting* or *Pending*, or *PendingPaid* Voters
 who have paid the old escrow but not the new one, we will model it by a delay on the escrow.
 
-We have `required_escrow` and `pending_escrow`, which is an `Option` with a deadline and an amount. When setting a new
-escrow, the `pending_escrow` is set. We do not allow multiple pending escrows at once. The *CheckPending* trigger
-will be extended to check and apply a new escrow (and this is also automatically called upon proposal creation).
-In such a case, we will move `pending_escrow` to `required_escrow` and mark `pending_escrow` as `None`. We will also
-iterate over all *Voters* and demote those with insufficient escrow to *Pending Voters*.
+We have `escrow_amount` and `escrow_pending`, which is an `Option` with a deadline and an amount. When setting a new
+escrow, `escrow_pending` is set. We do not allow multiple pending escrows at once. The *CheckPending* trigger
+is extended to check and apply a new escrow (and this is also automatically called upon proposal creation).
+In such a case, we will move `escrow_pending` to `escrow_amount` and mark `escrow_pending` as `None`. We will also
+iterate over all *Voting*, and demote those with insufficient escrow to *Pending* members.
 
-Since the "grace period" for *Batches* and the "grace period" to enable new escrow are the same, we don't add lots of
-special logic to handle *Paid, Pending Voters*. Rather they will use the `pending_escrow` if set when paying into their
-escrow. To avoid race conditions, we will *CheckPending* to upgrade to *Voters* before doing the escrow check.
+Since the "grace period" for *Batches* and the "grace period" to enable a new escrow are the same, we don't add lots of
+special logic to handle *PendingPaid*, *Pending* members. Rather, they will use the `pending_escrow` if set when paying into their
+escrow.
+
+To avoid race conditions, we will *CheckPending* to upgrade to *Voting* before doing the escrow check, during proposal creation.
+
+If the escrow is *decreased*, some *Pending* voters may now have enough escrow to be promoted to *PendingPaid*. This is also handled
+as part of *CheckPending* (and before proposal creation). The original proposal id is conserved, so that these
+new pending paid members will be promoted to *Voting* together with their original batch.
+
+#### Notes:
+  - If both, the voting period and the escrow amount are changed in the same proposal, we use the *new* voting period
+as the grace period for applying the new escrow.
+  - Open proposals are currently not being adjusted when a member is promoted / demoted due to a change in the escrow amount.
+We just honour the snapshot from the beginning of the proposal. This is for simplicity, but could change in the future
+to be more in line with the *Leave* condition, where open proposals are being adjusted.
+  - While there is a pending escrow, and we need to check the escrow amount to use for payment thresholds, etc. we are
+currently using the **maximum** between the current and the pending escrow amounts. This is to simplify the transition logic.
+Members can always reclaim some extra escrow they may end up having, by using the *ReturnEscrow* mechanism.

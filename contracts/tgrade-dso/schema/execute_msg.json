@@ -138,7 +138,7 @@
       "additionalProperties": false
     },
     {
-      "description": "This checks any batches whose grace period has passed, and who have not all paid escrow. Run through these groups and promote anyone who has paid escrow.",
+      "description": "This checks any batches whose grace period has passed, and who have not all paid escrow. Run through these groups and promote anyone who has paid escrow. This also checks if there's a pending escrow that needs to be applied.",
       "type": "object",
       "required": [
         "check_pending"
@@ -167,7 +167,7 @@
           ]
         },
         "escrow_amount": {
-          "description": "Length of voting period in days",
+          "description": "Escrow amount to apply after grace period (computed using voting_period)",
           "anyOf": [
             {
               "$ref": "#/definitions/Uint128"
@@ -178,7 +178,7 @@
           ]
         },
         "name": {
-          "description": "Length of voting period in days",
+          "description": "Escrow name",
           "type": [
             "string",
             "null"

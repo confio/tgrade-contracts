@@ -2,7 +2,7 @@
 use cosmwasm_std::entry_point;
 use cosmwasm_std::{
     coin, to_binary, Addr, BankMsg, Binary, BlockInfo, Deps, DepsMut, Env, Event, MessageInfo,
-    Order, Response, StdError, StdResult, Storage,
+    Order, Response, StdError, StdResult, Storage, Uint128,
 };
 use cw0::{maybe_addr, Expiration};
 use cw2::set_contract_version;
@@ -42,6 +42,7 @@ pub fn instantiate(
     let dso = Dso {
         name: msg.name,
         escrow_amount: msg.escrow_amount,
+        escrow_pending: None,
         rules: VotingRules {
             voting_period: msg.voting_period,
             quorum: msg.quorum,
@@ -54,7 +55,7 @@ pub fn instantiate(
     // Store sender as initial member, and define its weight / state
     // based on init_funds
     let amount = cw0::must_pay(&info, DSO_DENOM)?;
-    if amount < dso.escrow_amount {
+    if amount < dso.get_escrow() {
         return Err(ContractError::InsufficientFunds(amount));
     }
 
@@ -122,7 +123,7 @@ pub fn execute_deposit_escrow(
     // check to see if we update the pending status
     match escrow.status {
         MemberStatus::Pending { proposal_id: batch } => {
-            let required_escrow = DSO.load(deps.storage)?.escrow_amount;
+            let required_escrow = DSO.load(deps.storage)?.get_escrow();
             if escrow.paid >= required_escrow {
                 // If we paid enough, we can move into Paid, Pending Voter
                 escrow.status = MemberStatus::PendingPaid { proposal_id: batch };
@@ -172,7 +173,7 @@ fn update_batch_after_escrow_paid(
                 // update the total with the new weight
                 TOTAL.update::<_, StdError>(deps.storage, |old| Ok(old + VOTING_WEIGHT))?;
                 let evt = Event::new(PROMOTE_TYPE)
-                    .add_attribute(BATCH_KEY, proposal_id.to_string())
+                    .add_attribute(PROPOSAL_KEY, proposal_id.to_string())
                     .add_attribute(MEMBER_KEY, paid_escrow);
                 Ok(Some(evt))
             } else {
@@ -192,8 +193,9 @@ fn update_batch_after_escrow_paid(
     }
 }
 
+const DEMOTE_TYPE: &str = "demoted";
 const PROMOTE_TYPE: &str = "promoted";
-const BATCH_KEY: &str = "batch";
+const PROPOSAL_KEY: &str = "proposal";
 const MEMBER_KEY: &str = "member";
 
 /// Call when the batch is ready to become voters (all paid or expiration hit).
@@ -206,7 +208,7 @@ fn convert_all_paid_members_to_voters(
     batch: &mut Batch,
     height: u64,
 ) -> StdResult<Event> {
-    let mut evt = Event::new(PROMOTE_TYPE).add_attribute(BATCH_KEY, batch_id.to_string());
+    let mut evt = Event::new(PROMOTE_TYPE).add_attribute(PROPOSAL_KEY, batch_id.to_string());
 
     // try to promote them all
     let mut added = 0;
@@ -266,12 +268,12 @@ pub fn execute_return_escrow(
     let refund = match escrow.status {
         // voters can deduct as long as they maintain the required escrow
         MemberStatus::Voting {} => {
-            let min = DSO.load(deps.storage)?.escrow_amount;
+            let min = DSO.load(deps.storage)?.get_escrow();
             escrow.paid.checked_sub(min)?
         }
         // leaving voters can claim as long as claim_at has passed
         MemberStatus::Leaving { claim_at } => {
-            if claim_at <= env.block.time.nanos() / 1_000_000_000 {
+            if claim_at <= env.block.time.seconds() {
                 escrow.paid
             } else {
                 return Err(ContractError::CannotClaimYet(claim_at));
@@ -318,6 +320,12 @@ pub fn execute_propose(
     proposal: ProposalContent,
 ) -> Result<Response, ContractError> {
     cw0::nonpayable(&info)?;
+    // trigger check_pending (we should get this cheaper)
+    // Note, we check this at the end of last block, so they will actually be included in the voters
+    // of this proposal (which uses a snapshot)
+    let mut last_env = env.clone();
+    last_env.block.height -= 1;
+    let events = check_pending(deps.storage, &last_env)?;
 
     // only voting members  can create a proposal
     let vote_power = members()
@@ -326,13 +334,6 @@ pub fn execute_propose(
     if vote_power == 0 {
         return Err(ContractError::Unauthorized {});
     }
-
-    // trigger check_pending (we should get this cheaper)
-    // Note, we check this at the end of last block, so they will actually be included in the voters
-    // of this proposal (which uses a snapshot)
-    let mut last_block = env.block.clone();
-    last_block.height -= 1;
-    let events = check_pending(deps.storage, &last_block)?;
 
     // create a proposal
     let dso = DSO.load(deps.storage)?;
@@ -379,7 +380,7 @@ pub fn execute_vote(
     if prop.status != Status::Open && prop.status != Status::Passed {
         return Err(ContractError::NotOpen {});
     }
-    // Looking at Expiration:, if the block time == expiratation time, this counts as expired
+    // Looking at Expiration: if the block time == expiration time, this counts as expired
     if prop.expires.is_expired(&env.block) {
         return Err(ContractError::Expired {});
     }
@@ -392,6 +393,7 @@ pub fn execute_vote(
     if vote_power == 0 {
         return Err(ContractError::Unauthorized {});
     }
+
     // ensure the voter is not currently leaving the dso (must be currently a voter)
     let escrow = ESCROWS.load(deps.storage, &info.sender)?;
     if !escrow.status.is_voting() {
@@ -538,7 +540,7 @@ fn trigger_long_leave(
 
     // in all case, we become a leaving member and set the claim on our escrow
     let dso = DSO.load(deps.storage)?;
-    let claim_at = (env.block.time.nanos() / 1_000_000_000) + (dso.rules.voting_period_secs() * 2);
+    let claim_at = env.block.time.seconds() + dso.rules.voting_period_secs() * 2;
     escrow.status = MemberStatus::Leaving { claim_at };
     ESCROWS.save(deps.storage, &leaver, &escrow)?;
 
@@ -556,7 +558,7 @@ fn adjust_open_proposals_for_leaver(
     leaver: &Addr,
 ) -> Result<(), ContractError> {
     // find all open proposals that have not yet expired
-    let now = env.block.time.nanos() / 1_000_000_000;
+    let now = env.block.time.seconds();
     let start = Bound::Exclusive(U64Key::from(now).into());
     let open_prop_ids = PROPOSAL_BY_EXPIRY
         .range(deps.storage, Some(start), None, Order::Ascending)
@@ -586,7 +588,7 @@ pub fn execute_check_pending(
 ) -> Result<Response, ContractError> {
     cw0::nonpayable(&info)?;
 
-    let events = check_pending(deps.storage, &env.block)?;
+    let events = check_pending(deps.storage, &env)?;
     let res = Response::new()
         .add_attribute("action", "check_pending")
         .add_attribute("sender", &info.sender)
@@ -594,13 +596,132 @@ pub fn execute_check_pending(
     Ok(res)
 }
 
-fn check_pending(storage: &mut dyn Storage, block: &BlockInfo) -> StdResult<Vec<Event>> {
+fn check_pending(storage: &mut dyn Storage, env: &Env) -> Result<Vec<Event>, ContractError> {
+    // Check if there's a pending escrow, and update escrow_amount if grace period is expired
+    let mut evts = check_pending_escrow(storage, env)?;
+    // Then, check pending batches
+    evts.extend_from_slice(&check_pending_batches(storage, &env.block)?);
+    Ok(evts)
+}
+
+fn check_pending_escrow(storage: &mut dyn Storage, env: &Env) -> Result<Vec<Event>, ContractError> {
+    let mut dso = DSO.load(storage)?;
+    if let Some(pending_escrow) = dso.escrow_pending {
+        if env.block.time.seconds() >= pending_escrow.grace_ends_at {
+            // Demote all Voting without enough escrow to Pending (pending_escrow > escrow_amount)
+            // Promote all Pending with enough escrow to PendingPaid (pending_escrow < escrow_amount)
+            let evt = pending_escrow_demote_promote_members(
+                storage,
+                env,
+                pending_escrow.proposal_id,
+                dso.escrow_amount,
+                pending_escrow.amount,
+                env.block.height,
+            )?;
+
+            // Enforce new escrow from now on
+            dso.escrow_amount = pending_escrow.amount;
+            dso.escrow_pending = None;
+            DSO.save(storage, &dso)?;
+
+            if let Some(evt) = evt {
+                return Ok(vec![evt]);
+            }
+        }
+    }
+    Ok(vec![])
+}
+
+/// If new_escrow_amount > escrow_amount:
+/// Iterates over all Voting, and demotes those with not enough escrow to Pending.
+/// Else if new_escrow_amount < escrow_amount:
+/// Iterates over all Pending, and promotes those with enough escrow to PendingPaid
+fn pending_escrow_demote_promote_members(
+    storage: &mut dyn Storage,
+    env: &Env,
+    proposal_id: u64,
+    escrow_amount: Uint128,
+    new_escrow_amount: Uint128,
+    height: u64,
+) -> Result<Option<Event>, ContractError> {
+    #[allow(clippy::comparison_chain)]
+    if new_escrow_amount > escrow_amount {
+        let demoted: Vec<_> = ESCROWS
+            .range(storage, None, None, Order::Ascending)
+            .filter(|r| match r.as_ref() {
+                Err(_) => true,
+                Ok((_, es)) => es.status == MemberStatus::Voting {} && es.paid < new_escrow_amount,
+            })
+            .collect::<StdResult<_>>()?;
+        let mut evt = Event::new(DEMOTE_TYPE).add_attribute(PROPOSAL_KEY, proposal_id.to_string());
+        let mut addrs = vec![];
+        for (key, mut escrow_status) in demoted {
+            let addr = Addr::unchecked(unsafe { String::from_utf8_unchecked(key) });
+            escrow_status.status = MemberStatus::Pending { proposal_id };
+            ESCROWS.save(storage, &addr, &escrow_status)?;
+            // Remove voting weight
+            members().save(storage, &addr, &0, height)?;
+            // And adjust TOTAL
+            TOTAL.update::<_, StdError>(storage, |old| {
+                old.checked_sub(VOTING_WEIGHT)
+                    .ok_or_else(|| StdError::generic_err("Total underflow"))
+            })?;
+            addrs.push(addr.clone());
+            evt = evt.add_attribute(MEMBER_KEY, addr);
+        }
+        // Create batch (so that promotion can work)!
+        let grace_period = 0; // promote them as soon as they pay (this is like a "batch of one")
+        let batch = Batch {
+            grace_ends_at: env.block.time.plus_seconds(grace_period).seconds(),
+            waiting_escrow: addrs.len() as u32,
+            batch_promoted: false,
+            members: addrs,
+        };
+        batches().update(storage, proposal_id.into(), |old| match old {
+            Some(_) => Err(ContractError::AlreadyUsedProposal(proposal_id)),
+            None => Ok(batch),
+        })?;
+        return Ok(Some(evt));
+    } else if new_escrow_amount < escrow_amount {
+        let promoted: Vec<_> = ESCROWS
+            .range(storage, None, None, Order::Ascending)
+            .filter(|r| match r.as_ref() {
+                Err(_) => true,
+                Ok((_, es)) => match es.status {
+                    MemberStatus::Pending { .. } => es.paid >= new_escrow_amount,
+                    _ => false,
+                },
+            })
+            .collect::<StdResult<_>>()?;
+        let mut evt = Event::new(PROMOTE_TYPE).add_attribute(PROPOSAL_KEY, proposal_id.to_string());
+        for (key, mut escrow_status) in promoted {
+            let addr = Addr::unchecked(unsafe { String::from_utf8_unchecked(key) });
+            // Get _original_ proposal_id, i.e. don't reset proposal_id (So this member is still
+            // promoted with its batch).
+            let original_proposal_id = match escrow_status.status {
+                MemberStatus::Pending { proposal_id } => proposal_id,
+                _ => unreachable!(),
+            };
+            escrow_status.status = MemberStatus::PendingPaid {
+                proposal_id: original_proposal_id,
+            };
+            ESCROWS.save(storage, &addr, &escrow_status)?;
+            evt = evt
+                .add_attribute("original_proposal", original_proposal_id.to_string())
+                .add_attribute(MEMBER_KEY, addr);
+        }
+        return Ok(Some(evt));
+    }
+    Ok(None)
+}
+
+fn check_pending_batches(storage: &mut dyn Storage, block: &BlockInfo) -> StdResult<Vec<Event>> {
     let batch_map = batches();
 
     // Limit to batches that have not yet been promoted (0), using sub_prefix.
     // Iterate which have expired at or less than the current time (now), using a bound.
     // These are all eligible for timeout-based promotion
-    let now = block.time.nanos() / 1_000_000_000;
+    let now = block.time.seconds();
     // as we want to keep the last item (pk) unbounded, we increment time by 1 and use exclusive (below the next tick)
     let max_key = (U64Key::from(now + 1), U64Key::from(0)).joined_key();
     let bound = Bound::Exclusive(max_key);
@@ -631,7 +752,9 @@ pub fn proposal_execute(
         ProposalContent::AddRemoveNonVotingMembers { add, remove } => {
             proposal_add_remove_non_voting_members(deps, env, add, remove)
         }
-        ProposalContent::EditDso(adjustments) => proposal_edit_dso(deps, env, adjustments),
+        ProposalContent::EditDso(adjustments) => {
+            proposal_edit_dso(deps, env, proposal_id, adjustments)
+        }
         ProposalContent::AddVotingMembers { voters } => {
             proposal_add_voting_members(deps, env, proposal_id, voters)
         }
@@ -656,20 +779,16 @@ pub fn proposal_add_remove_non_voting_members(
 
 pub fn proposal_edit_dso(
     deps: DepsMut,
-    _env: Env,
+    env: Env,
+    proposal_id: u64,
     adjustments: DsoAdjustments,
 ) -> Result<Response, ContractError> {
-    // TODO: enable escrow handling (this is a complex case)
-    if adjustments.escrow_amount.is_some() {
-        return Err(ContractError::Unimplemented {});
-    }
-
     let res = Response::new()
         .add_attributes(adjustments.as_attributes())
         .add_attribute("proposal", "edit_dso");
 
     DSO.update::<_, ContractError>(deps.storage, |mut dso| {
-        dso.apply_adjustments(adjustments);
+        dso.apply_adjustments(env, proposal_id, adjustments)?;
         Ok(dso)
     })?;
 
@@ -691,7 +810,7 @@ pub fn proposal_add_voting_members(
         .map(|addr| deps.api.addr_validate(&addr))
         .collect::<StdResult<Vec<_>>>()?;
     let batch = Batch {
-        grace_ends_at: env.block.time.plus_seconds(grace_period).nanos() / 1_000_000_000,
+        grace_ends_at: env.block.time.plus_seconds(grace_period).seconds(),
         waiting_escrow: to_add.len() as u32,
         batch_promoted: false,
         members: addrs.clone(),
@@ -826,11 +945,13 @@ pub(crate) fn query_dso(deps: Deps) -> StdResult<DsoResponse> {
     let Dso {
         name,
         escrow_amount,
+        escrow_pending,
         rules,
     } = DSO.load(deps.storage)?;
     Ok(DsoResponse {
         name,
         escrow_amount,
+        escrow_pending,
         rules,
     })
 }

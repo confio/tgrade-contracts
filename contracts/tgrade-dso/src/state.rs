@@ -4,7 +4,8 @@ use std::fmt;
 
 use crate::error::ContractError;
 use cosmwasm_std::{
-    attr, Addr, Attribute, BlockInfo, Decimal, StdError, StdResult, Storage, Timestamp, Uint128,
+    attr, Addr, Attribute, BlockInfo, Decimal, Env, StdError, StdResult, Storage, Timestamp,
+    Uint128,
 };
 use cw0::Expiration;
 use cw3::{Status, Vote};
@@ -12,19 +13,35 @@ use cw_storage_plus::{
     Index, IndexList, IndexedMap, IndexedSnapshotMap, Item, Map, MultiIndex, Strategy, U64Key,
     U8Key,
 };
+use std::cmp::max;
 use std::convert::TryInto;
 use tg4::TOTAL_KEY;
+
+const ONE_TGD: u128 = 1_000_000; // One million µTGD
 
 #[derive(Serialize, Deserialize, Clone, PartialEq, Debug)]
 pub struct Dso {
     pub name: String,
     pub escrow_amount: Uint128,
+    pub escrow_pending: Option<PendingEscrow>,
     pub rules: VotingRules,
+}
+
+/// Pending escrow
+#[derive(Serialize, Deserialize, Clone, PartialEq, JsonSchema, Debug)]
+pub struct PendingEscrow {
+    /// Associated proposal_id
+    pub proposal_id: u64,
+    /// Pending escrow amount
+    pub amount: Uint128,
+    /// Timestamp (seconds) when the pending escrow is enforced
+    pub grace_ends_at: u64,
 }
 
 #[derive(Serialize, Deserialize, Clone, PartialEq, Debug, JsonSchema)]
 pub struct VotingRules {
-    /// Length of voting period in days
+    /// Length of voting period in days.
+    /// Also used to define when escrow_pending is enforced.
     pub voting_period: u32,
     /// quorum requirement (0.0-1.0)
     pub quorum: Decimal,
@@ -60,9 +77,9 @@ impl VotingRules {
 
 #[derive(Serialize, Deserialize, Clone, PartialEq, Debug, JsonSchema)]
 pub struct DsoAdjustments {
-    /// Length of voting period in days
+    /// Escrow name
     pub name: Option<String>,
-    /// Length of voting period in days
+    /// Escrow amount to apply after grace period (computed using voting_period)
     pub escrow_amount: Option<Uint128>,
     /// Length of voting period in days
     pub voting_period: Option<u32>,
@@ -85,21 +102,43 @@ impl Dso {
             return Err(ContractError::LongName {});
         }
         // 1 million utgd = 1 TGD
-        if self.escrow_amount.u128() < 1_000_000 {
+        if self.escrow_amount.u128() < ONE_TGD {
             return Err(ContractError::InvalidEscrow(self.escrow_amount));
+        }
+        if let Some(pending_escrow) = &self.escrow_pending {
+            if pending_escrow.amount.u128() < ONE_TGD {
+                return Err(ContractError::InvalidPendingEscrow(pending_escrow.amount));
+            }
         }
         Ok(())
     }
 
-    pub fn apply_adjustments(&mut self, adjustments: DsoAdjustments) {
+    pub fn apply_adjustments(
+        &mut self,
+        env: Env,
+        proposal_id: u64,
+        adjustments: DsoAdjustments,
+    ) -> Result<(), ContractError> {
         if let Some(name) = adjustments.name {
             self.name = name;
         }
-        if let Some(escrow_amount) = adjustments.escrow_amount {
-            self.escrow_amount = escrow_amount;
-        }
         if let Some(voting_period) = adjustments.voting_period {
             self.rules.voting_period = voting_period;
+        }
+        if let Some(escrow_amount) = adjustments.escrow_amount {
+            // Error if pending escrow already set
+            if self.escrow_pending.is_some() {
+                return Err(ContractError::PendingEscrowAlreadySet {});
+            }
+            if escrow_amount != self.escrow_amount {
+                // Set pending escrow
+                let grace_period = self.rules.voting_period_secs();
+                self.escrow_pending = Some(PendingEscrow {
+                    proposal_id,
+                    amount: escrow_amount,
+                    grace_ends_at: env.block.time.plus_seconds(grace_period).seconds(),
+                });
+            }
         }
         if let Some(quorum) = adjustments.quorum {
             self.rules.quorum = quorum;
@@ -110,6 +149,18 @@ impl Dso {
         if let Some(allow_end_early) = adjustments.allow_end_early {
             self.rules.allow_end_early = allow_end_early;
         }
+        self.validate()
+    }
+
+    /// Gets the max of the pending escrow (if any) and the current escrow amount
+    pub fn get_escrow(&self) -> Uint128 {
+        max(
+            self.escrow_amount,
+            self.escrow_pending
+                .as_ref()
+                .map(|p| p.amount)
+                .unwrap_or_default(),
+        )
     }
 }
 
@@ -458,7 +509,7 @@ pub fn save_ballot(
 
 pub fn create_proposal(store: &mut dyn Storage, proposal: &Proposal) -> StdResult<u64> {
     let expiry = match proposal.expires {
-        Expiration::AtTime(timestamp) => timestamp.nanos() / 1_000_000_000,
+        Expiration::AtTime(timestamp) => timestamp.seconds(),
         _ => return Err(StdError::generic_err("proposals only expire on timestamp")),
     };
     let id: u64 = PROPOSAL_COUNT.may_load(store)?.unwrap_or_default() + 1;

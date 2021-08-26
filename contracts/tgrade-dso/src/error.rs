@@ -30,6 +30,9 @@ pub enum ContractError {
     #[error("Invalid escrow, must be at least 1 TGD. Paid {0} utgd")]
     InvalidEscrow(Uint128),
 
+    #[error("Invalid pending escrow, must be at least 1 TGD. Paid {0} utgd")]
+    InvalidPendingEscrow(Uint128),
+
     #[error("No funds provided")]
     NoFunds,
 
@@ -38,6 +41,9 @@ pub enum ContractError {
 
     #[error("{0}")]
     Payment(#[from] PaymentError),
+
+    #[error("There is a pending escrow already set")]
+    PendingEscrowAlreadySet,
 
     #[error("Trying to remove a voting member: {0}")]
     VotingMember(String),
@@ -71,9 +77,6 @@ pub enum ContractError {
 
     #[error("Cannot close completed or passed proposals")]
     WrongCloseStatus {},
-
-    #[error("Unimplemented (TODO)")]
-    Unimplemented {},
 }
 
 impl From<OverflowError> for ContractError {
