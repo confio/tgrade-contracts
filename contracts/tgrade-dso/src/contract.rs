@@ -158,7 +158,6 @@ fn update_batch_after_escrow_paid(
     proposal_id: u64,
     paid_escrow: &Addr,
 ) -> Result<Option<Event>, ContractError> {
-    println!("proposal_id: {}", proposal_id);
     // We first check and update this batch state
     let mut batch = batches().load(deps.storage, proposal_id.into())?;
     // This will panic if we hit 0. That said, it can never go below 0 if we call this once per member.
