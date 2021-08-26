@@ -78,11 +78,12 @@ fn setup_bdd(mut deps: DepsMut) {
     let info = mock_info(VOTING, &coins(VOTING_ESCROW, DENOM));
     instantiate(deps.branch(), start.clone(), info, msg).unwrap();
 
-    // add pendings in first batch
-    proposal_add_voting_members(
+    // add pending in first batch
+    let env = later(&start, PENDING_STARTS);
+    let res = propose_add_voting_members(
         deps.branch(),
-        later(&start, PENDING_STARTS),
-        PROPOSAL_ID_1,
+        env.clone(),
+        VOTING,
         vec![
             PENDING_BROKE.into(),
             PENDING_SOME.into(),
@@ -90,12 +91,36 @@ fn setup_bdd(mut deps: DepsMut) {
         ],
     )
     .unwrap();
-    // add leaving in second batch (same block)
-    proposal_add_voting_members(
+    let proposal_id = parse_prop_id(&res.attributes);
+
+    // ensure it passed (already via principal voter)
+    let prop = query_proposal(deps.as_ref(), start.clone(), proposal_id).unwrap();
+    assert_eq!(prop.status, Status::Passed);
+
+    // execute it
+    execute(
         deps.branch(),
-        later(&start, PENDING_STARTS),
-        PROPOSAL_ID_2,
-        vec![LEAVING.into()],
+        env.clone(),
+        mock_info(NONVOTING1, &[]),
+        ExecuteMsg::Execute { proposal_id },
+    )
+    .unwrap();
+
+    // add leaving in second batch (same block)
+    let res = propose_add_voting_members(deps.branch(), env.clone(), VOTING, vec![LEAVING.into()])
+        .unwrap();
+    let proposal_id = parse_prop_id(&res.attributes);
+
+    // ensure it passed (already via principal voter)
+    let prop = query_proposal(deps.as_ref(), start.clone(), proposal_id).unwrap();
+    assert_eq!(prop.status, Status::Passed);
+
+    // execute it
+    execute(
+        deps.branch(),
+        env,
+        mock_info(NONVOTING1, &[]),
+        ExecuteMsg::Execute { proposal_id },
     )
     .unwrap();
 
@@ -192,10 +217,14 @@ fn edit_dso_proposal(escrow_funds: u128) -> ExecuteMsg {
     }
 }
 
-// // voting member creates a new proposal and returns the id
-// fn create_proposal(deps: DepsMut) -> u64 {
-//
-// }
+fn voting_members_proposal(members: Vec<String>) -> ExecuteMsg {
+    let proposal = ProposalContent::AddVotingMembers { voters: members };
+    ExecuteMsg::Propose {
+        title: "Add Voting Members".to_string(),
+        description: "To add voting members through the proposal mechanism".to_string(),
+        proposal,
+    }
+}
 
 fn propose(deps: DepsMut, addr: &str) -> Result<Response, ContractError> {
     execute(deps, now(), mock_info(addr, &[]), demo_proposal())
@@ -211,6 +240,20 @@ fn propose_edit_dso(
         now(),
         mock_info(addr, &[]),
         edit_dso_proposal(escrow_amount),
+    )
+}
+
+fn propose_add_voting_members(
+    deps: DepsMut,
+    env: Env,
+    addr: &str,
+    members: Vec<String>,
+) -> Result<Response, ContractError> {
+    execute(
+        deps,
+        env,
+        mock_info(addr, &[]),
+        voting_members_proposal(members),
     )
 }
 
