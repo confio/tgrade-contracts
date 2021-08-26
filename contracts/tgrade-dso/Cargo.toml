@@ -1,6 +1,6 @@
 [package]
 name = "tgrade-dso"
-version = "0.3.0-rc2"
+version = "0.3.0"
 authors = ["Mauro Lacy <maurolacy@users.noreply.github.com>", "Ethan Frey <ethanfrey@users.noreply.github.com>"]
 edition = "2018"
 description = "DSO implementation based on TG4 for group membership"
@@ -24,7 +24,7 @@ cw2 = { version = "0.8.0" }
 cw3 = { version = "0.8.0" }
 cw-controllers = { version = "0.8.0" }
 cw-storage-plus = { version = "0.8.0" }
-tg4 = { path = "../../packages/tg4", version = "0.3.0-rc2" }
+tg4 = { path = "../../packages/tg4", version = "0.3.0" }
 cosmwasm-std = { version = "0.16.0" }
 schemars = "0.8"
 serde = { version = "1.0.103", default-features = false, features = ["derive"] }
