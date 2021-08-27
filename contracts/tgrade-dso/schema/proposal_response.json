@@ -258,8 +258,8 @@
       "required": [
         "burn_tokens",
         "distribution_list",
+        "kick_out",
         "member",
-        "quick_out",
         "slashing_percentage"
       ],
       "properties": {
@@ -274,13 +274,13 @@
             "type": "string"
           }
         },
+        "kick_out": {
+          "description": "If set to false, slashed member is demoted to `Pending`. Or not demoted at all, depending on the amount of funds he retains in escrow. If set to true, slashed member is effectively demoted to `Leaving`.",
+          "type": "boolean"
+        },
         "member": {
           "description": "Member to slash / expel",
           "type": "string"
-        },
-        "quick_out": {
-          "description": "If set to false, slashed member is demoted to `Pending`. Or not demoted at all, depending on the amount of funds he retains in escrow. If set to true, slashed member is effectively demoted to `Leaving`.",
-          "type": "boolean"
         },
         "slashing_percentage": {
           "description": "Slashing percentage.",

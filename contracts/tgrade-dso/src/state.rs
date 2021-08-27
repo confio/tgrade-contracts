@@ -205,14 +205,14 @@ pub struct Punishment {
     /// If set to false, slashed member is demoted to `Pending`. Or not demoted at all,
     /// depending on the amount of funds he retains in escrow.
     /// If set to true, slashed member is effectively demoted to `Leaving`.
-    quick_out: bool,
+    kick_out: bool,
 }
 
 impl Punishment {
     pub fn as_attributes(&self) -> Vec<Attribute> {
         let mut res = vec![];
-        let punishment = if self.quick_out {
-            "quick_out"
+        let punishment = if self.kick_out {
+            "kick_out"
         } else {
             "slashing"
         };
