@@ -189,6 +189,47 @@ impl DsoAdjustments {
     }
 }
 
+#[derive(Serialize, Deserialize, Clone, PartialEq, Debug, JsonSchema)]
+pub struct Punishment {
+    /// Member to slash / expel
+    member: String,
+    /// Slashing percentage.
+    slashing_percentage: Decimal,
+    /// Distribution list to send member's slashed escrow amount.
+    /// If empty (and `burn_tokens` is false), funds are kept in member's escrow.
+    /// `slashing_percentage` is irrelevant / ignored in that case.
+    distribution_list: Vec<String>,
+    /// Burning instead of distribution.
+    /// If this is set, `distribution_list` must be empty.
+    burn_tokens: bool,
+    /// If set to false, slashed member is demoted to `Pending`. Or not demoted at all,
+    /// depending on the amount of funds he retains in escrow.
+    /// If set to true, slashed member is effectively demoted to `Leaving`.
+    quick_out: bool,
+}
+
+impl Punishment {
+    pub fn as_attributes(&self) -> Vec<Attribute> {
+        let mut res = vec![];
+        let punishment = if self.quick_out {
+            "quick_out"
+        } else {
+            "slashing"
+        };
+        res.push(attr(punishment, &self.member));
+        res.push(attr(
+            "slashing_percentage",
+            &self.slashing_percentage.to_string(),
+        ));
+        res.push(attr(
+            "distribution_list",
+            &self.distribution_list.join(", "),
+        ));
+        res.push(attr("burn_tokens", &self.burn_tokens.to_string()));
+        res
+    }
+}
+
 pub const DSO: Item<Dso> = Item::new("dso");
 
 pub const TOTAL: Item<u64> = Item::new(TOTAL_KEY);
@@ -360,6 +401,7 @@ pub enum ProposalContent {
     AddVotingMembers {
         voters: Vec<String>,
     },
+    PunishMembers(Vec<Punishment>),
 }
 
 #[derive(Serialize, Deserialize, Clone, PartialEq, JsonSchema, Debug)]

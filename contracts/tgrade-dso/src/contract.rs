@@ -17,7 +17,7 @@ use crate::msg::{
 };
 use crate::state::{
     batches, create_proposal, members, parse_id, save_ballot, Ballot, Batch, Dso, DsoAdjustments,
-    EscrowStatus, MemberStatus, Proposal, ProposalContent, Votes, VotingRules, BALLOTS,
+    EscrowStatus, MemberStatus, Proposal, ProposalContent, Punishment, Votes, VotingRules, BALLOTS,
     BALLOTS_BY_VOTER, DSO, ESCROWS, PROPOSALS, PROPOSAL_BY_EXPIRY, TOTAL,
 };
 
@@ -758,6 +758,9 @@ pub fn proposal_execute(
         ProposalContent::AddVotingMembers { voters } => {
             proposal_add_voting_members(deps, env, proposal_id, voters)
         }
+        ProposalContent::PunishMembers(punishments) => {
+            proposal_punish_members(deps, env, &punishments)
+        }
     }
 }
 
@@ -881,6 +884,20 @@ pub fn add_remove_non_voting_members(
         }
     }
     Ok(())
+}
+
+pub fn proposal_punish_members(
+    _deps: DepsMut,
+    _env: Env,
+    punishments: &[Punishment],
+) -> Result<Response, ContractError> {
+    let mut res = Response::new().add_attribute("proposal", "punish_members");
+    for (i, p) in (1..).zip(punishments) {
+        res = res.add_attribute("punishment", i.to_string());
+        res = res.add_attributes(p.as_attributes());
+    }
+
+    Ok(res)
 }
 
 #[cfg_attr(not(feature = "library"), entry_point)]
