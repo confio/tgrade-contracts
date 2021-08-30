@@ -15,6 +15,7 @@ use crate::msg::{
     DsoResponse, Escrow, EscrowListResponse, EscrowResponse, ExecuteMsg, InstantiateMsg,
     ProposalListResponse, ProposalResponse, QueryMsg, VoteInfo, VoteListResponse, VoteResponse,
 };
+use crate::state::MemberStatus::NonVoting;
 use crate::state::{
     batches, create_proposal, members, parse_id, save_ballot, Ballot, Batch, Dso, DsoAdjustments,
     EscrowStatus, MemberStatus, Proposal, ProposalContent, Punishment, Votes, VotingRules, BALLOTS,
@@ -887,14 +888,30 @@ pub fn add_remove_non_voting_members(
 }
 
 pub fn proposal_punish_members(
-    _deps: DepsMut,
+    deps: DepsMut,
     _env: Env,
     punishments: &[Punishment],
 ) -> Result<Response, ContractError> {
     let mut res = Response::new().add_attribute("proposal", "punish_members");
+    // TODO: Move to proposal creation
+    if punishments.is_empty() {
+        return Err(ContractError::NoPunishments {});
+    }
     for (i, p) in (1..).zip(punishments) {
         res = res.add_attribute("punishment", i.to_string());
         res = res.add_attributes(p.as_attributes());
+
+        // TODO: Move to proposal creation
+        p.validate(&deps.as_ref())?;
+
+        let addr = Addr::unchecked(&p.member);
+        let members_status = ESCROWS.load(deps.storage, &addr)?;
+        if members_status.status == (NonVoting {}) {
+            return Err(ContractError::PunishInvalidMemberStatus(
+                addr,
+                members_status.status,
+            ));
+        }
     }
 
     Ok(res)

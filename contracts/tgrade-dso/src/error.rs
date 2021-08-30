@@ -1,4 +1,4 @@
-use cosmwasm_std::{Decimal, OverflowError, StdError, Uint128};
+use cosmwasm_std::{Addr, Decimal, OverflowError, StdError, Uint128};
 use thiserror::Error;
 
 use crate::state::MemberStatus;
@@ -71,6 +71,15 @@ pub enum ContractError {
 
     #[error("Proposal {0} already used to add voting members")]
     AlreadyUsedProposal(u64),
+
+    #[error("No punishments in proposal")]
+    NoPunishments {},
+
+    #[error("Invalid slashing percentage for member {0}: {1}")]
+    InvalidSlashingPercentage(Addr, Decimal),
+
+    #[error("Punishment cannot be applied to member {0} (status {1})")]
+    PunishInvalidMemberStatus(Addr, MemberStatus),
 
     #[error("Proposal must have passed and not yet been executed")]
     WrongExecuteStatus {},

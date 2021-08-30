@@ -4,7 +4,7 @@ use std::fmt;
 
 use crate::error::ContractError;
 use cosmwasm_std::{
-    attr, Addr, Attribute, BlockInfo, Decimal, Env, StdError, StdResult, Storage, Timestamp,
+    attr, Addr, Attribute, BlockInfo, Decimal, Deps, Env, StdError, StdResult, Storage, Timestamp,
     Uint128,
 };
 use cw0::Expiration;
@@ -192,20 +192,20 @@ impl DsoAdjustments {
 #[derive(Serialize, Deserialize, Clone, PartialEq, Debug, JsonSchema)]
 pub struct Punishment {
     /// Member to slash / expel
-    member: String,
-    /// Slashing percentage.
-    slashing_percentage: Decimal,
+    pub member: String,
+    /// Slashing percentage
+    pub slashing_percentage: Decimal,
     /// Distribution list to send member's slashed escrow amount.
     /// If empty (and `burn_tokens` is false), funds are kept in member's escrow.
-    /// `slashing_percentage` is irrelevant / ignored in that case.
-    distribution_list: Vec<String>,
+    /// `slashing_percentage` is irrelevant / ignored in that case
+    pub distribution_list: Vec<String>,
     /// Burning instead of distribution.
-    /// If this is set, `distribution_list` must be empty.
-    burn_tokens: bool,
+    /// If this is set, `distribution_list` must be empty
+    pub burn_tokens: bool,
     /// If set to false, slashed member is demoted to `Pending`. Or not demoted at all,
     /// depending on the amount of funds he retains in escrow.
-    /// If set to true, slashed member is effectively demoted to `Leaving`.
-    kick_out: bool,
+    /// If set to true, slashed member is effectively demoted to `Leaving`
+    pub kick_out: bool,
 }
 
 impl Punishment {
@@ -227,6 +227,26 @@ impl Punishment {
         ));
         res.push(attr("burn_tokens", &self.burn_tokens.to_string()));
         res
+    }
+
+    pub fn validate(&self, deps: &Deps) -> Result<(), ContractError> {
+        // Validate member address
+        let addr = deps.api.addr_validate(&self.member)?;
+
+        // Validate destination addresses
+        for d in &self.distribution_list {
+            deps.api.addr_validate(&d)?;
+        }
+
+        // Validate slashing percentage
+        if !(Decimal::zero()..=Decimal::one()).contains(&self.slashing_percentage) {
+            return Err(ContractError::InvalidSlashingPercentage(
+                addr,
+                self.slashing_percentage,
+            ));
+        }
+
+        Ok(())
     }
 }
 
