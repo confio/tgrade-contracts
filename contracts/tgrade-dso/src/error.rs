@@ -81,6 +81,12 @@ pub enum ContractError {
     #[error("Punishment cannot be applied to member {0} (status {1})")]
     PunishInvalidMemberStatus(Addr, MemberStatus),
 
+    #[error("Distribution list cannot be empty")]
+    EmptyDistributionList {},
+
+    #[error("Distribution list cannot be set when `burn_tokens` is true")]
+    NonEmptyDistributionList {},
+
     #[error("Proposal must have passed and not yet been executed")]
     WrongExecuteStatus {},
 

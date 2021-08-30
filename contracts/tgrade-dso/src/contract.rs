@@ -2,7 +2,7 @@
 use cosmwasm_std::entry_point;
 use cosmwasm_std::{
     coin, to_binary, Addr, BankMsg, Binary, BlockInfo, Deps, DepsMut, Env, Event, MessageInfo,
-    Order, Response, StdError, StdResult, Storage, Uint128,
+    Order, Response, StdError, StdResult, Storage, SubMsg, Uint128,
 };
 use cw0::{maybe_addr, Expiration};
 use cw2::set_contract_version;
@@ -760,7 +760,7 @@ pub fn proposal_execute(
             proposal_add_voting_members(deps, env, proposal_id, voters)
         }
         ProposalContent::PunishMembers(punishments) => {
-            proposal_punish_members(deps, env, &punishments)
+            proposal_punish_members(deps, env, proposal_id, &punishments)
         }
     }
 }
@@ -888,8 +888,9 @@ pub fn add_remove_non_voting_members(
 }
 
 pub fn proposal_punish_members(
-    deps: DepsMut,
-    _env: Env,
+    mut deps: DepsMut,
+    env: Env,
+    proposal_id: u64,
     punishments: &[Punishment],
 ) -> Result<Response, ContractError> {
     let mut res = Response::new().add_attribute("proposal", "punish_members");
@@ -905,13 +906,69 @@ pub fn proposal_punish_members(
         p.validate(&deps.as_ref())?;
 
         let addr = Addr::unchecked(&p.member);
-        let members_status = ESCROWS.load(deps.storage, &addr)?;
-        if members_status.status == (NonVoting {}) {
+        let mut escrow_status = ESCROWS.load(deps.storage, &addr)?;
+        if escrow_status.status == (NonVoting {}) {
             return Err(ContractError::PunishInvalidMemberStatus(
                 addr,
-                members_status.status,
+                escrow_status.status,
             ));
         }
+
+        // Remaining escrow amount
+        let mut escrow_remaining = (escrow_status.paid * p.slashing_percentage).u128();
+        // Distribution amount
+        let distribution_amount = escrow_status.paid.u128() - escrow_remaining;
+
+        // Distribute / burn
+        let mut msgs = vec![];
+        match (p.distribution_list.is_empty(), p.burn_tokens) {
+            (false, false) => {
+                // Distribute
+                let each_amount = distribution_amount / p.distribution_list.len() as u128;
+                let rest_amount = distribution_amount % p.distribution_list.len() as u128;
+                for distr_addr in &p.distribution_list {
+                    // Generate Bank message with distribution payment
+                    let msg = SubMsg::new(BankMsg::Send {
+                        to_address: distr_addr.clone(),
+                        amount: vec![coin(each_amount, DSO_DENOM)],
+                    });
+                    msgs.push(msg);
+                }
+                // Keep remainder escrow in member account
+                escrow_remaining += rest_amount;
+            }
+            (true, true) => {
+                // Burn
+                let msg = SubMsg::new(BankMsg::Burn {
+                    amount: vec![coin(distribution_amount, DSO_DENOM)],
+                });
+                msgs.push(msg);
+            }
+            (true, false) => {
+                return Err(ContractError::EmptyDistributionList {});
+            }
+            (false, true) => {
+                return Err(ContractError::NonEmptyDistributionList {});
+            }
+        };
+
+        // Adjust remaining escrow / status
+        escrow_status.paid = escrow_remaining.into();
+        let required_escrow = DSO.load(deps.storage)?.get_escrow();
+        if p.kick_out {
+            let attrs =
+                trigger_long_leave(deps.branch(), env.clone(), addr, escrow_status)?.attributes;
+            res.attributes.extend_from_slice(&attrs);
+        } else if escrow_status.paid < required_escrow {
+            // FIXME: Status transitions dependency on current status
+            escrow_status.status = MemberStatus::Pending { proposal_id };
+            ESCROWS.save(deps.storage, &addr, &escrow_status)?;
+            // TODO: Adjust member status
+            // TODO: Adjust TOTAL
+        };
+
+        // Send messages
+        res.messages = msgs;
     }
 
     Ok(res)
