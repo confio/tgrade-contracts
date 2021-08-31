@@ -898,6 +898,7 @@ pub fn proposal_punish_members(
     if punishments.is_empty() {
         return Err(ContractError::NoPunishments {});
     }
+    let mut demoted_addrs = vec![];
     for (i, p) in (1..).zip(punishments) {
         res = res.add_attribute("punishment", i.to_string());
         res = res.add_attributes(p.as_attributes());
@@ -960,15 +961,36 @@ pub fn proposal_punish_members(
                 trigger_long_leave(deps.branch(), env.clone(), addr, escrow_status)?.attributes;
             res.attributes.extend_from_slice(&attrs);
         } else if escrow_status.paid < required_escrow {
-            // FIXME: Status transitions dependency on current status
+            // If it's a voting member, reduce vote to 0 (otherwise, it is already 0)
+            if escrow_status.status == (MemberStatus::Voting {}) {
+                members().save(deps.storage, &addr, &0, env.block.height)?;
+                TOTAL.update::<_, StdError>(deps.storage, |old| {
+                    old.checked_sub(VOTING_WEIGHT)
+                        .ok_or_else(|| StdError::generic_err("Total underflow"))
+                })?;
+            }
             escrow_status.status = MemberStatus::Pending { proposal_id };
             ESCROWS.save(deps.storage, &addr, &escrow_status)?;
-            // TODO: Adjust member status
-            // TODO: Adjust TOTAL
+            demoted_addrs.push(addr);
         };
 
         // Send messages
         res.messages = msgs;
+    }
+
+    // Create batch for demoted members (so that promotion can work)!
+    if !demoted_addrs.is_empty() {
+        let grace_period = 0; // promote them as soon as they pay (this is like a "batch of one")
+        let batch = Batch {
+            grace_ends_at: env.block.time.plus_seconds(grace_period).seconds(),
+            waiting_escrow: demoted_addrs.len() as u32,
+            batch_promoted: false,
+            members: demoted_addrs,
+        };
+        batches().update(deps.storage, proposal_id.into(), |old| match old {
+            Some(_) => Err(ContractError::AlreadyUsedProposal(proposal_id)),
+            None => Ok(batch),
+        })?;
     }
 
     Ok(res)
