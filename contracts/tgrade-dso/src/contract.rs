@@ -914,33 +914,33 @@ pub fn proposal_punish_members(
             ));
         }
 
-        // Remaining escrow amount
-        let mut escrow_remaining = (escrow_status.paid * p.slashing_percentage).u128();
         // Distribution amount
-        let distribution_amount = escrow_status.paid.u128() - escrow_remaining;
+        let escrow_slashed = (escrow_status.paid * p.slashing_percentage).u128();
+        // Remaining escrow amount
+        let mut escrow_remaining = escrow_status.paid.u128() - escrow_slashed;
 
         // Distribute / burn
         let mut msgs = vec![];
         match (p.distribution_list.is_empty(), p.burn_tokens) {
             (false, false) => {
                 // Distribute
-                let each_amount = distribution_amount / p.distribution_list.len() as u128;
-                let rest_amount = distribution_amount % p.distribution_list.len() as u128;
+                let escrow_each = escrow_slashed / p.distribution_list.len() as u128;
+                let escrow_remainder = escrow_slashed % p.distribution_list.len() as u128;
                 for distr_addr in &p.distribution_list {
                     // Generate Bank message with distribution payment
                     let msg = SubMsg::new(BankMsg::Send {
                         to_address: distr_addr.clone(),
-                        amount: vec![coin(each_amount, DSO_DENOM)],
+                        amount: vec![coin(escrow_each, DSO_DENOM)],
                     });
                     msgs.push(msg);
                 }
                 // Keep remainder escrow in member account
-                escrow_remaining += rest_amount;
+                escrow_remaining += escrow_remainder;
             }
             (true, true) => {
                 // Burn
                 let msg = SubMsg::new(BankMsg::Burn {
-                    amount: vec![coin(distribution_amount, DSO_DENOM)],
+                    amount: vec![coin(escrow_slashed, DSO_DENOM)],
                 });
                 msgs.push(msg);
             }
