@@ -80,7 +80,7 @@ fn setup_bdd(mut deps: DepsMut) {
 
     // add pending in first batch
     let env = later(&start, PENDING_STARTS);
-    let res = propose_add_voting_members(
+    propose_add_voting_members_and_execute(
         deps.branch(),
         env.clone(),
         VOTING,
@@ -91,38 +91,10 @@ fn setup_bdd(mut deps: DepsMut) {
         ],
     )
     .unwrap();
-    let proposal_id = parse_prop_id(&res.attributes);
-
-    // ensure it passed (already via principal voter)
-    let prop = query_proposal(deps.as_ref(), start.clone(), proposal_id).unwrap();
-    assert_eq!(prop.status, Status::Passed);
-
-    // execute it
-    execute(
-        deps.branch(),
-        env.clone(),
-        mock_info(NONVOTING1, &[]),
-        ExecuteMsg::Execute { proposal_id },
-    )
-    .unwrap();
 
     // add leaving in second batch (same block)
-    let res = propose_add_voting_members(deps.branch(), env.clone(), VOTING, vec![LEAVING.into()])
+    propose_add_voting_members_and_execute(deps.branch(), env, VOTING, vec![LEAVING.into()])
         .unwrap();
-    let proposal_id = parse_prop_id(&res.attributes);
-
-    // ensure it passed (already via principal voter)
-    let prop = query_proposal(deps.as_ref(), start.clone(), proposal_id).unwrap();
-    assert_eq!(prop.status, Status::Passed);
-
-    // execute it
-    execute(
-        deps.branch(),
-        env,
-        mock_info(NONVOTING1, &[]),
-        ExecuteMsg::Execute { proposal_id },
-    )
-    .unwrap();
 
     // pay in escrows
     execute(
@@ -254,6 +226,29 @@ fn propose_add_voting_members(
         env,
         mock_info(addr, &[]),
         voting_members_proposal(members),
+    )
+}
+
+#[track_caller]
+pub(crate) fn propose_add_voting_members_and_execute(
+    mut deps: DepsMut,
+    env: Env,
+    addr: &str,
+    members: Vec<String>,
+) -> Result<Response, ContractError> {
+    let res = propose_add_voting_members(deps.branch(), env.clone(), addr, members).unwrap();
+    let proposal_id = parse_prop_id(&res.attributes);
+
+    // ensure it passed (already via principal voter)
+    let prop = query_proposal(deps.as_ref(), env.clone(), proposal_id).unwrap();
+    assert_eq!(prop.status, Status::Passed);
+
+    // execute it
+    execute(
+        deps,
+        env,
+        mock_info(NONVOTING1, &[]),
+        ExecuteMsg::Execute { proposal_id },
     )
 }
 
