@@ -904,36 +904,27 @@ pub fn proposal_punish_members(
 
         // Distribute / burn
         let mut msgs = vec![];
-        match (p.distribution_list.is_empty(), p.burn_tokens) {
-            (false, false) => {
-                // Distribute
-                let escrow_each = escrow_slashed / p.distribution_list.len() as u128;
-                let escrow_remainder = escrow_slashed % p.distribution_list.len() as u128;
-                for distr_addr in &p.distribution_list {
-                    // Generate Bank message with distribution payment
-                    let msg = SubMsg::new(BankMsg::Send {
-                        to_address: distr_addr.clone(),
-                        amount: vec![coin(escrow_each, DSO_DENOM)],
-                    });
-                    msgs.push(msg);
-                }
-                // Keep remainder escrow in member account
-                escrow_remaining += escrow_remainder;
-            }
-            (true, true) => {
-                // Burn
-                let msg = SubMsg::new(BankMsg::Burn {
-                    amount: vec![coin(escrow_slashed, DSO_DENOM)],
+        if p.burn_tokens {
+            // Burn
+            let msg = SubMsg::new(BankMsg::Burn {
+                amount: vec![coin(escrow_slashed, DSO_DENOM)],
+            });
+            msgs.push(msg);
+        } else {
+            // Distribute
+            let escrow_each = escrow_slashed / p.distribution_list.len() as u128;
+            let escrow_remainder = escrow_slashed % p.distribution_list.len() as u128;
+            for distr_addr in &p.distribution_list {
+                // Generate Bank message with distribution payment
+                let msg = SubMsg::new(BankMsg::Send {
+                    to_address: distr_addr.clone(),
+                    amount: vec![coin(escrow_each, DSO_DENOM)],
                 });
                 msgs.push(msg);
             }
-            (true, false) => {
-                return Err(ContractError::EmptyDistributionList {});
-            }
-            (false, true) => {
-                return Err(ContractError::NonEmptyDistributionList {});
-            }
-        };
+            // Keep remainder escrow in member account
+            escrow_remaining += escrow_remainder;
+        }
 
         // Adjust remaining escrow / status
         escrow_status.paid = escrow_remaining.into();
@@ -969,6 +960,7 @@ pub fn proposal_punish_members(
         grace_period,
         &demoted_addrs,
     )?;
+
     Ok(res)
 }
 

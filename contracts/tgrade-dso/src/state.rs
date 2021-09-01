@@ -246,7 +246,13 @@ impl Punishment {
             ));
         }
 
-        Ok(())
+        // Validate consistency of `distribution_list` / `burn_tokens`
+        match (self.distribution_list.is_empty(), self.burn_tokens) {
+            (false, false) => Ok(()), // Distribute
+            (true, true) => Ok(()),   // Burn
+            (true, false) => Err(ContractError::EmptyDistributionList {}),
+            (false, true) => Err(ContractError::NonEmptyDistributionList {}),
+        }
     }
 }
 
