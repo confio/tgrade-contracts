@@ -2,8 +2,10 @@
 use super::*;
 use cosmwasm_std::{Deps, SubMsg};
 
-use crate::state::EscrowStatus;
-use crate::tests::bdd_tests::{PROPOSAL_ID_1, PROPOSAL_ID_2};
+use crate::state::{EscrowStatus, Punishment};
+use crate::tests::bdd_tests::{
+    propose_add_voting_members_and_execute, PROPOSAL_ID_1, PROPOSAL_ID_2,
+};
 
 #[test]
 fn instantiation_no_funds() {
@@ -917,4 +919,124 @@ fn leaving_voter_cannot_vote_anymore() {
     // now, wait for the proposal to expire and ensure prop2 passes now (8 days with 7 day voting period)
     // This requires that voter4 was removed from the total_weight on this proposal
     assert_prop_status(deps.as_ref(), prop2, 8 * 86_400, Status::Passed);
+}
+
+#[test]
+fn propose_punish_members() {
+    let mut deps = mock_dependencies(&[]);
+    let start = mock_env();
+    let info = mock_info(INIT_ADMIN, &escrow_funds());
+    do_instantiate(
+        deps.as_mut(),
+        info,
+        vec![VOTING1.into(), VOTING2.into(), VOTING3.into()],
+    )
+    .unwrap();
+
+    let voting_status = MemberStatus::Voting {};
+    let pending_status = MemberStatus::Pending {
+        proposal_id: PROPOSAL_ID_1,
+    };
+    let pending_status2 = MemberStatus::Pending {
+        proposal_id: PROPOSAL_ID_2,
+    };
+
+    // Add new members, and one of them pays in
+    let batch1 = vec![VOTING1.into(), VOTING2.into(), VOTING3.into()];
+    let delay1 = 10;
+    propose_add_voting_members_and_execute(
+        deps.as_mut(),
+        later(&start, delay1),
+        INIT_ADMIN,
+        batch1,
+    )
+    .unwrap();
+    let info = mock_info(VOTING1, &escrow_funds());
+    execute_deposit_escrow(deps.as_mut(), later(&start, delay1 + 1), info).unwrap();
+
+    // Make a punish proposal
+    let prop = ProposalContent::PunishMembers(vec![Punishment {
+        member: VOTING1.into(),
+        slashing_percentage: Decimal::percent(50),
+        distribution_list: vec![VOTING2.into(), NONMEMBER.into()],
+        burn_tokens: false,
+        kick_out: false,
+    }]);
+    let msg = ExecuteMsg::Propose {
+        title: "Punish VOTING1".to_string(),
+        description:
+            "Punish VOTING1 with a 50% slashing. Distribute funds among VOTING2 and NONMEMBER"
+                .to_string(),
+        proposal: prop,
+    };
+    let mut env = mock_env();
+    env.block.height += 10;
+    let res = execute(deps.as_mut(), env.clone(), mock_info(INIT_ADMIN, &[]), msg).unwrap();
+    let proposal_id = parse_prop_id(&res.attributes);
+
+    // ensure it passed (already via principal voter)
+    let prop = query_proposal(deps.as_ref(), env.clone(), proposal_id).unwrap();
+    assert_eq!(prop.status, Status::Passed);
+
+    // execute it
+    let res = execute(
+        deps.as_mut(),
+        env,
+        mock_info(NONVOTING1, &[]),
+        ExecuteMsg::Execute { proposal_id },
+    )
+    .unwrap();
+
+    // check the proper attributes returned
+    assert_eq!(res.attributes.len(), 8);
+    assert_eq!(&res.attributes[0], &attr("proposal", "punish_members"));
+    assert_eq!(&res.attributes[1], &attr("punishment", "1")); // First punishment in proposal
+    assert_eq!(&res.attributes[2], &attr("slashing", VOTING1));
+    assert_eq!(&res.attributes[3], &attr("slashing_percentage", "0.5"));
+    assert_eq!(
+        &res.attributes[4],
+        &attr("distribution_list", [VOTING2, NONMEMBER].join(", "))
+    );
+    assert_eq!(&res.attributes[5], &attr("burn_tokens", "false"));
+    assert_eq!(&res.attributes[6], &attr("action", "execute"));
+    assert_eq!(&res.attributes[7], &attr("proposal_id", "2"));
+
+    // Check the escrow amounts, status and voting weight have been updated
+    // Weights properly
+    assert_voting(&deps, Some(1), Some(0), Some(0), Some(0), None);
+    // Check VOTING1 escrow is properly slashed
+    // VOTING2 escrow amount is not changed. He (along with NONMEMBER) will be sent a BankMsg::Send
+    // message with the split payment
+    assert_escrow_paid(
+        &deps,
+        Some(ESCROW_FUNDS),
+        Some(ESCROW_FUNDS / 2),
+        Some(0),
+        Some(0),
+    );
+    // And status
+    assert_escrow_status(
+        &deps,
+        Some(voting_status),
+        Some(pending_status2),
+        Some(pending_status),
+        Some(pending_status),
+    );
+
+    // Assert the BankMsgs are there
+    assert_eq!(res.messages.len(), 2);
+    assert_eq!(
+        &res.messages[0],
+        &SubMsg::new(BankMsg::Send {
+            to_address: VOTING2.into(),
+            amount: vec![coin(ESCROW_FUNDS / 4, DSO_DENOM)]
+        })
+    );
+    assert_eq!(
+        &res.messages[1],
+        &SubMsg::new(BankMsg::Send {
+            to_address: NONMEMBER.into(),
+            amount: vec![coin(ESCROW_FUNDS / 4, DSO_DENOM)]
+        })
+    );
 }

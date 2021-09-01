@@ -37,6 +37,7 @@ const NONVOTING2: &str = "paul";
 const NONVOTING3: &str = "jimmy";
 const SECOND1: &str = "more";
 const SECOND2: &str = "peeps";
+const NONMEMBER: &str = "external";
 
 #[track_caller]
 fn assert_sorted_eq<F, T>(left: Vec<T>, right: Vec<T>, cmp: &F)
