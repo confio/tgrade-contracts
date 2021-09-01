@@ -17,9 +17,9 @@ use crate::msg::{
 };
 use crate::state::MemberStatus::NonVoting;
 use crate::state::{
-    batches, create_proposal, members, parse_id, save_ballot, Ballot, Batch, Dso, DsoAdjustments,
-    EscrowStatus, MemberStatus, Proposal, ProposalContent, Punishment, Votes, VotingRules, BALLOTS,
-    BALLOTS_BY_VOTER, DSO, ESCROWS, PROPOSALS, PROPOSAL_BY_EXPIRY, TOTAL,
+    batches, create_batch, create_proposal, members, parse_id, save_ballot, Ballot, Batch, Dso,
+    DsoAdjustments, EscrowStatus, MemberStatus, Proposal, ProposalContent, Punishment, Votes,
+    VotingRules, BALLOTS, BALLOTS_BY_VOTER, DSO, ESCROWS, PROPOSALS, PROPOSAL_BY_EXPIRY, TOTAL,
 };
 
 // version info for migration info
@@ -655,7 +655,7 @@ fn pending_escrow_demote_promote_members(
             })
             .collect::<StdResult<_>>()?;
         let mut evt = Event::new(DEMOTE_TYPE).add_attribute(PROPOSAL_KEY, proposal_id.to_string());
-        let mut addrs = vec![];
+        let mut demoted_addrs = vec![];
         for (key, mut escrow_status) in demoted {
             let addr = Addr::unchecked(unsafe { String::from_utf8_unchecked(key) });
             escrow_status.status = MemberStatus::Pending { proposal_id };
@@ -667,21 +667,12 @@ fn pending_escrow_demote_promote_members(
                 old.checked_sub(VOTING_WEIGHT)
                     .ok_or_else(|| StdError::generic_err("Total underflow"))
             })?;
-            addrs.push(addr.clone());
+            demoted_addrs.push(addr.clone());
             evt = evt.add_attribute(MEMBER_KEY, addr);
         }
-        // Create batch (so that promotion can work)!
+        // Create and store batch (so that promotion can work)!
         let grace_period = 0; // promote them as soon as they pay (this is like a "batch of one")
-        let batch = Batch {
-            grace_ends_at: env.block.time.plus_seconds(grace_period).seconds(),
-            waiting_escrow: addrs.len() as u32,
-            batch_promoted: false,
-            members: addrs,
-        };
-        batches().update(storage, proposal_id.into(), |old| match old {
-            Some(_) => Err(ContractError::AlreadyUsedProposal(proposal_id)),
-            None => Ok(batch),
-        })?;
+        create_batch(storage, env, proposal_id, grace_period, &demoted_addrs)?;
         return Ok(Some(evt));
     } else if new_escrow_amount < escrow_amount {
         let promoted: Vec<_> = ESCROWS
@@ -813,16 +804,7 @@ pub fn proposal_add_voting_members(
         .iter()
         .map(|addr| deps.api.addr_validate(&addr))
         .collect::<StdResult<Vec<_>>>()?;
-    let batch = Batch {
-        grace_ends_at: env.block.time.plus_seconds(grace_period).seconds(),
-        waiting_escrow: to_add.len() as u32,
-        batch_promoted: false,
-        members: addrs.clone(),
-    };
-    batches().update(deps.storage, proposal_id.into(), |old| match old {
-        Some(_) => Err(ContractError::AlreadyUsedProposal(proposal_id)),
-        None => Ok(batch),
-    })?;
+    create_batch(deps.storage, &env, proposal_id, grace_period, &addrs)?;
 
     let res = Response::new()
         .add_attribute("action", "add_voting_members")
@@ -978,21 +960,15 @@ pub fn proposal_punish_members(
         res.messages = msgs;
     }
 
-    // Create batch for demoted members (so that promotion can work)!
-    if !demoted_addrs.is_empty() {
-        let grace_period = 0; // promote them as soon as they pay (this is like a "batch of one")
-        let batch = Batch {
-            grace_ends_at: env.block.time.plus_seconds(grace_period).seconds(),
-            waiting_escrow: demoted_addrs.len() as u32,
-            batch_promoted: false,
-            members: demoted_addrs,
-        };
-        batches().update(deps.storage, proposal_id.into(), |old| match old {
-            Some(_) => Err(ContractError::AlreadyUsedProposal(proposal_id)),
-            None => Ok(batch),
-        })?;
-    }
-
+    // Create (and store) batch for demoted members (so that promotion can work)!
+    let grace_period = 0; // promote them as soon as they pay (this is like a "batch of one")
+    create_batch(
+        deps.storage,
+        &env,
+        proposal_id,
+        grace_period,
+        &demoted_addrs,
+    )?;
     Ok(res)
 }
 

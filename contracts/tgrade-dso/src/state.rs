@@ -380,6 +380,28 @@ impl Batch {
     }
 }
 
+pub(crate) fn create_batch(
+    storage: &mut dyn Storage,
+    env: &Env,
+    proposal_id: u64,
+    grace_period: u64,
+    addrs: &[Addr],
+) -> Result<(), ContractError> {
+    if !addrs.is_empty() {
+        let batch = Batch {
+            grace_ends_at: env.block.time.plus_seconds(grace_period).seconds(),
+            waiting_escrow: addrs.len() as u32,
+            batch_promoted: false,
+            members: addrs.into(),
+        };
+        batches().update(storage, proposal_id.into(), |old| match old {
+            Some(_) => Err(ContractError::AlreadyUsedProposal(proposal_id)),
+            None => Ok(batch),
+        })?;
+    }
+    Ok(())
+}
+
 // We need a secondary index for batches, such that we can look up batches that have
 // not been promoted, ordered by expiration (ascending) up to now.
 // Index: (U8Key/bool: batch_promoted, U64Key: grace_ends_at) -> U64Key: pk
