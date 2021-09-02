@@ -1164,7 +1164,7 @@ fn punish_members_validation() {
     .unwrap();
 
     // Make a series of (invalid) punish proposals
-    for (prop, err) in [
+    for (prop, err) in &[
         (
             // Empty proposal
             ProposalContent::PunishMembers(vec![]),
@@ -1235,7 +1235,7 @@ fn punish_members_validation() {
         let msg = ExecuteMsg::Propose {
             title: "Invalid proposal".to_string(),
             description: "Proposal with invalid / inconsistent information".to_string(),
-            proposal: prop,
+            proposal: prop.clone(),
         };
         let mut env = mock_env();
         env.block.height += 10;
@@ -1256,7 +1256,7 @@ fn punish_members_validation() {
 
         // Check it failed
         assert!(res.is_err());
-        assert_eq!(res.unwrap_err(), err);
+        assert_eq!(res.unwrap_err(), *err);
     }
 }
 
