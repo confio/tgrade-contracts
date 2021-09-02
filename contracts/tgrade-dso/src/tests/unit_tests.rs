@@ -671,7 +671,7 @@ fn propose_new_voting_rules_validation() {
     assert_eq!(
         rules,
         VotingRules {
-            voting_period: 14,
+            voting_period: VOTING_PERIOD,
             quorum: Decimal::percent(40),
             threshold: Decimal::percent(60),
             allow_end_early: true,
@@ -1258,4 +1258,134 @@ fn punish_members_validation() {
         assert!(res.is_err());
         assert_eq!(res.unwrap_err(), err);
     }
+}
+
+#[test]
+fn propose_punish_members_kick_out() {
+    let mut deps = mock_dependencies(&[]);
+    let start_env = mock_env();
+    let info = mock_info(INIT_ADMIN, &escrow_funds());
+    do_instantiate(
+        deps.as_mut(),
+        info,
+        vec![VOTING1.into(), VOTING2.into(), VOTING3.into()],
+    )
+    .unwrap();
+    let delay1 = 10; // [seconds]
+    let voting_period: u64 = (VOTING_PERIOD * 86400) as u64; // [seconds]
+    let execute_env = later(&start_env, delay1 * 3);
+    let claim_at = execute_env.block.time.seconds() + voting_period * 2;
+
+    let voting_status = MemberStatus::Voting {};
+    let pending_status = MemberStatus::Pending {
+        proposal_id: PROPOSAL_ID_1,
+    };
+    let leaving_status = MemberStatus::Leaving { claim_at };
+
+    // Add new members, and one of them pays in
+    let batch1 = vec![VOTING1.into(), VOTING2.into(), VOTING3.into()];
+    propose_add_voting_members_and_execute(
+        deps.as_mut(),
+        later(&start_env, delay1),
+        INIT_ADMIN,
+        batch1,
+    )
+    .unwrap();
+    let info = mock_info(VOTING1, &escrow_funds());
+    execute_deposit_escrow(deps.as_mut(), later(&start_env, delay1 + 1), info).unwrap();
+
+    // Initial weights are proper
+    assert_voting(&deps, Some(1), Some(0), Some(0), Some(0), None);
+
+    // Make a punish proposal
+    let prop = ProposalContent::PunishMembers(vec![Punishment {
+        member: VOTING1.into(),
+        slashing_percentage: Decimal::percent(75),
+        distribution_list: vec![VOTING2.into()],
+        burn_tokens: false,
+        kick_out: true,
+    }]);
+    let msg = ExecuteMsg::Propose {
+        title: "Kick-out VOTING1".to_string(),
+        description:
+            "Punish VOTING1 with a 75% slashing and expulsion. Send slashed funds to VOTING2"
+                .to_string(),
+        proposal: prop,
+    };
+    let res = execute(
+        deps.as_mut(),
+        later(&start_env, delay1 * 2),
+        mock_info(INIT_ADMIN, &[]),
+        msg,
+    )
+    .unwrap();
+    let proposal_id = parse_prop_id(&res.attributes);
+
+    // ensure it passed (already via principal voter)
+    let prop = query_proposal(
+        deps.as_ref(),
+        later(&start_env, delay1 * 2 + 1),
+        proposal_id,
+    )
+    .unwrap();
+    assert_eq!(prop.status, Status::Passed);
+
+    // execute it
+    let res = execute(
+        deps.as_mut(),
+        execute_env,
+        mock_info(NONVOTING1, &[]),
+        ExecuteMsg::Execute { proposal_id },
+    )
+    .unwrap();
+
+    // check the proper attributes returned
+    assert_eq!(res.attributes.len(), 12);
+    assert_eq!(&res.attributes[0], &attr("proposal", "punish_members"));
+    assert_eq!(&res.attributes[1], &attr("punishment", "1")); // First punishment in proposal
+    assert_eq!(&res.attributes[2], &attr("kick_out", VOTING1));
+    assert_eq!(&res.attributes[3], &attr("slashing_percentage", "0.75"));
+    assert_eq!(
+        &res.attributes[4],
+        &attr("distribution_list", [VOTING2].join(", "))
+    );
+    assert_eq!(&res.attributes[5], &attr("burn_tokens", "false"));
+    assert_eq!(&res.attributes[6], &attr("action", "leave_dso"));
+    assert_eq!(&res.attributes[7], &attr("type", "delayed"));
+    assert_eq!(&res.attributes[8], &attr("claim_at", claim_at.to_string()));
+    assert_eq!(&res.attributes[9], &attr("leaving", VOTING1));
+    assert_eq!(&res.attributes[10], &attr("action", "execute"));
+    assert_eq!(&res.attributes[11], &attr("proposal_id", "2"));
+
+    // Check the escrow amounts, status and voting weight have been updated
+    // Weights properly
+    assert_voting(&deps, Some(1), Some(0), Some(0), Some(0), None);
+    // Check VOTING1 escrow is properly slashed
+    // VOTING2 escrow amount is not changed. He (along with NONMEMBER) will be sent a BankMsg::Send
+    // message with the split payment
+    assert_escrow_paid(
+        &deps,
+        Some(ESCROW_FUNDS),
+        Some(ESCROW_FUNDS / 4),
+        Some(0),
+        Some(0),
+    );
+    // And status
+    assert_escrow_status(
+        &deps,
+        Some(voting_status),
+        Some(leaving_status),
+        Some(pending_status),
+        Some(pending_status),
+    );
+
+    // Assert the BankMsg is there
+    assert_eq!(res.messages.len(), 1);
+    assert_eq!(
+        &res.messages[0],
+        &SubMsg::new(BankMsg::Send {
+            to_address: VOTING2.into(),
+            amount: vec![coin(ESCROW_FUNDS / 4 * 3, DSO_DENOM)]
+        })
+    );
 }

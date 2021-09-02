@@ -28,6 +28,7 @@ const INIT_ADMIN: &str = "juan";
 const DSO_NAME: &str = "test_dso";
 const ESCROW_FUNDS: u128 = 2_000_000;
 const DENOM: &str = "utgd";
+const VOTING_PERIOD: u32 = 14; // [days]
 
 const VOTING1: &str = "miles";
 const VOTING2: &str = "john";
