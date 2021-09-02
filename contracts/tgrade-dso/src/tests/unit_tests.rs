@@ -951,7 +951,7 @@ fn propose_punish_members() {
         batch1,
     )
     .unwrap();
-    let info = mock_info(VOTING1, &escrow_funds());
+    let info = mock_info(VOTING1, &coins(ESCROW_FUNDS + 1, DENOM));
     execute_deposit_escrow(deps.as_mut(), later(&start, delay1 + 1), info).unwrap();
 
     // Make a punish proposal
@@ -1010,7 +1010,7 @@ fn propose_punish_members() {
     assert_escrow_paid(
         &deps,
         Some(ESCROW_FUNDS),
-        Some(ESCROW_FUNDS / 2),
+        Some(ESCROW_FUNDS / 2 + 1), // Distribution remainder (1) is left to punished member
         Some(0),
         Some(0),
     );
