@@ -68,7 +68,7 @@ fn distribute_tokens(
         .into_iter()
         .map(|v| v.addr)
         .zip(shares.into_iter())
-        .map(|(addr, share)| send_tokens(addr, share, &denoms))
+        .filter_map(|(addr, share)| send_tokens(addr, share, &denoms))
         .collect()
 }
 
@@ -109,17 +109,21 @@ fn remainder_to_first_recipient(total: &[u128], shares: &mut [Vec<u128>]) {
     }
 }
 
-fn send_tokens(addr: Addr, shares: Vec<u128>, denoms: &[String]) -> SubMsg<TgradeMsg> {
+fn send_tokens(addr: Addr, shares: Vec<u128>, denoms: &[String]) -> Option<SubMsg<TgradeMsg>> {
     let amount: Vec<Coin> = shares
         .into_iter()
         .zip(denoms)
         .filter(|(s, _)| *s > 0)
         .map(|(s, d)| coin(s, d))
         .collect();
-    SubMsg::new(BankMsg::Send {
-        to_address: addr.into(),
-        amount,
-    })
+    if amount.is_empty() {
+        None
+    } else {
+        Some(SubMsg::new(BankMsg::Send {
+            to_address: addr.into(),
+            amount,
+        }))
+    }
 }
 
 #[cfg(test)]
@@ -234,6 +238,34 @@ mod test {
         remainder_to_first_recipient(total, &mut shares);
 
         assert_eq!(&shares, &expected);
+    }
+
+    #[test]
+    fn test_send_tokens() {
+        let denoms = ["usdc".to_string(), "atom".to_string(), "foo".to_string()];
+        let shares = vec![vec![19u128, 50, 1], vec![27, 0, 1], vec![0, 0, 0]];
+        let expected = vec![
+            Some(SubMsg::new(BankMsg::Send {
+                to_address: "rcpt1".to_string(),
+                amount: vec![
+                    coin(shares[0][0], &denoms[0]),
+                    coin(shares[0][1], &denoms[1]),
+                    coin(shares[0][2], &denoms[2]),
+                ],
+            })),
+            Some(SubMsg::new(BankMsg::Send {
+                to_address: "rcpt2".to_string(),
+                amount: vec![
+                    coin(shares[1][0], &denoms[0]),
+                    coin(shares[1][2], &denoms[2]),
+                ],
+            })),
+            None,
+        ];
+        for ((i, share), exp) in (1..).zip(shares).zip(expected) {
+            let msgs = send_tokens(Addr::unchecked(format!("rcpt{}", i)), share, &denoms);
+            assert_eq!(msgs, exp);
+        }
     }
 
     // no sitting fees, evenly divisible by 3 validators
