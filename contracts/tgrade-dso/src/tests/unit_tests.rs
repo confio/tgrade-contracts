@@ -1,6 +1,6 @@
 #![cfg(test)]
 use super::*;
-use cosmwasm_std::{Deps, SubMsg};
+use cosmwasm_std::{Addr, Deps, StdError, SubMsg};
 
 use crate::state::{EscrowStatus, Punishment};
 use crate::tests::bdd_tests::{
@@ -1039,4 +1039,112 @@ fn propose_punish_members() {
             amount: vec![coin(ESCROW_FUNDS / 4, DSO_DENOM)]
         })
     );
+}
+
+#[test]
+fn punish_members_validation() {
+    let mut deps = mock_dependencies(&[]);
+    let info = mock_info(INIT_ADMIN, &escrow_funds());
+    do_instantiate(
+        deps.as_mut(),
+        info,
+        vec![VOTING1.into(), VOTING2.into(), VOTING3.into()],
+    )
+    .unwrap();
+
+    // Make a series of (invalid) punish proposals
+    for (prop, err) in [
+        (
+            // Empty proposal
+            ProposalContent::PunishMembers(vec![]),
+            ContractError::NoPunishments {},
+        ),
+        (
+            // Invalid slashing
+            ProposalContent::PunishMembers(vec![Punishment {
+                member: VOTING1.into(),
+                slashing_percentage: Decimal::percent(101),
+                distribution_list: vec![VOTING2.into()],
+                burn_tokens: false,
+                kick_out: false,
+            }]),
+            ContractError::InvalidSlashingPercentage(
+                Addr::unchecked(VOTING1),
+                Decimal::percent(101),
+            ),
+        ),
+        (
+            // Invalid member status
+            ProposalContent::PunishMembers(vec![Punishment {
+                member: VOTING1.into(),
+                slashing_percentage: Decimal::percent(10),
+                distribution_list: vec![VOTING2.into()],
+                burn_tokens: false,
+                kick_out: false,
+            }]),
+            ContractError::PunishInvalidMemberStatus(
+                Addr::unchecked(VOTING1),
+                MemberStatus::NonVoting {},
+            ),
+        ),
+        (
+            // Not a member
+            ProposalContent::PunishMembers(vec![Punishment {
+                member: NONMEMBER.into(),
+                slashing_percentage: Decimal::percent(10),
+                distribution_list: vec![VOTING2.into()],
+                burn_tokens: false,
+                kick_out: false,
+            }]),
+            ContractError::Std(StdError::not_found("tgrade_dso::state::EscrowStatus")),
+        ),
+        (
+            // Empty distribution list
+            ProposalContent::PunishMembers(vec![Punishment {
+                member: NONMEMBER.into(),
+                slashing_percentage: Decimal::percent(10),
+                distribution_list: vec![],
+                burn_tokens: false,
+                kick_out: false,
+            }]),
+            ContractError::EmptyDistributionList {},
+        ),
+        (
+            // Non-empty distribution list
+            ProposalContent::PunishMembers(vec![Punishment {
+                member: NONMEMBER.into(),
+                slashing_percentage: Decimal::percent(10),
+                distribution_list: vec![VOTING2.into()],
+                burn_tokens: true,
+                kick_out: false,
+            }]),
+            ContractError::NonEmptyDistributionList {},
+        ),
+    ] {
+        let msg = ExecuteMsg::Propose {
+            title: "Invalid proposal".to_string(),
+            description: "Proposal with invalid / inconsistent information".to_string(),
+            proposal: prop,
+        };
+        let mut env = mock_env();
+        env.block.height += 10;
+        let res = execute(deps.as_mut(), env.clone(), mock_info(INIT_ADMIN, &[]), msg).unwrap();
+        let proposal_id = parse_prop_id(&res.attributes);
+
+        // ensure it passed (already via principal voter)
+        let prop = query_proposal(deps.as_ref(), env.clone(), proposal_id).unwrap();
+        assert_eq!(prop.status, Status::Passed);
+
+        // execute it
+        let res = execute(
+            deps.as_mut(),
+            env,
+            mock_info(NONVOTING1, &[]),
+            ExecuteMsg::Execute { proposal_id },
+        );
+
+        // Check it failed
+        assert!(res.is_err());
+        assert_eq!(res.unwrap_err(), err);
+    }
 }
