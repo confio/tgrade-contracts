@@ -549,7 +549,7 @@ fn trigger_long_leave(
         .add_attribute("action", "leave_dso")
         .add_attribute("type", "delayed")
         .add_attribute("claim_at", claim_at.to_string())
-        .add_attribute("sender", leaver);
+        .add_attribute("leaving", leaver);
     Ok(res)
 }
 
