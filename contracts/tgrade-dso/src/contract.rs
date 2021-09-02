@@ -881,6 +881,7 @@ pub fn proposal_punish_members(
         return Err(ContractError::NoPunishments {});
     }
     let mut demoted_addrs = vec![];
+    let mut msgs = vec![];
     for (i, p) in (1..).zip(punishments) {
         res = res.add_attribute("punishment", i.to_string());
         res = res.add_attributes(p.as_attributes());
@@ -903,7 +904,6 @@ pub fn proposal_punish_members(
         let mut escrow_remaining = escrow_status.paid.u128() - escrow_slashed;
 
         // Distribute / burn
-        let mut msgs = vec![];
         if p.burn_tokens {
             // Burn
             let msg = SubMsg::new(BankMsg::Burn {
@@ -946,10 +946,9 @@ pub fn proposal_punish_members(
             ESCROWS.save(deps.storage, &addr, &escrow_status)?;
             demoted_addrs.push(addr);
         };
-
-        // Send messages
-        res.messages = msgs;
     }
+    // Send messages
+    res.messages = msgs;
 
     // Create (and store) batch for demoted members (so that promotion can work)!
     let grace_period = 0; // promote them as soon as they pay (this is like a "batch of one")
