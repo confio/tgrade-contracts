@@ -1,7 +1,7 @@
 #![cfg(test)]
 use cosmwasm_std::{Deps, SubMsg};
 
-use crate::state::EscrowStatus;
+use crate::state::{EscrowStatus, Punishment};
 
 use super::*;
 use crate::error::ContractError::Unauthorized;
@@ -216,6 +216,22 @@ fn voting_members_proposal(members: Vec<String>) -> ExecuteMsg {
     }
 }
 
+fn punish_member_proposal(member: String, slashing_percentage: u64) -> ExecuteMsg {
+    let proposal = ProposalContent::PunishMembers(vec![Punishment {
+        member,
+        slashing_percentage: Decimal::percent(slashing_percentage),
+        distribution_list: vec![NONMEMBER.into()],
+        burn_tokens: false,
+        kick_out: false,
+    }]);
+    ExecuteMsg::Propose {
+        title: "Punish Member".to_string(),
+        description: "To punish a member with a given slashing through the proposal mechanism"
+            .to_string(),
+        proposal,
+    }
+}
+
 fn propose(deps: DepsMut, addr: &str) -> Result<Response, ContractError> {
     execute(deps, now(), mock_info(addr, &[]), demo_proposal())
 }
@@ -244,6 +260,21 @@ fn propose_add_voting_members(
         env,
         mock_info(addr, &[]),
         voting_members_proposal(members),
+    )
+}
+
+fn propose_punish_member(
+    deps: DepsMut,
+    env: Env,
+    addr: &str,
+    member: String,
+    slashing_percentage: u64,
+) -> Result<Response, ContractError> {
+    execute(
+        deps,
+        env,
+        mock_info(addr, &[]),
+        punish_member_proposal(member, slashing_percentage),
     )
 }
 
@@ -783,4 +814,74 @@ fn edit_dso_increase_escrow_enforced_before_new_proposal() {
     // check proposal creation error (not enough escrow anymore)
     assert!(res.is_err());
     assert_eq!(res.unwrap_err(), Unauthorized {});
+}
+
+#[test]
+fn punish_member_slashing() {
+    let mut deps = mock_dependencies(&[]);
+    let env = mock_env();
+    setup_bdd(deps.as_mut());
+
+    // assert voting member
+    assert_membership(deps.as_ref(), VOTING, Some(1));
+    // assert escrow amount
+    assert_escrow(deps.as_ref(), VOTING, VOTING_ESCROW);
+
+    // creates punish member proposal
+    let res = propose_punish_member(deps.as_mut(), env.clone(), VOTING, VOTING.into(), 10).unwrap();
+    let proposal_id = parse_prop_id(&res.attributes);
+
+    // ensure it passed (already via principal voter)
+    let prop = query_proposal(deps.as_ref(), env.clone(), proposal_id).unwrap();
+    assert_eq!(prop.status, Status::Passed);
+
+    // execute it
+    execute(
+        deps.as_mut(),
+        env.clone(),
+        mock_info(NONVOTING1, &[]),
+        ExecuteMsg::Execute { proposal_id },
+    )
+    .unwrap();
+
+    // check punished member status still can vote (slashing too low)
+    // assert voting member
+    assert_membership(deps.as_ref(), VOTING, Some(1));
+    assert!(matches!(
+        get_status(deps.as_ref(), VOTING),
+        MemberStatus::Voting {}
+    ));
+    assert_escrow(deps.as_ref(), VOTING, VOTING_ESCROW / 10 * 9);
+
+    // Now slash it enough so that he loses his voting status
+    let res = propose_punish_member(deps.as_mut(), env.clone(), VOTING, VOTING.into(), 50).unwrap();
+    let proposal_id = parse_prop_id(&res.attributes);
+
+    execute_passed_proposal(deps.as_mut(), env, proposal_id).unwrap();
+
+    // check punished member cannot vote
+    assert_membership(deps.as_ref(), VOTING, Some(0));
+    assert_eq!(
+        get_status(deps.as_ref(), VOTING),
+        MemberStatus::Pending { proposal_id }
+    );
+    assert_escrow(deps.as_ref(), VOTING, VOTING_ESCROW / 10 * 9 / 2);
+
+    // One day later this poor guy tops up his escrow again
+    execute(
+        deps.as_mut(),
+        later(&mock_env(), 86400),
+        mock_info(VOTING, &coins(VOTING_ESCROW, DENOM)),
+        ExecuteMsg::DepositEscrow {},
+    )
+    .unwrap();
+
+    // Check he recovers voting rights
+    assert_membership(deps.as_ref(), VOTING, Some(1));
+    assert_eq!(get_status(deps.as_ref(), VOTING), MemberStatus::Voting {});
+    assert_escrow(
+        deps.as_ref(),
+        VOTING,
+        VOTING_ESCROW / 20 * 9 + VOTING_ESCROW,
+    );
 }
