@@ -288,7 +288,7 @@ fn list_members(
         .map(|item| {
             let (key, weight) = item?;
             Ok(Member {
-                addr: unsafe { String::from_utf8_unchecked(key) },
+                addr: String::from_utf8(key)?,
                 weight,
             })
         })
@@ -313,7 +313,7 @@ fn list_members_by_weight(
         .map(|item| {
             let (key, weight) = item?;
             Ok(Member {
-                addr: unsafe { String::from_utf8_unchecked(key) },
+                addr: String::from_utf8(key)?,
                 weight,
             })
         })
