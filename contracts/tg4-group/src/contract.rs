@@ -276,6 +276,7 @@ fn list_members(
         .take(limit)
         .map(|item| {
             let (key, weight) = item?;
+            println!("LIST MEMBERS: KEY {:?}", key);
             Ok(Member {
                 addr: String::from_utf8(key)?,
                 weight,
@@ -324,6 +325,7 @@ mod tests {
     const USER1: &str = "somebody";
     const USER2: &str = "else";
     const USER3: &str = "funny";
+    const INVALID_USER: &str = "������";
 
     fn mock_env_height(height_offset: u64) -> Env {
         let mut env = mock_env();
@@ -364,6 +366,26 @@ mod tests {
 
         let preauths = PREAUTH.get_auth(&deps.storage).unwrap();
         assert_eq!(1, preauths);
+    }
+
+    #[test]
+    fn instanciate_incorrect_user() {
+        let mut deps = mock_dependencies(&[]);
+        let msg = InstantiateMsg {
+            admin: Some(INIT_ADMIN.into()),
+            members: vec![
+                Member {
+                    addr: INVALID_USER.into(),
+                    weight: 11,
+                },
+            ],
+            preauths: Some(1),
+        };
+        let info = mock_info("creator", &[]);
+        instantiate(deps.as_mut(), mock_env(), info, msg).unwrap();
+
+        let members = list_members(deps.as_ref(), None, None).unwrap();
+        assert_eq!(members.members.len(), 1);
     }
 
     #[test]
