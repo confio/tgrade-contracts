@@ -945,6 +945,9 @@ pub fn proposal_punish_members(
             escrow_status.status = MemberStatus::Pending { proposal_id };
             ESCROWS.save(deps.storage, &addr, &escrow_status)?;
             demoted_addrs.push(addr);
+        } else {
+            // Just update remaining escrow
+            ESCROWS.save(deps.storage, &addr, &escrow_status)?;
         };
     }
     // Send messages
