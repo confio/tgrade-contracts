@@ -656,7 +656,7 @@ fn pending_escrow_demote_promote_members(
         let mut evt = Event::new(DEMOTE_TYPE).add_attribute(PROPOSAL_KEY, proposal_id.to_string());
         let mut addrs = vec![];
         for (key, mut escrow_status) in demoted {
-            let addr = Addr::unchecked(unsafe { String::from_utf8_unchecked(key) });
+            let addr = Addr::unchecked(String::from_utf8(key)?);
             escrow_status.status = MemberStatus::Pending { proposal_id };
             ESCROWS.save(storage, &addr, &escrow_status)?;
             // Remove voting weight
@@ -695,7 +695,7 @@ fn pending_escrow_demote_promote_members(
             .collect::<StdResult<_>>()?;
         let mut evt = Event::new(PROMOTE_TYPE).add_attribute(PROPOSAL_KEY, proposal_id.to_string());
         for (key, mut escrow_status) in promoted {
-            let addr = Addr::unchecked(unsafe { String::from_utf8_unchecked(key) });
+            let addr = Addr::unchecked(String::from_utf8(key)?);
             // Get _original_ proposal_id, i.e. don't reset proposal_id (So this member is still
             // promoted with its batch).
             let original_proposal_id = match escrow_status.status {
@@ -993,7 +993,7 @@ pub(crate) fn list_members(
         .map(|item| {
             let (key, weight) = item?;
             Ok(Member {
-                addr: unsafe { String::from_utf8_unchecked(key) },
+                addr: String::from_utf8(key)?,
                 weight,
             })
         })
@@ -1020,7 +1020,7 @@ pub(crate) fn list_voting_members(
         .map(|item| {
             let (key, weight) = item?;
             Ok(Member {
-                addr: unsafe { String::from_utf8_unchecked(key) },
+                addr: String::from_utf8(key)?,
                 weight,
             })
         })
@@ -1045,7 +1045,7 @@ pub(crate) fn list_non_voting_members(
         .map(|item| {
             let (key, weight) = item?;
             Ok(Member {
-                addr: unsafe { String::from_utf8_unchecked(key) },
+                addr: String::from_utf8(key)?,
                 weight,
             })
         })
@@ -1069,7 +1069,7 @@ pub(crate) fn list_escrows(
         .map(|item| {
             let (key, escrow_status) = item?;
             Ok(Escrow {
-                addr: unsafe { String::from_utf8_unchecked(key) },
+                addr: String::from_utf8(key)?,
                 escrow_status,
             })
         })
@@ -1165,7 +1165,7 @@ pub(crate) fn list_votes_by_proposal(
             let (voter, ballot) = item?;
             Ok(VoteInfo {
                 proposal_id,
-                voter: unsafe { String::from_utf8_unchecked(voter) },
+                voter: String::from_utf8(voter)?,
                 vote: ballot.vote,
                 weight: ballot.weight,
             })

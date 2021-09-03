@@ -77,6 +77,9 @@ pub enum ContractError {
 
     #[error("Cannot close completed or passed proposals")]
     WrongCloseStatus {},
+
+    #[error("Error occured while converting from UTF-8")]
+    FromUtf8(#[from] std::string::FromUtf8Error),
 }
 
 impl From<OverflowError> for ContractError {
