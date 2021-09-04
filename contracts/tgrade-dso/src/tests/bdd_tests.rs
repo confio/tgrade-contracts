@@ -168,13 +168,8 @@ fn deposit(deps: DepsMut, addr: &str) -> Result<Response, ContractError> {
     )
 }
 
-fn refund(deps: DepsMut, addr: &str) -> Result<Response, ContractError> {
-    execute(
-        deps,
-        now(),
-        mock_info(addr, &[]),
-        ExecuteMsg::ReturnEscrow {},
-    )
+fn refund(deps: DepsMut, env: Env, addr: &str) -> Result<Response, ContractError> {
+    execute(deps, env, mock_info(addr, &[]), ExecuteMsg::ReturnEscrow {})
 }
 
 fn demo_proposal() -> ExecuteMsg {
@@ -216,18 +211,19 @@ fn voting_members_proposal(members: Vec<String>) -> ExecuteMsg {
     }
 }
 
-fn punish_member_proposal(member: String, slashing_percentage: u64) -> ExecuteMsg {
+fn punish_member_proposal(member: String, slashing_percentage: u64, kick_out: bool) -> ExecuteMsg {
     let proposal = ProposalContent::PunishMembers(vec![Punishment {
         member,
         slashing_percentage: Decimal::percent(slashing_percentage),
         distribution_list: vec![NONMEMBER.into()],
         burn_tokens: false,
-        kick_out: false,
+        kick_out,
     }]);
     ExecuteMsg::Propose {
         title: "Punish Member".to_string(),
-        description: "To punish a member with a given slashing through the proposal mechanism"
-            .to_string(),
+        description:
+            "To punish a member with a given slashing / expulsion through the proposal mechanism"
+                .to_string(),
         proposal,
     }
 }
@@ -269,12 +265,13 @@ fn propose_punish_member(
     addr: &str,
     member: String,
     slashing_percentage: u64,
+    kick_out: bool,
 ) -> Result<Response, ContractError> {
     execute(
         deps,
         env,
         mock_info(addr, &[]),
-        punish_member_proposal(member, slashing_percentage),
+        punish_member_proposal(member, slashing_percentage, kick_out),
     )
 }
 
@@ -316,7 +313,7 @@ fn non_voting_deposit_return_propose_leave() {
     // cannot deposit escrow
     deposit(deps.as_mut(), NON_VOTING).unwrap_err();
     // cannot return escrow
-    refund(deps.as_mut(), NON_VOTING).unwrap_err();
+    refund(deps.as_mut(), now(), NON_VOTING).unwrap_err();
     // cannot create proposal
     propose(deps.as_mut(), NON_VOTING).unwrap_err();
 
@@ -341,7 +338,7 @@ fn non_member_deposit_return_propose_leave() {
     // cannot deposit escrow
     deposit(deps.as_mut(), NON_MEMBER).unwrap_err();
     // cannot return escrow
-    refund(deps.as_mut(), NON_MEMBER).unwrap_err();
+    refund(deps.as_mut(), now(), NON_MEMBER).unwrap_err();
     // cannot create proposal
     propose(deps.as_mut(), NON_MEMBER).unwrap_err();
     // cannot leave
@@ -362,7 +359,7 @@ fn pending_broke_deposit_return_propose() {
     // successful deposit escrow
     deposit(deps.as_mut(), PENDING_BROKE).unwrap();
     // cannot return escrow
-    refund(deps.as_mut(), PENDING_BROKE).unwrap_err();
+    refund(deps.as_mut(), now(), PENDING_BROKE).unwrap_err();
     // cannot create proposal
     propose(deps.as_mut(), PENDING_BROKE).unwrap_err();
 
@@ -396,7 +393,7 @@ fn pending_some_deposit_return_propose_leave() {
     // can deposit escrow
     deposit(deps.as_mut(), PENDING_SOME).unwrap();
     // cannot return escrow
-    refund(deps.as_mut(), PENDING_SOME).unwrap_err();
+    refund(deps.as_mut(), now(), PENDING_SOME).unwrap_err();
     // cannot create proposal
     propose(deps.as_mut(), PENDING_SOME).unwrap_err();
     // can leave, but long_leave
@@ -421,7 +418,7 @@ fn pending_paid_deposit_return_propose_leave() {
     // can deposit escrow
     deposit(deps.as_mut(), PENDING_PAID).unwrap();
     // cannot return escrow
-    refund(deps.as_mut(), PENDING_PAID).unwrap_err();
+    refund(deps.as_mut(), now(), PENDING_PAID).unwrap_err();
     // cannot create proposal
     propose(deps.as_mut(), PENDING_PAID).unwrap_err();
     // can leave, but long_leave
@@ -467,7 +464,7 @@ fn voting_deposit_return_propose_leave() {
     // can deposit escrow
     deposit(deps.as_mut(), VOTING).unwrap();
     // can return escrow
-    let res = refund(deps.as_mut(), VOTING).unwrap();
+    let res = refund(deps.as_mut(), now(), VOTING).unwrap();
     // we deposited 5000 in `deposit`. Return everything we can above the minimum
     assert_payment(res.messages, VOTING, VOTING_ESCROW + 5000 - ESCROW_FUNDS);
     // can create proposal
@@ -497,7 +494,7 @@ fn leaving_deposit_return_propose_leave() {
     // cannot deposit escrow
     deposit(deps.as_mut(), LEAVING).unwrap_err();
     // cannot return escrow
-    refund(deps.as_mut(), LEAVING).unwrap_err();
+    refund(deps.as_mut(), now(), LEAVING).unwrap_err();
     // cannot create proposal
     propose(deps.as_mut(), LEAVING).unwrap_err();
     // cannot leave again
@@ -828,21 +825,10 @@ fn punish_member_slashing() {
     assert_escrow(deps.as_ref(), VOTING, VOTING_ESCROW);
 
     // creates punish member proposal
-    let res = propose_punish_member(deps.as_mut(), env.clone(), VOTING, VOTING.into(), 10).unwrap();
-    let proposal_id = parse_prop_id(&res.attributes);
+    let res = propose_punish_member(deps.as_mut(), env.clone(), VOTING, VOTING.into(), 10, false)
+        .unwrap();
 
-    // ensure it passed (already via principal voter)
-    let prop = query_proposal(deps.as_ref(), env.clone(), proposal_id).unwrap();
-    assert_eq!(prop.status, Status::Passed);
-
-    // execute it
-    execute(
-        deps.as_mut(),
-        env.clone(),
-        mock_info(NONVOTING1, &[]),
-        ExecuteMsg::Execute { proposal_id },
-    )
-    .unwrap();
+    execute_passed_proposal(deps.as_mut(), env.clone(), parse_prop_id(&res.attributes)).unwrap();
 
     // check punished member status still can vote (slashing too low)
     // assert voting member
@@ -854,7 +840,8 @@ fn punish_member_slashing() {
     assert_escrow(deps.as_ref(), VOTING, VOTING_ESCROW / 10 * 9);
 
     // Now slash it enough so that he loses his voting status
-    let res = propose_punish_member(deps.as_mut(), env.clone(), VOTING, VOTING.into(), 50).unwrap();
+    let res = propose_punish_member(deps.as_mut(), env.clone(), VOTING, VOTING.into(), 50, false)
+        .unwrap();
     let proposal_id = parse_prop_id(&res.attributes);
 
     execute_passed_proposal(deps.as_mut(), env, proposal_id).unwrap();
@@ -884,4 +871,63 @@ fn punish_member_slashing() {
         VOTING,
         VOTING_ESCROW / 20 * 9 + VOTING_ESCROW,
     );
+}
+
+#[test]
+fn punish_member_expulsion() {
+    let mut deps = mock_dependencies(&[]);
+    let env = mock_env();
+    setup_bdd(deps.as_mut());
+
+    // assert voting member
+    assert_membership(deps.as_ref(), VOTING, Some(1));
+    // assert escrow amount
+    assert_escrow(deps.as_ref(), VOTING, VOTING_ESCROW);
+
+    // creates punish and kick out member proposal
+    let res =
+        propose_punish_member(deps.as_mut(), env.clone(), VOTING, VOTING.into(), 90, true).unwrap();
+
+    execute_passed_proposal(deps.as_mut(), env.clone(), parse_prop_id(&res.attributes)).unwrap();
+
+    // check kicked out member cannot vote
+    assert_membership(deps.as_ref(), VOTING, Some(0));
+    assert!(matches!(
+        get_status(deps.as_ref(), VOTING),
+        MemberStatus::Leaving { .. }
+    ));
+    assert_escrow(deps.as_ref(), VOTING, VOTING_ESCROW / 10);
+
+    // Check that he can reclaim his remaining escrow (after 2 voting periods)
+    // Try to reclaim anytime before expiration
+    let res = refund(deps.as_mut(), now(), VOTING);
+
+    assert!(res.is_err());
+    assert!(matches!(
+        res.unwrap_err(),
+        ContractError::CannotClaimYet { .. }
+    ));
+
+    // Try to reclaim just before expiration
+    let res = refund(
+        deps.as_mut(),
+        later(&env, VOTING_PERIOD as u64 * 2 * 86400 - 1),
+        VOTING,
+    );
+
+    assert!(res.is_err());
+    assert!(matches!(
+        res.unwrap_err(),
+        ContractError::CannotClaimYet { .. }
+    ));
+
+    // Reclaim just on expiration
+    let res = refund(
+        deps.as_mut(),
+        later(&env, VOTING_PERIOD as u64 * 2 * 86400),
+        VOTING,
+    )
+    .unwrap();
+
+    assert_payment(res.messages, VOTING, VOTING_ESCROW / 10);
 }
