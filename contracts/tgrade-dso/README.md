@@ -59,6 +59,13 @@ non-voting participants, must be done through voting.
 This allows changing the DSO name, voting period, etc.
 For the special case of changing the escrow amount, see the [Escrow Changed](#escrow-changed) section below.
 
+- Punish voting members:
+
+This is a proposal that allows punishing a voting member (or a number of voting members), with full or partial slashing,
+and/or expulsion (member kick out).
+The proposal also supports distribution or burning of the slashed funds, as well as recovering or refunding of the
+kicked out member's remaining escrow, after the member's leaving period (two voting periods) has ended.
+
 - Close the DSO.
 This implies redeeming all the funds, and removing / blocking the DSO so that
 it cannot be accessed anymore.
