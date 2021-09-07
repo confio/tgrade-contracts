@@ -212,11 +212,10 @@ fn voting_members_proposal(members: Vec<String>) -> ExecuteMsg {
 }
 
 fn punish_member_proposal(member: String, slashing_percentage: u64, kick_out: bool) -> ExecuteMsg {
-    let proposal = ProposalContent::PunishMembers(vec![Punishment {
+    let proposal = ProposalContent::PunishMembers(vec![Punishment::DistributeEscrow {
         member,
         slashing_percentage: Decimal::percent(slashing_percentage),
         distribution_list: vec![NONMEMBER.into()],
-        burn_tokens: false,
         kick_out,
     }]);
     ExecuteMsg::Propose {
@@ -831,7 +830,7 @@ fn punish_member_slashing() {
     let res = execute_passed_proposal(deps.as_mut(), env.clone(), parse_prop_id(&res.attributes))
         .unwrap();
     // check distribution
-    assert_eq!(&res.attributes[5], &attr("burn_tokens", "false"));
+    assert_eq!(&res.attributes[4], &attr("slashed_escrow", "distribute"));
 
     // check punished member status still can vote (slashing too low)
     // assert voting member
@@ -849,7 +848,7 @@ fn punish_member_slashing() {
 
     let res = execute_passed_proposal(deps.as_mut(), env, proposal_id).unwrap();
     // check distribution
-    assert_eq!(&res.attributes[5], &attr("burn_tokens", "false"));
+    assert_eq!(&res.attributes[4], &attr("slashed_escrow", "distribute"));
 
     // check punished member cannot vote
     assert_membership(deps.as_ref(), VOTING, Some(0));
@@ -896,7 +895,7 @@ fn punish_member_expulsion() {
     let res = execute_passed_proposal(deps.as_mut(), env.clone(), parse_prop_id(&res.attributes))
         .unwrap();
     // check distribution
-    assert_eq!(&res.attributes[5], &attr("burn_tokens", "false"));
+    assert_eq!(&res.attributes[4], &attr("slashed_escrow", "distribute"));
 
     // check kicked out member cannot vote
     assert_membership(deps.as_ref(), VOTING, Some(0));

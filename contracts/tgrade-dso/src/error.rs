@@ -84,9 +84,6 @@ pub enum ContractError {
     #[error("Distribution list cannot be empty")]
     EmptyDistributionList {},
 
-    #[error("Distribution list cannot be set when `burn_tokens` is true")]
-    NonEmptyDistributionList {},
-
     #[error("Proposal must have passed and not yet been executed")]
     WrongExecuteStatus {},
 

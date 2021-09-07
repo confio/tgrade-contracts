@@ -190,69 +190,99 @@ impl DsoAdjustments {
 }
 
 #[derive(Serialize, Deserialize, Clone, PartialEq, Debug, JsonSchema)]
-pub struct Punishment {
-    /// Member to slash / expel
-    pub member: String,
-    /// Slashing percentage
-    pub slashing_percentage: Decimal,
-    /// Distribution list to send member's slashed escrow amount.
-    /// If empty (and `burn_tokens` is false), funds are kept in member's escrow.
-    /// `slashing_percentage` is irrelevant / ignored in that case
-    pub distribution_list: Vec<String>,
-    /// Burning instead of distribution.
-    /// If this is set, `distribution_list` must be empty
-    pub burn_tokens: bool,
-    /// If set to false, slashed member is demoted to `Pending`. Or not demoted at all,
-    /// depending on the amount of funds he retains in escrow.
-    /// If set to true, slashed member is effectively demoted to `Leaving`
-    pub kick_out: bool,
+pub enum Punishment {
+    DistributeEscrow {
+        /// Member to slash / expel
+        member: String,
+        /// Slashing percentage
+        slashing_percentage: Decimal,
+        /// Distribution list to send member's slashed escrow amount.
+        /// If empty (and `burn_tokens` is false), funds are kept in member's escrow.
+        /// `slashing_percentage` is irrelevant / ignored in that case
+        distribution_list: Vec<String>,
+        /// If set to false, slashed member is demoted to `Pending`. Or not demoted at all,
+        /// depending on the amount of funds he retains in escrow.
+        /// If set to true, slashed member is effectively demoted to `Leaving`
+        kick_out: bool,
+    },
+    BurnEscrow {
+        /// Member to slash / expel
+        member: String,
+        /// Slashing percentage
+        slashing_percentage: Decimal,
+        /// If set to false, slashed member is demoted to `Pending`. Or not demoted at all,
+        /// depending on the amount of funds he retains in escrow.
+        /// If set to true, slashed member is effectively demoted to `Leaving`
+        kick_out: bool,
+    },
 }
 
 impl Punishment {
     pub fn as_attributes(&self) -> Vec<Attribute> {
         let mut res = vec![];
-        let punishment = if self.kick_out {
-            "kick_out"
-        } else {
-            "slashing"
+        match &self {
+            Punishment::DistributeEscrow {
+                member,
+                slashing_percentage,
+                distribution_list,
+                kick_out,
+            } => {
+                res.push(attr("member", member));
+                res.push(attr(
+                    "slashing_percentage",
+                    &slashing_percentage.to_string(),
+                ));
+                res.push(attr("slashed_escrow", "distribute"));
+                res.push(attr("distribution_list", distribution_list.join(", ")));
+                res.push(attr("kick_out", kick_out.to_string()));
+            }
+            Punishment::BurnEscrow {
+                member,
+                slashing_percentage,
+                kick_out,
+            } => {
+                res.push(attr("member", member));
+                res.push(attr(
+                    "slashing_percentage",
+                    &slashing_percentage.to_string(),
+                ));
+                res.push(attr("slashed_escrow", "burn"));
+                res.push(attr("kick_out", kick_out.to_string()));
+            }
         };
-        res.push(attr(punishment, &self.member));
-        res.push(attr(
-            "slashing_percentage",
-            &self.slashing_percentage.to_string(),
-        ));
-        res.push(attr(
-            "distribution_list",
-            &self.distribution_list.join(", "),
-        ));
-        res.push(attr("burn_tokens", &self.burn_tokens.to_string()));
         res
     }
 
     pub fn validate(&self, deps: &Deps) -> Result<(), ContractError> {
-        // Validate member address
-        let addr = deps.api.addr_validate(&self.member)?;
+        match &self {
+            Punishment::DistributeEscrow {
+                member,
+                slashing_percentage,
+                distribution_list,
+                ..
+            } => {
+                // Validate member address
+                let addr = deps.api.addr_validate(&member)?;
 
-        // Validate destination addresses
-        for d in &self.distribution_list {
-            deps.api.addr_validate(&d)?;
-        }
+                if distribution_list.is_empty() {
+                    return Err(ContractError::EmptyDistributionList {});
+                }
+                // Validate destination addresses
+                for d in distribution_list {
+                    deps.api.addr_validate(&d)?;
+                }
 
-        // Validate slashing percentage
-        if !(Decimal::zero()..=Decimal::one()).contains(&self.slashing_percentage) {
-            return Err(ContractError::InvalidSlashingPercentage(
-                addr,
-                self.slashing_percentage,
-            ));
+                // Validate slashing percentage
+                if !(Decimal::zero()..=Decimal::one()).contains(slashing_percentage) {
+                    return Err(ContractError::InvalidSlashingPercentage(
+                        addr,
+                        *slashing_percentage,
+                    ));
+                }
+            }
+            Punishment::BurnEscrow { .. } => {}
         }
-
-        // Validate consistency of `distribution_list` / `burn_tokens`
-        match (self.distribution_list.is_empty(), self.burn_tokens) {
-            (false, false) => Ok(()), // Distribute
-            (true, true) => Ok(()),   // Burn
-            (true, false) => Err(ContractError::EmptyDistributionList {}),
-            (false, true) => Err(ContractError::NonEmptyDistributionList {}),
-        }
+        Ok(())
     }
 }
 

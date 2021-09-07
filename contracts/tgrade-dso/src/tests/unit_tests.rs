@@ -958,11 +958,10 @@ fn propose_punish_members_distribution() {
     assert_voting(&deps, Some(1), Some(0), Some(0), Some(0), None);
 
     // Make a punish proposal
-    let prop = ProposalContent::PunishMembers(vec![Punishment {
+    let prop = ProposalContent::PunishMembers(vec![Punishment::DistributeEscrow {
         member: VOTING1.into(),
         slashing_percentage: Decimal::percent(50),
         distribution_list: vec![VOTING2.into(), NONMEMBER.into()],
-        burn_tokens: false,
         kick_out: false,
     }]);
     let msg = ExecuteMsg::Propose {
@@ -991,18 +990,19 @@ fn propose_punish_members_distribution() {
     .unwrap();
 
     // check the proper attributes returned
-    assert_eq!(res.attributes.len(), 8);
+    assert_eq!(res.attributes.len(), 9);
     assert_eq!(&res.attributes[0], &attr("proposal", "punish_members"));
     assert_eq!(&res.attributes[1], &attr("punishment", "1")); // First punishment in proposal
-    assert_eq!(&res.attributes[2], &attr("slashing", VOTING1));
+    assert_eq!(&res.attributes[2], &attr("member", VOTING1));
     assert_eq!(&res.attributes[3], &attr("slashing_percentage", "0.5"));
+    assert_eq!(&res.attributes[4], &attr("slashed_escrow", "distribute"));
     assert_eq!(
-        &res.attributes[4],
+        &res.attributes[5],
         &attr("distribution_list", [VOTING2, NONMEMBER].join(", "))
     );
-    assert_eq!(&res.attributes[5], &attr("burn_tokens", "false"));
-    assert_eq!(&res.attributes[6], &attr("action", "execute"));
-    assert_eq!(&res.attributes[7], &attr("proposal_id", "2"));
+    assert_eq!(&res.attributes[6], &attr("kick_out", "false"));
+    assert_eq!(&res.attributes[7], &attr("action", "execute"));
+    assert_eq!(&res.attributes[8], &attr("proposal_id", "2"));
 
     // Check the escrow amounts, status and voting weight have been updated
     // Weights properly
@@ -1081,11 +1081,9 @@ fn propose_punish_members_burn() {
     assert_voting(&deps, Some(1), Some(0), Some(0), Some(0), None);
 
     // Make a punish proposal
-    let prop = ProposalContent::PunishMembers(vec![Punishment {
+    let prop = ProposalContent::PunishMembers(vec![Punishment::BurnEscrow {
         member: VOTING1.into(),
         slashing_percentage: Decimal::percent(25),
-        distribution_list: vec![],
-        burn_tokens: true,
         kick_out: false,
     }]);
     let msg = ExecuteMsg::Propose {
@@ -1115,10 +1113,10 @@ fn propose_punish_members_burn() {
     assert_eq!(res.attributes.len(), 8);
     assert_eq!(&res.attributes[0], &attr("proposal", "punish_members"));
     assert_eq!(&res.attributes[1], &attr("punishment", "1")); // First punishment in proposal
-    assert_eq!(&res.attributes[2], &attr("slashing", VOTING1));
+    assert_eq!(&res.attributes[2], &attr("member", VOTING1));
     assert_eq!(&res.attributes[3], &attr("slashing_percentage", "0.25"));
-    assert_eq!(&res.attributes[4], &attr("distribution_list", ""));
-    assert_eq!(&res.attributes[5], &attr("burn_tokens", "true"));
+    assert_eq!(&res.attributes[4], &attr("slashed_escrow", "burn"));
+    assert_eq!(&res.attributes[5], &attr("kick_out", "false"));
     assert_eq!(&res.attributes[6], &attr("action", "execute"));
     assert_eq!(&res.attributes[7], &attr("proposal_id", "2"));
 
@@ -1172,11 +1170,10 @@ fn punish_members_validation() {
         ),
         (
             // Invalid slashing
-            ProposalContent::PunishMembers(vec![Punishment {
+            ProposalContent::PunishMembers(vec![Punishment::DistributeEscrow {
                 member: VOTING1.into(),
                 slashing_percentage: Decimal::percent(101),
                 distribution_list: vec![VOTING2.into()],
-                burn_tokens: false,
                 kick_out: false,
             }]),
             ContractError::InvalidSlashingPercentage(
@@ -1186,11 +1183,10 @@ fn punish_members_validation() {
         ),
         (
             // Invalid member status
-            ProposalContent::PunishMembers(vec![Punishment {
+            ProposalContent::PunishMembers(vec![Punishment::DistributeEscrow {
                 member: VOTING1.into(),
                 slashing_percentage: Decimal::percent(10),
                 distribution_list: vec![VOTING2.into()],
-                burn_tokens: false,
                 kick_out: false,
             }]),
             ContractError::PunishInvalidMemberStatus(
@@ -1200,36 +1196,23 @@ fn punish_members_validation() {
         ),
         (
             // Not a member
-            ProposalContent::PunishMembers(vec![Punishment {
+            ProposalContent::PunishMembers(vec![Punishment::DistributeEscrow {
                 member: NONMEMBER.into(),
                 slashing_percentage: Decimal::percent(10),
                 distribution_list: vec![VOTING2.into()],
-                burn_tokens: false,
                 kick_out: false,
             }]),
             ContractError::Std(StdError::not_found("tgrade_dso::state::EscrowStatus")),
         ),
         (
             // Empty distribution list
-            ProposalContent::PunishMembers(vec![Punishment {
+            ProposalContent::PunishMembers(vec![Punishment::DistributeEscrow {
                 member: NONMEMBER.into(),
                 slashing_percentage: Decimal::percent(10),
                 distribution_list: vec![],
-                burn_tokens: false,
                 kick_out: false,
             }]),
             ContractError::EmptyDistributionList {},
-        ),
-        (
-            // Non-empty distribution list
-            ProposalContent::PunishMembers(vec![Punishment {
-                member: NONMEMBER.into(),
-                slashing_percentage: Decimal::percent(10),
-                distribution_list: vec![VOTING2.into()],
-                burn_tokens: true,
-                kick_out: false,
-            }]),
-            ContractError::NonEmptyDistributionList {},
         ),
     ] {
         let msg = ExecuteMsg::Propose {
@@ -1298,11 +1281,10 @@ fn propose_punish_members_kick_out() {
     assert_voting(&deps, Some(1), Some(0), Some(0), Some(0), None);
 
     // Make a punish proposal
-    let prop = ProposalContent::PunishMembers(vec![Punishment {
+    let prop = ProposalContent::PunishMembers(vec![Punishment::DistributeEscrow {
         member: VOTING1.into(),
         slashing_percentage: Decimal::percent(75),
         distribution_list: vec![VOTING2.into()],
-        burn_tokens: false,
         kick_out: true,
     }]);
     let msg = ExecuteMsg::Propose {
@@ -1340,22 +1322,23 @@ fn propose_punish_members_kick_out() {
     .unwrap();
 
     // check the proper attributes returned
-    assert_eq!(res.attributes.len(), 12);
+    assert_eq!(res.attributes.len(), 13);
     assert_eq!(&res.attributes[0], &attr("proposal", "punish_members"));
     assert_eq!(&res.attributes[1], &attr("punishment", "1")); // First punishment in proposal
-    assert_eq!(&res.attributes[2], &attr("kick_out", VOTING1));
+    assert_eq!(&res.attributes[2], &attr("member", VOTING1));
     assert_eq!(&res.attributes[3], &attr("slashing_percentage", "0.75"));
+    assert_eq!(&res.attributes[4], &attr("slashed_escrow", "distribute"));
     assert_eq!(
-        &res.attributes[4],
+        &res.attributes[5],
         &attr("distribution_list", [VOTING2].join(", "))
     );
-    assert_eq!(&res.attributes[5], &attr("burn_tokens", "false"));
-    assert_eq!(&res.attributes[6], &attr("action", "leave_dso"));
-    assert_eq!(&res.attributes[7], &attr("type", "delayed"));
-    assert_eq!(&res.attributes[8], &attr("claim_at", claim_at.to_string()));
-    assert_eq!(&res.attributes[9], &attr("leaving", VOTING1));
-    assert_eq!(&res.attributes[10], &attr("action", "execute"));
-    assert_eq!(&res.attributes[11], &attr("proposal_id", "2"));
+    assert_eq!(&res.attributes[6], &attr("kick_out", "true"));
+    assert_eq!(&res.attributes[7], &attr("action", "leave_dso"));
+    assert_eq!(&res.attributes[8], &attr("type", "delayed"));
+    assert_eq!(&res.attributes[9], &attr("claim_at", claim_at.to_string()));
+    assert_eq!(&res.attributes[10], &attr("leaving", VOTING1));
+    assert_eq!(&res.attributes[11], &attr("action", "execute"));
+    assert_eq!(&res.attributes[12], &attr("proposal_id", "2"));
 
     // Check the escrow amounts, status and voting weight have been updated
     // Weights properly
@@ -1427,18 +1410,15 @@ fn propose_punish_multiple_members() {
 
     // Make a punish proposal
     let prop = ProposalContent::PunishMembers(vec![
-        Punishment {
+        Punishment::DistributeEscrow {
             member: INIT_ADMIN.into(),
             slashing_percentage: Decimal::percent(100),
             distribution_list: vec![VOTING2.into()],
-            burn_tokens: false,
             kick_out: false,
         },
-        Punishment {
+        Punishment::BurnEscrow {
             member: VOTING1.into(),
             slashing_percentage: Decimal::percent(50),
-            distribution_list: vec![],
-            burn_tokens: true,
             kick_out: false,
         },
     ]);
@@ -1468,20 +1448,21 @@ fn propose_punish_multiple_members() {
     .unwrap();
 
     // check the proper attributes returned
-    assert_eq!(res.attributes.len(), 2 * 5 + 3);
+    assert_eq!(res.attributes.len(), 14);
     assert_eq!(&res.attributes[0], &attr("proposal", "punish_members"));
     assert_eq!(&res.attributes[1], &attr("punishment", "1")); // First punishment in proposal
-    assert_eq!(&res.attributes[2], &attr("slashing", INIT_ADMIN));
+    assert_eq!(&res.attributes[2], &attr("member", INIT_ADMIN));
     assert_eq!(&res.attributes[3], &attr("slashing_percentage", "1"));
-    assert_eq!(&res.attributes[4], &attr("distribution_list", VOTING2));
-    assert_eq!(&res.attributes[5], &attr("burn_tokens", "false"));
-    assert_eq!(&res.attributes[6], &attr("punishment", "2")); // Second punishment in proposal
-    assert_eq!(&res.attributes[7], &attr("slashing", VOTING1));
-    assert_eq!(&res.attributes[8], &attr("slashing_percentage", "0.5"));
-    assert_eq!(&res.attributes[9], &attr("distribution_list", ""));
-    assert_eq!(&res.attributes[10], &attr("burn_tokens", "true"));
-    assert_eq!(&res.attributes[11], &attr("action", "execute"));
-    assert_eq!(&res.attributes[12], &attr("proposal_id", "2"));
+    assert_eq!(&res.attributes[4], &attr("slashed_escrow", "distribute"));
+    assert_eq!(&res.attributes[5], &attr("distribution_list", VOTING2));
+    assert_eq!(&res.attributes[6], &attr("kick_out", "false"));
+    assert_eq!(&res.attributes[7], &attr("punishment", "2")); // Second punishment in proposal
+    assert_eq!(&res.attributes[8], &attr("member", VOTING1));
+    assert_eq!(&res.attributes[9], &attr("slashing_percentage", "0.5"));
+    assert_eq!(&res.attributes[10], &attr("slashed_escrow", "burn"));
+    assert_eq!(&res.attributes[11], &attr("kick_out", "false"));
+    assert_eq!(&res.attributes[12], &attr("action", "execute"));
+    assert_eq!(&res.attributes[13], &attr("proposal_id", "2"));
 
     // Check the escrow amounts, status and voting weight have been updated
     // Weights properly (INIT_ADMIN demoted)

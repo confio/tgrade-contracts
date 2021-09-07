@@ -886,7 +886,22 @@ pub fn proposal_punish_members(
 
         p.validate(&deps.as_ref())?;
 
-        let addr = Addr::unchecked(&p.member);
+        let (member, &slashing_percentage, &kick_out) = match p {
+            Punishment::DistributeEscrow {
+                member,
+                slashing_percentage,
+                kick_out,
+                ..
+            } => (member, slashing_percentage, kick_out),
+            Punishment::BurnEscrow {
+                member,
+                slashing_percentage,
+                kick_out,
+                ..
+            } => (member, slashing_percentage, kick_out),
+        };
+
+        let addr = Addr::unchecked(member);
         let mut escrow_status = ESCROWS.load(deps.storage, &addr)?;
         if escrow_status.status == (NonVoting {}) {
             return Err(ContractError::PunishInvalidMemberStatus(
@@ -896,35 +911,38 @@ pub fn proposal_punish_members(
         }
 
         // Distribution amount
-        let escrow_slashed = (escrow_status.paid * p.slashing_percentage).u128();
+        let escrow_slashed = (escrow_status.paid * slashing_percentage).u128();
         // Remaining escrow amount
         let mut escrow_remaining = escrow_status.paid.u128() - escrow_slashed;
 
         // Distribute / burn
-        if p.burn_tokens {
-            // Burn
-            res = res.add_message(BankMsg::Burn {
-                amount: vec![coin(escrow_slashed, DSO_DENOM)],
-            });
-        } else {
-            // Distribute
-            let escrow_each = escrow_slashed / p.distribution_list.len() as u128;
-            let escrow_remainder = escrow_slashed % p.distribution_list.len() as u128;
-            for distr_addr in &p.distribution_list {
-                // Generate Bank message with distribution payment
-                res = res.add_message(BankMsg::Send {
-                    to_address: distr_addr.clone(),
-                    amount: vec![coin(escrow_each, DSO_DENOM)],
+        match p {
+            Punishment::DistributeEscrow {
+                distribution_list, ..
+            } => {
+                let escrow_each = escrow_slashed / distribution_list.len() as u128;
+                let escrow_remainder = escrow_slashed % distribution_list.len() as u128;
+                for distr_addr in distribution_list {
+                    // Generate Bank message with distribution payment
+                    res = res.add_message(BankMsg::Send {
+                        to_address: distr_addr.clone(),
+                        amount: vec![coin(escrow_each, DSO_DENOM)],
+                    });
+                }
+                // Keep remainder escrow in member account
+                escrow_remaining += escrow_remainder;
+            }
+            Punishment::BurnEscrow { .. } => {
+                res = res.add_message(BankMsg::Burn {
+                    amount: vec![coin(escrow_slashed, DSO_DENOM)],
                 });
             }
-            // Keep remainder escrow in member account
-            escrow_remaining += escrow_remainder;
         }
 
         // Adjust remaining escrow / status
         escrow_status.paid = escrow_remaining.into();
         let required_escrow = DSO.load(deps.storage)?.get_escrow();
-        if p.kick_out {
+        if kick_out {
             let attrs =
                 trigger_long_leave(deps.branch(), env.clone(), addr, escrow_status)?.attributes;
             res.attributes.extend_from_slice(&attrs);
