@@ -828,7 +828,10 @@ fn punish_member_slashing() {
     let res = propose_punish_member(deps.as_mut(), env.clone(), VOTING, VOTING.into(), 10, false)
         .unwrap();
 
-    execute_passed_proposal(deps.as_mut(), env.clone(), parse_prop_id(&res.attributes)).unwrap();
+    let res = execute_passed_proposal(deps.as_mut(), env.clone(), parse_prop_id(&res.attributes))
+        .unwrap();
+    // check distribution
+    assert_eq!(&res.attributes[5], &attr("burn_tokens", "false"));
 
     // check punished member status still can vote (slashing too low)
     // assert voting member
@@ -844,7 +847,9 @@ fn punish_member_slashing() {
         .unwrap();
     let proposal_id = parse_prop_id(&res.attributes);
 
-    execute_passed_proposal(deps.as_mut(), env, proposal_id).unwrap();
+    let res = execute_passed_proposal(deps.as_mut(), env, proposal_id).unwrap();
+    // check distribution
+    assert_eq!(&res.attributes[5], &attr("burn_tokens", "false"));
 
     // check punished member cannot vote
     assert_membership(deps.as_ref(), VOTING, Some(0));
@@ -888,7 +893,9 @@ fn punish_member_expulsion() {
     let res =
         propose_punish_member(deps.as_mut(), env.clone(), VOTING, VOTING.into(), 90, true).unwrap();
 
-    execute_passed_proposal(deps.as_mut(), env.clone(), parse_prop_id(&res.attributes)).unwrap();
+    let res = execute_passed_proposal(deps.as_mut(), env.clone(), parse_prop_id(&res.attributes)).unwrap();
+    // check distribution
+    assert_eq!(&res.attributes[5], &attr("burn_tokens", "false"));
 
     // check kicked out member cannot vote
     assert_membership(deps.as_ref(), VOTING, Some(0));
