@@ -1214,6 +1214,39 @@ fn punish_members_validation() {
             }]),
             ContractError::EmptyDistributionList {},
         ),
+        (
+            // Invalid slashing
+            ProposalContent::PunishMembers(vec![Punishment::BurnEscrow {
+                member: VOTING1.into(),
+                slashing_percentage: Decimal::percent(101),
+                kick_out: false,
+            }]),
+            ContractError::InvalidSlashingPercentage(
+                Addr::unchecked(VOTING1),
+                Decimal::percent(101),
+            ),
+        ),
+        (
+            // Invalid member status
+            ProposalContent::PunishMembers(vec![Punishment::BurnEscrow {
+                member: VOTING1.into(),
+                slashing_percentage: Decimal::percent(10),
+                kick_out: false,
+            }]),
+            ContractError::PunishInvalidMemberStatus(
+                Addr::unchecked(VOTING1),
+                MemberStatus::NonVoting {},
+            ),
+        ),
+        (
+            // Not a member
+            ProposalContent::PunishMembers(vec![Punishment::BurnEscrow {
+                member: NONMEMBER.into(),
+                slashing_percentage: Decimal::percent(10),
+                kick_out: false,
+            }]),
+            ContractError::Std(StdError::not_found("tgrade_dso::state::EscrowStatus")),
+        ),
     ] {
         let msg = ExecuteMsg::Propose {
             title: "Invalid proposal".to_string(),

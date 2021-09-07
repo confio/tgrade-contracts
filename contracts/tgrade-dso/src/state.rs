@@ -280,7 +280,22 @@ impl Punishment {
                     ));
                 }
             }
-            Punishment::BurnEscrow { .. } => {}
+            Punishment::BurnEscrow {
+                member,
+                slashing_percentage,
+                ..
+            } => {
+                // Validate member address
+                let addr = deps.api.addr_validate(&member)?;
+
+                // Validate slashing percentage
+                if !(Decimal::zero()..=Decimal::one()).contains(slashing_percentage) {
+                    return Err(ContractError::InvalidSlashingPercentage(
+                        addr,
+                        *slashing_percentage,
+                    ));
+                }
+            }
         }
         Ok(())
     }
