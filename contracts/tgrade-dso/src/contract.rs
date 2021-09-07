@@ -15,10 +15,11 @@ use crate::msg::{
     DsoResponse, Escrow, EscrowListResponse, EscrowResponse, ExecuteMsg, InstantiateMsg,
     ProposalListResponse, ProposalResponse, QueryMsg, VoteInfo, VoteListResponse, VoteResponse,
 };
+use crate::state::MemberStatus::NonVoting;
 use crate::state::{
-    batches, create_proposal, members, parse_id, save_ballot, Ballot, Batch, Dso, DsoAdjustments,
-    EscrowStatus, MemberStatus, Proposal, ProposalContent, Votes, VotingRules, BALLOTS,
-    BALLOTS_BY_VOTER, DSO, ESCROWS, PROPOSALS, PROPOSAL_BY_EXPIRY, TOTAL,
+    batches, create_batch, create_proposal, members, parse_id, save_ballot, Ballot, Batch, Dso,
+    DsoAdjustments, EscrowStatus, MemberStatus, Proposal, ProposalContent, Punishment, Votes,
+    VotingRules, BALLOTS, BALLOTS_BY_VOTER, DSO, ESCROWS, PROPOSALS, PROPOSAL_BY_EXPIRY, TOTAL,
 };
 
 // version info for migration info
@@ -548,7 +549,7 @@ fn trigger_long_leave(
         .add_attribute("action", "leave_dso")
         .add_attribute("type", "delayed")
         .add_attribute("claim_at", claim_at.to_string())
-        .add_attribute("sender", leaver);
+        .add_attribute("leaving", leaver);
     Ok(res)
 }
 
@@ -654,7 +655,7 @@ fn pending_escrow_demote_promote_members(
             })
             .collect::<StdResult<_>>()?;
         let mut evt = Event::new(DEMOTE_TYPE).add_attribute(PROPOSAL_KEY, proposal_id.to_string());
-        let mut addrs = vec![];
+        let mut demoted_addrs = vec![];
         for (key, mut escrow_status) in demoted {
             let addr = Addr::unchecked(String::from_utf8(key)?);
             escrow_status.status = MemberStatus::Pending { proposal_id };
@@ -666,21 +667,12 @@ fn pending_escrow_demote_promote_members(
                 old.checked_sub(VOTING_WEIGHT)
                     .ok_or_else(|| StdError::generic_err("Total underflow"))
             })?;
-            addrs.push(addr.clone());
+            demoted_addrs.push(addr.clone());
             evt = evt.add_attribute(MEMBER_KEY, addr);
         }
-        // Create batch (so that promotion can work)!
+        // Create and store batch (so that promotion can work)!
         let grace_period = 0; // promote them as soon as they pay (this is like a "batch of one")
-        let batch = Batch {
-            grace_ends_at: env.block.time.plus_seconds(grace_period).seconds(),
-            waiting_escrow: addrs.len() as u32,
-            batch_promoted: false,
-            members: addrs,
-        };
-        batches().update(storage, proposal_id.into(), |old| match old {
-            Some(_) => Err(ContractError::AlreadyUsedProposal(proposal_id)),
-            None => Ok(batch),
-        })?;
+        create_batch(storage, env, proposal_id, grace_period, &demoted_addrs)?;
         return Ok(Some(evt));
     } else if new_escrow_amount < escrow_amount {
         let promoted: Vec<_> = ESCROWS
@@ -758,6 +750,9 @@ pub fn proposal_execute(
         ProposalContent::AddVotingMembers { voters } => {
             proposal_add_voting_members(deps, env, proposal_id, voters)
         }
+        ProposalContent::PunishMembers(punishments) => {
+            proposal_punish_members(deps, env, proposal_id, &punishments)
+        }
     }
 }
 
@@ -809,16 +804,7 @@ pub fn proposal_add_voting_members(
         .iter()
         .map(|addr| deps.api.addr_validate(&addr))
         .collect::<StdResult<Vec<_>>>()?;
-    let batch = Batch {
-        grace_ends_at: env.block.time.plus_seconds(grace_period).seconds(),
-        waiting_escrow: to_add.len() as u32,
-        batch_promoted: false,
-        members: addrs.clone(),
-    };
-    batches().update(deps.storage, proposal_id.into(), |old| match old {
-        Some(_) => Err(ContractError::AlreadyUsedProposal(proposal_id)),
-        None => Ok(batch),
-    })?;
+    create_batch(deps.storage, &env, proposal_id, grace_period, &addrs)?;
 
     let res = Response::new()
         .add_attribute("action", "add_voting_members")
@@ -881,6 +867,113 @@ pub fn add_remove_non_voting_members(
         }
     }
     Ok(())
+}
+
+pub fn proposal_punish_members(
+    mut deps: DepsMut,
+    env: Env,
+    proposal_id: u64,
+    punishments: &[Punishment],
+) -> Result<Response, ContractError> {
+    let mut res = Response::new().add_attribute("proposal", "punish_members");
+    if punishments.is_empty() {
+        return Err(ContractError::NoPunishments {});
+    }
+    let mut demoted_addrs = vec![];
+    for (i, p) in (1..).zip(punishments) {
+        res = res.add_event(p.as_event(i));
+
+        p.validate(&deps.as_ref())?;
+
+        let (member, &slashing_percentage, &kick_out) = match p {
+            Punishment::DistributeEscrow {
+                member,
+                slashing_percentage,
+                kick_out,
+                ..
+            } => (member, slashing_percentage, kick_out),
+            Punishment::BurnEscrow {
+                member,
+                slashing_percentage,
+                kick_out,
+                ..
+            } => (member, slashing_percentage, kick_out),
+        };
+
+        let addr = Addr::unchecked(member);
+        let mut escrow_status = ESCROWS.load(deps.storage, &addr)?;
+        if escrow_status.status == (NonVoting {}) {
+            return Err(ContractError::PunishInvalidMemberStatus(
+                addr,
+                escrow_status.status,
+            ));
+        }
+
+        // Distribution amount
+        let escrow_slashed = (escrow_status.paid * slashing_percentage).u128();
+        // Remaining escrow amount
+        let mut escrow_remaining = escrow_status.paid.u128() - escrow_slashed;
+
+        // Distribute / burn
+        match p {
+            Punishment::DistributeEscrow {
+                distribution_list, ..
+            } => {
+                let escrow_each = escrow_slashed / distribution_list.len() as u128;
+                let escrow_remainder = escrow_slashed % distribution_list.len() as u128;
+                for distr_addr in distribution_list {
+                    // Generate Bank message with distribution payment
+                    res = res.add_message(BankMsg::Send {
+                        to_address: distr_addr.clone(),
+                        amount: vec![coin(escrow_each, DSO_DENOM)],
+                    });
+                }
+                // Keep remainder escrow in member account
+                escrow_remaining += escrow_remainder;
+            }
+            Punishment::BurnEscrow { .. } => {
+                res = res.add_message(BankMsg::Burn {
+                    amount: vec![coin(escrow_slashed, DSO_DENOM)],
+                });
+            }
+        }
+
+        // Adjust remaining escrow / status
+        escrow_status.paid = escrow_remaining.into();
+        let required_escrow = DSO.load(deps.storage)?.get_escrow();
+        if kick_out {
+            let attrs =
+                trigger_long_leave(deps.branch(), env.clone(), addr, escrow_status)?.attributes;
+            res.attributes.extend_from_slice(&attrs);
+        } else if escrow_status.paid < required_escrow {
+            // If it's a voting member, reduce vote to 0 (otherwise, it is already 0)
+            if escrow_status.status == (MemberStatus::Voting {}) {
+                members().save(deps.storage, &addr, &0, env.block.height)?;
+                TOTAL.update::<_, StdError>(deps.storage, |old| {
+                    old.checked_sub(VOTING_WEIGHT)
+                        .ok_or_else(|| StdError::generic_err("Total underflow"))
+                })?;
+            }
+            escrow_status.status = MemberStatus::Pending { proposal_id };
+            ESCROWS.save(deps.storage, &addr, &escrow_status)?;
+            demoted_addrs.push(addr);
+        } else {
+            // Just update remaining escrow
+            ESCROWS.save(deps.storage, &addr, &escrow_status)?;
+        };
+    }
+
+    // Create (and store) batch for demoted members (so that promotion can work)!
+    let grace_period = 0; // promote them as soon as they pay (this is like a "batch of one")
+    create_batch(
+        deps.storage,
+        &env,
+        proposal_id,
+        grace_period,
+        &demoted_addrs,
+    )?;
+
+    Ok(res)
 }
 
 #[cfg_attr(not(feature = "library"), entry_point)]

@@ -235,6 +235,103 @@
             }
           },
           "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "required": [
+            "punish_members"
+          ],
+          "properties": {
+            "punish_members": {
+              "type": "array",
+              "items": {
+                "$ref": "#/definitions/Punishment"
+              }
+            }
+          },
+          "additionalProperties": false
+        }
+      ]
+    },
+    "Punishment": {
+      "anyOf": [
+        {
+          "type": "object",
+          "required": [
+            "DistributeEscrow"
+          ],
+          "properties": {
+            "DistributeEscrow": {
+              "type": "object",
+              "required": [
+                "distribution_list",
+                "kick_out",
+                "member",
+                "slashing_percentage"
+              ],
+              "properties": {
+                "distribution_list": {
+                  "description": "Distribution list to send member's slashed escrow amount. If empty (and `burn_tokens` is false), funds are kept in member's escrow. `slashing_percentage` is irrelevant / ignored in that case",
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  }
+                },
+                "kick_out": {
+                  "description": "If set to false, slashed member is demoted to `Pending`. Or not demoted at all, depending on the amount of funds he retains in escrow. If set to true, slashed member is effectively demoted to `Leaving`",
+                  "type": "boolean"
+                },
+                "member": {
+                  "description": "Member to slash / expel",
+                  "type": "string"
+                },
+                "slashing_percentage": {
+                  "description": "Slashing percentage",
+                  "allOf": [
+                    {
+                      "$ref": "#/definitions/Decimal"
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "required": [
+            "BurnEscrow"
+          ],
+          "properties": {
+            "BurnEscrow": {
+              "type": "object",
+              "required": [
+                "kick_out",
+                "member",
+                "slashing_percentage"
+              ],
+              "properties": {
+                "kick_out": {
+                  "description": "If set to false, slashed member is demoted to `Pending`. Or not demoted at all, depending on the amount of funds he retains in escrow. If set to true, slashed member is effectively demoted to `Leaving`",
+                  "type": "boolean"
+                },
+                "member": {
+                  "description": "Member to slash / expel",
+                  "type": "string"
+                },
+                "slashing_percentage": {
+                  "description": "Slashing percentage",
+                  "allOf": [
+                    {
+                      "$ref": "#/definitions/Decimal"
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "additionalProperties": false
         }
       ]
     },

@@ -1,7 +1,7 @@
 #![cfg(test)]
 use cosmwasm_std::{Deps, SubMsg};
 
-use crate::state::EscrowStatus;
+use crate::state::{EscrowStatus, Punishment};
 
 use super::*;
 use crate::error::ContractError::Unauthorized;
@@ -64,6 +64,24 @@ fn assert_escrow(deps: Deps, addr: &str, expected: u128) {
     assert_eq!(paid.u128(), expected);
 }
 
+fn execute_passed_proposal(
+    deps: DepsMut,
+    env: Env,
+    proposal_id: u64,
+) -> Result<Response, ContractError> {
+    // ensure it passed (already via principal voter)
+    let prop = query_proposal(deps.as_ref(), env.clone(), proposal_id).unwrap();
+    assert_eq!(prop.status, Status::Passed);
+
+    // execute it
+    execute(
+        deps,
+        env,
+        mock_info(NONVOTING1, &[]),
+        ExecuteMsg::Execute { proposal_id },
+    )
+}
+
 fn setup_bdd(mut deps: DepsMut) {
     let start = mock_env();
     let msg = InstantiateMsg {
@@ -80,7 +98,7 @@ fn setup_bdd(mut deps: DepsMut) {
 
     // add pending in first batch
     let env = later(&start, PENDING_STARTS);
-    let res = propose_add_voting_members(
+    propose_add_voting_members_and_execute(
         deps.branch(),
         env.clone(),
         VOTING,
@@ -91,38 +109,10 @@ fn setup_bdd(mut deps: DepsMut) {
         ],
     )
     .unwrap();
-    let proposal_id = parse_prop_id(&res.attributes);
-
-    // ensure it passed (already via principal voter)
-    let prop = query_proposal(deps.as_ref(), start.clone(), proposal_id).unwrap();
-    assert_eq!(prop.status, Status::Passed);
-
-    // execute it
-    execute(
-        deps.branch(),
-        env.clone(),
-        mock_info(NONVOTING1, &[]),
-        ExecuteMsg::Execute { proposal_id },
-    )
-    .unwrap();
 
     // add leaving in second batch (same block)
-    let res = propose_add_voting_members(deps.branch(), env.clone(), VOTING, vec![LEAVING.into()])
+    propose_add_voting_members_and_execute(deps.branch(), env, VOTING, vec![LEAVING.into()])
         .unwrap();
-    let proposal_id = parse_prop_id(&res.attributes);
-
-    // ensure it passed (already via principal voter)
-    let prop = query_proposal(deps.as_ref(), start.clone(), proposal_id).unwrap();
-    assert_eq!(prop.status, Status::Passed);
-
-    // execute it
-    execute(
-        deps.branch(),
-        env,
-        mock_info(NONVOTING1, &[]),
-        ExecuteMsg::Execute { proposal_id },
-    )
-    .unwrap();
 
     // pay in escrows
     execute(
@@ -178,13 +168,8 @@ fn deposit(deps: DepsMut, addr: &str) -> Result<Response, ContractError> {
     )
 }
 
-fn refund(deps: DepsMut, addr: &str) -> Result<Response, ContractError> {
-    execute(
-        deps,
-        now(),
-        mock_info(addr, &[]),
-        ExecuteMsg::ReturnEscrow {},
-    )
+fn refund(deps: DepsMut, env: Env, addr: &str) -> Result<Response, ContractError> {
+    execute(deps, env, mock_info(addr, &[]), ExecuteMsg::ReturnEscrow {})
 }
 
 fn demo_proposal() -> ExecuteMsg {
@@ -226,6 +211,22 @@ fn voting_members_proposal(members: Vec<String>) -> ExecuteMsg {
     }
 }
 
+fn punish_member_proposal(member: String, slashing_percentage: u64, kick_out: bool) -> ExecuteMsg {
+    let proposal = ProposalContent::PunishMembers(vec![Punishment::DistributeEscrow {
+        member,
+        slashing_percentage: Decimal::percent(slashing_percentage),
+        distribution_list: vec![NONMEMBER.into()],
+        kick_out,
+    }]);
+    ExecuteMsg::Propose {
+        title: "Punish Member".to_string(),
+        description:
+            "To punish a member with a given slashing / expulsion through the proposal mechanism"
+                .to_string(),
+        proposal,
+    }
+}
+
 fn propose(deps: DepsMut, addr: &str) -> Result<Response, ContractError> {
     execute(deps, now(), mock_info(addr, &[]), demo_proposal())
 }
@@ -257,6 +258,34 @@ fn propose_add_voting_members(
     )
 }
 
+fn propose_punish_member(
+    deps: DepsMut,
+    env: Env,
+    addr: &str,
+    member: String,
+    slashing_percentage: u64,
+    kick_out: bool,
+) -> Result<Response, ContractError> {
+    execute(
+        deps,
+        env,
+        mock_info(addr, &[]),
+        punish_member_proposal(member, slashing_percentage, kick_out),
+    )
+}
+
+#[track_caller]
+pub(crate) fn propose_add_voting_members_and_execute(
+    mut deps: DepsMut,
+    env: Env,
+    addr: &str,
+    members: Vec<String>,
+) -> Result<Response, ContractError> {
+    let res = propose_add_voting_members(deps.branch(), env.clone(), addr, members).unwrap();
+
+    execute_passed_proposal(deps, env, parse_prop_id(&res.attributes))
+}
+
 fn leave(deps: DepsMut, addr: &str) -> Result<Response, ContractError> {
     execute(deps, now(), mock_info(addr, &[]), ExecuteMsg::LeaveDso {})
 }
@@ -283,7 +312,7 @@ fn non_voting_deposit_return_propose_leave() {
     // cannot deposit escrow
     deposit(deps.as_mut(), NON_VOTING).unwrap_err();
     // cannot return escrow
-    refund(deps.as_mut(), NON_VOTING).unwrap_err();
+    refund(deps.as_mut(), now(), NON_VOTING).unwrap_err();
     // cannot create proposal
     propose(deps.as_mut(), NON_VOTING).unwrap_err();
 
@@ -308,7 +337,7 @@ fn non_member_deposit_return_propose_leave() {
     // cannot deposit escrow
     deposit(deps.as_mut(), NON_MEMBER).unwrap_err();
     // cannot return escrow
-    refund(deps.as_mut(), NON_MEMBER).unwrap_err();
+    refund(deps.as_mut(), now(), NON_MEMBER).unwrap_err();
     // cannot create proposal
     propose(deps.as_mut(), NON_MEMBER).unwrap_err();
     // cannot leave
@@ -329,7 +358,7 @@ fn pending_broke_deposit_return_propose() {
     // successful deposit escrow
     deposit(deps.as_mut(), PENDING_BROKE).unwrap();
     // cannot return escrow
-    refund(deps.as_mut(), PENDING_BROKE).unwrap_err();
+    refund(deps.as_mut(), now(), PENDING_BROKE).unwrap_err();
     // cannot create proposal
     propose(deps.as_mut(), PENDING_BROKE).unwrap_err();
 
@@ -363,7 +392,7 @@ fn pending_some_deposit_return_propose_leave() {
     // can deposit escrow
     deposit(deps.as_mut(), PENDING_SOME).unwrap();
     // cannot return escrow
-    refund(deps.as_mut(), PENDING_SOME).unwrap_err();
+    refund(deps.as_mut(), now(), PENDING_SOME).unwrap_err();
     // cannot create proposal
     propose(deps.as_mut(), PENDING_SOME).unwrap_err();
     // can leave, but long_leave
@@ -388,7 +417,7 @@ fn pending_paid_deposit_return_propose_leave() {
     // can deposit escrow
     deposit(deps.as_mut(), PENDING_PAID).unwrap();
     // cannot return escrow
-    refund(deps.as_mut(), PENDING_PAID).unwrap_err();
+    refund(deps.as_mut(), now(), PENDING_PAID).unwrap_err();
     // cannot create proposal
     propose(deps.as_mut(), PENDING_PAID).unwrap_err();
     // can leave, but long_leave
@@ -434,7 +463,7 @@ fn voting_deposit_return_propose_leave() {
     // can deposit escrow
     deposit(deps.as_mut(), VOTING).unwrap();
     // can return escrow
-    let res = refund(deps.as_mut(), VOTING).unwrap();
+    let res = refund(deps.as_mut(), now(), VOTING).unwrap();
     // we deposited 5000 in `deposit`. Return everything we can above the minimum
     assert_payment(res.messages, VOTING, VOTING_ESCROW + 5000 - ESCROW_FUNDS);
     // can create proposal
@@ -464,7 +493,7 @@ fn leaving_deposit_return_propose_leave() {
     // cannot deposit escrow
     deposit(deps.as_mut(), LEAVING).unwrap_err();
     // cannot return escrow
-    refund(deps.as_mut(), LEAVING).unwrap_err();
+    refund(deps.as_mut(), now(), LEAVING).unwrap_err();
     // cannot create proposal
     propose(deps.as_mut(), LEAVING).unwrap_err();
     // cannot leave again
@@ -621,18 +650,7 @@ fn edit_dso_increase_escrow_voting_demoted_after_grace_period() {
     let res = propose_edit_dso(deps.as_mut(), VOTING, ESCROW_FUNDS * 3).unwrap();
     let proposal_id = parse_prop_id(&res.attributes);
 
-    // ensure it passed (already via principal voter)
-    let prop = query_proposal(deps.as_ref(), env.clone(), proposal_id).unwrap();
-    assert_eq!(prop.status, Status::Passed);
-
-    // execute it
-    execute(
-        deps.as_mut(),
-        env,
-        mock_info(NONVOTING1, &[]),
-        ExecuteMsg::Execute { proposal_id },
-    )
-    .unwrap();
+    execute_passed_proposal(deps.as_mut(), env, proposal_id).unwrap();
 
     // check still voting
     assert_membership(deps.as_ref(), VOTING, Some(1));
@@ -697,20 +715,8 @@ fn edit_dso_decrease_escrow_pending_promoted_after_grace_period() {
 
     // creates edit dso proposal (half escrow amount)
     let res = propose_edit_dso(deps.as_mut(), VOTING, ESCROW_FUNDS / 2).unwrap();
-    let proposal_id = parse_prop_id(&res.attributes);
 
-    // ensure it passed (already via principal voter)
-    let prop = query_proposal(deps.as_ref(), env.clone(), proposal_id).unwrap();
-    assert_eq!(prop.status, Status::Passed);
-
-    // execute it
-    execute(
-        deps.as_mut(),
-        env,
-        mock_info(NONVOTING1, &[]),
-        ExecuteMsg::Execute { proposal_id },
-    )
-    .unwrap();
+    execute_passed_proposal(deps.as_mut(), env, parse_prop_id(&res.attributes)).unwrap();
 
     // check PENDING_SOME still Pending
     assert_escrow_status(
@@ -795,25 +801,149 @@ fn edit_dso_increase_escrow_enforced_before_new_proposal() {
 
     // creates edit dso proposal (tripling escrow amount)
     let res = propose_edit_dso(deps.as_mut(), VOTING, ESCROW_FUNDS * 3).unwrap();
-    let proposal_id = parse_prop_id(&res.attributes);
 
-    // ensure it passed (already via principal voter)
-    let prop = query_proposal(deps.as_ref(), env.clone(), proposal_id).unwrap();
-    assert_eq!(prop.status, Status::Passed);
-
-    // execute it
-    execute(
-        deps.as_mut(),
-        env,
-        mock_info(NONVOTING1, &[]),
-        ExecuteMsg::Execute { proposal_id },
-    )
-    .unwrap();
+    execute_passed_proposal(deps.as_mut(), env, parse_prop_id(&res.attributes)).unwrap();
 
     // create new proposal (after new grace period (1 day))
     let res = propose(deps.as_mut(), VOTING);
 
-    // check proposal creation error
+    // check proposal creation error (not enough escrow anymore)
     assert!(res.is_err());
     assert_eq!(res.unwrap_err(), Unauthorized {});
+}
+
+#[test]
+fn punish_member_slashing() {
+    let mut deps = mock_dependencies(&[]);
+    let env = mock_env();
+    setup_bdd(deps.as_mut());
+
+    // assert voting member
+    assert_membership(deps.as_ref(), VOTING, Some(1));
+    // assert escrow amount
+    assert_escrow(deps.as_ref(), VOTING, VOTING_ESCROW);
+
+    // creates punish member proposal
+    let res = propose_punish_member(deps.as_mut(), env.clone(), VOTING, VOTING.into(), 10, false)
+        .unwrap();
+
+    let res = execute_passed_proposal(deps.as_mut(), env.clone(), parse_prop_id(&res.attributes))
+        .unwrap();
+    // check distribution
+    assert_eq!(
+        &res.events[0].attributes[3],
+        &attr("slashed_escrow", "distribute")
+    );
+
+    // check punished member status still can vote (slashing too low)
+    // assert voting member
+    assert_membership(deps.as_ref(), VOTING, Some(1));
+    assert!(matches!(
+        get_status(deps.as_ref(), VOTING),
+        MemberStatus::Voting {}
+    ));
+    assert_escrow(deps.as_ref(), VOTING, VOTING_ESCROW / 10 * 9);
+
+    // Now slash it enough so that he loses his voting status
+    let res = propose_punish_member(deps.as_mut(), env.clone(), VOTING, VOTING.into(), 50, false)
+        .unwrap();
+    let proposal_id = parse_prop_id(&res.attributes);
+
+    let res = execute_passed_proposal(deps.as_mut(), env, proposal_id).unwrap();
+    // check distribution
+    assert_eq!(
+        &res.events[0].attributes[3],
+        &attr("slashed_escrow", "distribute")
+    );
+
+    // check punished member cannot vote
+    assert_membership(deps.as_ref(), VOTING, Some(0));
+    assert_eq!(
+        get_status(deps.as_ref(), VOTING),
+        MemberStatus::Pending { proposal_id }
+    );
+    assert_escrow(deps.as_ref(), VOTING, VOTING_ESCROW / 20 * 9);
+
+    // One day later this poor guy tops up his escrow again
+    execute(
+        deps.as_mut(),
+        later(&mock_env(), 86400),
+        mock_info(VOTING, &coins(VOTING_ESCROW, DENOM)),
+        ExecuteMsg::DepositEscrow {},
+    )
+    .unwrap();
+
+    // Check he recovers voting rights
+    assert_membership(deps.as_ref(), VOTING, Some(1));
+    assert_eq!(get_status(deps.as_ref(), VOTING), MemberStatus::Voting {});
+    assert_escrow(
+        deps.as_ref(),
+        VOTING,
+        VOTING_ESCROW / 20 * 9 + VOTING_ESCROW,
+    );
+}
+
+#[test]
+fn punish_member_expulsion() {
+    let mut deps = mock_dependencies(&[]);
+    let env = mock_env();
+    setup_bdd(deps.as_mut());
+
+    // assert voting member
+    assert_membership(deps.as_ref(), VOTING, Some(1));
+    // assert escrow amount
+    assert_escrow(deps.as_ref(), VOTING, VOTING_ESCROW);
+
+    // creates punish and kick out member proposal
+    let res =
+        propose_punish_member(deps.as_mut(), env.clone(), VOTING, VOTING.into(), 90, true).unwrap();
+
+    let res = execute_passed_proposal(deps.as_mut(), env.clone(), parse_prop_id(&res.attributes))
+        .unwrap();
+    // check distribution
+    assert_eq!(
+        &res.events[0].attributes[3],
+        &attr("slashed_escrow", "distribute")
+    );
+
+    // check kicked out member cannot vote
+    assert_membership(deps.as_ref(), VOTING, Some(0));
+    assert!(matches!(
+        get_status(deps.as_ref(), VOTING),
+        MemberStatus::Leaving { .. }
+    ));
+    assert_escrow(deps.as_ref(), VOTING, VOTING_ESCROW / 10);
+
+    // Check that he can reclaim his remaining escrow (after 2 voting periods)
+    // Try to reclaim anytime before expiration
+    let res = refund(deps.as_mut(), now(), VOTING);
+
+    assert!(res.is_err());
+    assert!(matches!(
+        res.unwrap_err(),
+        ContractError::CannotClaimYet { .. }
+    ));
+
+    // Try to reclaim just before expiration
+    let res = refund(
+        deps.as_mut(),
+        later(&env, VOTING_PERIOD as u64 * 2 * 86400 - 1),
+        VOTING,
+    );
+
+    assert!(res.is_err());
+    assert!(matches!(
+        res.unwrap_err(),
+        ContractError::CannotClaimYet { .. }
+    ));
+
+    // Reclaim just on expiration
+    let res = refund(
+        deps.as_mut(),
+        later(&env, VOTING_PERIOD as u64 * 2 * 86400),
+        VOTING,
+    )
+    .unwrap();
+
+    assert_payment(res.messages, VOTING, VOTING_ESCROW / 10);
 }

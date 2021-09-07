@@ -28,6 +28,7 @@ const INIT_ADMIN: &str = "juan";
 const DSO_NAME: &str = "test_dso";
 const ESCROW_FUNDS: u128 = 2_000_000;
 const DENOM: &str = "utgd";
+const VOTING_PERIOD: u32 = 14; // [days]
 
 const VOTING1: &str = "miles";
 const VOTING2: &str = "john";
@@ -37,6 +38,7 @@ const NONVOTING2: &str = "paul";
 const NONVOTING3: &str = "jimmy";
 const SECOND1: &str = "more";
 const SECOND2: &str = "peeps";
+const NONMEMBER: &str = "external";
 
 #[track_caller]
 fn assert_sorted_eq<F, T>(left: Vec<T>, right: Vec<T>, cmp: &F)

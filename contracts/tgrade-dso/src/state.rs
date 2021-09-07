@@ -4,8 +4,8 @@ use std::fmt;
 
 use crate::error::ContractError;
 use cosmwasm_std::{
-    attr, Addr, Attribute, BlockInfo, Decimal, Env, StdError, StdResult, Storage, Timestamp,
-    Uint128,
+    attr, Addr, Attribute, BlockInfo, Decimal, Deps, Env, Event, StdError, StdResult, Storage,
+    Timestamp, Uint128,
 };
 use cw0::Expiration;
 use cw3::{Status, Vote};
@@ -189,6 +189,115 @@ impl DsoAdjustments {
     }
 }
 
+#[derive(Serialize, Deserialize, Clone, PartialEq, Debug, JsonSchema)]
+pub enum Punishment {
+    DistributeEscrow {
+        /// Member to slash / expel
+        member: String,
+        /// Slashing percentage
+        slashing_percentage: Decimal,
+        /// Distribution list to send member's slashed escrow amount.
+        /// If empty (and `burn_tokens` is false), funds are kept in member's escrow.
+        /// `slashing_percentage` is irrelevant / ignored in that case
+        distribution_list: Vec<String>,
+        /// If set to false, slashed member is demoted to `Pending`. Or not demoted at all,
+        /// depending on the amount of funds he retains in escrow.
+        /// If set to true, slashed member is effectively demoted to `Leaving`
+        kick_out: bool,
+    },
+    BurnEscrow {
+        /// Member to slash / expel
+        member: String,
+        /// Slashing percentage
+        slashing_percentage: Decimal,
+        /// If set to false, slashed member is demoted to `Pending`. Or not demoted at all,
+        /// depending on the amount of funds he retains in escrow.
+        /// If set to true, slashed member is effectively demoted to `Leaving`
+        kick_out: bool,
+    },
+}
+
+const PUNISHMENT_TYPE: &str = "punishment";
+
+impl Punishment {
+    pub fn as_event(&self, punishment_id: u32) -> Event {
+        let mut evt =
+            Event::new(PUNISHMENT_TYPE).add_attribute("punishment_id", punishment_id.to_string());
+        match &self {
+            Punishment::DistributeEscrow {
+                member,
+                slashing_percentage,
+                distribution_list,
+                kick_out,
+            } => {
+                evt = evt.add_attribute("member", member);
+                evt = evt.add_attribute("slashing_percentage", &slashing_percentage.to_string());
+                evt = evt.add_attribute("slashed_escrow", "distribute");
+                evt = evt.add_attribute("distribution_list", distribution_list.join(", "));
+                evt = evt.add_attribute("kick_out", kick_out.to_string());
+            }
+            Punishment::BurnEscrow {
+                member,
+                slashing_percentage,
+                kick_out,
+            } => {
+                evt = evt.add_attribute("member", member);
+                evt = evt.add_attribute("slashing_percentage", &slashing_percentage.to_string());
+                evt = evt.add_attribute("slashed_escrow", "burn");
+                evt = evt.add_attribute("kick_out", kick_out.to_string());
+            }
+        };
+        evt
+    }
+
+    pub fn validate(&self, deps: &Deps) -> Result<(), ContractError> {
+        match &self {
+            Punishment::DistributeEscrow {
+                member,
+                slashing_percentage,
+                distribution_list,
+                ..
+            } => {
+                // Validate member address
+                let addr = deps.api.addr_validate(&member)?;
+
+                if distribution_list.is_empty() {
+                    return Err(ContractError::EmptyDistributionList {});
+                }
+                // Validate destination addresses
+                for d in distribution_list {
+                    deps.api.addr_validate(&d)?;
+                }
+
+                // Validate slashing percentage
+                if !(Decimal::zero()..=Decimal::one()).contains(slashing_percentage) {
+                    return Err(ContractError::InvalidSlashingPercentage(
+                        addr,
+                        *slashing_percentage,
+                    ));
+                }
+            }
+            Punishment::BurnEscrow {
+                member,
+                slashing_percentage,
+                ..
+            } => {
+                // Validate member address
+                let addr = deps.api.addr_validate(&member)?;
+
+                // Validate slashing percentage
+                if !(Decimal::zero()..=Decimal::one()).contains(slashing_percentage) {
+                    return Err(ContractError::InvalidSlashingPercentage(
+                        addr,
+                        *slashing_percentage,
+                    ));
+                }
+            }
+        }
+        Ok(())
+    }
+}
+
 pub const DSO: Item<Dso> = Item::new("dso");
 
 pub const TOTAL: Item<u64> = Item::new(TOTAL_KEY);
@@ -319,6 +428,28 @@ impl Batch {
     }
 }
 
+pub(crate) fn create_batch(
+    storage: &mut dyn Storage,
+    env: &Env,
+    proposal_id: u64,
+    grace_period: u64,
+    addrs: &[Addr],
+) -> Result<(), ContractError> {
+    if !addrs.is_empty() {
+        let batch = Batch {
+            grace_ends_at: env.block.time.plus_seconds(grace_period).seconds(),
+            waiting_escrow: addrs.len() as u32,
+            batch_promoted: false,
+            members: addrs.into(),
+        };
+        batches().update(storage, proposal_id.into(), |old| match old {
+            Some(_) => Err(ContractError::AlreadyUsedProposal(proposal_id)),
+            None => Ok(batch),
+        })?;
+    }
+    Ok(())
+}
+
 // We need a secondary index for batches, such that we can look up batches that have
 // not been promoted, ordered by expiration (ascending) up to now.
 // Index: (U8Key/bool: batch_promoted, U64Key: grace_ends_at) -> U64Key: pk
@@ -360,6 +491,7 @@ pub enum ProposalContent {
     AddVotingMembers {
         voters: Vec<String>,
     },
+    PunishMembers(Vec<Punishment>),
 }
 
 #[derive(Serialize, Deserialize, Clone, PartialEq, JsonSchema, Debug)]
