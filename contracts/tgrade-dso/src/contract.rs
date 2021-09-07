@@ -876,7 +876,6 @@ pub fn proposal_punish_members(
     punishments: &[Punishment],
 ) -> Result<Response, ContractError> {
     let mut res = Response::new().add_attribute("proposal", "punish_members");
-    // TODO: Move to proposal creation
     if punishments.is_empty() {
         return Err(ContractError::NoPunishments {});
     }
@@ -886,7 +885,6 @@ pub fn proposal_punish_members(
         res = res.add_attribute("punishment", i.to_string());
         res = res.add_attributes(p.as_attributes());
 
-        // TODO: Move to proposal creation
         p.validate(&deps.as_ref())?;
 
         let addr = Addr::unchecked(&p.member);
