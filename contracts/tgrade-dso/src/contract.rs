@@ -2,7 +2,7 @@
 use cosmwasm_std::entry_point;
 use cosmwasm_std::{
     coin, to_binary, Addr, BankMsg, Binary, BlockInfo, Deps, DepsMut, Env, Event, MessageInfo,
-    Order, Response, StdError, StdResult, Storage, SubMsg, Uint128,
+    Order, Response, StdError, StdResult, Storage, Uint128,
 };
 use cw0::{maybe_addr, Expiration};
 use cw2::set_contract_version;
@@ -880,7 +880,6 @@ pub fn proposal_punish_members(
         return Err(ContractError::NoPunishments {});
     }
     let mut demoted_addrs = vec![];
-    let mut msgs = vec![];
     for (i, p) in (1..).zip(punishments) {
         res = res.add_attribute("punishment", i.to_string());
         res = res.add_attributes(p.as_attributes());
@@ -904,21 +903,19 @@ pub fn proposal_punish_members(
         // Distribute / burn
         if p.burn_tokens {
             // Burn
-            let msg = SubMsg::new(BankMsg::Burn {
+            res = res.add_message(BankMsg::Burn {
                 amount: vec![coin(escrow_slashed, DSO_DENOM)],
             });
-            msgs.push(msg);
         } else {
             // Distribute
             let escrow_each = escrow_slashed / p.distribution_list.len() as u128;
             let escrow_remainder = escrow_slashed % p.distribution_list.len() as u128;
             for distr_addr in &p.distribution_list {
                 // Generate Bank message with distribution payment
-                let msg = SubMsg::new(BankMsg::Send {
+                res = res.add_message(BankMsg::Send {
                     to_address: distr_addr.clone(),
                     amount: vec![coin(escrow_each, DSO_DENOM)],
                 });
-                msgs.push(msg);
             }
             // Keep remainder escrow in member account
             escrow_remaining += escrow_remainder;
@@ -948,8 +945,6 @@ pub fn proposal_punish_members(
             ESCROWS.save(deps.storage, &addr, &escrow_status)?;
         };
     }
-    // Send messages
-    res.messages = msgs;
 
     // Create (and store) batch for demoted members (so that promotion can work)!
     let grace_period = 0; // promote them as soon as they pay (this is like a "batch of one")
