@@ -646,6 +646,8 @@ fn propose_new_voting_rules() {
     assert_eq!(&res.attributes[5], &attr("proposal", "edit_dso"));
     assert_eq!(&res.attributes[6], &attr("action", "execute"));
     assert_eq!(&res.attributes[7], &attr("proposal_id", "1"));
+    // check the proper events returned
+    assert_eq!(res.events.len(), 0);
 
     // check the rules have been updated
     let dso = query_dso(deps.as_ref()).unwrap();
@@ -990,19 +992,28 @@ fn propose_punish_members_distribution() {
     .unwrap();
 
     // check the proper attributes returned
-    assert_eq!(res.attributes.len(), 9);
+    assert_eq!(res.attributes.len(), 3);
     assert_eq!(&res.attributes[0], &attr("proposal", "punish_members"));
-    assert_eq!(&res.attributes[1], &attr("punishment", "1")); // First punishment in proposal
-    assert_eq!(&res.attributes[2], &attr("member", VOTING1));
-    assert_eq!(&res.attributes[3], &attr("slashing_percentage", "0.5"));
-    assert_eq!(&res.attributes[4], &attr("slashed_escrow", "distribute"));
+    assert_eq!(&res.attributes[1], &attr("action", "execute"));
+    assert_eq!(&res.attributes[2], &attr("proposal_id", "2"));
+    // check the proper events returned
+    assert_eq!(res.events.len(), 1);
+    assert_eq!(&res.events[0].ty, "punishment");
+    assert_eq!(&res.events[0].attributes[0], &attr("punishment_id", "1")); // First punishment in proposal
+    assert_eq!(&res.events[0].attributes[1], &attr("member", VOTING1));
     assert_eq!(
-        &res.attributes[5],
+        &res.events[0].attributes[2],
+        &attr("slashing_percentage", "0.5")
+    );
+    assert_eq!(
+        &res.events[0].attributes[3],
+        &attr("slashed_escrow", "distribute")
+    );
+    assert_eq!(
+        &res.events[0].attributes[4],
         &attr("distribution_list", [VOTING2, NONMEMBER].join(", "))
     );
-    assert_eq!(&res.attributes[6], &attr("kick_out", "false"));
-    assert_eq!(&res.attributes[7], &attr("action", "execute"));
-    assert_eq!(&res.attributes[8], &attr("proposal_id", "2"));
+    assert_eq!(&res.events[0].attributes[5], &attr("kick_out", "false"));
 
     // Check the escrow amounts, status and voting weight have been updated
     // Weights properly
@@ -1110,15 +1121,25 @@ fn propose_punish_members_burn() {
     .unwrap();
 
     // check the proper attributes returned
-    assert_eq!(res.attributes.len(), 8);
+    assert_eq!(res.attributes.len(), 3);
     assert_eq!(&res.attributes[0], &attr("proposal", "punish_members"));
-    assert_eq!(&res.attributes[1], &attr("punishment", "1")); // First punishment in proposal
-    assert_eq!(&res.attributes[2], &attr("member", VOTING1));
-    assert_eq!(&res.attributes[3], &attr("slashing_percentage", "0.25"));
-    assert_eq!(&res.attributes[4], &attr("slashed_escrow", "burn"));
-    assert_eq!(&res.attributes[5], &attr("kick_out", "false"));
-    assert_eq!(&res.attributes[6], &attr("action", "execute"));
-    assert_eq!(&res.attributes[7], &attr("proposal_id", "2"));
+    assert_eq!(&res.attributes[1], &attr("action", "execute"));
+    assert_eq!(&res.attributes[2], &attr("proposal_id", "2"));
+    // check the proper events returned
+    assert_eq!(res.events.len(), 1);
+    assert_eq!(&res.events[0].ty, "punishment");
+    assert_eq!(res.events[0].attributes.len(), 5);
+    assert_eq!(&res.events[0].attributes[0], &attr("punishment_id", "1")); // First punishment in proposal
+    assert_eq!(&res.events[0].attributes[1], &attr("member", VOTING1));
+    assert_eq!(
+        &res.events[0].attributes[2],
+        &attr("slashing_percentage", "0.25")
+    );
+    assert_eq!(
+        &res.events[0].attributes[3],
+        &attr("slashed_escrow", "burn")
+    );
+    assert_eq!(&res.events[0].attributes[4], &attr("kick_out", "false"));
 
     // Check the escrow amounts, status and voting weight have been updated
     // Weights properly
@@ -1355,23 +1376,33 @@ fn propose_punish_members_kick_out() {
     .unwrap();
 
     // check the proper attributes returned
-    assert_eq!(res.attributes.len(), 13);
+    assert_eq!(res.attributes.len(), 7);
     assert_eq!(&res.attributes[0], &attr("proposal", "punish_members"));
-    assert_eq!(&res.attributes[1], &attr("punishment", "1")); // First punishment in proposal
-    assert_eq!(&res.attributes[2], &attr("member", VOTING1));
-    assert_eq!(&res.attributes[3], &attr("slashing_percentage", "0.75"));
-    assert_eq!(&res.attributes[4], &attr("slashed_escrow", "distribute"));
+    assert_eq!(&res.attributes[1], &attr("action", "leave_dso"));
+    assert_eq!(&res.attributes[2], &attr("type", "delayed"));
+    assert_eq!(&res.attributes[3], &attr("claim_at", claim_at.to_string()));
+    assert_eq!(&res.attributes[4], &attr("leaving", VOTING1));
+    assert_eq!(&res.attributes[5], &attr("action", "execute"));
+    assert_eq!(&res.attributes[6], &attr("proposal_id", "2"));
+    // check the proper events returned
+    assert_eq!(res.events.len(), 1);
+    assert_eq!(&res.events[0].ty, "punishment");
+    assert_eq!(res.events[0].attributes.len(), 6);
+    assert_eq!(&res.events[0].attributes[0], &attr("punishment_id", "1")); // First punishment in proposal
+    assert_eq!(&res.events[0].attributes[1], &attr("member", VOTING1));
     assert_eq!(
-        &res.attributes[5],
-        &attr("distribution_list", [VOTING2].join(", "))
+        &res.events[0].attributes[2],
+        &attr("slashing_percentage", "0.75")
     );
-    assert_eq!(&res.attributes[6], &attr("kick_out", "true"));
-    assert_eq!(&res.attributes[7], &attr("action", "leave_dso"));
-    assert_eq!(&res.attributes[8], &attr("type", "delayed"));
-    assert_eq!(&res.attributes[9], &attr("claim_at", claim_at.to_string()));
-    assert_eq!(&res.attributes[10], &attr("leaving", VOTING1));
-    assert_eq!(&res.attributes[11], &attr("action", "execute"));
-    assert_eq!(&res.attributes[12], &attr("proposal_id", "2"));
+    assert_eq!(
+        &res.events[0].attributes[3],
+        &attr("slashed_escrow", "distribute")
+    );
+    assert_eq!(
+        &res.events[0].attributes[4],
+        &attr("distribution_list", VOTING2)
+    );
+    assert_eq!(&res.events[0].attributes[5], &attr("kick_out", "true"));
 
     // Check the escrow amounts, status and voting weight have been updated
     // Weights properly
@@ -1481,21 +1512,42 @@ fn propose_punish_multiple_members() {
     .unwrap();
 
     // check the proper attributes returned
-    assert_eq!(res.attributes.len(), 14);
+    assert_eq!(res.attributes.len(), 3);
     assert_eq!(&res.attributes[0], &attr("proposal", "punish_members"));
-    assert_eq!(&res.attributes[1], &attr("punishment", "1")); // First punishment in proposal
-    assert_eq!(&res.attributes[2], &attr("member", INIT_ADMIN));
-    assert_eq!(&res.attributes[3], &attr("slashing_percentage", "1"));
-    assert_eq!(&res.attributes[4], &attr("slashed_escrow", "distribute"));
-    assert_eq!(&res.attributes[5], &attr("distribution_list", VOTING2));
-    assert_eq!(&res.attributes[6], &attr("kick_out", "false"));
-    assert_eq!(&res.attributes[7], &attr("punishment", "2")); // Second punishment in proposal
-    assert_eq!(&res.attributes[8], &attr("member", VOTING1));
-    assert_eq!(&res.attributes[9], &attr("slashing_percentage", "0.5"));
-    assert_eq!(&res.attributes[10], &attr("slashed_escrow", "burn"));
-    assert_eq!(&res.attributes[11], &attr("kick_out", "false"));
-    assert_eq!(&res.attributes[12], &attr("action", "execute"));
-    assert_eq!(&res.attributes[13], &attr("proposal_id", "2"));
+    assert_eq!(&res.attributes[1], &attr("action", "execute"));
+    assert_eq!(&res.attributes[2], &attr("proposal_id", "2"));
+    // check the proper events returned
+    assert_eq!(res.events.len(), 2);
+    assert_eq!(&res.events[0].ty, "punishment");
+    assert_eq!(res.events[0].attributes.len(), 6);
+    assert_eq!(&res.events[0].attributes[0], &attr("punishment_id", "1")); // First punishment in proposal
+    assert_eq!(&res.events[0].attributes[1], &attr("member", INIT_ADMIN));
+    assert_eq!(
+        &res.events[0].attributes[2],
+        &attr("slashing_percentage", "1")
+    );
+    assert_eq!(
+        &res.events[0].attributes[3],
+        &attr("slashed_escrow", "distribute")
+    );
+    assert_eq!(
+        &res.events[0].attributes[4],
+        &attr("distribution_list", VOTING2)
+    );
+    assert_eq!(&res.events[0].attributes[5], &attr("kick_out", "false"));
+    assert_eq!(&res.events[1].ty, "punishment");
+    assert_eq!(res.events[1].attributes.len(), 5);
+    assert_eq!(&res.events[1].attributes[0], &attr("punishment_id", "2")); // Second punishment in proposal
+    assert_eq!(&res.events[1].attributes[1], &attr("member", VOTING1));
+    assert_eq!(
+        &res.events[1].attributes[2],
+        &attr("slashing_percentage", "0.5")
+    );
+    assert_eq!(
+        &res.events[1].attributes[3],
+        &attr("slashed_escrow", "burn")
+    );
+    assert_eq!(&res.events[1].attributes[4], &attr("kick_out", "false"));
 
     // Check the escrow amounts, status and voting weight have been updated
     // Weights properly (INIT_ADMIN demoted)

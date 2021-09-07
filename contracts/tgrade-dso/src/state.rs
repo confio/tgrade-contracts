@@ -4,8 +4,8 @@ use std::fmt;
 
 use crate::error::ContractError;
 use cosmwasm_std::{
-    attr, Addr, Attribute, BlockInfo, Decimal, Deps, Env, StdError, StdResult, Storage, Timestamp,
-    Uint128,
+    attr, Addr, Attribute, BlockInfo, Decimal, Deps, Env, Event, StdError, StdResult, Storage,
+    Timestamp, Uint128,
 };
 use cw0::Expiration;
 use cw3::{Status, Vote};
@@ -217,9 +217,12 @@ pub enum Punishment {
     },
 }
 
+const PUNISHMENT_TYPE: &str = "punishment";
+
 impl Punishment {
-    pub fn as_attributes(&self) -> Vec<Attribute> {
-        let mut res = vec![];
+    pub fn as_event(&self, punishment_id: u32) -> Event {
+        let mut evt =
+            Event::new(PUNISHMENT_TYPE).add_attribute("punishment_id", punishment_id.to_string());
         match &self {
             Punishment::DistributeEscrow {
                 member,
@@ -227,30 +230,24 @@ impl Punishment {
                 distribution_list,
                 kick_out,
             } => {
-                res.push(attr("member", member));
-                res.push(attr(
-                    "slashing_percentage",
-                    &slashing_percentage.to_string(),
-                ));
-                res.push(attr("slashed_escrow", "distribute"));
-                res.push(attr("distribution_list", distribution_list.join(", ")));
-                res.push(attr("kick_out", kick_out.to_string()));
+                evt = evt.add_attribute("member", member);
+                evt = evt.add_attribute("slashing_percentage", &slashing_percentage.to_string());
+                evt = evt.add_attribute("slashed_escrow", "distribute");
+                evt = evt.add_attribute("distribution_list", distribution_list.join(", "));
+                evt = evt.add_attribute("kick_out", kick_out.to_string());
             }
             Punishment::BurnEscrow {
                 member,
                 slashing_percentage,
                 kick_out,
             } => {
-                res.push(attr("member", member));
-                res.push(attr(
-                    "slashing_percentage",
-                    &slashing_percentage.to_string(),
-                ));
-                res.push(attr("slashed_escrow", "burn"));
-                res.push(attr("kick_out", kick_out.to_string()));
+                evt = evt.add_attribute("member", member);
+                evt = evt.add_attribute("slashing_percentage", &slashing_percentage.to_string());
+                evt = evt.add_attribute("slashed_escrow", "burn");
+                evt = evt.add_attribute("kick_out", kick_out.to_string());
             }
         };
-        res
+        evt
     }
 
     pub fn validate(&self, deps: &Deps) -> Result<(), ContractError> {

@@ -881,8 +881,7 @@ pub fn proposal_punish_members(
     }
     let mut demoted_addrs = vec![];
     for (i, p) in (1..).zip(punishments) {
-        res = res.add_attribute("punishment", i.to_string());
-        res = res.add_attributes(p.as_attributes());
+        res = res.add_event(p.as_event(i));
 
         p.validate(&deps.as_ref())?;
 
