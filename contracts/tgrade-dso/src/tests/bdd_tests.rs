@@ -857,7 +857,7 @@ fn punish_member_slashing() {
         get_status(deps.as_ref(), VOTING),
         MemberStatus::Pending { proposal_id }
     );
-    assert_escrow(deps.as_ref(), VOTING, VOTING_ESCROW / 10 * 9 / 2);
+    assert_escrow(deps.as_ref(), VOTING, VOTING_ESCROW / 20 * 9);
 
     // One day later this poor guy tops up his escrow again
     execute(
@@ -893,7 +893,8 @@ fn punish_member_expulsion() {
     let res =
         propose_punish_member(deps.as_mut(), env.clone(), VOTING, VOTING.into(), 90, true).unwrap();
 
-    let res = execute_passed_proposal(deps.as_mut(), env.clone(), parse_prop_id(&res.attributes)).unwrap();
+    let res = execute_passed_proposal(deps.as_mut(), env.clone(), parse_prop_id(&res.attributes))
+        .unwrap();
     // check distribution
     assert_eq!(&res.attributes[5], &attr("burn_tokens", "false"));
 
