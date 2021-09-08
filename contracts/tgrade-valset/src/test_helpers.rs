@@ -4,7 +4,7 @@ use cosmwasm_std::{Addr, Binary};
 use cw_multi_test::{App, BankKeeper, Contract, ContractWrapper};
 
 use tg4::Member;
-use tgrade_bindings::{Pubkey, TgradeMsg};
+use tg_bindings::{Pubkey, TgradeMsg};
 
 use crate::msg::{OperatorInitInfo, ValidatorMetadata};
 use crate::state::ValidatorInfo;

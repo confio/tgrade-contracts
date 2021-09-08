@@ -1,5 +1,5 @@
 [package]
-name = "tgrade-bindings"
+name = "tg-bindings"
 version = "0.3.0"
 authors = ["Ethan Frey <ethanfrey@users.noreply.github.com>"]
 edition = "2018"

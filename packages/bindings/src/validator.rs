@@ -97,7 +97,7 @@ impl Ord for Pubkey {
 /// ```
 /// # use hex_literal::hex;
 /// use std::convert::TryFrom;
-/// use tgrade_bindings::{Ed25519Pubkey, Pubkey};
+/// use tg_bindings::{Ed25519Pubkey, Pubkey};
 ///
 /// let pubkey = Pubkey::Ed25519(hex!("14253d61ef42d166d02e68d540d07fdf8d65a9af0acaa46302688e788a8521e2").into());
 /// let ed25519_pubkey = Ed25519Pubkey::try_from(pubkey);
@@ -113,7 +113,7 @@ impl Ord for Pubkey {
 /// ```
 /// # use hex_literal::hex;
 /// use std::convert::TryFrom;
-/// use tgrade_bindings::{Ed25519Pubkey, Pubkey, ToAddress};
+/// use tg_bindings::{Ed25519Pubkey, Pubkey, ToAddress};
 ///
 /// let pubkey = Pubkey::Ed25519(hex!("14253d61ef42d166d02e68d540d07fdf8d65a9af0acaa46302688e788a8521e2").into());
 /// let ed25519_pubkey = Ed25519Pubkey::try_from(pubkey).unwrap();

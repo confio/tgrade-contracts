@@ -1,7 +1,7 @@
 use cosmwasm_std::StdError;
 use thiserror::Error;
 
-use tgrade_bindings::Ed25519PubkeyConversionError;
+use tg_bindings::Ed25519PubkeyConversionError;
 
 #[derive(Error, Debug, PartialEq)]
 pub enum ContractError {
