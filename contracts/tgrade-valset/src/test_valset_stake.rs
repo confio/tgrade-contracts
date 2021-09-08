@@ -5,7 +5,7 @@ use cw0::Duration;
 use cw20::Denom;
 
 use tg4::Tg4Contract;
-use tgrade_bindings::TgradeMsg;
+use tg_bindings::TgradeMsg;
 
 use tg4_stake::msg::ExecuteMsg;
 

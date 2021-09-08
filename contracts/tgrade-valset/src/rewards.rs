@@ -1,6 +1,6 @@
 use crate::state::{ValidatorInfo, CONFIG};
 use cosmwasm_std::{coin, Addr, BankMsg, Coin, DepsMut, Env, StdResult, SubMsg, Uint128};
-use tgrade_bindings::TgradeMsg;
+use tg_bindings::TgradeMsg;
 
 #[derive(Clone)]
 pub struct DistributionInfo {

@@ -2,7 +2,7 @@ use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use std::convert::TryFrom;
 
-use tgrade_bindings::{Ed25519Pubkey, Pubkey};
+use tg_bindings::{Ed25519Pubkey, Pubkey};
 
 use crate::error::ContractError;
 use crate::state::{Config, OperatorInfo, ValidatorInfo};

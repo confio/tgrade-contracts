@@ -6,7 +6,7 @@ use cw_storage_plus::{Index, IndexList, IndexedMap, Item, UniqueIndex};
 use tg4::Tg4Contract;
 
 use crate::msg::ValidatorMetadata;
-use tgrade_bindings::{Ed25519Pubkey, Pubkey};
+use tg_bindings::{Ed25519Pubkey, Pubkey};
 
 #[derive(Serialize, Deserialize, Clone, PartialEq, JsonSchema, Debug)]
 pub struct Config {

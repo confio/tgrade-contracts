@@ -660,6 +660,19 @@ dependencies = [
 ]
 
 [[package]]
+name = "tg-bindings"
+version = "0.3.0"
+dependencies = [
+ "base64",
+ "cosmwasm-schema",
+ "cosmwasm-std",
+ "hex-literal",
+ "schemars",
+ "serde",
+ "sha2",
+]
+
+[[package]]
 name = "tg-controllers"
 version = "0.3.0"
 dependencies = [
@@ -738,19 +751,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "tgrade-bindings"
-version = "0.3.0"
-dependencies = [
- "base64",
- "cosmwasm-schema",
- "cosmwasm-std",
- "hex-literal",
- "schemars",
- "serde",
- "sha2",
-]
-
-[[package]]
 name = "tgrade-dso"
 version = "0.3.0"
 dependencies = [
@@ -776,7 +776,7 @@ dependencies = [
  "cw-storage-plus",
  "schemars",
  "serde",
- "tgrade-bindings",
+ "tg-bindings",
  "thiserror",
 ]
 
@@ -794,10 +794,10 @@ dependencies = [
  "cw20",
  "schemars",
  "serde",
+ "tg-bindings",
  "tg4",
  "tg4-group",
  "tg4-stake",
- "tgrade-bindings",
  "thiserror",
 ]
 

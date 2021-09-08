@@ -5,7 +5,7 @@ use cosmwasm_std::{
 use crate::error::ContractError;
 use crate::msg::{ExecuteMsg, InstantiateMsg, OwnerResponse, QueryMsg};
 use crate::state::{Config, CONFIG};
-use tgrade_bindings::{
+use tg_bindings::{
     GovProposal, Privilege, PrivilegeChangeMsg, PrivilegeMsg, TgradeMsg, TgradeSudoMsg,
 };
 
