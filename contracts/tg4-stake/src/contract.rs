@@ -13,12 +13,15 @@ use tg4::{
     HooksResponse, Member, MemberChangedHookMsg, MemberDiff, MemberListResponse, MemberResponse,
     TotalWeightResponse,
 };
+use tgrade_bindings::{request_privileges, Privilege, PrivilegeChangeMsg, TgradeSudoMsg};
 
 use crate::error::ContractError;
 use crate::msg::{
     ExecuteMsg, InstantiateMsg, PreauthResponse, QueryMsg, StakedResponse, UnbondingPeriodResponse,
 };
 use crate::state::{members, Config, ADMIN, CLAIMS, CONFIG, HOOKS, PREAUTH, STAKE, TOTAL};
+
+pub type Response = cosmwasm_std::Response<TgradeMsg>;
 
 // version info for migration info
 const CONTRACT_NAME: &str = "crates.io:tg4-stake";
@@ -51,6 +54,7 @@ pub fn instantiate(
         tokens_per_weight: msg.tokens_per_weight,
         min_bond,
         unbonding_period: msg.unbonding_period,
+        auto_return_limit: msg.auto_return_limit,
     };
     CONFIG.save(deps.storage, &config)?;
     TOTAL.save(deps.storage, &0)?;
@@ -288,6 +292,29 @@ fn coins_to_string(coins: &[Coin]) -> String {
         .map(|c| format!("{}{}", c.amount, c.denom))
         .collect();
     strings.join(",")
+}
+
+#[cfg_attr(not(feature = "library"), entry_point)]
+pub fn sudo(deps: DepsMut, env: Env, msg: TgradeSudoMsg) -> Result<Response, ContractError> {
+    match msg {
+        TgradeSudoMsg::PrivilegeChange(PrivilegeChangeMsg::Promoted {}) => privilege_promote(),
+        _ => Err(ContractError::UnknownSudoMsg {}),
+    }
+}
+
+fn privilege_promote(deps: DepsMut) -> Response {
+    let config = CONFIG.load(deps.storage)?;
+
+    if config.auto_return_limit > 0 {
+        let msgs = request_privileges(&[Privilege::EndBlocker]);
+        Response::new().add_submessages(msgs)
+    } else {
+        Response::new()
+    }
+}
+
+fn end_block(deps: DepsMut) -> Result<Response, ContractError> {
+    // TODO: Auto return claims
 }
 
 #[cfg_attr(not(feature = "library"), entry_point)]

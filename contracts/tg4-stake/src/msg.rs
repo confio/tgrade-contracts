@@ -6,6 +6,10 @@ use serde::{Deserialize, Serialize};
 use cw20::Denom;
 use tg4::Member;
 
+const fn default_auto_return_limit() -> u64 {
+    20
+}
+
 #[derive(Serialize, Deserialize, Clone, PartialEq, JsonSchema, Debug)]
 pub struct InstantiateMsg {
     /// denom of the token to stake
@@ -18,6 +22,10 @@ pub struct InstantiateMsg {
     pub admin: Option<String>,
     // or you can simply pre-authorize a number of hooks (to be done in following messages)
     pub preauths: Option<u64>,
+    /// Limits how much claims would be automatically returned at end of block, 20 by default.
+    /// Setting this to 0 disables auto returning claims.
+    #[serde(default = "default_auto_return_limit")]
+    pub auto_return_limit: u64,
 }
 
 #[derive(Serialize, Deserialize, Clone, PartialEq, JsonSchema, Debug)]

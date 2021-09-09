@@ -747,6 +747,7 @@ dependencies = [
  "serde",
  "tg-controllers",
  "tg4",
+ "tgrade-bindings",
  "thiserror",
 ]
 

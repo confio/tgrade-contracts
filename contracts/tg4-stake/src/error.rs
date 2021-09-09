@@ -38,4 +38,7 @@ pub enum ContractError {
 
     #[error("No funds sent")]
     NoFunds {},
+
+    #[error("Unrecognized sudo message")]
+    UnknownSudoMsg {},
 }

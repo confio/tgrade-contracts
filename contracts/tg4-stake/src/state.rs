@@ -42,6 +42,8 @@ pub struct Config {
     pub tokens_per_weight: Uint128,
     pub min_bond: Uint128,
     pub unbonding_period: Duration,
+    /// limits of how much claims can be automatically returned at end of block
+    pub auto_return_limit: u64,
 }
 
 pub const ADMIN: Admin = Admin::new("admin");
