@@ -3,6 +3,7 @@ use cosmwasm_std::{Coin, Uint128};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
+pub use crate::claim::Claim;
 use cw20::Denom;
 use tg4::Member;
 
@@ -101,4 +102,9 @@ pub struct PreauthResponse {
 #[derive(Serialize, Deserialize, Clone, PartialEq, JsonSchema, Debug)]
 pub struct UnbondingPeriodResponse {
     pub unbonding_period: Duration,
+}
+
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
+pub struct ClaimsResponse {
+    pub claims: Vec<Claim>,
 }

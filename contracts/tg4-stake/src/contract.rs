@@ -2,7 +2,7 @@
 use cosmwasm_std::entry_point;
 use cosmwasm_std::{
     coin, coins, to_binary, Addr, BankMsg, Binary, Coin, Deps, DepsMut, Env, MessageInfo, Order,
-    Response, StdError, StdResult, Storage, SubMsg, Uint128,
+    StdError, StdResult, Storage, Uint128,
 };
 
 use cw0::{maybe_addr, NativeBalance};
@@ -13,15 +13,19 @@ use tg4::{
     HooksResponse, Member, MemberChangedHookMsg, MemberDiff, MemberListResponse, MemberResponse,
     TotalWeightResponse,
 };
-use tgrade_bindings::{request_privileges, Privilege, PrivilegeChangeMsg, TgradeSudoMsg};
+use tg_bindings::{
+    request_privileges, Privilege, PrivilegeChangeMsg, TgradeMsg, TgradeSudoMsg,
+};
 
 use crate::error::ContractError;
 use crate::msg::{
-    ExecuteMsg, InstantiateMsg, PreauthResponse, QueryMsg, StakedResponse, UnbondingPeriodResponse,
+    ClaimsResponse, ExecuteMsg, InstantiateMsg, PreauthResponse, QueryMsg, StakedResponse,
+    UnbondingPeriodResponse,
 };
 use crate::state::{members, Config, ADMIN, CLAIMS, CONFIG, HOOKS, PREAUTH, STAKE, TOTAL};
 
 pub type Response = cosmwasm_std::Response<TgradeMsg>;
+pub type SubMsg = cosmwasm_std::SubMsg<TgradeMsg>;
 
 // version info for migration info
 const CONTRACT_NAME: &str = "crates.io:tg4-stake";
@@ -73,7 +77,21 @@ pub fn execute(
     let api = deps.api;
     match msg {
         ExecuteMsg::UpdateAdmin { admin } => {
-            Ok(ADMIN.execute_update_admin(deps, info, maybe_addr(api, admin)?)?)
+            let resp = ADMIN.execute_update_admin(deps, info, maybe_addr(api, admin)?)?;
+            let cosmwasm_std::Response {
+                messages,
+                attributes,
+                events,
+                data,
+                ..
+            } = resp;
+
+            let resp = Response::new()
+                .add_messages(messages)
+                .add_attributes(attributes)
+                .add_events(events)
+                .set_data(data);
+            Ok(resp)
         }
         ExecuteMsg::AddHook { addr } => execute_add_hook(deps, info, addr),
         ExecuteMsg::RemoveHook { addr } => execute_remove_hook(deps, info, addr),
@@ -297,24 +315,25 @@ fn coins_to_string(coins: &[Coin]) -> String {
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn sudo(deps: DepsMut, env: Env, msg: TgradeSudoMsg) -> Result<Response, ContractError> {
     match msg {
-        TgradeSudoMsg::PrivilegeChange(PrivilegeChangeMsg::Promoted {}) => privilege_promote(),
+        TgradeSudoMsg::PrivilegeChange(PrivilegeChangeMsg::Promoted {}) => privilege_promote(deps),
         _ => Err(ContractError::UnknownSudoMsg {}),
     }
 }
 
-fn privilege_promote(deps: DepsMut) -> Response {
+fn privilege_promote(deps: DepsMut) -> Result<Response, ContractError> {
     let config = CONFIG.load(deps.storage)?;
 
     if config.auto_return_limit > 0 {
         let msgs = request_privileges(&[Privilege::EndBlocker]);
-        Response::new().add_submessages(msgs)
+        Ok(Response::new().add_submessages(msgs))
     } else {
-        Response::new()
+        Ok(Response::new())
     }
 }
 
 fn end_block(deps: DepsMut) -> Result<Response, ContractError> {
     // TODO: Auto return claims
+    todo!()
 }
 
 #[cfg_attr(not(feature = "library"), entry_point)]
@@ -331,9 +350,9 @@ pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
             to_binary(&list_members_by_weight(deps, start_after, limit)?)
         }
         QueryMsg::TotalWeight {} => to_binary(&query_total_weight(deps)?),
-        QueryMsg::Claims { address } => {
-            to_binary(&CLAIMS.query_claims(deps, &deps.api.addr_validate(&address)?)?)
-        }
+        QueryMsg::Claims { address } => to_binary(&ClaimsResponse {
+            claims: CLAIMS.query_claims(deps, deps.api.addr_validate(&address)?)?,
+        }),
         QueryMsg::Staked { address } => to_binary(&query_staked(deps, address)?),
         QueryMsg::Admin {} => to_binary(&ADMIN.query_admin(deps)?),
         QueryMsg::Hooks {} => {
