@@ -71,3 +71,20 @@ pub enum SudoMsg {
 pub struct PreauthResponse {
     pub preauths: u64,
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn deserialize_json_to_sudo_msg() {
+        let message = r#"{"update_member": {"addr": "xxx", "weight": 123}}"#;
+        assert_eq!(
+            SudoMsg::UpdateMember(Member {
+                addr: "xxx".to_string(),
+                weight: 123
+            }),
+            serde_json::from_str::<SudoMsg>(message).unwrap()
+        );
+    }
+}
