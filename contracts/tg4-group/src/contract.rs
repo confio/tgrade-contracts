@@ -325,7 +325,6 @@ mod tests {
     const USER1: &str = "somebody";
     const USER2: &str = "else";
     const USER3: &str = "funny";
-    // const INVALID_USER: &str = unsafe { std::str::from_utf8_unchecked(&[226, 130, 40]) };
 
     fn mock_env_height(height_offset: u64) -> Env {
         let mut env = mock_env();
