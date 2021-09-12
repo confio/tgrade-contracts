@@ -1,6 +1,6 @@
 [package]
 name = "tgrade-bindings"
-version = "0.3.0"
+version = "0.3.1"
 authors = ["Ethan Frey <ethanfrey@users.noreply.github.com>"]
 edition = "2018"
 description = "Bindings for CustomMsg and CustomQuery for the Tgrade blockchain"
