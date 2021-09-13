@@ -315,8 +315,9 @@ fn list_members_by_weight(
 mod tests {
     use super::*;
     use cosmwasm_std::testing::{mock_dependencies, mock_env, mock_info};
-    use cosmwasm_std::{from_slice, Api, OwnedDeps, Querier, Storage};
+    use cosmwasm_std::{from_slice, Api, OwnedDeps, Querier, StdError, Storage};
     use cw_controllers::AdminError;
+    use cw_storage_plus::Map;
     use tg4::{member_key, TOTAL_KEY};
     use tg_controllers::{HookError, PreauthError};
 
@@ -494,6 +495,26 @@ mod tests {
             .unwrap()
             .members;
         assert_eq!(members.len(), 0);
+    }
+
+    #[test]
+    fn handle_non_utf8_in_members_list() {
+        let mut deps = mock_dependencies(&[]);
+        do_instantiate(deps.as_mut());
+
+        // make sure we get 2 members as expected, no error
+        let members = list_members(deps.as_ref(), None, None).unwrap().members;
+        assert_eq!(members.len(), 2);
+
+        // we write some garbage non-utf8 key in the same key space as members, with some tricks
+        const BIN_MEMBERS: Map<Vec<u8>, u64> = Map::new(tg4::MEMBERS_KEY);
+        BIN_MEMBERS
+            .save(&mut deps.storage, vec![226, 130, 40], &123)
+            .unwrap();
+
+        // this should now error when trying to parse the invalid data (in the same keyspace)
+        let err = list_members(deps.as_ref(), None, None).unwrap_err();
+        assert!(matches!(err, StdError::InvalidUtf8 { .. }));
     }
 
     #[track_caller]
