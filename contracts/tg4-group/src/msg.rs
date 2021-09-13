@@ -84,7 +84,7 @@ mod tests {
                 addr: "xxx".to_string(),
                 weight: 123
             }),
-            serde_json::from_str::<SudoMsg>(message).unwrap()
+            cosmwasm_std::from_slice::<SudoMsg>(message.as_bytes()).unwrap()
         );
     }
 }

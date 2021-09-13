@@ -706,7 +706,6 @@ dependencies = [
  "cw2",
  "schemars",
  "serde",
- "serde_json",
  "tg-controllers",
  "tg4",
  "thiserror",
