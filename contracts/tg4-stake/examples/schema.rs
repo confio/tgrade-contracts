@@ -4,9 +4,8 @@ use std::fs::create_dir_all;
 use cosmwasm_schema::{export_schema, export_schema_with_title, remove_schemas, schema_for};
 
 pub use tg4::{AdminResponse, MemberListResponse, MemberResponse, TotalWeightResponse};
-pub use tg4_stake::msg::{
-    ClaimsResponse, ExecuteMsg, InstantiateMsg, PreauthResponse, QueryMsg, StakedResponse,
-};
+pub use tg4_stake::claim::ClaimsResponse;
+pub use tg4_stake::msg::{ExecuteMsg, InstantiateMsg, PreauthResponse, QueryMsg, StakedResponse};
 
 fn main() {
     let mut out_dir = current_dir().unwrap();

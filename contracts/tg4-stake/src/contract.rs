@@ -411,11 +411,11 @@ fn list_members_by_weight(
 
 #[cfg(test)]
 mod tests {
+    use crate::claim::Claim;
     use cosmwasm_std::testing::{mock_dependencies, mock_env, mock_info};
     use cosmwasm_std::{from_slice, OverflowError, OverflowOperation, StdError, Storage};
     use cw0::Duration;
     use cw20::Denom;
-    use cw_controllers::Claim;
     use tg4::{member_key, TOTAL_KEY};
     use tg_controllers::{HookError, PreauthError};
 
