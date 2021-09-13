@@ -10,15 +10,7 @@
       ],
       "properties": {
         "update_member": {
-          "type": "object",
-          "required": [
-            "member"
-          ],
-          "properties": {
-            "member": {
-              "$ref": "#/definitions/Member"
-            }
-          }
+          "$ref": "#/definitions/Member"
         }
       },
       "additionalProperties": false

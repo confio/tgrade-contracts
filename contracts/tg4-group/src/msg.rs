@@ -64,10 +64,27 @@ pub enum SudoMsg {
     /// This allows updating group membership via sudo.
     /// Use case: for post-genesis validators, we want to set some initial engagement points / weight.
     /// Note: If the member already exists, its weight will be reset to the weight sent here.
-    UpdateMember { member: Member },
+    UpdateMember(Member),
 }
 
 #[derive(Serialize, Deserialize, Clone, PartialEq, JsonSchema, Debug)]
 pub struct PreauthResponse {
     pub preauths: u64,
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn deserialize_json_to_sudo_msg() {
+        let message = r#"{"update_member": {"addr": "xxx", "weight": 123}}"#;
+        assert_eq!(
+            SudoMsg::UpdateMember(Member {
+                addr: "xxx".to_string(),
+                weight: 123
+            }),
+            cosmwasm_std::from_slice::<SudoMsg>(message.as_bytes()).unwrap()
+        );
+    }
 }
