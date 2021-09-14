@@ -262,7 +262,7 @@ pub fn execute_claim(
     env: Env,
     info: MessageInfo,
 ) -> Result<Response, ContractError> {
-    let release = claims().claim_tokens(deps.storage, &info.sender, &env.block, None)?;
+    let release = claims().claim_addr(deps.storage, &info.sender, &env.block, None)?;
     if release.is_zero() {
         return Err(ContractError::NothingToClaim {});
     }

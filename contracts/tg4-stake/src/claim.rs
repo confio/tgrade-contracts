@@ -6,7 +6,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::state::Expiration;
 use cosmwasm_std::{Addr, BlockInfo, Deps, Order, StdResult, Storage, Timestamp, Uint128};
-use cw_storage_plus::{Index, IndexList, IndexedMap, MultiIndex, U64Key};
+use cw_storage_plus::{Bound, Index, IndexList, IndexedMap, MultiIndex, U64Key};
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct Claim {
@@ -100,15 +100,15 @@ impl<'a> Claims<'a> {
     }
 
     /// This iterates over all mature claims for the address, and removes them, up to an optional cap.
-    /// it removes the finished claims and returns the total amount of tokens to be released.
-    pub fn claim_tokens(
+    /// It removes the finished claims and returns the total amount of tokens to be released.
+    pub fn claim_addr(
         &self,
         storage: &mut dyn Storage,
         addr: &Addr,
         block: &BlockInfo,
         cap: Option<Uint128>,
     ) -> StdResult<Uint128> {
-        let claims: Vec<_> = self
+        let claims = self
             .claims
             .prefix(addr.clone())
             // take all claims for the addr
@@ -117,7 +117,54 @@ impl<'a> Claims<'a> {
             .filter(|claim| match claim {
                 Ok((_, claim)) => claim.release_at <= block.time,
                 Err(_) => true,
-            })
+            });
+
+        let (claims, amount) = self.filter_claims(claims, cap.map(u128::from), None)?;
+        self.release_claims(storage, claims)?;
+
+        Ok(amount.into())
+    }
+
+    /// This iterates over all mature claims of any addresses, and removes them. Up to `limit`
+    /// claims would be processed, starting from the oldest. It removes the finished claims and
+    /// returns the total amount of tokens to be released.
+    pub fn claim_expired(
+        &self,
+        storage: &mut dyn Storage,
+        block: &BlockInfo,
+        limit: impl Into<Option<u64>>,
+    ) -> StdResult<Uint128> {
+        let claims = self
+            .claims
+            .idx
+            .release_at
+            // take all claims which are expired (at most same timestamp as current block)
+            .range(
+                storage,
+                None,
+                Some(Bound::inclusive(U64Key::new(block.time.nanos()))),
+                Order::Ascending,
+            );
+
+        let (claims, amount) = self.filter_claims(claims, None, limit.into())?;
+        self.release_claims(storage, claims)?;
+
+        Ok(amount.into())
+    }
+
+    /// Processes claims filtering those which are to be released. Returns vector of keys of claims
+    /// to be released, and accumulated amount of tokens to be released
+    fn filter_claims(
+        &self,
+        claims: impl IntoIterator<Item = StdResult<(Vec<u8>, Claim)>>,
+        cap: Option<u128>,
+        limit: Option<u64>,
+    ) -> StdResult<(Vec<(Addr, U64Key)>, u128)> {
+        // will be filled at the final step of processing
+        let mut amount = 0;
+
+        let claims = claims
+            .into_iter()
             // calculate sum for claims up to this one and pair it with index
             .scan(0u128, |sum, claim| match claim {
                 Ok((_, claim)) => {
@@ -129,22 +176,43 @@ impl<'a> Claims<'a> {
             })
             // stop when sum exceeds limit
             .take_while(|claim| match (cap, claim) {
-                (Some(cap), Ok((_, sum))) => cap <= (*sum).into(),
+                (Some(cap), Ok((_, sum))) => cap <= *sum,
                 _ => true,
             })
-            // need to collet intermediately, cannot remove from map while iterating as it borrows
-            // map internally; collecting to result, so it returns early on failure
-            .collect::<Result<_, _>>()?;
+            // now only proper claims as in iterator, so just map and store amount - the last one
+            // would be the one stored
+            .map(|claim| match claim {
+                Ok((idx, claim)) => {
+                    amount = claim;
+                    Ok(idx)
+                }
+                Err(err) => Err(err),
+            });
 
-        let to_send = claims
-            .into_iter()
-            // removes item from storage and returns accumulated sum
-            .try_fold(0, |_, (idx, sum)| -> StdResult<_> {
-                self.claims.remove(storage, idx)?;
-                Ok(sum)
-            })?;
+        // apply limit and collect - it is needed to collect intermediately, as it is impossible to
+        // remove from map while iterating as it borrows map internally; collecting to result, so
+        // it returns early on failure; collecting would also trigger a final map, so amount would
+        // be properly fulfilled
+        let claims = if let Some(limit) = limit {
+            claims.take(limit as usize).collect()
+        } else {
+            claims.collect::<StdResult<_>>()
+        }?;
 
-        Ok(to_send.into())
+        Ok((claims, amount))
+    }
+
+    /// Releases given claims by removing them from storage
+    fn release_claims(
+        &self,
+        storage: &mut dyn Storage,
+        claims: impl IntoIterator<Item = (Addr, U64Key)>,
+    ) -> StdResult<()> {
+        for claim in claims {
+            self.claims.remove(storage, claim)?;
+        }
+
+        Ok(())
     }
 
     pub fn query_claims(&self, deps: Deps, address: Addr) -> StdResult<Vec<Claim>> {
