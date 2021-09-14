@@ -827,11 +827,11 @@ mod tests {
         let expires = Duration::Height(UNBONDING_BLOCKS).after(&env.block);
         assert_eq!(
             get_claims(deps.as_ref(), &Addr::unchecked(USER1)),
-            vec![Claim::new(4_500, expires, 12347)]
+            vec![Claim::new(4_500, expires, env.block.height)]
         );
         assert_eq!(
             get_claims(deps.as_ref(), &Addr::unchecked(USER2)),
-            vec![Claim::new(2_600, expires, 12347)]
+            vec![Claim::new(2_600, expires, env.block.height)]
         );
         assert_eq!(get_claims(deps.as_ref(), &Addr::unchecked(USER3)), vec![]);
 
@@ -844,24 +844,24 @@ mod tests {
         let expires2 = Duration::Height(UNBONDING_BLOCKS).after(&env2.block);
         assert_eq!(
             get_claims(deps.as_ref(), &Addr::unchecked(USER1)),
-            vec![Claim::new(4_500, expires, 12347)]
+            vec![Claim::new(4_500, expires, env.block.height)]
         );
         assert_eq!(
             get_claims(deps.as_ref(), &Addr::unchecked(USER2)),
             vec![
-                Claim::new(2_600, expires, 12347),
-                Claim::new(1_345, expires2, 12367)
+                Claim::new(2_600, expires, env.block.height),
+                Claim::new(1_345, expires2, env2.block.height)
             ]
         );
         assert_eq!(
             get_claims(deps.as_ref(), &Addr::unchecked(USER3)),
-            vec![Claim::new(1_500, expires2, 12367)]
+            vec![Claim::new(1_500, expires2, env2.block.height)]
         );
 
         // nothing can be withdrawn yet
         let err = execute(
             deps.as_mut(),
-            env2,
+            env2.clone(),
             mock_info(USER1, &[]),
             ExecuteMsg::Claim {},
         )
@@ -917,11 +917,11 @@ mod tests {
         assert_eq!(get_claims(deps.as_ref(), &Addr::unchecked(USER1)), vec![]);
         assert_eq!(
             get_claims(deps.as_ref(), &Addr::unchecked(USER2)),
-            vec![Claim::new(1_345, expires2, 12367)]
+            vec![Claim::new(1_345, expires2, env2.block.height)]
         );
         assert_eq!(
             get_claims(deps.as_ref(), &Addr::unchecked(USER3)),
-            vec![Claim::new(1_500, expires2, 12367)]
+            vec![Claim::new(1_500, expires2, env2.block.height)]
         );
 
         // add another few claims for 2
