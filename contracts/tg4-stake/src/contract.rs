@@ -179,11 +179,11 @@ pub fn execute_unbond(
         &info.sender,
         amount,
         cfg.unbonding_period.after(&env.block),
+        env.block.height,
     )?;
 
     let mut res = Response::new()
         .add_attribute("action", "unbond")
-        .add_attribute("creation height", env.block.height.to_string())
         .add_attribute("amount", amount)
         .add_attribute("sender", &info.sender);
     res.messages = update_membership(deps.storage, info.sender, new_stake, &cfg, env.block.height)?;

@@ -19,13 +19,15 @@ pub struct ClaimsResponse {
 pub struct Claim {
     pub amount: Uint128,
     pub release_at: Expiration,
+    pub creation_height: u64,
 }
 
 impl Claim {
-    pub fn new(amount: u128, releas_at: Expiration) -> Self {
+    pub fn new(amount: u128, release_at: Expiration, creation_height: u64) -> Self {
         Claim {
             amount: amount.into(),
             release_at,
+            creation_height,
         }
     }
 }
@@ -46,11 +48,16 @@ impl<'a> Claims<'a> {
         addr: &Addr,
         amount: Uint128,
         release_at: Expiration,
+        creation_height: u64,
     ) -> StdResult<()> {
         // add a claim to this user to get their tokens after the unbonding period
         self.0.update(storage, addr, |old| -> StdResult<_> {
             let mut claims = old.unwrap_or_default();
-            claims.push(Claim { amount, release_at });
+            claims.push(Claim {
+                amount,
+                release_at,
+                creation_height,
+            });
             Ok(claims)
         })?;
         Ok(())
