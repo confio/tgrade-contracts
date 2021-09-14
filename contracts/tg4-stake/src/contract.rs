@@ -415,7 +415,7 @@ mod tests {
     use crate::claim::Claim;
     use cosmwasm_std::testing::{mock_dependencies, mock_env, mock_info};
     use cosmwasm_std::{from_slice, OverflowError, OverflowOperation, StdError, Storage};
-    use cw0::Duration;
+    use crate::state::Duration;
     use cw20::Denom;
     use tg4::{member_key, TOTAL_KEY};
     use tg_controllers::{HookError, PreauthError};

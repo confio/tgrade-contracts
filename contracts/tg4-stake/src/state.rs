@@ -2,8 +2,7 @@ use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
 use crate::claim::Claims;
-use cosmwasm_std::{Addr, Uint128};
-use cw0::Duration;
+use cosmwasm_std::{BlockInfo, Addr, Uint128, Timestamp};
 use cw20::Denom;
 use cw_controllers::Admin;
 use cw_storage_plus::{
@@ -13,6 +12,29 @@ use tg4::TOTAL_KEY;
 use tg_controllers::{Hooks, Preauth};
 
 pub const CLAIMS: Claims = Claims::new("claims");
+
+#[derive(Serialize, Deserialize, Clone, Copy, PartialEq, JsonSchema, Debug)]
+pub enum Expiration {
+    AtTime(Timestamp),
+    Never {},
+}
+
+impl Expiration {
+    pub fn is_expired(&self, block: &BlockInfo) -> bool {
+        match self {
+            Expiration::AtTime(time) => block.time >= *time,
+            Expiration::Never {} => false,
+        }
+    }
+}
+
+#[derive(Serialize, Deserialize, Clone, Copy, PartialEq, JsonSchema, Debug)]
+pub struct Duration(u64);
+impl Duration {
+    pub fn after(&self, block: &BlockInfo) -> Expiration {
+        Expiration::AtTime(block.time.plus_seconds(self.0))
+    }
+}
 
 #[derive(Serialize, Deserialize, Clone, PartialEq, JsonSchema, Debug)]
 pub struct Config {

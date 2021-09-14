@@ -5,7 +5,7 @@ use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
 use cosmwasm_std::{Addr, BlockInfo, Deps, StdResult, Storage, Uint128};
-use cw0::Expiration;
+use crate::state::Expiration;
 use cw_storage_plus::Map;
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
