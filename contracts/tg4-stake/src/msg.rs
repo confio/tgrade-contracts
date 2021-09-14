@@ -17,7 +17,8 @@ pub struct InstantiateMsg {
     pub denom: Denom,
     pub tokens_per_weight: Uint128,
     pub min_bond: Uint128,
-    pub unbonding_period: Duration,
+    /// unbounding period in seconds
+    pub unbonding_period: u64,
 
     // admin can only add/remove hooks, not change other parameters
     pub admin: Option<String>,

@@ -3,14 +3,17 @@ use serde::{Deserialize, Serialize};
 
 use cosmwasm_std::{
     from_slice, to_binary, to_vec, Addr, Binary, ContractResult, Empty, QuerierWrapper,
-    QueryRequest, StdError, StdResult, SubMsg, SystemResult, WasmMsg, WasmQuery,
+    QueryRequest, StdError, StdResult, SystemResult, WasmMsg, WasmQuery,
 };
+use tg_bindings::TgradeMsg;
 
 use crate::msg::Tg4ExecuteMsg;
 use crate::query::HooksResponse;
 use crate::{
     member_key, AdminResponse, Member, MemberListResponse, MemberResponse, Tg4QueryMsg, TOTAL_KEY,
 };
+
+pub type SubMsg = cosmwasm_std::SubMsg<TgradeMsg>;
 
 /// Tg4Contract is a wrapper around Addr that provides a lot of helpers
 /// for working with tg4 contracts

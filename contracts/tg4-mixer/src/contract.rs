@@ -1,12 +1,11 @@
 #[cfg(not(feature = "library"))]
 use cosmwasm_std::entry_point;
-use cosmwasm_std::{
-    to_binary, Binary, Deps, DepsMut, Env, MessageInfo, Order, Response, StdResult, SubMsg,
-};
+use cosmwasm_std::{to_binary, Binary, Deps, DepsMut, Env, MessageInfo, Order, StdResult};
 use cw0::maybe_addr;
 use cw2::set_contract_version;
 use cw_storage_plus::{Bound, PrimaryKey, U64Key};
 use integer_sqrt::IntegerSquareRoot;
+use tg_bindings::TgradeMsg;
 
 use tg4::{
     HooksResponse, Member, MemberChangedHookMsg, MemberDiff, MemberListResponse, MemberResponse,
@@ -16,6 +15,9 @@ use tg4::{
 use crate::error::ContractError;
 use crate::msg::{ExecuteMsg, GroupsResponse, InstantiateMsg, PreauthResponse, QueryMsg};
 use crate::state::{members, Groups, GROUPS, HOOKS, PREAUTH, TOTAL};
+
+pub type Response = cosmwasm_std::Response<TgradeMsg>;
+pub type SubMsg = cosmwasm_std::SubMsg<TgradeMsg>;
 
 // version info for migration info
 const CONTRACT_NAME: &str = "crates.io:tg4-mixer";
@@ -326,10 +328,11 @@ fn list_members_by_weight(
 mod tests {
     use super::*;
     use cosmwasm_std::testing::{mock_env, MockApi, MockStorage};
-    use cosmwasm_std::{coins, Addr, Empty, Uint128};
+    use cosmwasm_std::{coins, Addr, Uint128};
     use cw20::Denom;
     use cw_multi_test::{next_block, App, BankKeeper, Contract, ContractWrapper, Executor};
     use tg4_stake::state::Duration;
+    use tg_bindings::TgradeMsg;
 
     const STAKE_DENOM: &str = "utgd";
     const OWNER: &str = "owner";
@@ -346,7 +349,7 @@ mod tests {
         }
     }
 
-    pub fn contract_mixer() -> Box<dyn Contract<Empty>> {
+    pub fn contract_mixer() -> Box<dyn Contract<TgradeMsg>> {
         let contract = ContractWrapper::new(
             crate::contract::execute,
             crate::contract::instantiate,
@@ -355,7 +358,7 @@ mod tests {
         Box::new(contract)
     }
 
-    pub fn contract_group() -> Box<dyn Contract<Empty>> {
+    pub fn contract_group() -> Box<dyn Contract<TgradeMsg>> {
         let contract = ContractWrapper::new(
             tg4_group::contract::execute,
             tg4_group::contract::instantiate,
@@ -364,7 +367,7 @@ mod tests {
         Box::new(contract)
     }
 
-    pub fn contract_staking() -> Box<dyn Contract<Empty>> {
+    pub fn contract_staking() -> Box<dyn Contract<TgradeMsg>> {
         let contract = ContractWrapper::new(
             tg4_stake::contract::execute,
             tg4_stake::contract::instantiate,
@@ -373,7 +376,7 @@ mod tests {
         Box::new(contract)
     }
 
-    fn mock_app() -> App {
+    fn mock_app() -> App<TgradeMsg> {
         let env = mock_env();
         let api = MockApi::default();
         let bank = BankKeeper::new();
@@ -382,7 +385,7 @@ mod tests {
     }
 
     // uploads code and returns address of group contract
-    fn instantiate_group(app: &mut App, members: Vec<Member>) -> Addr {
+    fn instantiate_group(app: &mut App<TgradeMsg>, members: Vec<Member>) -> Addr {
         let admin = Some(OWNER.into());
         let group_id = app.store_code(contract_group());
         let msg = tg4_group::msg::InstantiateMsg {
@@ -395,7 +398,7 @@ mod tests {
     }
 
     // uploads code and returns address of group contract
-    fn instantiate_staking(app: &mut App, stakers: Vec<Member>) -> Addr {
+    fn instantiate_staking(app: &mut App<TgradeMsg>, stakers: Vec<Member>) -> Addr {
         let admin = Some(OWNER.into());
         let group_id = app.store_code(contract_staking());
         let msg = tg4_stake::msg::InstantiateMsg {
@@ -405,6 +408,7 @@ mod tests {
             unbonding_period: Duration::new_from_seconds(3600),
             admin: admin.clone(),
             preauths: Some(1),
+            auto_return_limit: 0,
         };
         let contract = app
             .instantiate_contract(
@@ -433,7 +437,7 @@ mod tests {
         contract
     }
 
-    fn instantiate_mixer(app: &mut App, left: &Addr, right: &Addr) -> Addr {
+    fn instantiate_mixer(app: &mut App<TgradeMsg>, left: &Addr, right: &Addr) -> Addr {
         let flex_id = app.store_code(contract_mixer());
         let msg = crate::msg::InstantiateMsg {
             left_group: left.to_string(),
@@ -449,7 +453,7 @@ mod tests {
     /// and connectioning them all to the mixer.
     ///
     /// Returns (mixer address, group address, staking address).
-    fn setup_test_case(app: &mut App, stakers: Vec<Member>) -> (Addr, Addr, Addr) {
+    fn setup_test_case(app: &mut App<TgradeMsg>, stakers: Vec<Member>) -> (Addr, Addr, Addr) {
         // 1. Instantiate group contract with members (and OWNER as admin)
         let members = vec![
             member(OWNER, 0),
@@ -475,7 +479,7 @@ mod tests {
 
     #[allow(clippy::too_many_arguments)]
     fn check_membership(
-        app: &App,
+        app: &App<TgradeMsg>,
         mixer_addr: &Addr,
         owner: Option<u64>,
         voter1: Option<u64>,

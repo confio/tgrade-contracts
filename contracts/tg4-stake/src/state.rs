@@ -4,14 +4,16 @@ use serde::{Deserialize, Serialize};
 use crate::claim::Claims;
 use cosmwasm_std::{Addr, BlockInfo, Timestamp, Uint128};
 use cw20::Denom;
-use cw_controllers::Admin;
 use cw_storage_plus::{
     Index, IndexList, IndexedSnapshotMap, Item, Map, MultiIndex, SnapshotMap, Strategy, U64Key,
 };
 use tg4::TOTAL_KEY;
-use tg_controllers::{Hooks, Preauth};
+use tg_controllers::{Admin, Hooks, Preauth};
 
-pub const CLAIMS: Claims = Claims::new("claims");
+/// Builds a claims map as it cannot be done in const time
+pub fn claims() -> Claims<'static> {
+    Claims::new("claims", "claims__release")
+}
 
 #[derive(Serialize, Deserialize, Clone, Copy, PartialEq, JsonSchema, Debug)]
 pub struct Expiration(Timestamp);
@@ -41,7 +43,8 @@ pub struct Config {
     pub denom: Denom,
     pub tokens_per_weight: Uint128,
     pub min_bond: Uint128,
-    pub unbonding_period: Duration,
+    /// time in seconds
+    pub unbonding_period: u64,
     /// limits of how much claims can be automatically returned at end of block
     pub auto_return_limit: u64,
 }

@@ -41,7 +41,7 @@ fn epoch_reward() -> Coin {
 }
 
 fn contract_stake() -> Box<dyn Contract<TgradeMsg>> {
-    let contract = ContractWrapper::new_with_empty(
+    let contract = ContractWrapper::new(
         tg4_stake::contract::execute,
         tg4_stake::contract::instantiate,
         tg4_stake::contract::query,
@@ -79,6 +79,7 @@ fn instantiate_stake(app: &mut App<TgradeMsg>) -> Addr {
         unbonding_period: Duration::new_from_seconds(1234),
         admin: admin.clone(),
         preauths: None,
+        auto_return_limit: 0,
     };
     app.instantiate_contract(
         stake_id,
