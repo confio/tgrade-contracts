@@ -22,10 +22,10 @@ pub struct Claim {
 }
 
 impl Claim {
-    pub fn new(amount: u128, released: Expiration) -> Self {
+    pub fn new(amount: u128, releas_at: Expiration) -> Self {
         Claim {
             amount: amount.into(),
-            release_at: released,
+            release_at,
         }
     }
 }
