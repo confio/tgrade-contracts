@@ -179,6 +179,7 @@ pub fn execute_unbond(
         &info.sender,
         amount,
         cfg.unbonding_period.after(&env.block),
+        env.block.height,
     )?;
 
     let mut res = Response::new()
@@ -411,11 +412,11 @@ fn list_members_by_weight(
 
 #[cfg(test)]
 mod tests {
+    use crate::claim::Claim;
     use cosmwasm_std::testing::{mock_dependencies, mock_env, mock_info};
     use cosmwasm_std::{from_slice, OverflowError, OverflowOperation, StdError, Storage};
     use cw0::Duration;
     use cw20::Denom;
-    use cw_controllers::Claim;
     use tg4::{member_key, TOTAL_KEY};
     use tg_controllers::{HookError, PreauthError};
 
@@ -826,11 +827,11 @@ mod tests {
         let expires = Duration::Height(UNBONDING_BLOCKS).after(&env.block);
         assert_eq!(
             get_claims(deps.as_ref(), &Addr::unchecked(USER1)),
-            vec![Claim::new(4_500, expires)]
+            vec![Claim::new(4_500, expires, env.block.height)]
         );
         assert_eq!(
             get_claims(deps.as_ref(), &Addr::unchecked(USER2)),
-            vec![Claim::new(2_600, expires)]
+            vec![Claim::new(2_600, expires, env.block.height)]
         );
         assert_eq!(get_claims(deps.as_ref(), &Addr::unchecked(USER3)), vec![]);
 
@@ -838,20 +839,24 @@ mod tests {
         let mut env2 = mock_env();
         env2.block.height += 22;
         unbond(deps.as_mut(), 0, 1_345, 1_500, 22);
+        let updated_creation_height = env2.block.height;
 
         // with updated claims
         let expires2 = Duration::Height(UNBONDING_BLOCKS).after(&env2.block);
         assert_eq!(
             get_claims(deps.as_ref(), &Addr::unchecked(USER1)),
-            vec![Claim::new(4_500, expires)]
+            vec![Claim::new(4_500, expires, env.block.height)]
         );
         assert_eq!(
             get_claims(deps.as_ref(), &Addr::unchecked(USER2)),
-            vec![Claim::new(2_600, expires), Claim::new(1_345, expires2)]
+            vec![
+                Claim::new(2_600, expires, env.block.height),
+                Claim::new(1_345, expires2, updated_creation_height)
+            ]
         );
         assert_eq!(
             get_claims(deps.as_ref(), &Addr::unchecked(USER3)),
-            vec![Claim::new(1_500, expires2)]
+            vec![Claim::new(1_500, expires2, updated_creation_height)]
         );
 
         // nothing can be withdrawn yet
@@ -913,11 +918,11 @@ mod tests {
         assert_eq!(get_claims(deps.as_ref(), &Addr::unchecked(USER1)), vec![]);
         assert_eq!(
             get_claims(deps.as_ref(), &Addr::unchecked(USER2)),
-            vec![Claim::new(1_345, expires2)]
+            vec![Claim::new(1_345, expires2, updated_creation_height)]
         );
         assert_eq!(
             get_claims(deps.as_ref(), &Addr::unchecked(USER3)),
-            vec![Claim::new(1_500, expires2)]
+            vec![Claim::new(1_500, expires2, updated_creation_height)]
         );
 
         // add another few claims for 2

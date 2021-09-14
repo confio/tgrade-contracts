@@ -1,10 +1,11 @@
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
+use crate::claim::Claims;
 use cosmwasm_std::{Addr, Uint128};
 use cw0::Duration;
 use cw20::Denom;
-use cw_controllers::{Admin, Claims};
+use cw_controllers::Admin;
 use cw_storage_plus::{
     Index, IndexList, IndexedSnapshotMap, Item, Map, MultiIndex, SnapshotMap, Strategy, U64Key,
 };

@@ -4,7 +4,6 @@ use serde::{Deserialize, Serialize};
 
 use cw0::Duration;
 use cw20::Denom;
-pub use cw_controllers::ClaimsResponse;
 use tg4::Member;
 
 #[derive(Serialize, Deserialize, Clone, PartialEq, JsonSchema, Debug)]

@@ -18,11 +18,17 @@
       "type": "object",
       "required": [
         "amount",
+        "creation_height",
         "release_at"
       ],
       "properties": {
         "amount": {
           "$ref": "#/definitions/Uint128"
+        },
+        "creation_height": {
+          "type": "integer",
+          "format": "uint64",
+          "minimum": 0.0
         },
         "release_at": {
           "$ref": "#/definitions/Expiration"
