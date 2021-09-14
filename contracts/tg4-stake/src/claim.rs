@@ -8,13 +8,11 @@ use cosmwasm_std::{Addr, BlockInfo, Deps, StdResult, Storage, Uint128};
 use cw0::Expiration;
 use cw_storage_plus::Map;
 
-// TODO: pull into cw0?
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct ClaimsResponse {
     pub claims: Vec<Claim>,
 }
 
-// TODO: pull into cw0?
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct Claim {
     pub amount: Uint128,
@@ -32,7 +30,6 @@ impl Claim {
     }
 }
 
-// TODO: revisit design (split each claim on own key?)
 pub struct Claims<'a>(Map<'a, &'a Addr, Vec<Claim>>);
 
 impl<'a> Claims<'a> {
@@ -83,7 +80,6 @@ impl<'a> Claims<'a> {
                                 return false;
                             }
                         }
-                        // TODO: handle partial paying claims?
                         to_send += c.amount;
                         true
                     } else {
@@ -101,5 +97,3 @@ impl<'a> Claims<'a> {
         Ok(ClaimsResponse { claims })
     }
 }
-
-// TODO: add test coverage
