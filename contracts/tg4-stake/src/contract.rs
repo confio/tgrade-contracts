@@ -839,6 +839,7 @@ mod tests {
         let mut env2 = mock_env();
         env2.block.height += 22;
         unbond(deps.as_mut(), 0, 1_345, 1_500, 22);
+        let updated_creation_height = env2.block.height;
 
         // with updated claims
         let expires2 = Duration::Height(UNBONDING_BLOCKS).after(&env2.block);
@@ -850,18 +851,18 @@ mod tests {
             get_claims(deps.as_ref(), &Addr::unchecked(USER2)),
             vec![
                 Claim::new(2_600, expires, env.block.height),
-                Claim::new(1_345, expires2, env2.block.height)
+                Claim::new(1_345, expires2, updated_creation_height)
             ]
         );
         assert_eq!(
             get_claims(deps.as_ref(), &Addr::unchecked(USER3)),
-            vec![Claim::new(1_500, expires2, env2.block.height)]
+            vec![Claim::new(1_500, expires2, updated_creation_height)]
         );
 
         // nothing can be withdrawn yet
         let err = execute(
             deps.as_mut(),
-            env2.clone(),
+            env2,
             mock_info(USER1, &[]),
             ExecuteMsg::Claim {},
         )
@@ -917,11 +918,11 @@ mod tests {
         assert_eq!(get_claims(deps.as_ref(), &Addr::unchecked(USER1)), vec![]);
         assert_eq!(
             get_claims(deps.as_ref(), &Addr::unchecked(USER2)),
-            vec![Claim::new(1_345, expires2, env2.block.height)]
+            vec![Claim::new(1_345, expires2, updated_creation_height)]
         );
         assert_eq!(
             get_claims(deps.as_ref(), &Addr::unchecked(USER3)),
-            vec![Claim::new(1_500, expires2, env2.block.height)]
+            vec![Claim::new(1_500, expires2, updated_creation_height)]
         );
 
         // add another few claims for 2
