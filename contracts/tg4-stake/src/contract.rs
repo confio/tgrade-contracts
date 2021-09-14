@@ -432,13 +432,14 @@ mod tests {
     const TOKENS_PER_WEIGHT: Uint128 = Uint128::new(1_000);
     const MIN_BOND: Uint128 = Uint128::new(5_000);
     const UNBONDING_BLOCKS: u64 = 100;
+    const UNBONDING_DURATION: u64 = 100;
 
     fn default_instantiate(deps: DepsMut) {
         do_instantiate(
             deps,
             TOKENS_PER_WEIGHT,
             MIN_BOND,
-            Duration::Height(UNBONDING_BLOCKS),
+            Duration::new_from_seconds(UNBONDING_DURATION),
         )
     }
 
@@ -508,7 +509,7 @@ mod tests {
 
         let raw = query(deps.as_ref(), mock_env(), QueryMsg::UnbondingPeriod {}).unwrap();
         let res: UnbondingPeriodResponse = from_slice(&raw).unwrap();
-        assert_eq!(res.unbonding_period, Duration::Height(UNBONDING_BLOCKS));
+        assert_eq!(res.unbonding_period, Duration::new_from_seconds(UNBONDING_DURATION));
     }
 
     fn get_member(deps: Deps, addr: String, at_height: Option<u64>) -> Option<u64> {
@@ -824,7 +825,7 @@ mod tests {
         env.block.height += 2;
 
         // check the claims for each user
-        let expires = Duration::Height(UNBONDING_BLOCKS).after(&env.block);
+        let expires = Duration::new_from_seconds(UNBONDING_DURATION).after(&env.block);
         assert_eq!(
             get_claims(deps.as_ref(), &Addr::unchecked(USER1)),
             vec![Claim::new(4_500, expires, env.block.height)]
@@ -842,7 +843,7 @@ mod tests {
         let updated_creation_height = env2.block.height;
 
         // with updated claims
-        let expires2 = Duration::Height(UNBONDING_BLOCKS).after(&env2.block);
+        let expires2 = Duration::new_from_seconds(UNBONDING_DURATION).after(&env2.block);
         assert_eq!(
             get_claims(deps.as_ref(), &Addr::unchecked(USER1)),
             vec![Claim::new(4_500, expires, env.block.height)]
@@ -1125,7 +1126,7 @@ mod tests {
             deps.as_mut(),
             Uint128::new(100),
             Uint128::zero(),
-            Duration::Height(5),
+            Duration::new_from_seconds(5),
         );
 
         // setting 50 tokens, gives us Some(0) weight

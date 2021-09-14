@@ -29,10 +29,15 @@ impl Expiration {
 }
 
 #[derive(Serialize, Deserialize, Clone, Copy, PartialEq, JsonSchema, Debug)]
-pub struct Duration(u64);
+pub struct Duration(Timestamp);
+
 impl Duration {
+    pub fn new_from_seconds(secs: u64) -> Duration {
+        Duration(Timestamp::from_seconds(secs))
+    }
+
     pub fn after(&self, block: &BlockInfo) -> Expiration {
-        Expiration::AtTime(block.time.plus_seconds(self.0))
+        Expiration::AtTime(block.time.plus_seconds(self.0.seconds()))
     }
 }
 
