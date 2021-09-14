@@ -2,6 +2,7 @@ use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use std::fmt;
 
+use crate::contract::VOTING_WEIGHT;
 use crate::error::ContractError;
 use cosmwasm_std::{
     attr, Addr, Attribute, BlockInfo, Decimal, Deps, Env, Event, StdError, StdResult, Storage,
@@ -405,6 +406,26 @@ impl fmt::Display for MemberStatus {
 }
 
 pub const ESCROWS: Map<&Addr, EscrowStatus> = Map::new("escrows");
+
+/// Saves the member's state, which is composed of its escrow status and its voting weight.
+/// Please notice this function is simple, and that, except for the paid escrow amount, it does not
+/// take state transitions into account.
+pub(crate) fn save_state(
+    store: &mut dyn Storage,
+    addr: &Addr,
+    escrow: &EscrowStatus,
+    height: u64,
+) -> StdResult<()> {
+    ESCROWS.save(store, &addr, &escrow)?;
+    // Weight depends on if enough escrow
+    let required_escrow = DSO.load(store)?.get_escrow();
+    let weight = if escrow.paid >= required_escrow {
+        VOTING_WEIGHT
+    } else {
+        0
+    };
+    members().save(store, &addr, &weight, height)
+}
 
 /// A Batch is a group of members who got voted in together. We need this to
 /// calculate moving from *Paid, Pending Voter* to *Voter*

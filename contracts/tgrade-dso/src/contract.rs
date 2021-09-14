@@ -17,9 +17,10 @@ use crate::msg::{
 };
 use crate::state::MemberStatus::NonVoting;
 use crate::state::{
-    batches, create_batch, create_proposal, members, parse_id, save_ballot, Ballot, Batch, Dso,
-    DsoAdjustments, EscrowStatus, MemberStatus, Proposal, ProposalContent, Punishment, Votes,
-    VotingRules, BALLOTS, BALLOTS_BY_VOTER, DSO, ESCROWS, PROPOSALS, PROPOSAL_BY_EXPIRY, TOTAL,
+    batches, create_batch, create_proposal, members, parse_id, save_ballot, save_state, Ballot,
+    Batch, Dso, DsoAdjustments, EscrowStatus, MemberStatus, Proposal, ProposalContent, Punishment,
+    Votes, VotingRules, BALLOTS, BALLOTS_BY_VOTER, DSO, ESCROWS, PROPOSALS, PROPOSAL_BY_EXPIRY,
+    TOTAL,
 };
 
 // version info for migration info
@@ -68,9 +69,7 @@ pub fn instantiate(
         paid: amount,
         status: MemberStatus::Voting {},
     };
-    ESCROWS.save(deps.storage, &info.sender, &escrow)?;
-
-    members().save(deps.storage, &info.sender, &VOTING_WEIGHT, env.block.height)?;
+    save_state(deps.storage, &info.sender, &escrow, env.block.height)?;
     TOTAL.save(deps.storage, &VOTING_WEIGHT)?;
 
     // add all members
@@ -247,10 +246,7 @@ fn convert_to_voter_if_paid(
 
     // update status
     escrow.status = MemberStatus::Voting {};
-    ESCROWS.save(storage, to_promote, &escrow)?;
-
-    // update voting weight
-    members().save(storage, to_promote, &VOTING_WEIGHT, height)?;
+    save_state(storage, to_promote, &escrow, height)?;
 
     Ok(true)
 }
@@ -946,16 +942,15 @@ pub fn proposal_punish_members(
                 trigger_long_leave(deps.branch(), env.clone(), addr, escrow_status)?.attributes;
             res.attributes.extend_from_slice(&attrs);
         } else if escrow_status.paid < required_escrow {
-            // If it's a voting member, reduce vote to 0 (otherwise, it is already 0)
+            // If it's a voting member, reduce TOTAL
             if escrow_status.status == (MemberStatus::Voting {}) {
-                members().save(deps.storage, &addr, &0, env.block.height)?;
                 TOTAL.update::<_, StdError>(deps.storage, |old| {
                     old.checked_sub(VOTING_WEIGHT)
                         .ok_or_else(|| StdError::generic_err("Total underflow"))
                 })?;
             }
             escrow_status.status = MemberStatus::Pending { proposal_id };
-            ESCROWS.save(deps.storage, &addr, &escrow_status)?;
+            save_state(deps.storage, &addr, &escrow_status, env.block.height)?;
             demoted_addrs.push(addr);
         } else {
             // Just update remaining escrow
