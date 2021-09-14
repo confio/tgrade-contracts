@@ -827,11 +827,11 @@ mod tests {
         let expires = Duration::Height(UNBONDING_BLOCKS).after(&env.block);
         assert_eq!(
             get_claims(deps.as_ref(), &Addr::unchecked(USER1)),
-            vec![Claim::new(4_500, expires)]
+            vec![Claim::new(4_500, expires, 12347)]
         );
         assert_eq!(
             get_claims(deps.as_ref(), &Addr::unchecked(USER2)),
-            vec![Claim::new(2_600, expires)]
+            vec![Claim::new(2_600, expires, 12347)]
         );
         assert_eq!(get_claims(deps.as_ref(), &Addr::unchecked(USER3)), vec![]);
 
@@ -844,15 +844,18 @@ mod tests {
         let expires2 = Duration::Height(UNBONDING_BLOCKS).after(&env2.block);
         assert_eq!(
             get_claims(deps.as_ref(), &Addr::unchecked(USER1)),
-            vec![Claim::new(4_500, expires)]
+            vec![Claim::new(4_500, expires, 12347)]
         );
         assert_eq!(
             get_claims(deps.as_ref(), &Addr::unchecked(USER2)),
-            vec![Claim::new(2_600, expires), Claim::new(1_345, expires2)]
+            vec![
+                Claim::new(2_600, expires, 12347),
+                Claim::new(1_345, expires2, 12367)
+            ]
         );
         assert_eq!(
             get_claims(deps.as_ref(), &Addr::unchecked(USER3)),
-            vec![Claim::new(1_500, expires2)]
+            vec![Claim::new(1_500, expires2, 12367)]
         );
 
         // nothing can be withdrawn yet
@@ -914,11 +917,11 @@ mod tests {
         assert_eq!(get_claims(deps.as_ref(), &Addr::unchecked(USER1)), vec![]);
         assert_eq!(
             get_claims(deps.as_ref(), &Addr::unchecked(USER2)),
-            vec![Claim::new(1_345, expires2)]
+            vec![Claim::new(1_345, expires2, 12367)]
         );
         assert_eq!(
             get_claims(deps.as_ref(), &Addr::unchecked(USER3)),
-            vec![Claim::new(1_500, expires2)]
+            vec![Claim::new(1_500, expires2, 12367)]
         );
 
         // add another few claims for 2
