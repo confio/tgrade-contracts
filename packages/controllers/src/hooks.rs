@@ -124,7 +124,7 @@ mod test {
 
     #[test]
     fn prepare_hook() {
-        let payout = |addr: Addr| {
+        let payout = |addr: Addr| -> StdResult<SubMsg> {
             Ok(SubMsg::new(BankMsg::Send {
                 to_address: addr.into(),
                 amount: coins(12345, "bonus"),

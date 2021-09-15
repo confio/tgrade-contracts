@@ -695,7 +695,6 @@ dependencies = [
  "cw0",
  "schemars",
  "serde",
- "tg-bindings",
  "thiserror",
 ]
 
@@ -707,7 +706,6 @@ dependencies = [
  "cosmwasm-std",
  "schemars",
  "serde",
- "tg-bindings",
 ]
 
 [[package]]

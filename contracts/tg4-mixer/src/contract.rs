@@ -358,7 +358,7 @@ mod tests {
     }
 
     pub fn contract_group() -> Box<dyn Contract<TgradeMsg>> {
-        let contract = ContractWrapper::new(
+        let contract = ContractWrapper::new_with_empty(
             tg4_group::contract::execute,
             tg4_group::contract::instantiate,
             tg4_group::contract::query,
