@@ -377,12 +377,13 @@ pub fn validate_proposal(
 ) -> Result<(), ContractError> {
     match proposal {
         ProposalContent::EditDso(dso_adjustments) => {
-            // Applying adjustments includes validating them
-            DSO.load(deps.storage)?.apply_adjustments(
+            let mut dso = DSO.load(deps.storage)?;
+            dso.apply_adjustments(
                 env,
-                u64::MAX, // FIXME?: Proposal id
+                u64::MAX, // Dummy proposal id
                 dso_adjustments.clone(),
-            )
+            )?;
+            dso.validate()
         }
         ProposalContent::AddRemoveNonVotingMembers { add, remove } => {
             add.iter()

@@ -150,7 +150,7 @@ impl Dso {
         if let Some(allow_end_early) = adjustments.allow_end_early {
             self.rules.allow_end_early = allow_end_early;
         }
-        self.validate()
+        Ok(())
     }
 
     /// Gets the max of the pending escrow (if any) and the current escrow amount
