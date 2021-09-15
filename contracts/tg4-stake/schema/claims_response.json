@@ -23,7 +23,7 @@
       "required": [
         "addr",
         "amount",
-        "creation_heigh",
+        "creation_height",
         "release_at"
       ],
       "properties": {
@@ -43,7 +43,7 @@
             }
           ]
         },
-        "creation_heigh": {
+        "creation_height": {
           "description": "Height of a blockchain in a moment of creation of this claim",
           "type": "integer",
           "format": "uint64",

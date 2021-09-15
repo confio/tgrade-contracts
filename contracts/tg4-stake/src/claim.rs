@@ -21,7 +21,7 @@ pub struct Claim {
     /// expiration by time.
     pub release_at: Expiration,
     /// Height of a blockchain in a moment of creation of this claim
-    pub creation_heigh: u64,
+    pub creation_height: u64,
 }
 
 struct ClaimIndexes<'a> {
@@ -36,12 +36,12 @@ impl<'a> IndexList<Claim> for ClaimIndexes<'a> {
 }
 
 impl Claim {
-    pub fn new(addr: Addr, amount: u128, released: Expiration, creation_heigh: u64) -> Self {
+    pub fn new(addr: Addr, amount: u128, released: Expiration, creation_height: u64) -> Self {
         Claim {
             addr,
             amount: amount.into(),
             release_at: released,
-            creation_heigh,
+            creation_height,
         }
     }
 }
@@ -74,7 +74,7 @@ impl<'a> Claims<'a> {
         addr: Addr,
         amount: Uint128,
         release_at: Expiration,
-        creation_heigh: u64,
+        creation_height: u64,
     ) -> StdResult<()> {
         // Add a claim to this user to get their tokens after the unbonding period
         self.claims.update(
@@ -90,7 +90,7 @@ impl<'a> Claims<'a> {
                         addr,
                         amount,
                         release_at,
-                        creation_heigh,
+                        creation_height,
                     }),
                 }
             },
