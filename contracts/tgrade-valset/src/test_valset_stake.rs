@@ -2,12 +2,11 @@
 use cosmwasm_std::{coin, Addr, Coin, Uint128};
 
 use cw20::Denom;
-use tg4_stake::state::Duration;
 
 use tg4::Tg4Contract;
 use tg_bindings::TgradeMsg;
 
-use tg4_stake::msg::ExecuteMsg;
+use tg4_stake::{msg::ExecuteMsg, state::Duration};
 
 use cw_multi_test::{App, Contract, ContractWrapper, Executor};
 

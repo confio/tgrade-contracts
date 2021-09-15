@@ -479,15 +479,11 @@ mod tests {
         user2: u128,
         user3: u128,
         height_delta: u64,
-        time_delta: Option<u64>,
+        time_delta: u64,
     ) {
         let mut env = mock_env();
         env.block.height += height_delta;
-        env.block.time = if let Some(time_delta) = time_delta {
-            env.block.time.plus_seconds(time_delta)
-        } else {
-            env.block.time
-        };
+        env.block.time = env.block.time.plus_seconds(time_delta);
 
         for (addr, stake) in &[(USER1, user1), (USER2, user2), (USER3, user3)] {
             if *stake != 0 {
@@ -764,7 +760,7 @@ mod tests {
 
         // ensure it rounds down, and respects cut-off
         bond(deps.as_mut(), 12_000, 7_500, 4_000, 1);
-        unbond(deps.as_mut(), 4_500, 2_600, 1_111, 2, None);
+        unbond(deps.as_mut(), 4_500, 2_600, 1_111, 2, 0);
 
         // Assert updated weights
         assert_stake(deps.as_ref(), 7_500, 4_900, 2_889);
@@ -835,7 +831,7 @@ mod tests {
         // create some data
         bond(deps.as_mut(), 12_000, 7_500, 4_000, 1);
         let height_delta = 2;
-        unbond(deps.as_mut(), 4_500, 2_600, 0, height_delta, None);
+        unbond(deps.as_mut(), 4_500, 2_600, 0, height_delta, 0);
         let mut env = mock_env();
         env.block.height += height_delta;
 
@@ -856,14 +852,7 @@ mod tests {
         let height_delta = 22;
         env2.block.height += height_delta;
         let time_delta = 50;
-        unbond(
-            deps.as_mut(),
-            0,
-            1_345,
-            1_500,
-            height_delta,
-            Some(time_delta),
-        );
+        unbond(deps.as_mut(), 0, 1_345, 1_500, height_delta, time_delta);
         let updated_creation_height = env2.block.height;
 
         // with updated claims
@@ -953,8 +942,8 @@ mod tests {
         );
 
         // add another few claims for 2
-        unbond(deps.as_mut(), 0, 600, 0, 30, None);
-        unbond(deps.as_mut(), 0, 1_005, 0, 50, None);
+        unbond(deps.as_mut(), 0, 600, 0, 30, 0);
+        unbond(deps.as_mut(), 0, 1_005, 0, 50, 0);
 
         // ensure second can claim all tokens at once
         let mut env4 = mock_env();
@@ -1164,7 +1153,7 @@ mod tests {
         assert_users(deps.as_ref(), Some(0), Some(0), Some(1), None);
 
         // reducing to 0 token makes us None even with min_bond 0
-        unbond(deps.as_mut(), 49, 1, 102, 2, None);
+        unbond(deps.as_mut(), 49, 1, 102, 2, 0);
         assert_users(deps.as_ref(), Some(0), None, None, None);
     }
 }
