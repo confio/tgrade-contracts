@@ -916,14 +916,9 @@ pub fn proposal_punish_members(
     punishments: &[Punishment],
 ) -> Result<Response, ContractError> {
     let mut res = Response::new().add_attribute("proposal", "punish_members");
-    if punishments.is_empty() {
-        return Err(ContractError::NoPunishments {});
-    }
     let mut demoted_addrs = vec![];
     for (i, p) in (1..).zip(punishments) {
         res = res.add_event(p.as_event(i));
-
-        p.validate(&deps.as_ref())?;
 
         let (member, &slashing_percentage, &kick_out) = match p {
             Punishment::DistributeEscrow {
