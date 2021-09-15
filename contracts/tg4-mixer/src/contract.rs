@@ -327,10 +327,9 @@ fn list_members_by_weight(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use cosmwasm_std::testing::{mock_env, MockApi, MockStorage};
     use cosmwasm_std::{coins, Addr, Uint128};
     use cw20::Denom;
-    use cw_multi_test::{next_block, App, BankKeeper, Contract, ContractWrapper, Executor};
+    use cw_multi_test::{next_block, App, AppBuilder, Contract, ContractWrapper, Executor};
     use tg4_stake::state::Duration;
     use tg_bindings::TgradeMsg;
 
@@ -374,14 +373,6 @@ mod tests {
             tg4_stake::contract::query,
         );
         Box::new(contract)
-    }
-
-    fn mock_app() -> App<TgradeMsg> {
-        let env = mock_env();
-        let api = MockApi::default();
-        let bank = BankKeeper::new();
-
-        App::new(api, env.block, bank, MockStorage::new())
     }
 
     // uploads code and returns address of group contract
@@ -512,7 +503,7 @@ mod tests {
 
     #[test]
     fn basic_init() {
-        let mut app = mock_app();
+        let mut app = AppBuilder::new().build();
         let stakers = vec![
             member(OWNER, 88888888888), // 0 weight -> 0 mixed
             member(VOTER1, 10000),      // 10000 stake, 100 weight -> 1000 mixed
@@ -536,7 +527,7 @@ mod tests {
 
     #[test]
     fn update_with_upstream_change() {
-        let mut app = mock_app();
+        let mut app = AppBuilder::new().build();
         let stakers = vec![
             member(VOTER1, 10000), // 10000 stake, 100 weight -> 1000 mixed
             member(VOTER3, 7500),  // 7500 stake, 300 weight -> 1500 mixed

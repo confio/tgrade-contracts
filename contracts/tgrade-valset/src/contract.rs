@@ -414,12 +414,12 @@ fn calculate_diff(cur_vals: Vec<ValidatorInfo>, old_vals: Vec<ValidatorInfo>) ->
 
 #[cfg(test)]
 mod test {
-    use cw_multi_test::{App, Contract, ContractWrapper, Executor};
+    use cw_multi_test::{App, AppBuilder, Contract, ContractWrapper, Executor};
 
     use super::*;
     use crate::test_helpers::{
-        addrs, contract_valset, members, mock_app, mock_metadata, mock_pubkey, nonmembers,
-        valid_operator, valid_validator,
+        addrs, contract_valset, members, mock_metadata, mock_pubkey, nonmembers, valid_operator,
+        valid_validator,
     };
     use cosmwasm_std::{coin, Coin};
 
@@ -518,7 +518,7 @@ mod test {
 
     #[test]
     fn init_and_query_state() {
-        let mut app = mock_app();
+        let mut app = AppBuilder::new().build();
 
         // make a simple group
         let group_addr = instantiate_group(&mut app, 36);
@@ -588,7 +588,7 @@ mod test {
     // TODO: test this with other cutoffs... higher max_vals, higher min_weight so they cannot all be filled
     #[test]
     fn simulate_validators() {
-        let mut app = mock_app();
+        let mut app = AppBuilder::new().build();
 
         // make a simple group
         let group_addr = instantiate_group(&mut app, 36);
@@ -623,7 +623,7 @@ mod test {
 
     #[test]
     fn update_metadata_works() {
-        let mut app = mock_app();
+        let mut app = AppBuilder::new().build();
 
         // make a simple group
         let group_addr = instantiate_group(&mut app, 36);
@@ -671,18 +671,18 @@ mod test {
                 &[],
             )
             .unwrap_err();
-        assert_eq!(err, (ContractError::InvalidMoniker {}).to_string());
+        assert_eq!(ContractError::InvalidMoniker {}, err.downcast().unwrap());
 
         // test that non-members cannot set data
         let err = app
             .execute_contract(Addr::unchecked("random"), valset_addr, &exec, &[])
             .unwrap_err();
-        assert_eq!(err, (ContractError::Unauthorized {}).to_string());
+        assert_eq!(ContractError::Unauthorized {}, err.downcast().unwrap());
     }
 
     #[test]
     fn validator_list() {
-        let mut app = mock_app();
+        let mut app = AppBuilder::new().build();
 
         // make a simple group
         let group_addr = instantiate_group(&mut app, 36);
@@ -800,7 +800,7 @@ mod test {
 
     #[test]
     fn end_block_run() {
-        let mut app = mock_app();
+        let mut app = AppBuilder::new().build();
 
         // make a simple group
         let group_addr = instantiate_group(&mut app, 36);

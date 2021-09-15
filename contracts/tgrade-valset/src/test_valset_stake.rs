@@ -8,14 +8,14 @@ use tg_bindings::TgradeMsg;
 
 use tg4_stake::{msg::ExecuteMsg, state::Duration};
 
-use cw_multi_test::{App, Contract, ContractWrapper, Executor};
+use cw_multi_test::{App, AppBuilder, Contract, ContractWrapper, Executor};
 
 use crate::msg::{
     ConfigResponse, EpochResponse, InstantiateMsg, ListActiveValidatorsResponse, QueryMsg,
     ValidatorResponse,
 };
 use crate::state::ValidatorInfo;
-use crate::test_helpers::{addrs, contract_valset, mock_app, valid_operator};
+use crate::test_helpers::{addrs, contract_valset, valid_operator};
 
 const EPOCH_LENGTH: u64 = 100;
 
@@ -135,7 +135,7 @@ fn unbond(app: &mut App<TgradeMsg>, addr: &Addr, stake_addr: &Addr, tokens: u128
 
 #[test]
 fn init_and_query_state() {
-    let mut app = mock_app();
+    let mut app = AppBuilder::new().build();
 
     // make a simple stake
     let stake_addr = instantiate_stake(&mut app);
@@ -204,7 +204,7 @@ fn init_and_query_state() {
 
 #[test]
 fn simulate_validators() {
-    let mut app = mock_app();
+    let mut app = AppBuilder::new().build();
 
     // make a simple stake
     let stake_addr = instantiate_stake(&mut app);
