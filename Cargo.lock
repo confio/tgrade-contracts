@@ -168,8 +168,22 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "26bd89d1f5cbae950ec3946ce5874f049c98d5608b1420292d5eda913aa4948d"
 dependencies = [
  "cosmwasm-std",
- "cw-storage-plus",
- "cw0",
+ "cw-storage-plus 0.8.0",
+ "cw0 0.8.0",
+ "schemars",
+ "serde",
+ "thiserror",
+]
+
+[[package]]
+name = "cw-controllers"
+version = "0.9.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "696b7511de2eb449d086b8a88a95696bb6463bcfdd03d49014f03006259823e8"
+dependencies = [
+ "cosmwasm-std",
+ "cw-storage-plus 0.9.0",
+ "cw0 0.9.0",
  "schemars",
  "serde",
  "thiserror",
@@ -183,8 +197,8 @@ checksum = "6f7b683e48a7070e968d29b4e31466f4c2e5b333d835dff94d204f8ef74b3bbc"
 dependencies = [
  "cosmwasm-std",
  "cosmwasm-storage",
- "cw-storage-plus",
- "cw0",
+ "cw-storage-plus 0.8.0",
+ "cw0 0.8.0",
  "itertools",
  "prost",
  "schemars",
@@ -196,6 +210,17 @@ name = "cw-storage-plus"
 version = "0.8.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "6ef70f7912bed72ff56a4f704aee279b6ef4cd0a5f3aa2732ad371e3f6d3ea71"
+dependencies = [
+ "cosmwasm-std",
+ "schemars",
+ "serde",
+]
+
+[[package]]
+name = "cw-storage-plus"
+version = "0.9.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "2a7f5027f469b714b1190d0adc7513ab34581710890087021fdb5847852407de"
 dependencies = [
  "cosmwasm-std",
  "schemars",
@@ -215,13 +240,25 @@ dependencies = [
 ]
 
 [[package]]
+name = "cw0"
+version = "0.9.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "31da5efc36cb72c20f666d2b70cbaf29628c1092384efa9faf5b32e351d02fbe"
+dependencies = [
+ "cosmwasm-std",
+ "schemars",
+ "serde",
+ "thiserror",
+]
+
+[[package]]
 name = "cw2"
 version = "0.8.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "51698a50df8be3d31d7261082f052685d04fe6289df89792fd4efa41daee8b90"
 dependencies = [
  "cosmwasm-std",
- "cw-storage-plus",
+ "cw-storage-plus 0.8.0",
  "schemars",
  "serde",
 ]
@@ -233,7 +270,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "f24779556263d95d5a7ebf8a0b0cd615df0b34bff69c23f409e5f17b5fb529ef"
 dependencies = [
  "cosmwasm-std",
- "cw0",
+ "cw0 0.8.0",
  "schemars",
  "serde",
 ]
@@ -245,7 +282,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "5d644170333aece0352ee6abfa64070809e2b58211bd4355e09d8b472479fb90"
 dependencies = [
  "cosmwasm-std",
- "cw0",
+ "cw0 0.8.0",
  "schemars",
  "serde",
 ]
@@ -677,8 +714,8 @@ name = "tg-controllers"
 version = "0.3.0"
 dependencies = [
  "cosmwasm-std",
- "cw-storage-plus",
- "cw0",
+ "cw-storage-plus 0.8.0",
+ "cw0 0.8.0",
  "schemars",
  "serde",
  "tg-bindings",
@@ -702,9 +739,9 @@ version = "0.3.0"
 dependencies = [
  "cosmwasm-schema",
  "cosmwasm-std",
- "cw-controllers",
- "cw-storage-plus",
- "cw0",
+ "cw-controllers 0.9.0",
+ "cw-storage-plus 0.8.0",
+ "cw0 0.8.0",
  "cw2",
  "schemars",
  "serde",
@@ -721,8 +758,8 @@ dependencies = [
  "cosmwasm-schema",
  "cosmwasm-std",
  "cw-multi-test",
- "cw-storage-plus",
- "cw0",
+ "cw-storage-plus 0.8.0",
+ "cw0 0.8.0",
  "cw2",
  "cw20",
  "integer-sqrt",
@@ -742,9 +779,9 @@ version = "0.3.0"
 dependencies = [
  "cosmwasm-schema",
  "cosmwasm-std",
- "cw-controllers",
- "cw-storage-plus",
- "cw0",
+ "cw-controllers 0.9.0",
+ "cw-storage-plus 0.8.0",
+ "cw0 0.8.0",
  "cw2",
  "cw20",
  "itertools",
@@ -762,9 +799,9 @@ version = "0.3.0"
 dependencies = [
  "cosmwasm-schema",
  "cosmwasm-std",
- "cw-controllers",
- "cw-storage-plus",
- "cw0",
+ "cw-controllers 0.8.0",
+ "cw-storage-plus 0.8.0",
+ "cw0 0.8.0",
  "cw2",
  "cw3",
  "schemars",
@@ -779,7 +816,7 @@ version = "0.3.0"
 dependencies = [
  "cosmwasm-schema",
  "cosmwasm-std",
- "cw-storage-plus",
+ "cw-storage-plus 0.8.0",
  "schemars",
  "serde",
  "tg-bindings",
@@ -792,10 +829,10 @@ version = "0.3.0"
 dependencies = [
  "cosmwasm-schema",
  "cosmwasm-std",
- "cw-controllers",
+ "cw-controllers 0.8.0",
  "cw-multi-test",
- "cw-storage-plus",
- "cw0",
+ "cw-storage-plus 0.8.0",
+ "cw0 0.8.0",
  "cw2",
  "cw20",
  "schemars",

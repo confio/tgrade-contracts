@@ -318,9 +318,10 @@ mod tests {
     use super::*;
     use cosmwasm_std::testing::{mock_dependencies, mock_env, mock_info};
     use cosmwasm_std::{from_slice, Api, OwnedDeps, Querier, StdError, Storage};
+    use cw_controllers::AdminError;
     use cw_storage_plus::Map;
     use tg4::{member_key, TOTAL_KEY};
-    use tg_controllers::{AdminError, HookError, PreauthError};
+    use tg_controllers::{HookError, PreauthError};
 
     const INIT_ADMIN: &str = "juan";
     const USER1: &str = "somebody";

@@ -4,12 +4,13 @@ use serde::{Deserialize, Serialize};
 use crate::claim::Claims;
 use cosmwasm_std::{Addr, BlockInfo, Timestamp, Uint128};
 use cw20::Denom;
+use cw_controllers::Admin;
 use cw_storage_plus::{
     Index, IndexList, IndexedSnapshotMap, Item, Map, MultiIndex, Prefixer, PrimaryKey, SnapshotMap,
     Strategy, U64Key,
 };
 use tg4::TOTAL_KEY;
-use tg_controllers::{Admin, Hooks, Preauth};
+use tg_controllers::{Hooks, Preauth};
 
 /// Builds a claims map as it cannot be done in const time
 pub fn claims() -> Claims<'static> {

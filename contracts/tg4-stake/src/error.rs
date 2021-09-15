@@ -1,7 +1,8 @@
 use cosmwasm_std::StdError;
 use thiserror::Error;
 
-use tg_controllers::{AdminError, HookError, PreauthError};
+use cw_controllers::AdminError;
+use tg_controllers::{HookError, PreauthError};
 
 #[derive(Error, Debug, PartialEq)]
 pub enum ContractError {
