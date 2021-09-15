@@ -413,9 +413,9 @@ fn list_members_by_weight(
 #[cfg(test)]
 mod tests {
     use crate::claim::Claim;
+    use crate::state::Duration;
     use cosmwasm_std::testing::{mock_dependencies, mock_env, mock_info};
     use cosmwasm_std::{from_slice, OverflowError, OverflowOperation, StdError, Storage};
-    use crate::state::Duration;
     use cw20::Denom;
     use tg4::{member_key, TOTAL_KEY};
     use tg_controllers::{HookError, PreauthError};
@@ -509,7 +509,10 @@ mod tests {
 
         let raw = query(deps.as_ref(), mock_env(), QueryMsg::UnbondingPeriod {}).unwrap();
         let res: UnbondingPeriodResponse = from_slice(&raw).unwrap();
-        assert_eq!(res.unbonding_period, Duration::new_from_seconds(UNBONDING_DURATION));
+        assert_eq!(
+            res.unbonding_period,
+            Duration::new_from_seconds(UNBONDING_DURATION)
+        );
     }
 
     fn get_member(deps: Deps, addr: String, at_height: Option<u64>) -> Option<u64> {

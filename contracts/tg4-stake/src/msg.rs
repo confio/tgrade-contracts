@@ -1,6 +1,6 @@
+use crate::state::Duration;
 use cosmwasm_std::{Coin, Uint128};
 use schemars::JsonSchema;
-use crate::state::Duration;
 use serde::{Deserialize, Serialize};
 
 use cw20::Denom;
