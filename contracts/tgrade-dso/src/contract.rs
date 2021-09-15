@@ -336,6 +336,9 @@ pub fn execute_propose(
         return Err(ContractError::Unauthorized {});
     }
 
+    // validate the proposal's content
+    validate_proposal(deps.as_ref(), env.clone(), &proposal)?;
+
     // create a proposal
     let dso = DSO.load(deps.storage)?;
     let mut prop = Proposal {
@@ -365,6 +368,43 @@ pub fn execute_propose(
         .add_attribute("sender", info.sender)
         .add_events(events);
     Ok(res)
+}
+
+pub fn validate_proposal(
+    deps: Deps,
+    env: Env,
+    proposal: &ProposalContent,
+) -> Result<(), ContractError> {
+    match proposal {
+        ProposalContent::EditDso(dso_adjustments) => {
+            // Applying adjustments includes validating them
+            DSO.load(deps.storage)?.apply_adjustments(
+                env,
+                u64::MAX, // FIXME?: Proposal id
+                dso_adjustments.clone(),
+            )
+        }
+        ProposalContent::AddRemoveNonVotingMembers { add, remove } => {
+            add.iter()
+                .chain(remove.iter())
+                .map(|addr| deps.api.addr_validate(&addr))
+                .collect::<StdResult<Vec<_>>>()?;
+            Ok(())
+        }
+        ProposalContent::AddVotingMembers { voters } => {
+            voters
+                .iter()
+                .map(|addr| deps.api.addr_validate(&addr))
+                .collect::<StdResult<Vec<_>>>()?;
+            Ok(())
+        }
+        ProposalContent::PunishMembers(punishments) => {
+            if punishments.is_empty() {
+                return Err(ContractError::NoPunishments {});
+            }
+            punishments.iter().try_for_each(|p| p.validate(&deps))
+        }
+    }
 }
 
 pub fn execute_vote(
