@@ -680,7 +680,7 @@ fn propose_new_voting_rules_validation() {
         }
     );
 
-    // make a new proposal
+    // Make an invalid proposal (proposal name is empty)
     let prop = ProposalContent::EditDso(DsoAdjustments {
         name: Some("".into()),
         escrow_amount: None,
@@ -696,20 +696,7 @@ fn propose_new_voting_rules_validation() {
     };
     let mut env = mock_env();
     env.block.height += 10;
-    let res = execute(deps.as_mut(), env.clone(), mock_info(INIT_ADMIN, &[]), msg).unwrap();
-    let proposal_id = parse_prop_id(&res.attributes);
-
-    // ensure it passed (already via principal voter)
-    let prop = query_proposal(deps.as_ref(), env.clone(), proposal_id).unwrap();
-    assert_eq!(prop.status, Status::Passed);
-
-    // execute it
-    let res = execute(
-        deps.as_mut(),
-        env,
-        mock_info(NONVOTING1, &[]),
-        ExecuteMsg::Execute { proposal_id },
-    );
+    let res = execute(deps.as_mut(), env, mock_info(INIT_ADMIN, &[]), msg);
     assert!(res.is_err());
     assert_eq!(res.unwrap_err(), ContractError::EmptyName {})
 }
@@ -1276,22 +1263,8 @@ fn punish_members_validation() {
         };
         let mut env = mock_env();
         env.block.height += 10;
-        let res = execute(deps.as_mut(), env.clone(), mock_info(INIT_ADMIN, &[]), msg).unwrap();
-        let proposal_id = parse_prop_id(&res.attributes);
-
-        // ensure it passed (already via principal voter)
-        let prop = query_proposal(deps.as_ref(), env.clone(), proposal_id).unwrap();
-        assert_eq!(prop.status, Status::Passed);
-
-        // execute it
-        let res = execute(
-            deps.as_mut(),
-            env,
-            mock_info(NONVOTING1, &[]),
-            ExecuteMsg::Execute { proposal_id },
-        );
-
-        // Check it failed
+        let res = execute(deps.as_mut(), env.clone(), mock_info(INIT_ADMIN, &[]), msg);
+        // Check proposal creation failed
         assert!(res.is_err());
         assert_eq!(res.unwrap_err(), *err);
     }
