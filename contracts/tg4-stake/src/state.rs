@@ -93,3 +93,45 @@ pub fn members<'a>() -> IndexedSnapshotMap<'a, &'a Addr, u64, MemberIndexes<'a>>
 }
 
 pub const STAKE: Map<&Addr, Uint128> = Map::new("stake");
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn create_expiration_from_duration() {
+        let duration = Duration::new_from_seconds(33);
+        let block_info = BlockInfo {
+            height: 1,
+            time: Timestamp::from_seconds(66),
+            chain_id: "id".to_owned(),
+        };
+        assert_eq!(
+            duration.after(&block_info),
+            Expiration(Timestamp::from_seconds(99))
+        );
+    }
+
+    #[test]
+    fn expiration_is_expired() {
+        let expiration = Expiration(Timestamp::from_seconds(10));
+        let block_info = BlockInfo {
+            height: 1,
+            time: Timestamp::from_seconds(9),
+            chain_id: "id".to_owned(),
+        };
+        assert!(!expiration.is_expired(&block_info));
+        let block_info = BlockInfo {
+            height: 1,
+            time: Timestamp::from_seconds(10),
+            chain_id: "id".to_owned(),
+        };
+        assert!(expiration.is_expired(&block_info));
+        let block_info = BlockInfo {
+            height: 1,
+            time: Timestamp::from_seconds(11),
+            chain_id: "id".to_owned(),
+        };
+        assert!(expiration.is_expired(&block_info));
+    }
+}
