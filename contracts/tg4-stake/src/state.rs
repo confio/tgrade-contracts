@@ -5,7 +5,8 @@ use crate::claim::Claims;
 use cosmwasm_std::{Addr, BlockInfo, Timestamp, Uint128};
 use cw20::Denom;
 use cw_storage_plus::{
-    Index, IndexList, IndexedSnapshotMap, Item, Map, MultiIndex, SnapshotMap, Strategy, U64Key,
+    Index, IndexList, IndexedSnapshotMap, Item, Map, MultiIndex, Prefixer, PrimaryKey, SnapshotMap,
+    Strategy, U64Key,
 };
 use tg4::TOTAL_KEY;
 use tg_controllers::{Admin, Hooks, Preauth};
@@ -19,8 +20,42 @@ pub fn claims() -> Claims<'static> {
 pub struct Expiration(Timestamp);
 
 impl Expiration {
+    pub fn now(block: &BlockInfo) -> Self {
+        Self(block.time)
+    }
+
     pub fn is_expired(&self, block: &BlockInfo) -> bool {
         block.time >= self.0
+    }
+}
+
+#[derive(Clone, PartialEq, Eq, Debug)]
+pub struct ExpirationKey(U64Key);
+
+impl ExpirationKey {
+    pub fn new(expiration: Expiration) -> Self {
+        Self(U64Key::new(expiration.0.nanos()))
+    }
+}
+
+impl From<Expiration> for ExpirationKey {
+    fn from(expiration: Expiration) -> Self {
+        Self::new(expiration)
+    }
+}
+
+impl<'a> PrimaryKey<'a> for ExpirationKey {
+    type Prefix = ();
+    type SubPrefix = ();
+
+    fn key(&self) -> Vec<&[u8]> {
+        self.0.key()
+    }
+}
+
+impl<'a> Prefixer<'a> for ExpirationKey {
+    fn prefix(&self) -> Vec<&[u8]> {
+        self.0.prefix()
     }
 }
 
@@ -44,7 +79,7 @@ pub struct Config {
     pub tokens_per_weight: Uint128,
     pub min_bond: Uint128,
     /// time in seconds
-    pub unbonding_period: u64,
+    pub unbonding_period: Duration,
     /// limits of how much claims can be automatically returned at end of block
     pub auto_return_limit: u64,
 }

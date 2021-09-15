@@ -4,9 +4,9 @@
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
-use crate::state::Expiration;
-use cosmwasm_std::{Addr, BlockInfo, Deps, Order, StdResult, Storage, Timestamp, Uint128};
-use cw_storage_plus::{Bound, Index, IndexList, IndexedMap, MultiIndex, U64Key};
+use crate::state::{Expiration, ExpirationKey};
+use cosmwasm_std::{Addr, BlockInfo, Deps, Order, StdResult, Storage, Uint128};
+use cw_storage_plus::{Bound, Index, IndexList, IndexedMap, MultiIndex};
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct Claim {
@@ -18,13 +18,13 @@ pub struct Claim {
     /// here we need to query for claims via release time, and expiration is impossible to be
     /// properly sorted, as it is impossible to properly compare expiration by height and
     /// expiration by time.
-    pub release_at: Timestamp,
+    pub release_at: Expiration,
     /// Height of a blockchain in a moment of creation of this claim
     pub creation_heigh: u64,
 }
 
 struct ClaimIndexes<'a> {
-    pub release_at: MultiIndex<'a, (U64Key, Vec<u8>), Claim>,
+    pub release_at: MultiIndex<'a, (ExpirationKey, Vec<u8>), Claim>,
 }
 
 impl<'a> IndexList<Claim> for ClaimIndexes<'a> {
@@ -35,7 +35,7 @@ impl<'a> IndexList<Claim> for ClaimIndexes<'a> {
 }
 
 impl Claim {
-    pub fn new(addr: Addr, amount: u128, released: Timestamp, creation_heigh: u64) -> Self {
+    pub fn new(addr: Addr, amount: u128, released: Expiration, creation_heigh: u64) -> Self {
         Claim {
             addr,
             amount: amount.into(),
@@ -47,16 +47,15 @@ impl Claim {
 
 pub struct Claims<'a> {
     /// Claims are indexed by `(addr, release_at)` pair. Claims falling into the same key are
-    /// merged (summarized) as there is no point to distinguish them. Timestamp is stored as
-    /// `U64Key`, as timestamp is not a valid key - the nanos value is stored in map.
-    claims: IndexedMap<'a, (Addr, U64Key), Claim, ClaimIndexes<'a>>,
+    /// merged (summarized) as there is no point to distinguish them.
+    claims: IndexedMap<'a, (Addr, ExpirationKey), Claim, ClaimIndexes<'a>>,
 }
 
 impl<'a> Claims<'a> {
     pub fn new(storage_key: &'a str, release_subkey: &'a str) -> Self {
         let indexes = ClaimIndexes {
             release_at: MultiIndex::new(
-                |claim, k| (U64Key::new(claim.release_at.nanos()), k),
+                |claim, k| (claim.release_at.into(), k),
                 storage_key,
                 release_subkey,
             ),
@@ -73,13 +72,13 @@ impl<'a> Claims<'a> {
         storage: &mut dyn Storage,
         addr: Addr,
         amount: Uint128,
-        release_at: Timestamp,
+        release_at: Expiration,
         creation_heigh: u64,
     ) -> StdResult<()> {
         // Add a claim to this user to get their tokens after the unbonding period
         self.claims.update(
             storage,
-            (addr.clone(), U64Key::new(release_at.nanos())),
+            (addr.clone(), release_at.into()),
             move |claim| -> StdResult<_> {
                 match claim {
                     Some(mut claim) => {
@@ -115,7 +114,7 @@ impl<'a> Claims<'a> {
             .range(storage, None, None, Order::Ascending)
             // filter out non-expired claims (leaving errors to stop on first
             .filter(|claim| match claim {
-                Ok((_, claim)) => claim.release_at <= block.time,
+                Ok((_, claim)) => claim.release_at.is_expired(&block),
                 Err(_) => true,
             });
 
@@ -142,7 +141,10 @@ impl<'a> Claims<'a> {
             .range(
                 storage,
                 None,
-                Some(Bound::inclusive(U64Key::new(block.time.nanos()))),
+                Some(Bound::inclusive(self.claims.idx.release_at.index_key((
+                    ExpirationKey::new(Expiration::now(&block)),
+                    vec![],
+                )))),
                 Order::Ascending,
             );
 
@@ -159,7 +161,7 @@ impl<'a> Claims<'a> {
         claims: impl IntoIterator<Item = StdResult<(Vec<u8>, Claim)>>,
         cap: Option<u128>,
         limit: Option<u64>,
-    ) -> StdResult<(Vec<(Addr, U64Key)>, u128)> {
+    ) -> StdResult<(Vec<(Addr, ExpirationKey)>, u128)> {
         // will be filled at the final step of processing
         let mut amount = 0;
 
@@ -169,7 +171,7 @@ impl<'a> Claims<'a> {
             .scan(0u128, |sum, claim| match claim {
                 Ok((_, claim)) => {
                     *sum += u128::from(claim.amount);
-                    let idx = (claim.addr, U64Key::new(claim.release_at.nanos()));
+                    let idx = (claim.addr, claim.release_at.into());
                     Some(Ok((idx, *sum)))
                 }
                 Err(err) => Some(Err(err)),
@@ -206,7 +208,7 @@ impl<'a> Claims<'a> {
     fn release_claims(
         &self,
         storage: &mut dyn Storage,
-        claims: impl IntoIterator<Item = (Addr, U64Key)>,
+        claims: impl IntoIterator<Item = (Addr, ExpirationKey)>,
     ) -> StdResult<()> {
         for claim in claims {
             self.claims.remove(storage, claim)?;

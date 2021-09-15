@@ -5,7 +5,7 @@ use cosmwasm_std::{
     StdError, StdResult, Storage, Uint128,
 };
 
-use cw0::{maybe_addr, Duration, NativeBalance};
+use cw0::{maybe_addr, NativeBalance};
 use cw2::set_contract_version;
 use cw20::{Balance, Denom};
 use cw_storage_plus::{Bound, PrimaryKey, U64Key};
@@ -184,7 +184,7 @@ pub fn execute_unbond(
         deps.storage,
         info.sender.clone(),
         amount,
-        env.block.time.plus_seconds(cfg.unbonding_period),
+        cfg.unbonding_period.after(&env.block),
         env.block.height,
     )?;
 
@@ -351,9 +351,7 @@ pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
             let Config {
                 unbonding_period, ..
             } = CONFIG.load(deps.storage)?;
-            to_binary(&UnbondingPeriodResponse {
-                unbonding_period: Duration::Time(unbonding_period),
-            })
+            to_binary(&UnbondingPeriodResponse { unbonding_period })
         }
     }
 }
@@ -478,7 +476,7 @@ mod tests {
         deps: DepsMut,
         tokens_per_weight: Uint128,
         min_bond: Uint128,
-        unbonding_period: u64,
+        unbonding_period: Duration,
     ) {
         let msg = InstantiateMsg {
             denom: Denom::Native("stake".to_string()),
@@ -897,7 +895,6 @@ mod tests {
         env2.block.height += height_delta;
         let time_delta = 50;
         unbond(deps.as_mut(), 0, 1_345, 1_500, height_delta, time_delta);
-        let updated_creation_height = env2.block.height;
 
         // with updated claims
         let expires2 =
@@ -925,7 +922,7 @@ mod tests {
                 Addr::unchecked(USER3),
                 1_500,
                 expires2,
-                env2.height
+                env2.block.height
             )]
         );
 
@@ -945,7 +942,7 @@ mod tests {
         // first one can now release
         let res = execute(
             deps.as_mut(),
-            env.clone(),
+            env3.clone(),
             mock_info(USER1, &[]),
             ExecuteMsg::Claim {},
         )
@@ -977,7 +974,7 @@ mod tests {
         // but the third one cannot release
         let err = execute(
             deps.as_mut(),
-            env,
+            env3,
             mock_info(USER3, &[]),
             ExecuteMsg::Claim {},
         )
@@ -1017,7 +1014,7 @@ mod tests {
             .plus_seconds(UNBONDING_DURATION + time_delta);
         let res = execute(
             deps.as_mut(),
-            env,
+            env4,
             mock_info(USER2, &[]),
             ExecuteMsg::Claim {},
         )
