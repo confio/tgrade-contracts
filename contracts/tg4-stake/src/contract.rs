@@ -268,13 +268,12 @@ pub fn execute_claim(
     }
 
     let config = CONFIG.load(deps.storage)?;
-    let amount;
-    match &config.denom {
-        Denom::Native(denom) => amount = coins(release.u128(), denom),
+    let amount = match &config.denom {
+        Denom::Native(denom) => coins(release.into(), denom),
         Denom::Cw20(_addr) => {
-            unimplemented!("The CW20 coins release functionality is in progress")
+            return Err(ContractError::Cw20CoinsRelease {});
         }
-    }
+    };
 
     let res = Response::new()
         .add_attribute("action", "claim")
@@ -284,6 +283,7 @@ pub fn execute_claim(
             to_address: info.sender.into(),
             amount,
         });
+
     Ok(res)
 }
 
@@ -297,9 +297,10 @@ fn coins_to_string(coins: &[Coin]) -> String {
 }
 
 #[cfg_attr(not(feature = "library"), entry_point)]
-pub fn sudo(deps: DepsMut, _env: Env, msg: TgradeSudoMsg) -> Result<Response, ContractError> {
+pub fn sudo(deps: DepsMut, env: Env, msg: TgradeSudoMsg) -> Result<Response, ContractError> {
     match msg {
         TgradeSudoMsg::PrivilegeChange(PrivilegeChangeMsg::Promoted {}) => privilege_promote(deps),
+        TgradeSudoMsg::EndBlock {} => end_block(deps, env),
         _ => Err(ContractError::UnknownSudoMsg {}),
     }
 }
@@ -315,9 +316,41 @@ fn privilege_promote(deps: DepsMut) -> Result<Response, ContractError> {
     }
 }
 
-fn _end_block(_deps: DepsMut) -> Result<Response, ContractError> {
-    // TODO: Auto return claims
-    todo!()
+fn end_block(deps: DepsMut, env: Env) -> Result<Response, ContractError> {
+    let mut resp = Response::new();
+
+    let config = CONFIG.load(deps.storage)?;
+    if config.auto_return_limit > 0 {
+        let sub_msgs = release_expired_claims(deps, env, config)?;
+        resp = resp.add_submessages(sub_msgs);
+    }
+
+    Ok(resp)
+}
+
+fn release_expired_claims(
+    deps: DepsMut,
+    env: Env,
+    config: Config,
+) -> Result<Vec<SubMsg>, ContractError> {
+    let releases = claims().claim_expired(deps.storage, &env.block, config.auto_return_limit)?;
+
+    releases
+        .into_iter()
+        .map(|(addr, amount)| {
+            let amount = match &config.denom {
+                Denom::Native(denom) => coins(amount.into(), denom),
+                Denom::Cw20(_) => {
+                    return Err(ContractError::Cw20CoinsRelease {});
+                }
+            };
+
+            Ok(SubMsg::new(BankMsg::Send {
+                to_address: addr.into(),
+                amount,
+            }))
+        })
+        .collect()
 }
 
 #[cfg_attr(not(feature = "library"), entry_point)]

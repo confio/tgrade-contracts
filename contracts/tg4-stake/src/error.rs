@@ -40,4 +40,7 @@ pub enum ContractError {
 
     #[error("Unrecognized sudo message")]
     UnknownSudoMsg {},
+
+    #[error("Cw20 coins release functionality is in progress")]
+    Cw20CoinsRelease {},
 }

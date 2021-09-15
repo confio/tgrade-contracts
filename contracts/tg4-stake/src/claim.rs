@@ -1,6 +1,7 @@
 // Copied from cw-plus repository: https://github.com/CosmWasm/cw-plus/tree/main/packages/controllers
 // Original file distributed on Apache license
 
+use itertools::Itertools;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
@@ -114,25 +115,27 @@ impl<'a> Claims<'a> {
             .range(storage, None, None, Order::Ascending)
             // filter out non-expired claims (leaving errors to stop on first
             .filter(|claim| match claim {
-                Ok((_, claim)) => claim.release_at.is_expired(&block),
+                Ok((_, claim)) => claim.release_at.is_expired(block),
                 Err(_) => true,
             });
 
-        let (claims, amount) = self.filter_claims(claims, cap.map(u128::from), None)?;
+        let claims = self.filter_claims(claims, cap.map(u128::from), None)?;
+        let amount = claims.iter().map(|claim| claim.amount).sum();
+
         self.release_claims(storage, claims)?;
 
-        Ok(amount.into())
+        Ok(amount)
     }
 
     /// This iterates over all mature claims of any addresses, and removes them. Up to `limit`
     /// claims would be processed, starting from the oldest. It removes the finished claims and
-    /// returns the total amount of tokens to be released.
+    /// returns vector of pairs: `(addr, amount)`, representing amount of tokens to be released to particular addresses
     pub fn claim_expired(
         &self,
         storage: &mut dyn Storage,
         block: &BlockInfo,
         limit: impl Into<Option<u64>>,
-    ) -> StdResult<Uint128> {
+    ) -> StdResult<Vec<(Addr, Uint128)>> {
         let claims = self
             .claims
             .idx
@@ -142,52 +145,55 @@ impl<'a> Claims<'a> {
                 storage,
                 None,
                 Some(Bound::inclusive(self.claims.idx.release_at.index_key((
-                    ExpirationKey::new(Expiration::now(&block)),
+                    ExpirationKey::new(Expiration::now(block)),
                     vec![],
                 )))),
                 Order::Ascending,
             );
 
-        let (claims, amount) = self.filter_claims(claims, None, limit.into())?;
+        let mut claims = self.filter_claims(claims, None, limit.into())?;
+        claims.sort_by_key(|claim| claim.addr.clone());
+
+        let releases = claims
+            .iter()
+            // TODO: use `slice::group_by` in place of `Itertools::group_by` when `slice_group_by`
+            // is stabilized [https://github.com/rust-lang/rust/issues/80552]
+            .group_by(|claim| &claim.addr)
+            .into_iter()
+            .map(|(addr, group)| (addr.clone(), group.map(|claim| claim.amount).sum()))
+            .collect();
+
         self.release_claims(storage, claims)?;
 
-        Ok(amount.into())
+        Ok(releases)
     }
 
-    /// Processes claims filtering those which are to be released. Returns vector of keys of claims
-    /// to be released, and accumulated amount of tokens to be released
+    /// Processes claims filtering those which are to be released. Returns vector of claims to be
+    /// released
     fn filter_claims(
         &self,
         claims: impl IntoIterator<Item = StdResult<(Vec<u8>, Claim)>>,
         cap: Option<u128>,
         limit: Option<u64>,
-    ) -> StdResult<(Vec<(Addr, ExpirationKey)>, u128)> {
-        // will be filled at the final step of processing
-        let mut amount = 0;
-
+    ) -> StdResult<Vec<Claim>> {
         let claims = claims
             .into_iter()
-            // calculate sum for claims up to this one and pair it with index
+            // calculate sum for claims up to this one for cap filtering
             .scan(0u128, |sum, claim| match claim {
                 Ok((_, claim)) => {
                     *sum += u128::from(claim.amount);
-                    let idx = (claim.addr, claim.release_at.into());
-                    Some(Ok((idx, *sum)))
+                    Some(Ok((*sum, claim)))
                 }
                 Err(err) => Some(Err(err)),
             })
             // stop when sum exceeds limit
             .take_while(|claim| match (cap, claim) {
-                (Some(cap), Ok((_, sum))) => cap <= *sum,
+                (Some(cap), Ok((sum, _))) => cap <= *sum,
                 _ => true,
             })
-            // now only proper claims as in iterator, so just map and store amount - the last one
-            // would be the one stored
+            // now only proper claims as in iterator, so just map them back to claim
             .map(|claim| match claim {
-                Ok((idx, claim)) => {
-                    amount = claim;
-                    Ok(idx)
-                }
+                Ok((_, claim)) => Ok(claim),
                 Err(err) => Err(err),
             });
 
@@ -201,17 +207,18 @@ impl<'a> Claims<'a> {
             claims.collect::<StdResult<_>>()
         }?;
 
-        Ok((claims, amount))
+        Ok(claims)
     }
 
     /// Releases given claims by removing them from storage
     fn release_claims(
         &self,
         storage: &mut dyn Storage,
-        claims: impl IntoIterator<Item = (Addr, ExpirationKey)>,
+        claims: impl IntoIterator<Item = Claim>,
     ) -> StdResult<()> {
         for claim in claims {
-            self.claims.remove(storage, claim)?;
+            self.claims
+                .remove(storage, (claim.addr, claim.release_at.into()))?;
         }
 
         Ok(())
