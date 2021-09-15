@@ -2,11 +2,8 @@ use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
 
-use cosmwasm_std::{Addr, StdError, StdResult, Storage};
+use cosmwasm_std::{Addr, StdError, StdResult, Storage, SubMsg};
 use cw_storage_plus::Item;
-use tg_bindings::TgradeMsg;
-
-type SubMsg = cosmwasm_std::SubMsg<TgradeMsg>;
 
 // this is copied from cw4
 // TODO: pull into cw0 as common dep
@@ -63,11 +60,11 @@ impl<'a> Hooks<'a> {
         Ok(hooks.into_iter().map(String::from).collect())
     }
 
-    pub fn prepare_hooks<F: Fn(Addr) -> StdResult<SubMsg>>(
-        &self,
-        storage: &dyn Storage,
-        prep: F,
-    ) -> StdResult<Vec<SubMsg>> {
+    pub fn prepare_hooks<T, F>(&self, storage: &dyn Storage, prep: F) -> StdResult<Vec<SubMsg<T>>>
+    where
+        F: Fn(Addr) -> StdResult<SubMsg<T>>,
+        T: Clone + std::fmt::Debug + PartialEq + JsonSchema,
+    {
         self.0
             .may_load(storage)?
             .unwrap_or_default()
