@@ -898,7 +898,7 @@ mod tests {
 
         // now mature first section, withdraw that
         let mut env3 = mock_env();
-        env3.block.time = env3.block.time.plus_seconds(2 + UNBONDING_DURATION);
+        env3.block.time = env3.block.time.plus_seconds(UNBONDING_DURATION);
         // first one can now release
         let res = execute(
             deps.as_mut(),
@@ -957,7 +957,11 @@ mod tests {
         unbond(deps.as_mut(), 0, 1_005, 0, 50, None);
 
         // ensure second can claim all tokens at once
-        let env4 = mock_env();
+        let mut env4 = mock_env();
+        env4.block.time = env4
+            .block
+            .time
+            .plus_seconds(UNBONDING_DURATION + time_delta);
         let res = execute(
             deps.as_mut(),
             env4,
