@@ -3,17 +3,14 @@ use serde::{Deserialize, Serialize};
 
 use cosmwasm_std::{
     from_slice, to_binary, to_vec, Addr, Binary, ContractResult, Empty, QuerierWrapper,
-    QueryRequest, StdError, StdResult, SystemResult, WasmMsg, WasmQuery,
+    QueryRequest, StdError, StdResult, SubMsg, SystemResult, WasmMsg, WasmQuery,
 };
-use tg_bindings::TgradeMsg;
 
 use crate::msg::Tg4ExecuteMsg;
 use crate::query::HooksResponse;
 use crate::{
     member_key, AdminResponse, Member, MemberListResponse, MemberResponse, Tg4QueryMsg, TOTAL_KEY,
 };
-
-pub type SubMsg = cosmwasm_std::SubMsg<TgradeMsg>;
 
 /// Tg4Contract is a wrapper around Addr that provides a lot of helpers
 /// for working with tg4 contracts
@@ -30,7 +27,10 @@ impl Tg4Contract {
         self.0.clone()
     }
 
-    fn encode_msg(&self, msg: Tg4ExecuteMsg) -> StdResult<SubMsg> {
+    fn encode_msg<C>(&self, msg: Tg4ExecuteMsg) -> StdResult<SubMsg<C>>
+    where
+        C: Clone + std::fmt::Debug + PartialEq + JsonSchema,
+    {
         Ok(SubMsg::new(WasmMsg::Execute {
             contract_addr: self.addr().into(),
             msg: to_binary(&msg)?,
@@ -38,17 +38,26 @@ impl Tg4Contract {
         }))
     }
 
-    pub fn add_hook<T: Into<String>>(&self, addr: T) -> StdResult<SubMsg> {
+    pub fn add_hook<T: Into<String>, C>(&self, addr: T) -> StdResult<SubMsg<C>>
+    where
+        C: Clone + std::fmt::Debug + PartialEq + JsonSchema,
+    {
         let msg = Tg4ExecuteMsg::AddHook { addr: addr.into() };
         self.encode_msg(msg)
     }
 
-    pub fn remove_hook<T: Into<String>>(&self, addr: T) -> StdResult<SubMsg> {
+    pub fn remove_hook<T: Into<String>, C>(&self, addr: T) -> StdResult<SubMsg<C>>
+    where
+        C: Clone + std::fmt::Debug + PartialEq + JsonSchema,
+    {
         let msg = Tg4ExecuteMsg::AddHook { addr: addr.into() };
         self.encode_msg(msg)
     }
 
-    pub fn update_admin<T: Into<String>>(&self, admin: Option<T>) -> StdResult<SubMsg> {
+    pub fn update_admin<T: Into<String>, C>(&self, admin: Option<T>) -> StdResult<SubMsg<C>>
+    where
+        C: Clone + std::fmt::Debug + PartialEq + JsonSchema,
+    {
         let msg = Tg4ExecuteMsg::UpdateAdmin {
             admin: admin.map(|x| x.into()),
         };

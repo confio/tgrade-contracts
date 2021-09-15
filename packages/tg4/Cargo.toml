@@ -11,7 +11,6 @@ homepage = "https://tgrade.finance"
 cosmwasm-std = { version = "0.16.0" }
 schemars = "0.8.1"
 serde = { version = "1.0.103", default-features = false, features = ["derive"] }
-tg-bindings = { path = "../bindings", version = "0.3" }
 
 [dev-dependencies]
 cosmwasm-schema = { version = "0.16.0" }
