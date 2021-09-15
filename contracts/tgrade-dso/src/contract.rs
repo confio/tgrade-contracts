@@ -1,7 +1,7 @@
 #[cfg(not(feature = "library"))]
 use cosmwasm_std::entry_point;
 use cosmwasm_std::{
-    coin, to_binary, Addr, BankMsg, Binary, BlockInfo, Deps, DepsMut, Env, Event, MessageInfo,
+    coin, to_binary, Addr, Api, BankMsg, Binary, BlockInfo, Deps, DepsMut, Env, Event, MessageInfo,
     Order, Response, StdError, StdResult, Storage, Uint128,
 };
 use cw0::{maybe_addr, Expiration};
@@ -386,19 +386,10 @@ pub fn validate_proposal(
             dso.validate()
         }
         ProposalContent::AddRemoveNonVotingMembers { add, remove } => {
-            add.iter()
-                .chain(remove.iter())
-                .map(|addr| deps.api.addr_validate(&addr))
-                .collect::<StdResult<Vec<_>>>()?;
-            Ok(())
+            validate_addresses(deps.api, &add)?;
+            validate_addresses(deps.api, &remove)
         }
-        ProposalContent::AddVotingMembers { voters } => {
-            voters
-                .iter()
-                .map(|addr| deps.api.addr_validate(&addr))
-                .collect::<StdResult<Vec<_>>>()?;
-            Ok(())
-        }
+        ProposalContent::AddVotingMembers { voters } => validate_addresses(deps.api, voters),
         ProposalContent::PunishMembers(punishments) => {
             if punishments.is_empty() {
                 return Err(ContractError::NoPunishments {});
@@ -406,6 +397,14 @@ pub fn validate_proposal(
             punishments.iter().try_for_each(|p| p.validate(&deps))
         }
     }
+}
+
+pub fn validate_addresses(api: &dyn Api, addrs: &[String]) -> Result<(), ContractError> {
+    addrs
+        .iter()
+        .map(|addr| api.addr_validate(&addr))
+        .collect::<StdResult<Vec<_>>>()?;
+    Ok(())
 }
 
 pub fn execute_vote(
