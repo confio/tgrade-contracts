@@ -19,10 +19,10 @@ backtraces = ["cosmwasm-std/backtraces"]
 library = []
 
 [dependencies]
-cw0 = { version = "0.8.0" }
-cw2 = { version = "0.8.0" }
+cw0 = { version = "0.9.0" }
+cw2 = { version = "0.9.0" }
 cw-controllers = { version = "0.9.0" }
-cw-storage-plus = { version = "0.8.0" }
+cw-storage-plus = { version = "0.9.0" }
 tg4 = { path = "../../packages/tg4", version = "0.3.0" }
 tg-controllers = { version = "0.3.0", path = "../../packages/controllers" }
 tg-bindings = { version = "0.3.0", path = "../../packages/bindings" }
