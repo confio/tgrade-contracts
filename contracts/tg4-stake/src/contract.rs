@@ -431,7 +431,6 @@ mod tests {
     const DENOM: &str = "stake";
     const TOKENS_PER_WEIGHT: Uint128 = Uint128::new(1_000);
     const MIN_BOND: Uint128 = Uint128::new(5_000);
-    const UNBONDING_BLOCKS: u64 = 100;
     const UNBONDING_DURATION: u64 = 100;
 
     fn default_instantiate(deps: DepsMut) {
@@ -474,9 +473,21 @@ mod tests {
         }
     }
 
-    fn unbond(mut deps: DepsMut, user1: u128, user2: u128, user3: u128, height_delta: u64) {
+    fn unbond(
+        mut deps: DepsMut,
+        user1: u128,
+        user2: u128,
+        user3: u128,
+        height_delta: u64,
+        time_delta: Option<u64>,
+    ) {
         let mut env = mock_env();
         env.block.height += height_delta;
+        env.block.time = if let Some(time_delta) = time_delta {
+            env.block.time.plus_seconds(time_delta)
+        } else {
+            env.block.time
+        };
 
         for (addr, stake) in &[(USER1, user1), (USER2, user2), (USER3, user3)] {
             if *stake != 0 {
@@ -753,7 +764,7 @@ mod tests {
 
         // ensure it rounds down, and respects cut-off
         bond(deps.as_mut(), 12_000, 7_500, 4_000, 1);
-        unbond(deps.as_mut(), 4_500, 2_600, 1_111, 2);
+        unbond(deps.as_mut(), 4_500, 2_600, 1_111, 2, None);
 
         // Assert updated weights
         assert_stake(deps.as_ref(), 7_500, 4_900, 2_889);
@@ -823,9 +834,10 @@ mod tests {
 
         // create some data
         bond(deps.as_mut(), 12_000, 7_500, 4_000, 1);
-        unbond(deps.as_mut(), 4_500, 2_600, 0, 2);
+        let height_delta = 2;
+        unbond(deps.as_mut(), 4_500, 2_600, 0, height_delta, None);
         let mut env = mock_env();
-        env.block.height += 2;
+        env.block.height += height_delta;
 
         // check the claims for each user
         let expires = Duration::new_from_seconds(UNBONDING_DURATION).after(&env.block);
@@ -841,12 +853,23 @@ mod tests {
 
         // do another unbond later on
         let mut env2 = mock_env();
-        env2.block.height += 22;
-        unbond(deps.as_mut(), 0, 1_345, 1_500, 22);
+        let height_delta = 22;
+        env2.block.height += height_delta;
+        let time_delta = 50;
+        unbond(
+            deps.as_mut(),
+            0,
+            1_345,
+            1_500,
+            height_delta,
+            Some(time_delta),
+        );
         let updated_creation_height = env2.block.height;
 
         // with updated claims
-        let expires2 = Duration::new_from_seconds(UNBONDING_DURATION).after(&env2.block);
+        let expires2 =
+            Duration::new_from_seconds(UNBONDING_DURATION + time_delta).after(&env2.block);
+        assert_ne!(expires, expires2);
         assert_eq!(
             get_claims(deps.as_ref(), &Addr::unchecked(USER1)),
             vec![Claim::new(4_500, expires, env.block.height)]
@@ -875,7 +898,7 @@ mod tests {
 
         // now mature first section, withdraw that
         let mut env3 = mock_env();
-        env3.block.height += 2 + UNBONDING_BLOCKS;
+        env3.block.time = env3.block.time.plus_seconds(2 + UNBONDING_DURATION);
         // first one can now release
         let res = execute(
             deps.as_mut(),
@@ -930,12 +953,11 @@ mod tests {
         );
 
         // add another few claims for 2
-        unbond(deps.as_mut(), 0, 600, 0, 30 + UNBONDING_BLOCKS);
-        unbond(deps.as_mut(), 0, 1_005, 0, 50 + UNBONDING_BLOCKS);
+        unbond(deps.as_mut(), 0, 600, 0, 30, None);
+        unbond(deps.as_mut(), 0, 1_005, 0, 50, None);
 
         // ensure second can claim all tokens at once
-        let mut env4 = mock_env();
-        env4.block.height += 55 + UNBONDING_BLOCKS + UNBONDING_BLOCKS;
+        let env4 = mock_env();
         let res = execute(
             deps.as_mut(),
             env4,
@@ -1138,7 +1160,7 @@ mod tests {
         assert_users(deps.as_ref(), Some(0), Some(0), Some(1), None);
 
         // reducing to 0 token makes us None even with min_bond 0
-        unbond(deps.as_mut(), 49, 1, 102, 2);
+        unbond(deps.as_mut(), 49, 1, 102, 2, None);
         assert_users(deps.as_ref(), Some(0), None, None, None);
     }
 }
