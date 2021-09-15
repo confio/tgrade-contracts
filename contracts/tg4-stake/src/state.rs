@@ -2,8 +2,7 @@ use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
 use crate::claim::Claims;
-use cosmwasm_std::{Addr, Uint128};
-use cw0::Duration;
+use cosmwasm_std::{Addr, BlockInfo, Timestamp, Uint128};
 use cw20::Denom;
 use cw_controllers::Admin;
 use cw_storage_plus::{
@@ -13,6 +12,28 @@ use tg4::TOTAL_KEY;
 use tg_controllers::{Hooks, Preauth};
 
 pub const CLAIMS: Claims = Claims::new("claims");
+
+#[derive(Serialize, Deserialize, Clone, Copy, PartialEq, JsonSchema, Debug)]
+pub struct Expiration(Timestamp);
+
+impl Expiration {
+    pub fn is_expired(&self, block: &BlockInfo) -> bool {
+        block.time >= self.0
+    }
+}
+
+#[derive(Serialize, Deserialize, Clone, Copy, PartialEq, JsonSchema, Debug)]
+pub struct Duration(Timestamp);
+
+impl Duration {
+    pub fn new_from_seconds(secs: u64) -> Duration {
+        Duration(Timestamp::from_seconds(secs))
+    }
+
+    pub fn after(&self, block: &BlockInfo) -> Expiration {
+        Expiration(block.time.plus_seconds(self.0.seconds()))
+    }
+}
 
 #[derive(Serialize, Deserialize, Clone, PartialEq, JsonSchema, Debug)]
 pub struct Config {
@@ -72,3 +93,45 @@ pub fn members<'a>() -> IndexedSnapshotMap<'a, &'a Addr, u64, MemberIndexes<'a>>
 }
 
 pub const STAKE: Map<&Addr, Uint128> = Map::new("stake");
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn create_expiration_from_duration() {
+        let duration = Duration::new_from_seconds(33);
+        let block_info = BlockInfo {
+            height: 1,
+            time: Timestamp::from_seconds(66),
+            chain_id: "id".to_owned(),
+        };
+        assert_eq!(
+            duration.after(&block_info),
+            Expiration(Timestamp::from_seconds(99))
+        );
+    }
+
+    #[test]
+    fn expiration_is_expired() {
+        let expiration = Expiration(Timestamp::from_seconds(10));
+        let block_info = BlockInfo {
+            height: 1,
+            time: Timestamp::from_seconds(9),
+            chain_id: "id".to_owned(),
+        };
+        assert!(!expiration.is_expired(&block_info));
+        let block_info = BlockInfo {
+            height: 1,
+            time: Timestamp::from_seconds(10),
+            chain_id: "id".to_owned(),
+        };
+        assert!(expiration.is_expired(&block_info));
+        let block_info = BlockInfo {
+            height: 1,
+            time: Timestamp::from_seconds(11),
+            chain_id: "id".to_owned(),
+        };
+        assert!(expiration.is_expired(&block_info));
+    }
+}

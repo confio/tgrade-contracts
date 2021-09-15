@@ -1,13 +1,12 @@
 #![cfg(test)]
 use cosmwasm_std::{coin, Addr, Coin, Uint128};
 
-use cw0::Duration;
 use cw20::Denom;
 
 use tg4::Tg4Contract;
 use tg_bindings::TgradeMsg;
 
-use tg4_stake::msg::ExecuteMsg;
+use tg4_stake::{msg::ExecuteMsg, state::Duration};
 
 use cw_multi_test::{App, Contract, ContractWrapper, Executor};
 
@@ -77,7 +76,7 @@ fn instantiate_stake(app: &mut App<TgradeMsg>) -> Addr {
         denom: Denom::Native(BOND_DENOM.into()),
         tokens_per_weight: Uint128::new(TOKENS_PER_WEIGHT),
         min_bond: Uint128::new(MIN_BOND),
-        unbonding_period: Duration::Time(1234),
+        unbonding_period: Duration::new_from_seconds(1234),
         admin: admin.clone(),
         preauths: None,
     };

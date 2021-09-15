@@ -327,9 +327,9 @@ mod tests {
     use super::*;
     use cosmwasm_std::testing::{mock_env, MockApi, MockStorage};
     use cosmwasm_std::{coins, Addr, Empty, Uint128};
-    use cw0::Duration;
     use cw20::Denom;
     use cw_multi_test::{next_block, App, BankKeeper, Contract, ContractWrapper, Executor};
+    use tg4_stake::state::Duration;
 
     const STAKE_DENOM: &str = "utgd";
     const OWNER: &str = "owner";
@@ -402,7 +402,7 @@ mod tests {
             denom: Denom::Native(STAKE_DENOM.into()),
             tokens_per_weight: Uint128::new(1),
             min_bond: Uint128::new(100),
-            unbonding_period: Duration::Time(3600),
+            unbonding_period: Duration::new_from_seconds(3600),
             admin: admin.clone(),
             preauths: Some(1),
         };

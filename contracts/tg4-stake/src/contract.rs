@@ -413,9 +413,9 @@ fn list_members_by_weight(
 #[cfg(test)]
 mod tests {
     use crate::claim::Claim;
+    use crate::state::Duration;
     use cosmwasm_std::testing::{mock_dependencies, mock_env, mock_info};
     use cosmwasm_std::{from_slice, OverflowError, OverflowOperation, StdError, Storage};
-    use cw0::Duration;
     use cw20::Denom;
     use tg4::{member_key, TOTAL_KEY};
     use tg_controllers::{HookError, PreauthError};
@@ -431,14 +431,14 @@ mod tests {
     const DENOM: &str = "stake";
     const TOKENS_PER_WEIGHT: Uint128 = Uint128::new(1_000);
     const MIN_BOND: Uint128 = Uint128::new(5_000);
-    const UNBONDING_BLOCKS: u64 = 100;
+    const UNBONDING_DURATION: u64 = 100;
 
     fn default_instantiate(deps: DepsMut) {
         do_instantiate(
             deps,
             TOKENS_PER_WEIGHT,
             MIN_BOND,
-            Duration::Height(UNBONDING_BLOCKS),
+            Duration::new_from_seconds(UNBONDING_DURATION),
         )
     }
 
@@ -473,9 +473,17 @@ mod tests {
         }
     }
 
-    fn unbond(mut deps: DepsMut, user1: u128, user2: u128, user3: u128, height_delta: u64) {
+    fn unbond(
+        mut deps: DepsMut,
+        user1: u128,
+        user2: u128,
+        user3: u128,
+        height_delta: u64,
+        time_delta: u64,
+    ) {
         let mut env = mock_env();
         env.block.height += height_delta;
+        env.block.time = env.block.time.plus_seconds(time_delta);
 
         for (addr, stake) in &[(USER1, user1), (USER2, user2), (USER3, user3)] {
             if *stake != 0 {
@@ -508,7 +516,10 @@ mod tests {
 
         let raw = query(deps.as_ref(), mock_env(), QueryMsg::UnbondingPeriod {}).unwrap();
         let res: UnbondingPeriodResponse = from_slice(&raw).unwrap();
-        assert_eq!(res.unbonding_period, Duration::Height(UNBONDING_BLOCKS));
+        assert_eq!(
+            res.unbonding_period,
+            Duration::new_from_seconds(UNBONDING_DURATION)
+        );
     }
 
     fn get_member(deps: Deps, addr: String, at_height: Option<u64>) -> Option<u64> {
@@ -749,7 +760,7 @@ mod tests {
 
         // ensure it rounds down, and respects cut-off
         bond(deps.as_mut(), 12_000, 7_500, 4_000, 1);
-        unbond(deps.as_mut(), 4_500, 2_600, 1_111, 2);
+        unbond(deps.as_mut(), 4_500, 2_600, 1_111, 2, 0);
 
         // Assert updated weights
         assert_stake(deps.as_ref(), 7_500, 4_900, 2_889);
@@ -819,12 +830,13 @@ mod tests {
 
         // create some data
         bond(deps.as_mut(), 12_000, 7_500, 4_000, 1);
-        unbond(deps.as_mut(), 4_500, 2_600, 0, 2);
+        let height_delta = 2;
+        unbond(deps.as_mut(), 4_500, 2_600, 0, height_delta, 0);
         let mut env = mock_env();
-        env.block.height += 2;
+        env.block.height += height_delta;
 
         // check the claims for each user
-        let expires = Duration::Height(UNBONDING_BLOCKS).after(&env.block);
+        let expires = Duration::new_from_seconds(UNBONDING_DURATION).after(&env.block);
         assert_eq!(
             get_claims(deps.as_ref(), &Addr::unchecked(USER1)),
             vec![Claim::new(4_500, expires, env.block.height)]
@@ -837,12 +849,16 @@ mod tests {
 
         // do another unbond later on
         let mut env2 = mock_env();
-        env2.block.height += 22;
-        unbond(deps.as_mut(), 0, 1_345, 1_500, 22);
+        let height_delta = 22;
+        env2.block.height += height_delta;
+        let time_delta = 50;
+        unbond(deps.as_mut(), 0, 1_345, 1_500, height_delta, time_delta);
         let updated_creation_height = env2.block.height;
 
         // with updated claims
-        let expires2 = Duration::Height(UNBONDING_BLOCKS).after(&env2.block);
+        let expires2 =
+            Duration::new_from_seconds(UNBONDING_DURATION + time_delta).after(&env2.block);
+        assert_ne!(expires, expires2);
         assert_eq!(
             get_claims(deps.as_ref(), &Addr::unchecked(USER1)),
             vec![Claim::new(4_500, expires, env.block.height)]
@@ -871,7 +887,7 @@ mod tests {
 
         // now mature first section, withdraw that
         let mut env3 = mock_env();
-        env3.block.height += 2 + UNBONDING_BLOCKS;
+        env3.block.time = env3.block.time.plus_seconds(UNBONDING_DURATION);
         // first one can now release
         let res = execute(
             deps.as_mut(),
@@ -926,12 +942,15 @@ mod tests {
         );
 
         // add another few claims for 2
-        unbond(deps.as_mut(), 0, 600, 0, 30 + UNBONDING_BLOCKS);
-        unbond(deps.as_mut(), 0, 1_005, 0, 50 + UNBONDING_BLOCKS);
+        unbond(deps.as_mut(), 0, 600, 0, 30, 0);
+        unbond(deps.as_mut(), 0, 1_005, 0, 50, 0);
 
         // ensure second can claim all tokens at once
         let mut env4 = mock_env();
-        env4.block.height += 55 + UNBONDING_BLOCKS + UNBONDING_BLOCKS;
+        env4.block.time = env4
+            .block
+            .time
+            .plus_seconds(UNBONDING_DURATION + time_delta);
         let res = execute(
             deps.as_mut(),
             env4,
@@ -1125,7 +1144,7 @@ mod tests {
             deps.as_mut(),
             Uint128::new(100),
             Uint128::zero(),
-            Duration::Height(5),
+            Duration::new_from_seconds(5),
         );
 
         // setting 50 tokens, gives us Some(0) weight
@@ -1134,7 +1153,7 @@ mod tests {
         assert_users(deps.as_ref(), Some(0), Some(0), Some(1), None);
 
         // reducing to 0 token makes us None even with min_bond 0
-        unbond(deps.as_mut(), 49, 1, 102, 2);
+        unbond(deps.as_mut(), 49, 1, 102, 2, 0);
         assert_users(deps.as_ref(), Some(0), None, None, None);
     }
 }
