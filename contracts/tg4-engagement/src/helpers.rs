@@ -8,9 +8,9 @@ use tg4::{Member, Tg4Contract};
 use crate::msg::ExecuteMsg;
 
 /// Tg4GroupContract is a wrapper around Tg4Contract that provides a lot of helpers
-/// for working with tg4-group contracts.
+/// for working with tg4-engagement contracts.
 ///
-/// It extends Tg4Contract to add the extra calls from tg4-group.
+/// It extends Tg4Contract to add the extra calls from tg4-engagement.
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct Tg4GroupContract(pub Tg4Contract);
 

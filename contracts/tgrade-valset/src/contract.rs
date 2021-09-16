@@ -455,9 +455,9 @@ mod test {
 
     fn contract_group() -> Box<dyn Contract<TgradeMsg>> {
         let contract = ContractWrapper::new(
-            tg4_group::contract::execute,
-            tg4_group::contract::instantiate,
-            tg4_group::contract::query,
+            tg4_engagement::contract::execute,
+            tg4_engagement::contract::instantiate,
+            tg4_engagement::contract::query,
         );
         Box::new(contract)
     }
@@ -486,7 +486,7 @@ mod test {
     fn instantiate_group(app: &mut App<TgradeMsg>, num_members: u32) -> Addr {
         let group_id = app.store_code(contract_group());
         let admin = Some(GROUP_OWNER.into());
-        let msg = tg4_group::msg::InstantiateMsg {
+        let msg = tg4_engagement::msg::InstantiateMsg {
             admin: admin.clone(),
             members: members(num_members),
             preauths: None,
