@@ -711,7 +711,7 @@ dependencies = [
 ]
 
 [[package]]
-name = "tg4-group"
+name = "tg4-engagement"
 version = "0.3.0"
 dependencies = [
  "cosmwasm-schema",
@@ -745,7 +745,7 @@ dependencies = [
  "tg-bindings",
  "tg-controllers",
  "tg4",
- "tg4-group",
+ "tg4-engagement",
  "tg4-stake",
  "thiserror",
 ]
@@ -814,7 +814,7 @@ dependencies = [
  "serde",
  "tg-bindings",
  "tg4",
- "tg4-group",
+ "tg4-engagement",
  "tg4-stake",
  "thiserror",
 ]

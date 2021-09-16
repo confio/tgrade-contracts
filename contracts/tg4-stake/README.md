@@ -5,7 +5,7 @@ It fulfills all elements of the spec, including the raw query lookups,
 and is designed to be used as a backing storage for 
 [cw3 compliant contracts](https://github.com/CosmWasm/cosmwasm-plus/blob/master/packages/cw3/README.md).
 
-It provides a similar API to `tg4-group` (which handles elected membership),
+It provides a similar API to `tg4-engagement` (which handles elected membership),
 but rather than appointing members (by admin or multisig), their
 membership and weight are based on the number of tokens they have staked.
 This is similar to many DAOs.

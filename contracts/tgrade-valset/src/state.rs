@@ -22,7 +22,7 @@ pub struct Config {
     /// descending. (In case of ties at the last slot, select by "first" tendermint pubkey
     /// lexicographically sorted).
     pub max_validators: u32,
-    /// A scaling factor to multiply tg4-group weights to produce the tendermint validator power
+    /// A scaling factor to multiply tg4-engagement weights to produce the tendermint validator power
     /// (TODO: should we allow this to reduce weight? Like 1/1000?)
     pub scaling: Option<u32>,
     /// Total reward paid out each epoch. This will be split among all validators during the last
