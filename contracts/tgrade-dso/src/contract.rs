@@ -1,7 +1,7 @@
 #[cfg(not(feature = "library"))]
 use cosmwasm_std::entry_point;
 use cosmwasm_std::{
-    coin, to_binary, Addr, BankMsg, Binary, BlockInfo, Deps, DepsMut, Env, Event, MessageInfo,
+    coin, to_binary, Addr, Api, BankMsg, Binary, BlockInfo, Deps, DepsMut, Env, Event, MessageInfo,
     Order, Response, StdError, StdResult, Storage, Uint128,
 };
 use cw0::{maybe_addr, Expiration};
@@ -336,6 +336,9 @@ pub fn execute_propose(
         return Err(ContractError::Unauthorized {});
     }
 
+    // validate the proposal's content
+    validate_proposal(deps.as_ref(), env.clone(), &proposal)?;
+
     // create a proposal
     let dso = DSO.load(deps.storage)?;
     let mut prop = Proposal {
@@ -365,6 +368,51 @@ pub fn execute_propose(
         .add_attribute("sender", info.sender)
         .add_events(events);
     Ok(res)
+}
+
+pub fn validate_proposal(
+    deps: Deps,
+    env: Env,
+    proposal: &ProposalContent,
+) -> Result<(), ContractError> {
+    match proposal {
+        ProposalContent::EditDso(dso_adjustments) => {
+            let mut dso = DSO.load(deps.storage)?;
+            dso.apply_adjustments(
+                env,
+                u64::MAX, // Dummy proposal id
+                dso_adjustments.clone(),
+            )?;
+            dso.validate()
+        }
+        ProposalContent::AddRemoveNonVotingMembers { add, remove } => {
+            if add.is_empty() && remove.is_empty() {
+                return Err(ContractError::NoMembers {});
+            }
+            validate_addresses(deps.api, &add)?;
+            validate_addresses(deps.api, &remove)
+        }
+        ProposalContent::AddVotingMembers { voters } => {
+            if voters.is_empty() {
+                return Err(ContractError::NoMembers {});
+            }
+            validate_addresses(deps.api, voters)
+        }
+        ProposalContent::PunishMembers(punishments) => {
+            if punishments.is_empty() {
+                return Err(ContractError::NoPunishments {});
+            }
+            punishments.iter().try_for_each(|p| p.validate(&deps))
+        }
+    }
+}
+
+pub fn validate_addresses(api: &dyn Api, addrs: &[String]) -> Result<(), ContractError> {
+    addrs
+        .iter()
+        .map(|addr| api.addr_validate(&addr))
+        .collect::<StdResult<Vec<_>>>()?;
+    Ok(())
 }
 
 pub fn execute_vote(
@@ -876,14 +924,9 @@ pub fn proposal_punish_members(
     punishments: &[Punishment],
 ) -> Result<Response, ContractError> {
     let mut res = Response::new().add_attribute("proposal", "punish_members");
-    if punishments.is_empty() {
-        return Err(ContractError::NoPunishments {});
-    }
     let mut demoted_addrs = vec![];
     for (i, p) in (1..).zip(punishments) {
         res = res.add_event(p.as_event(i));
-
-        p.validate(&deps.as_ref())?;
 
         let (member, &slashing_percentage, &kick_out) = match p {
             Punishment::DistributeEscrow {

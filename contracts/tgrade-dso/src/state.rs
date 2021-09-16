@@ -3,6 +3,7 @@ use serde::{Deserialize, Serialize};
 use std::fmt;
 
 use crate::error::ContractError;
+use crate::state::MemberStatus::NonVoting;
 use cosmwasm_std::{
     attr, Addr, Attribute, BlockInfo, Decimal, Deps, Env, Event, StdError, StdResult, Storage,
     Timestamp, Uint128,
@@ -149,7 +150,7 @@ impl Dso {
         if let Some(allow_end_early) = adjustments.allow_end_early {
             self.rules.allow_end_early = allow_end_early;
         }
-        self.validate()
+        Ok(())
     }
 
     /// Gets the max of the pending escrow (if any) and the current escrow amount
@@ -260,7 +261,6 @@ impl Punishment {
             } => {
                 // Validate member address
                 let addr = deps.api.addr_validate(&member)?;
-
                 if distribution_list.is_empty() {
                     return Err(ContractError::EmptyDistributionList {});
                 }
@@ -274,6 +274,15 @@ impl Punishment {
                     return Err(ContractError::InvalidSlashingPercentage(
                         addr,
                         *slashing_percentage,
+                    ));
+                }
+
+                // Validate membership
+                let escrow_status = ESCROWS.load(deps.storage, &addr)?;
+                if escrow_status.status == (NonVoting {}) {
+                    return Err(ContractError::PunishInvalidMemberStatus(
+                        addr,
+                        escrow_status.status,
                     ));
                 }
             }
@@ -290,6 +299,15 @@ impl Punishment {
                     return Err(ContractError::InvalidSlashingPercentage(
                         addr,
                         *slashing_percentage,
+                    ));
+                }
+
+                // Validate membership
+                let escrow_status = ESCROWS.load(deps.storage, &addr)?;
+                if escrow_status.status == (NonVoting {}) {
+                    return Err(ContractError::PunishInvalidMemberStatus(
+                        addr,
+                        escrow_status.status,
                     ));
                 }
             }

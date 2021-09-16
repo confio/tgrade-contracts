@@ -51,6 +51,9 @@ pub enum ContractError {
     #[error("Caller is not a DSO member")]
     NotAMember {},
 
+    #[error("No members in proposal")]
+    NoMembers {},
+
     #[error("Cannot be called by member with status: {0}")]
     InvalidStatus(MemberStatus),
 

@@ -64,6 +64,73 @@ fn instantiation_enough_funds() {
 }
 
 #[test]
+fn test_proposal_validation() {
+    let mut deps = mock_dependencies(&[]);
+    let info = mock_info(INIT_ADMIN, &escrow_funds());
+    let env = mock_env();
+
+    do_instantiate(deps.as_mut(), info, vec![]).unwrap();
+
+    // Make an invalid proposal of each type
+    for (prop, err) in &[
+        (
+            // Empty add voting members proposal
+            ProposalContent::AddVotingMembers { voters: vec![] },
+            ContractError::NoMembers {},
+        ),
+        (
+            // Empty add non-voting members proposal
+            ProposalContent::AddRemoveNonVotingMembers {
+                remove: vec![],
+                add: vec![],
+            },
+            ContractError::NoMembers {},
+        ),
+        (
+            // Invalid EditDso proposal (invalid escrow amount)
+            ProposalContent::EditDso(DsoAdjustments {
+                name: None,
+                escrow_amount: Some(Uint128::zero()),
+                voting_period: None,
+                quorum: None,
+                threshold: None,
+                allow_end_early: None,
+            }),
+            ContractError::InvalidPendingEscrow(Uint128::zero()),
+        ),
+        (
+            // Invalid punish proposal (No punishments)
+            ProposalContent::PunishMembers(vec![]),
+            ContractError::NoPunishments {},
+        ),
+    ] {
+        let res = validate_proposal(deps.as_ref(), env.clone(), prop);
+        assert!(res.is_err());
+        assert_eq!(res.unwrap_err(), *err);
+    }
+}
+
+#[test]
+fn add_voting_members_validation() {
+    let mut deps = mock_dependencies(&[]);
+    let info = mock_info(INIT_ADMIN, &escrow_funds());
+    do_instantiate(deps.as_mut(), info, vec![]).unwrap();
+
+    // Make an invalid proposal (empty members)
+    let prop = ProposalContent::AddVotingMembers { voters: vec![] };
+    let msg = ExecuteMsg::Propose {
+        title: "Add zero voting members".to_string(),
+        description: "Add voting members validation".to_string(),
+        proposal: prop,
+    };
+    let mut env = mock_env();
+    env.block.height += 10;
+    let res = execute(deps.as_mut(), env, mock_info(INIT_ADMIN, &[]), msg);
+    assert!(res.is_err());
+    assert_eq!(res.unwrap_err(), ContractError::NoMembers {})
+}
+
+#[test]
 fn test_add_voting_members_overlapping_batches() {
     let mut deps = mock_dependencies(&[]);
     // use different admin, so we have 4 available slots for queries
@@ -470,6 +537,29 @@ fn test_initial_nonvoting_members() {
 }
 
 #[test]
+fn update_non_voting_members_validation() {
+    let mut deps = mock_dependencies(&[]);
+    let info = mock_info(INIT_ADMIN, &escrow_funds());
+    do_instantiate(deps.as_mut(), info, vec![]).unwrap();
+
+    // Make an invalid proposal (empty members)
+    let prop = ProposalContent::AddRemoveNonVotingMembers {
+        remove: vec![],
+        add: vec![],
+    };
+    let msg = ExecuteMsg::Propose {
+        title: "Add / remove zero non-voting members".to_string(),
+        description: "Update non-voting members validation".to_string(),
+        proposal: prop,
+    };
+    let mut env = mock_env();
+    env.block.height += 10;
+    let res = execute(deps.as_mut(), env, mock_info(INIT_ADMIN, &[]), msg);
+    assert!(res.is_err());
+    assert_eq!(res.unwrap_err(), ContractError::NoMembers {})
+}
+
+#[test]
 fn test_update_nonvoting_members() {
     let mut deps = mock_dependencies(&[]);
     let info = mock_info(INIT_ADMIN, &escrow_funds());
@@ -680,7 +770,7 @@ fn propose_new_voting_rules_validation() {
         }
     );
 
-    // make a new proposal
+    // Make an invalid proposal (proposal name is empty)
     let prop = ProposalContent::EditDso(DsoAdjustments {
         name: Some("".into()),
         escrow_amount: None,
@@ -696,20 +786,7 @@ fn propose_new_voting_rules_validation() {
     };
     let mut env = mock_env();
     env.block.height += 10;
-    let res = execute(deps.as_mut(), env.clone(), mock_info(INIT_ADMIN, &[]), msg).unwrap();
-    let proposal_id = parse_prop_id(&res.attributes);
-
-    // ensure it passed (already via principal voter)
-    let prop = query_proposal(deps.as_ref(), env.clone(), proposal_id).unwrap();
-    assert_eq!(prop.status, Status::Passed);
-
-    // execute it
-    let res = execute(
-        deps.as_mut(),
-        env,
-        mock_info(NONVOTING1, &[]),
-        ExecuteMsg::Execute { proposal_id },
-    );
+    let res = execute(deps.as_mut(), env, mock_info(INIT_ADMIN, &[]), msg);
     assert!(res.is_err());
     assert_eq!(res.unwrap_err(), ContractError::EmptyName {})
 }
@@ -1276,22 +1353,8 @@ fn punish_members_validation() {
         };
         let mut env = mock_env();
         env.block.height += 10;
-        let res = execute(deps.as_mut(), env.clone(), mock_info(INIT_ADMIN, &[]), msg).unwrap();
-        let proposal_id = parse_prop_id(&res.attributes);
-
-        // ensure it passed (already via principal voter)
-        let prop = query_proposal(deps.as_ref(), env.clone(), proposal_id).unwrap();
-        assert_eq!(prop.status, Status::Passed);
-
-        // execute it
-        let res = execute(
-            deps.as_mut(),
-            env,
-            mock_info(NONVOTING1, &[]),
-            ExecuteMsg::Execute { proposal_id },
-        );
-
-        // Check it failed
+        let res = execute(deps.as_mut(), env.clone(), mock_info(INIT_ADMIN, &[]), msg);
+        // Check proposal creation failed
         assert!(res.is_err());
         assert_eq!(res.unwrap_err(), *err);
     }
