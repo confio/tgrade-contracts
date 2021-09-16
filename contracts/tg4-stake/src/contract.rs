@@ -852,7 +852,7 @@ mod tests {
 
     #[track_caller]
     fn get_claims(deps: Deps, addr: Addr) -> Vec<Claim> {
-        claims().query_claims(deps, addr).unwrap()
+        claims().query_claims(deps, addr, None, None).unwrap()
     }
 
     #[test]
