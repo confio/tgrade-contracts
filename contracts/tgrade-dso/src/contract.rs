@@ -386,10 +386,18 @@ pub fn validate_proposal(
             dso.validate()
         }
         ProposalContent::AddRemoveNonVotingMembers { add, remove } => {
+            if add.is_empty() && remove.is_empty() {
+                return Err(ContractError::NoMembers {});
+            }
             validate_addresses(deps.api, &add)?;
             validate_addresses(deps.api, &remove)
         }
-        ProposalContent::AddVotingMembers { voters } => validate_addresses(deps.api, voters),
+        ProposalContent::AddVotingMembers { voters } => {
+            if voters.is_empty() {
+                return Err(ContractError::NoMembers {});
+            }
+            validate_addresses(deps.api, voters)
+        }
         ProposalContent::PunishMembers(punishments) => {
             if punishments.is_empty() {
                 return Err(ContractError::NoPunishments {});

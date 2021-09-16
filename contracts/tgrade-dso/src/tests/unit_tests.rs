@@ -64,6 +64,26 @@ fn instantiation_enough_funds() {
 }
 
 #[test]
+fn add_voting_members_validation() {
+    let mut deps = mock_dependencies(&[]);
+    let info = mock_info(INIT_ADMIN, &escrow_funds());
+    do_instantiate(deps.as_mut(), info, vec![]).unwrap();
+
+    // Make an invalid proposal (empty members)
+    let prop = ProposalContent::AddVotingMembers { voters: vec![] };
+    let msg = ExecuteMsg::Propose {
+        title: "Add zero voting members".to_string(),
+        description: "Add voting members validation".to_string(),
+        proposal: prop,
+    };
+    let mut env = mock_env();
+    env.block.height += 10;
+    let res = execute(deps.as_mut(), env, mock_info(INIT_ADMIN, &[]), msg);
+    assert!(res.is_err());
+    assert_eq!(res.unwrap_err(), ContractError::NoMembers {})
+}
+
+#[test]
 fn test_add_voting_members_overlapping_batches() {
     let mut deps = mock_dependencies(&[]);
     // use different admin, so we have 4 available slots for queries
@@ -467,6 +487,29 @@ fn test_initial_nonvoting_members() {
     let initial = vec![NONVOTING1.into(), NONVOTING3.into(), NONVOTING1.into()];
     do_instantiate(deps.as_mut(), info, initial).unwrap();
     assert_nonvoting(&deps, Some(0), None, Some(0), None);
+}
+
+#[test]
+fn update_non_voting_members_validation() {
+    let mut deps = mock_dependencies(&[]);
+    let info = mock_info(INIT_ADMIN, &escrow_funds());
+    do_instantiate(deps.as_mut(), info, vec![]).unwrap();
+
+    // Make an invalid proposal (empty members)
+    let prop = ProposalContent::AddRemoveNonVotingMembers {
+        remove: vec![],
+        add: vec![],
+    };
+    let msg = ExecuteMsg::Propose {
+        title: "Add / remove zero non-voting members".to_string(),
+        description: "Update non-voting members validation".to_string(),
+        proposal: prop,
+    };
+    let mut env = mock_env();
+    env.block.height += 10;
+    let res = execute(deps.as_mut(), env, mock_info(INIT_ADMIN, &[]), msg);
+    assert!(res.is_err());
+    assert_eq!(res.unwrap_err(), ContractError::NoMembers {})
 }
 
 #[test]
