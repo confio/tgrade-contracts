@@ -4,7 +4,6 @@ use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
 pub use crate::claim::Claim;
-use cw20::Denom;
 use tg4::Member;
 
 const fn default_auto_return_limit() -> u64 {
@@ -14,7 +13,7 @@ const fn default_auto_return_limit() -> u64 {
 #[derive(Serialize, Deserialize, Clone, PartialEq, JsonSchema, Debug)]
 pub struct InstantiateMsg {
     /// denom of the token to stake
-    pub denom: Denom,
+    pub denom: String,
     pub tokens_per_weight: Uint128,
     pub min_bond: Uint128,
     /// unbounding period in seconds
