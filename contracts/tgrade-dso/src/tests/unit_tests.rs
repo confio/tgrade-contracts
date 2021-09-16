@@ -64,6 +64,53 @@ fn instantiation_enough_funds() {
 }
 
 #[test]
+fn test_proposal_validation() {
+    let mut deps = mock_dependencies(&[]);
+    let info = mock_info(INIT_ADMIN, &escrow_funds());
+    let env = mock_env();
+
+    do_instantiate(deps.as_mut(), info, vec![]).unwrap();
+
+    // Make an invalid proposal of each type
+    for (prop, err) in &[
+        (
+            // Empty add voting members proposal
+            ProposalContent::AddVotingMembers { voters: vec![] },
+            ContractError::NoMembers {},
+        ),
+        (
+            // Empty add non-voting members proposal
+            ProposalContent::AddRemoveNonVotingMembers {
+                remove: vec![],
+                add: vec![],
+            },
+            ContractError::NoMembers {},
+        ),
+        (
+            // Invalid EditDso proposal (invalid escrow amount)
+            ProposalContent::EditDso(DsoAdjustments {
+                name: None,
+                escrow_amount: Some(Uint128::zero()),
+                voting_period: None,
+                quorum: None,
+                threshold: None,
+                allow_end_early: None,
+            }),
+            ContractError::InvalidPendingEscrow(Uint128::zero()),
+        ),
+        (
+            // Invalid punish proposal (No punishments)
+            ProposalContent::PunishMembers(vec![]),
+            ContractError::NoPunishments {},
+        ),
+    ] {
+        let res = validate_proposal(deps.as_ref(), env.clone(), prop);
+        assert!(res.is_err());
+        assert_eq!(res.unwrap_err(), *err);
+    }
+}
+
+#[test]
 fn add_voting_members_validation() {
     let mut deps = mock_dependencies(&[]);
     let info = mock_info(INIT_ADMIN, &escrow_funds());
