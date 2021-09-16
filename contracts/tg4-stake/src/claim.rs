@@ -49,7 +49,7 @@ impl Claim {
 pub struct Claims<'a> {
     /// Claims are indexed by `(addr, release_at)` pair. Claims falling into the same key are
     /// merged (summarized) as there is no point to distinguish them.
-    claims: IndexedMap<'a, (Addr, ExpirationKey), Claim, ClaimIndexes<'a>>,
+    claims: IndexedMap<'a, (&'a Addr, ExpirationKey), Claim, ClaimIndexes<'a>>,
 }
 
 impl<'a> Claims<'a> {
@@ -76,10 +76,11 @@ impl<'a> Claims<'a> {
         release_at: Expiration,
         creation_height: u64,
     ) -> StdResult<()> {
+        let addr = &addr;
         // Add a claim to this user to get their tokens after the unbonding period
         self.claims.update(
             storage,
-            (addr.clone(), release_at.into()),
+            (&addr, release_at.into()),
             move |claim| -> StdResult<_> {
                 match claim {
                     Some(mut claim) => {
@@ -87,7 +88,7 @@ impl<'a> Claims<'a> {
                         Ok(claim)
                     }
                     None => Ok(Claim {
-                        addr,
+                        addr: addr.clone(),
                         amount,
                         release_at,
                         creation_height,
@@ -110,7 +111,7 @@ impl<'a> Claims<'a> {
     ) -> StdResult<Uint128> {
         let claims = self
             .claims
-            .prefix(addr.clone())
+            .prefix(&addr)
             // take all claims for the addr
             .range(storage, None, None, Order::Ascending)
             // filter out non-expired claims (leaving errors to stop on first
@@ -218,7 +219,7 @@ impl<'a> Claims<'a> {
     ) -> StdResult<()> {
         for claim in claims {
             self.claims
-                .remove(storage, (claim.addr, claim.release_at.into()))?;
+                .remove(storage, (&claim.addr, claim.release_at.into()))?;
         }
 
         Ok(())
@@ -226,7 +227,7 @@ impl<'a> Claims<'a> {
 
     pub fn query_claims(&self, deps: Deps, address: Addr) -> StdResult<Vec<Claim>> {
         self.claims
-            .prefix(address)
+            .prefix(&address)
             .range(deps.storage, None, None, Order::Ascending)
             .map(|claim| match claim {
                 Ok((_, claim)) => Ok(claim),
