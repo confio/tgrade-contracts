@@ -3,8 +3,13 @@ use cosmwasm_std::{Coin, Uint128};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
+pub use crate::claim::Claim;
 use cw20::Denom;
 use tg4::Member;
+
+const fn default_auto_return_limit() -> u64 {
+    20
+}
 
 #[derive(Serialize, Deserialize, Clone, PartialEq, JsonSchema, Debug)]
 pub struct InstantiateMsg {
@@ -12,12 +17,17 @@ pub struct InstantiateMsg {
     pub denom: Denom,
     pub tokens_per_weight: Uint128,
     pub min_bond: Uint128,
+    /// unbounding period in seconds
     pub unbonding_period: Duration,
 
     // admin can only add/remove hooks, not change other parameters
     pub admin: Option<String>,
     // or you can simply pre-authorize a number of hooks (to be done in following messages)
     pub preauths: Option<u64>,
+    /// Limits how much claims would be automatically returned at end of block, 20 by default.
+    /// Setting this to 0 disables auto returning claims.
+    #[serde(default = "default_auto_return_limit")]
+    pub auto_return_limit: u64,
 }
 
 #[derive(Serialize, Deserialize, Clone, PartialEq, JsonSchema, Debug)]
@@ -93,4 +103,9 @@ pub struct PreauthResponse {
 #[derive(Serialize, Deserialize, Clone, PartialEq, JsonSchema, Debug)]
 pub struct UnbondingPeriodResponse {
     pub unbonding_period: Duration,
+}
+
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
+pub struct ClaimsResponse {
+    pub claims: Vec<Claim>,
 }

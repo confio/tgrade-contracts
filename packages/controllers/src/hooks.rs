@@ -2,8 +2,11 @@ use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
 
-use cosmwasm_std::{Addr, StdError, StdResult, Storage, SubMsg};
+use cosmwasm_std::{Addr, StdError, StdResult, Storage};
 use cw_storage_plus::Item;
+use tg_bindings::TgradeMsg;
+
+type SubMsg = cosmwasm_std::SubMsg<TgradeMsg>;
 
 // this is copied from cw4
 // TODO: pull into cw0 as common dep

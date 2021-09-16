@@ -1,7 +1,10 @@
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
-use cosmwasm_std::{to_binary, Binary, CosmosMsg, StdResult, WasmMsg};
+use cosmwasm_std::{to_binary, Binary, StdResult, WasmMsg};
+use tg_bindings::TgradeMsg;
+
+type CosmosMsg = cosmwasm_std::CosmosMsg<TgradeMsg>;
 
 /// MemberDiff shows the old and new states for a given tg4 member
 /// They cannot both be None.

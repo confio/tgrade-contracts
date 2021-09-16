@@ -15,6 +15,13 @@
         "null"
       ]
     },
+    "auto_return_limit": {
+      "description": "Limits how much claims would be automatically returned at end of block, 20 by default. Setting this to 0 disables auto returning claims.",
+      "default": 20,
+      "type": "integer",
+      "format": "uint64",
+      "minimum": 0.0
+    },
     "denom": {
       "description": "denom of the token to stake",
       "allOf": [
@@ -38,7 +45,12 @@
       "$ref": "#/definitions/Uint128"
     },
     "unbonding_period": {
-      "$ref": "#/definitions/Duration"
+      "description": "unbounding period in seconds",
+      "allOf": [
+        {
+          "$ref": "#/definitions/Duration"
+        }
+      ]
     }
   },
   "definitions": {

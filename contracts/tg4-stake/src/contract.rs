@@ -2,7 +2,7 @@
 use cosmwasm_std::entry_point;
 use cosmwasm_std::{
     coin, coins, to_binary, Addr, BankMsg, Binary, Coin, Deps, DepsMut, Env, MessageInfo, Order,
-    Response, StdError, StdResult, Storage, SubMsg, Uint128,
+    StdError, StdResult, Storage, Uint128,
 };
 
 use cw0::{maybe_addr, NativeBalance};
@@ -13,12 +13,17 @@ use tg4::{
     HooksResponse, Member, MemberChangedHookMsg, MemberDiff, MemberListResponse, MemberResponse,
     TotalWeightResponse,
 };
+use tg_bindings::{request_privileges, Privilege, PrivilegeChangeMsg, TgradeMsg, TgradeSudoMsg};
 
 use crate::error::ContractError;
 use crate::msg::{
-    ExecuteMsg, InstantiateMsg, PreauthResponse, QueryMsg, StakedResponse, UnbondingPeriodResponse,
+    ClaimsResponse, ExecuteMsg, InstantiateMsg, PreauthResponse, QueryMsg, StakedResponse,
+    UnbondingPeriodResponse,
 };
-use crate::state::{members, Config, ADMIN, CLAIMS, CONFIG, HOOKS, PREAUTH, STAKE, TOTAL};
+use crate::state::{claims, members, Config, ADMIN, CONFIG, HOOKS, PREAUTH, STAKE, TOTAL};
+
+pub type Response = cosmwasm_std::Response<TgradeMsg>;
+pub type SubMsg = cosmwasm_std::SubMsg<TgradeMsg>;
 
 // version info for migration info
 const CONTRACT_NAME: &str = "crates.io:tg4-stake";
@@ -51,6 +56,7 @@ pub fn instantiate(
         tokens_per_weight: msg.tokens_per_weight,
         min_bond,
         unbonding_period: msg.unbonding_period,
+        auto_return_limit: msg.auto_return_limit,
     };
     CONFIG.save(deps.storage, &config)?;
     TOTAL.save(deps.storage, &0)?;
@@ -68,9 +74,9 @@ pub fn execute(
 ) -> Result<Response, ContractError> {
     let api = deps.api;
     match msg {
-        ExecuteMsg::UpdateAdmin { admin } => {
-            Ok(ADMIN.execute_update_admin(deps, info, maybe_addr(api, admin)?)?)
-        }
+        ExecuteMsg::UpdateAdmin { admin } => ADMIN
+            .execute_update_admin(deps, info, maybe_addr(api, admin)?)
+            .map_err(Into::into),
         ExecuteMsg::AddHook { addr } => execute_add_hook(deps, info, addr),
         ExecuteMsg::RemoveHook { addr } => execute_remove_hook(deps, info, addr),
         ExecuteMsg::Bond {} => execute_bond(deps, env, Balance::from(info.funds), info.sender),
@@ -174,9 +180,9 @@ pub fn execute_unbond(
 
     // provide them a claim
     let cfg = CONFIG.load(deps.storage)?;
-    CLAIMS.create_claim(
+    claims().create_claim(
         deps.storage,
-        &info.sender,
+        info.sender.clone(),
         amount,
         cfg.unbonding_period.after(&env.block),
         env.block.height,
@@ -256,19 +262,18 @@ pub fn execute_claim(
     env: Env,
     info: MessageInfo,
 ) -> Result<Response, ContractError> {
-    let release = CLAIMS.claim_tokens(deps.storage, &info.sender, &env.block, None)?;
+    let release = claims().claim_addr(deps.storage, &info.sender, &env.block, None)?;
     if release.is_zero() {
         return Err(ContractError::NothingToClaim {});
     }
 
     let config = CONFIG.load(deps.storage)?;
-    let amount;
-    match &config.denom {
-        Denom::Native(denom) => amount = coins(release.u128(), denom),
+    let amount = match &config.denom {
+        Denom::Native(denom) => coins(release.into(), denom),
         Denom::Cw20(_addr) => {
-            unimplemented!("The CW20 coins release functionality is in progress")
+            return Err(ContractError::Cw20CoinsRelease {});
         }
-    }
+    };
 
     let res = Response::new()
         .add_attribute("action", "claim")
@@ -278,6 +283,7 @@ pub fn execute_claim(
             to_address: info.sender.into(),
             amount,
         });
+
     Ok(res)
 }
 
@@ -288,6 +294,63 @@ fn coins_to_string(coins: &[Coin]) -> String {
         .map(|c| format!("{}{}", c.amount, c.denom))
         .collect();
     strings.join(",")
+}
+
+#[cfg_attr(not(feature = "library"), entry_point)]
+pub fn sudo(deps: DepsMut, env: Env, msg: TgradeSudoMsg) -> Result<Response, ContractError> {
+    match msg {
+        TgradeSudoMsg::PrivilegeChange(PrivilegeChangeMsg::Promoted {}) => privilege_promote(deps),
+        TgradeSudoMsg::EndBlock {} => end_block(deps, env),
+        _ => Err(ContractError::UnknownSudoMsg {}),
+    }
+}
+
+fn privilege_promote(deps: DepsMut) -> Result<Response, ContractError> {
+    let config = CONFIG.load(deps.storage)?;
+
+    if config.auto_return_limit > 0 {
+        let msgs = request_privileges(&[Privilege::EndBlocker]);
+        Ok(Response::new().add_submessages(msgs))
+    } else {
+        Ok(Response::new())
+    }
+}
+
+fn end_block(deps: DepsMut, env: Env) -> Result<Response, ContractError> {
+    let mut resp = Response::new();
+
+    let config = CONFIG.load(deps.storage)?;
+    if config.auto_return_limit > 0 {
+        let sub_msgs = release_expired_claims(deps, env, config)?;
+        resp = resp.add_submessages(sub_msgs);
+    }
+
+    Ok(resp)
+}
+
+fn release_expired_claims(
+    deps: DepsMut,
+    env: Env,
+    config: Config,
+) -> Result<Vec<SubMsg>, ContractError> {
+    let releases = claims().claim_expired(deps.storage, &env.block, config.auto_return_limit)?;
+
+    releases
+        .into_iter()
+        .map(|(addr, amount)| {
+            let amount = match &config.denom {
+                Denom::Native(denom) => coins(amount.into(), denom),
+                Denom::Cw20(_) => {
+                    return Err(ContractError::Cw20CoinsRelease {});
+                }
+            };
+
+            Ok(SubMsg::new(BankMsg::Send {
+                to_address: addr.into(),
+                amount,
+            }))
+        })
+        .collect()
 }
 
 #[cfg_attr(not(feature = "library"), entry_point)]
@@ -304,9 +367,9 @@ pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
             to_binary(&list_members_by_weight(deps, start_after, limit)?)
         }
         QueryMsg::TotalWeight {} => to_binary(&query_total_weight(deps)?),
-        QueryMsg::Claims { address } => {
-            to_binary(&CLAIMS.query_claims(deps, &deps.api.addr_validate(&address)?)?)
-        }
+        QueryMsg::Claims { address } => to_binary(&ClaimsResponse {
+            claims: claims().query_claims(deps, deps.api.addr_validate(&address)?)?,
+        }),
         QueryMsg::Staked { address } => to_binary(&query_staked(deps, address)?),
         QueryMsg::Admin {} => to_binary(&ADMIN.query_admin(deps)?),
         QueryMsg::Hooks {} => {
@@ -455,6 +518,7 @@ mod tests {
             unbonding_period,
             admin: Some(INIT_ADMIN.into()),
             preauths: Some(1),
+            auto_return_limit: 0,
         };
         let info = mock_info("creator", &[]);
         instantiate(deps, mock_env(), info, msg).unwrap();
@@ -819,8 +883,9 @@ mod tests {
         assert_eq!(None, member3_raw);
     }
 
-    fn get_claims(deps: Deps, addr: &Addr) -> Vec<Claim> {
-        CLAIMS.query_claims(deps, addr).unwrap().claims
+    #[track_caller]
+    fn get_claims(deps: Deps, addr: Addr) -> Vec<Claim> {
+        claims().query_claims(deps, addr).unwrap()
     }
 
     #[test]
@@ -838,14 +903,24 @@ mod tests {
         // check the claims for each user
         let expires = Duration::new_from_seconds(UNBONDING_DURATION).after(&env.block);
         assert_eq!(
-            get_claims(deps.as_ref(), &Addr::unchecked(USER1)),
-            vec![Claim::new(4_500, expires, env.block.height)]
+            get_claims(deps.as_ref(), Addr::unchecked(USER1)),
+            vec![Claim::new(
+                Addr::unchecked(USER1),
+                4_500,
+                expires,
+                env.block.height
+            )]
         );
         assert_eq!(
-            get_claims(deps.as_ref(), &Addr::unchecked(USER2)),
-            vec![Claim::new(2_600, expires, env.block.height)]
+            get_claims(deps.as_ref(), Addr::unchecked(USER2)),
+            vec![Claim::new(
+                Addr::unchecked(USER2),
+                2_600,
+                expires,
+                env.block.height
+            )]
         );
-        assert_eq!(get_claims(deps.as_ref(), &Addr::unchecked(USER3)), vec![]);
+        assert_eq!(get_claims(deps.as_ref(), Addr::unchecked(USER3)), vec![]);
 
         // do another unbond later on
         let mut env2 = mock_env();
@@ -853,32 +928,41 @@ mod tests {
         env2.block.height += height_delta;
         let time_delta = 50;
         unbond(deps.as_mut(), 0, 1_345, 1_500, height_delta, time_delta);
-        let updated_creation_height = env2.block.height;
 
         // with updated claims
         let expires2 =
             Duration::new_from_seconds(UNBONDING_DURATION + time_delta).after(&env2.block);
         assert_ne!(expires, expires2);
         assert_eq!(
-            get_claims(deps.as_ref(), &Addr::unchecked(USER1)),
-            vec![Claim::new(4_500, expires, env.block.height)]
+            get_claims(deps.as_ref(), Addr::unchecked(USER1)),
+            vec![Claim::new(
+                Addr::unchecked(USER1),
+                4_500,
+                expires,
+                env.block.height
+            )]
         );
         assert_eq!(
-            get_claims(deps.as_ref(), &Addr::unchecked(USER2)),
+            get_claims(deps.as_ref(), Addr::unchecked(USER2)),
             vec![
-                Claim::new(2_600, expires, env.block.height),
-                Claim::new(1_345, expires2, updated_creation_height)
+                Claim::new(Addr::unchecked(USER2), 2_600, expires, env.block.height),
+                Claim::new(Addr::unchecked(USER2), 1_345, expires2, env2.block.height)
             ]
         );
         assert_eq!(
-            get_claims(deps.as_ref(), &Addr::unchecked(USER3)),
-            vec![Claim::new(1_500, expires2, updated_creation_height)]
+            get_claims(deps.as_ref(), Addr::unchecked(USER3)),
+            vec![Claim::new(
+                Addr::unchecked(USER3),
+                1_500,
+                expires2,
+                env2.block.height
+            )]
         );
 
         // nothing can be withdrawn yet
         let err = execute(
             deps.as_mut(),
-            env2,
+            env,
             mock_info(USER1, &[]),
             ExecuteMsg::Claim {},
         )
@@ -931,14 +1015,24 @@ mod tests {
         assert_eq!(err, ContractError::NothingToClaim {});
 
         // claims updated properly
-        assert_eq!(get_claims(deps.as_ref(), &Addr::unchecked(USER1)), vec![]);
+        assert_eq!(get_claims(deps.as_ref(), Addr::unchecked(USER1)), vec![]);
         assert_eq!(
-            get_claims(deps.as_ref(), &Addr::unchecked(USER2)),
-            vec![Claim::new(1_345, expires2, updated_creation_height)]
+            get_claims(deps.as_ref(), Addr::unchecked(USER2)),
+            vec![Claim::new(
+                Addr::unchecked(USER2),
+                1_345,
+                expires2,
+                env2.block.height
+            )]
         );
         assert_eq!(
-            get_claims(deps.as_ref(), &Addr::unchecked(USER3)),
-            vec![Claim::new(1_500, expires2, updated_creation_height)]
+            get_claims(deps.as_ref(), Addr::unchecked(USER3)),
+            vec![Claim::new(
+                Addr::unchecked(USER3),
+                1_500,
+                expires2,
+                env2.block.height
+            )]
         );
 
         // add another few claims for 2
@@ -966,7 +1060,7 @@ mod tests {
                 amount: coins(2_950, DENOM),
             })]
         );
-        assert_eq!(get_claims(deps.as_ref(), &Addr::unchecked(USER2)), vec![]);
+        assert_eq!(get_claims(deps.as_ref(), Addr::unchecked(USER2)), vec![]);
     }
 
     #[test]

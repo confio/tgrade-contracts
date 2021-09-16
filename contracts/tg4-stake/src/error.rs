@@ -38,4 +38,10 @@ pub enum ContractError {
 
     #[error("No funds sent")]
     NoFunds {},
+
+    #[error("Unrecognized sudo message")]
+    UnknownSudoMsg {},
+
+    #[error("Cw20 coins release functionality is in progress")]
+    Cw20CoinsRelease {},
 }

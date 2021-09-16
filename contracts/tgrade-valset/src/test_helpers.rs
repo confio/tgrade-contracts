@@ -1,7 +1,6 @@
 #![cfg(test)]
-use cosmwasm_std::testing::{mock_env, MockApi, MockStorage};
 use cosmwasm_std::{Addr, Binary};
-use cw_multi_test::{App, BankKeeper, Contract, ContractWrapper};
+use cw_multi_test::{Contract, ContractWrapper};
 
 use tg4::Member;
 use tg_bindings::{Pubkey, TgradeMsg};
@@ -10,14 +9,6 @@ use crate::msg::{OperatorInitInfo, ValidatorMetadata};
 use crate::state::ValidatorInfo;
 
 const ED25519_PUBKEY_LENGTH: usize = 32;
-
-pub fn mock_app() -> App<TgradeMsg> {
-    let env = mock_env();
-    let api = MockApi::default();
-    let bank = BankKeeper::new();
-
-    App::new(api, env.block, bank, MockStorage::new())
-}
 
 pub fn contract_valset() -> Box<dyn Contract<TgradeMsg>> {
     let contract = ContractWrapper::new(
