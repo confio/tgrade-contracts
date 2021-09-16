@@ -9,6 +9,10 @@ use crate::state::{Expiration, ExpirationKey};
 use cosmwasm_std::{Addr, BlockInfo, Deps, Order, StdResult, Storage, Uint128};
 use cw_storage_plus::{Bound, Index, IndexList, IndexedMap, MultiIndex, PrimaryKey};
 
+// settings for pagination
+const MAX_LIMIT: u32 = 30;
+const DEFAULT_LIMIT: u32 = 10;
+
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct Claim {
     /// Address owning the claim
@@ -204,14 +208,24 @@ impl<'a> Claims<'a> {
         Ok(())
     }
 
-    pub fn query_claims(&self, deps: Deps, address: Addr) -> StdResult<Vec<Claim>> {
+    pub fn query_claims(
+        &self,
+        deps: Deps,
+        address: Addr,
+        limit: Option<u32>,
+        start_after: Option<String>,
+    ) -> StdResult<Vec<Claim>> {
+        let limit = limit.unwrap_or(DEFAULT_LIMIT).min(MAX_LIMIT) as usize;
+        let start = start_after.map(Bound::exclusive);
+
         self.claims
             .prefix(&address)
-            .range(deps.storage, None, None, Order::Ascending)
+            .range(deps.storage, start, None, Order::Ascending)
             .map(|claim| match claim {
                 Ok((_, claim)) => Ok(claim),
                 Err(err) => Err(err),
             })
+            .take(limit)
             .collect()
     }
 }

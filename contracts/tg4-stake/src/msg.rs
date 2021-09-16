@@ -56,6 +56,8 @@ pub enum QueryMsg {
     /// Claims shows the tokens in process of unbonding for this address
     Claims {
         address: String,
+        limit: Option<u32>,
+        start_after: Option<String>,
     },
     // Show the number of tokens currently staked by this address.
     Staked {

@@ -332,8 +332,17 @@ pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
             to_binary(&list_members_by_weight(deps, start_after, limit)?)
         }
         QueryMsg::TotalWeight {} => to_binary(&query_total_weight(deps)?),
-        QueryMsg::Claims { address } => to_binary(&ClaimsResponse {
-            claims: claims().query_claims(deps, deps.api.addr_validate(&address)?)?,
+        QueryMsg::Claims {
+            address,
+            limit,
+            start_after,
+        } => to_binary(&ClaimsResponse {
+            claims: claims().query_claims(
+                deps,
+                deps.api.addr_validate(&address)?,
+                limit,
+                start_after,
+            )?,
         }),
         QueryMsg::Staked { address } => to_binary(&query_staked(deps, address)?),
         QueryMsg::Admin {} => to_binary(&ADMIN.query_admin(deps)?),
