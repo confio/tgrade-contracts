@@ -2,12 +2,11 @@
 use cosmwasm_std::entry_point;
 use cosmwasm_std::{
     coin, coins, to_binary, Addr, BankMsg, Binary, Coin, Deps, DepsMut, Env, MessageInfo, Order,
-    StdError, StdResult, Storage, Uint128,
+    StdResult, Storage, Uint128,
 };
 
-use cw0::{maybe_addr, NativeBalance};
+use cw0::maybe_addr;
 use cw2::set_contract_version;
-use cw20::{Balance, Denom};
 use cw_storage_plus::{Bound, PrimaryKey, U64Key};
 use tg4::{
     HooksResponse, Member, MemberChangedHookMsg, MemberDiff, MemberListResponse, MemberResponse,
@@ -79,7 +78,7 @@ pub fn execute(
             .map_err(Into::into),
         ExecuteMsg::AddHook { addr } => execute_add_hook(deps, info, addr),
         ExecuteMsg::RemoveHook { addr } => execute_remove_hook(deps, info, addr),
-        ExecuteMsg::Bond {} => execute_bond(deps, env, Balance::from(info.funds), info.sender),
+        ExecuteMsg::Bond {} => execute_bond(deps, env, info),
         ExecuteMsg::Unbond { tokens: amount } => execute_unbond(deps, env, info, amount),
         ExecuteMsg::Claim {} => execute_claim(deps, env, info),
     }
@@ -128,41 +127,20 @@ pub fn execute_remove_hook(
     Ok(res)
 }
 
-pub fn execute_bond(
-    deps: DepsMut,
-    env: Env,
-    amount: Balance,
-    sender: Addr,
-) -> Result<Response, ContractError> {
+pub fn execute_bond(deps: DepsMut, env: Env, info: MessageInfo) -> Result<Response, ContractError> {
     let cfg = CONFIG.load(deps.storage)?;
-
-    // ensure the sent denom was proper
-    // NOTE: those clones are not needed (if we move denom, we return early),
-    // but the compiler cannot see that (yet...)
-    let amount = match (&cfg.denom, &amount) {
-        (Denom::Native(want), Balance::Native(have)) => must_pay_funds(have, want),
-        (Denom::Cw20(want), Balance::Cw20(have)) => {
-            if want == &have.address {
-                Ok(have.amount)
-            } else {
-                Err(ContractError::InvalidDenom(want.into()))
-            }
-        }
-        _ => Err(ContractError::MixedNativeAndCw20(
-            "Invalid address or denom".to_string(),
-        )),
-    }?;
+    let amount = validate_funds(&info.funds, &cfg.denom)?;
 
     // update the sender's stake
-    let new_stake = STAKE.update(deps.storage, &sender, |stake| -> StdResult<_> {
+    let new_stake = STAKE.update(deps.storage, &info.sender, |stake| -> StdResult<_> {
         Ok(stake.unwrap_or_default() + amount)
     })?;
 
     let mut res = Response::new()
         .add_attribute("action", "bond")
         .add_attribute("amount", amount)
-        .add_attribute("sender", &sender);
-    res.messages = update_membership(deps.storage, sender, new_stake, &cfg, env.block.height)?;
+        .add_attribute("sender", &info.sender);
+    res.messages = update_membership(deps.storage, info.sender, new_stake, &cfg, env.block.height)?;
 
     Ok(res)
 }
@@ -197,19 +175,17 @@ pub fn execute_unbond(
     Ok(res)
 }
 
-pub fn must_pay_funds(balance: &NativeBalance, denom: &str) -> Result<Uint128, ContractError> {
-    match balance.0.len() {
-        0 => Err(ContractError::NoFunds {}),
-        1 => {
-            let balance = &balance.0;
-            let payment = balance[0].amount;
-            if balance[0].denom == denom {
-                Ok(payment)
-            } else {
-                Err(ContractError::MissingDenom(denom.to_string()))
-            }
-        }
-        _ => Err(ContractError::ExtraDenoms(denom.to_string())),
+/// Validates funds send with the message, that they are containing only single denom. Returns
+/// amount of funds send, or error if:
+/// * No funds are passed with message (`NoFunds` error)
+/// * More than single denom  are send (`ExtraDenoms` error)
+/// * Invalid single denom is send (`MissingDenom` error)
+pub fn validate_funds(funds: &[Coin], stake_denom: &str) -> Result<Uint128, ContractError> {
+    match funds {
+        [] => Err(ContractError::NoFunds {}),
+        [Coin { denom, amount }] if denom == stake_denom => Ok(*amount),
+        [_] => Err(ContractError::MissingDenom(stake_denom.to_string())),
+        _ => Err(ContractError::ExtraDenoms(stake_denom.to_string())),
     }
 }
 
@@ -268,12 +244,7 @@ pub fn execute_claim(
     }
 
     let config = CONFIG.load(deps.storage)?;
-    let amount = match &config.denom {
-        Denom::Native(denom) => coins(release.into(), denom),
-        Denom::Cw20(_addr) => {
-            return Err(ContractError::Cw20CoinsRelease {});
-        }
-    };
+    let amount = coins(release.into(), config.denom);
 
     let res = Response::new()
         .add_attribute("action", "claim")
@@ -338,13 +309,7 @@ fn release_expired_claims(
     releases
         .into_iter()
         .map(|(addr, amount)| {
-            let amount = match &config.denom {
-                Denom::Native(denom) => coins(amount.into(), denom),
-                Denom::Cw20(_) => {
-                    return Err(ContractError::Cw20CoinsRelease {});
-                }
-            };
-
+            let amount = coins(amount.into(), config.denom.clone());
             Ok(SubMsg::new(BankMsg::Send {
                 to_address: addr.into(),
                 amount,
@@ -397,16 +362,10 @@ fn query_total_weight(deps: Deps) -> StdResult<TotalWeightResponse> {
 pub fn query_staked(deps: Deps, addr: String) -> StdResult<StakedResponse> {
     let addr = deps.api.addr_validate(&addr)?;
     let stake = STAKE.may_load(deps.storage, &addr)?.unwrap_or_default();
-    let denom = match CONFIG.load(deps.storage)?.denom {
-        Denom::Native(want) => want,
-        _ => {
-            return Err(StdError::generic_err(
-                "The stake for CW20 is not yet implemented",
-            ));
-        }
-    };
+    let config = CONFIG.load(deps.storage)?;
+
     Ok(StakedResponse {
-        stake: coin(stake.u128(), denom),
+        stake: coin(stake.u128(), config.denom),
     })
 }
 
@@ -479,7 +438,6 @@ mod tests {
     use crate::state::Duration;
     use cosmwasm_std::testing::{mock_dependencies, mock_env, mock_info};
     use cosmwasm_std::{from_slice, OverflowError, OverflowOperation, StdError, Storage};
-    use cw20::Denom;
     use tg4::{member_key, TOTAL_KEY};
     use tg_controllers::{HookError, PreauthError};
 
@@ -512,7 +470,7 @@ mod tests {
         unbonding_period: Duration,
     ) {
         let msg = InstantiateMsg {
-            denom: Denom::Native("stake".to_string()),
+            denom: "stake".to_owned(),
             tokens_per_weight,
             min_bond,
             unbonding_period,

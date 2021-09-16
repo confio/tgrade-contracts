@@ -1,8 +1,6 @@
 #![cfg(test)]
 use cosmwasm_std::{coin, Addr, Coin, Uint128};
 
-use cw20::Denom;
-
 use tg4::Tg4Contract;
 use tg_bindings::TgradeMsg;
 
@@ -73,7 +71,7 @@ fn instantiate_stake(app: &mut App<TgradeMsg>) -> Addr {
     let stake_id = app.store_code(contract_stake());
     let admin = Some(STAKE_OWNER.into());
     let msg = tg4_stake::msg::InstantiateMsg {
-        denom: Denom::Native(BOND_DENOM.into()),
+        denom: BOND_DENOM.to_owned(),
         tokens_per_weight: Uint128::new(TOKENS_PER_WEIGHT),
         min_bond: Uint128::new(MIN_BOND),
         unbonding_period: Duration::new_from_seconds(1234),

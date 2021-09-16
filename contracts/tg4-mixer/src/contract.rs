@@ -328,7 +328,6 @@ fn list_members_by_weight(
 mod tests {
     use super::*;
     use cosmwasm_std::{coins, Addr, Uint128};
-    use cw20::Denom;
     use cw_multi_test::{next_block, App, AppBuilder, Contract, ContractWrapper, Executor};
     use tg4_stake::state::Duration;
     use tg_bindings::TgradeMsg;
@@ -393,7 +392,7 @@ mod tests {
         let admin = Some(OWNER.into());
         let group_id = app.store_code(contract_staking());
         let msg = tg4_stake::msg::InstantiateMsg {
-            denom: Denom::Native(STAKE_DENOM.into()),
+            denom: STAKE_DENOM.to_owned(),
             tokens_per_weight: Uint128::new(1),
             min_bond: Uint128::new(100),
             unbonding_period: Duration::new_from_seconds(3600),
