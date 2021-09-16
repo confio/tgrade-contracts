@@ -42,7 +42,7 @@ decision-making.
 Basic update messages, queries, and hooks are defined by the
 [tg4 spec](../../packages/tg4/README.md). Please refer to it for more info.
 
-`tg4-group` adds one message to control the group membership:
+`tg4-engagement` adds one message to control the group membership:
 
 `UpdateMembers{add, remove}` - takes a membership diff and adds/updates the
 members, as well as removing any provided addresses. If an address is on both

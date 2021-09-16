@@ -38,7 +38,7 @@
       "minimum": 0.0
     },
     "scaling": {
-      "description": "A scaling factor to multiply tg4-group weights to produce the tendermint validator power (TODO: should we allow this to reduce weight? Like 1/1000?)",
+      "description": "A scaling factor to multiply tg4-engagement weights to produce the tendermint validator power (TODO: should we allow this to reduce weight? Like 1/1000?)",
       "type": [
         "integer",
         "null"

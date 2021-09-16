@@ -359,9 +359,9 @@ mod tests {
 
     pub fn contract_group() -> Box<dyn Contract<TgradeMsg>> {
         let contract = ContractWrapper::new(
-            tg4_group::contract::execute,
-            tg4_group::contract::instantiate,
-            tg4_group::contract::query,
+            tg4_engagement::contract::execute,
+            tg4_engagement::contract::instantiate,
+            tg4_engagement::contract::query,
         );
         Box::new(contract)
     }
@@ -379,7 +379,7 @@ mod tests {
     fn instantiate_group(app: &mut App<TgradeMsg>, members: Vec<Member>) -> Addr {
         let admin = Some(OWNER.into());
         let group_id = app.store_code(contract_group());
-        let msg = tg4_group::msg::InstantiateMsg {
+        let msg = tg4_engagement::msg::InstantiateMsg {
             admin: admin.clone(),
             members,
             preauths: Some(1),
@@ -571,7 +571,7 @@ mod tests {
 
         // add, remove, and adjust member
         // voter1 => None, voter2 => 300 (still mixed to None), voter3 => 1200 (mixed = 3000)
-        let msg = tg4_group::msg::ExecuteMsg::UpdateMembers {
+        let msg = tg4_engagement::msg::ExecuteMsg::UpdateMembers {
             remove: vec![VOTER1.into()],
             add: vec![
                 Member {

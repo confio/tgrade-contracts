@@ -18,7 +18,7 @@ pub type Response = cosmwasm_std::Response<TgradeMsg>;
 pub type SubMsg = cosmwasm_std::SubMsg<TgradeMsg>;
 
 // version info for migration info
-const CONTRACT_NAME: &str = "crates.io:tg4-group";
+const CONTRACT_NAME: &str = "crates.io:tg4-engagement";
 const CONTRACT_VERSION: &str = env!("CARGO_PKG_VERSION");
 
 // Note, you can use StdResult in some functions where you do not
