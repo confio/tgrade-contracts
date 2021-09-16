@@ -7,7 +7,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::state::{Expiration, ExpirationKey};
 use cosmwasm_std::{Addr, BlockInfo, Deps, Order, StdResult, Storage, Uint128};
-use cw_storage_plus::{Bound, Index, IndexList, IndexedMap, MultiIndex};
+use cw_storage_plus::{Bound, Index, IndexList, IndexedMap, MultiIndex, PrimaryKey};
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct Claim {
@@ -111,14 +111,16 @@ impl<'a> Claims<'a> {
     ) -> StdResult<Uint128> {
         let claims = self
             .claims
-            .prefix(&addr)
+            .prefix(addr)
             // take all claims for the addr
-            .range(storage, None, None, Order::Ascending)
-            // filter out non-expired claims (leaving errors to stop on first
-            .filter(|claim| match claim {
-                Ok((_, claim)) => claim.release_at.is_expired(block),
-                Err(_) => true,
-            });
+            .range(
+                storage,
+                None,
+                Some(Bound::inclusive(
+                    ExpirationKey::new(Expiration::now(block)).joined_key(),
+                )),
+                Order::Ascending,
+            );
 
         let claims = self.filter_claims(claims, cap.map(u128::from), None)?;
         let amount = claims.iter().map(|claim| claim.amount).sum();
