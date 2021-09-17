@@ -100,14 +100,14 @@ impl<'a> Claims<'a> {
         Ok(())
     }
 
-    /// This iterates over all mature claims for the address, and removes them, up to an optional cap.
+    /// This iterates over all mature claims for the address, and removes them, up to an optional limit.
     /// It removes the finished claims and returns the total amount of tokens to be released.
     pub fn claim_addr(
         &self,
         storage: &mut dyn Storage,
         addr: &Addr,
         block: &BlockInfo,
-        cap: Option<Uint128>,
+        limit: impl Into<Option<u64>>,
     ) -> StdResult<Uint128> {
         let claims = self
             .claims
@@ -122,7 +122,7 @@ impl<'a> Claims<'a> {
                 Order::Ascending,
             );
 
-        let claims = self.filter_claims(claims, cap.map(u128::from), None)?;
+        let claims = self.collect_claims(claims, limit.into())?;
         let amount = claims.iter().map(|claim| claim.amount).sum();
 
         self.release_claims(storage, claims)?;
@@ -154,7 +154,7 @@ impl<'a> Claims<'a> {
                 Order::Ascending,
             );
 
-        let mut claims = self.filter_claims(claims, None, limit.into())?;
+        let mut claims = self.collect_claims(claims, limit.into())?;
         claims.sort_by_key(|claim| claim.addr.clone());
 
         let releases = claims
@@ -173,44 +173,21 @@ impl<'a> Claims<'a> {
 
     /// Processes claims filtering those which are to be released. Returns vector of claims to be
     /// released
-    fn filter_claims(
+    fn collect_claims(
         &self,
         claims: impl IntoIterator<Item = StdResult<(Vec<u8>, Claim)>>,
-        cap: Option<u128>,
         limit: Option<u64>,
     ) -> StdResult<Vec<Claim>> {
-        let claims = claims
-            .into_iter()
-            // calculate sum for claims up to this one for cap filtering
-            .scan(0u128, |sum, claim| match claim {
-                Ok((_, claim)) => {
-                    *sum += u128::from(claim.amount);
-                    Some(Ok((*sum, claim)))
-                }
-                Err(err) => Some(Err(err)),
-            })
-            // stop when sum exceeds limit
-            .take_while(|claim| match (cap, claim) {
-                (Some(cap), Ok((sum, _))) => cap <= *sum,
-                _ => true,
-            })
-            // now only proper claims as in iterator, so just map them back to claim
-            .map(|claim| match claim {
-                Ok((_, claim)) => Ok(claim),
-                Err(err) => Err(err),
-            });
-
         // apply limit and collect - it is needed to collect intermediately, as it is impossible to
         // remove from map while iterating as it borrows map internally; collecting to result, so
         // it returns early on failure; collecting would also trigger a final map, so amount would
         // be properly fulfilled
-        let claims = if let Some(limit) = limit {
+        let claims = claims.into_iter().map(|r| r.map(|(_, c)| c));
+        if let Some(limit) = limit {
             claims.take(limit as usize).collect()
         } else {
-            claims.collect::<StdResult<_>>()
-        }?;
-
-        Ok(claims)
+            claims.collect()
+        }
     }
 
     /// Releases given claims by removing them from storage
