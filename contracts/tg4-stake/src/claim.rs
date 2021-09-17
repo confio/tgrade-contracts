@@ -143,6 +143,11 @@ impl<'a> Claims<'a> {
         block: &BlockInfo,
         limit: impl Into<Option<u64>>,
     ) -> StdResult<Vec<(Addr, Uint128)>> {
+        // Technically it should not be needed, and it should be enough to call for
+        // `Bound::inclusive` range, but its implementation seems to be buggy. As claim expiration
+        // is measured in seconds, offsetting it by 1ns would make and querying exclusive range
+        // would have expected behavior.
+        let excluded_timestamp = block.time.plus_nanos(1);
         let claims = self
             .claims
             .idx
@@ -151,8 +156,8 @@ impl<'a> Claims<'a> {
             .range(
                 storage,
                 None,
-                Some(Bound::inclusive(self.claims.idx.release_at.index_key((
-                    ExpirationKey::new(Expiration::now(block)),
+                Some(Bound::exclusive(self.claims.idx.release_at.index_key((
+                    ExpirationKey::new(Expiration::at_timestamp(excluded_timestamp)),
                     vec![],
                 )))),
                 Order::Ascending,

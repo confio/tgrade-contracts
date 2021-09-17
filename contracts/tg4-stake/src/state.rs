@@ -25,6 +25,10 @@ impl Expiration {
         Self(block.time)
     }
 
+    pub fn at_timestamp(timestamp: Timestamp) -> Self {
+        Self(timestamp)
+    }
+
     pub fn is_expired(&self, block: &BlockInfo) -> bool {
         block.time >= self.0
     }
