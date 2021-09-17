@@ -84,7 +84,7 @@ impl<'a> Claims<'a> {
         // Add a claim to this user to get their tokens after the unbonding period
         self.claims.update(
             storage,
-            (&addr, release_at.into()),
+            (addr, release_at.into()),
             move |claim| -> StdResult<_> {
                 match claim {
                     Some(mut claim) => {

@@ -260,13 +260,13 @@ impl Punishment {
                 ..
             } => {
                 // Validate member address
-                let addr = deps.api.addr_validate(&member)?;
+                let addr = deps.api.addr_validate(member)?;
                 if distribution_list.is_empty() {
                     return Err(ContractError::EmptyDistributionList {});
                 }
                 // Validate destination addresses
                 for d in distribution_list {
-                    deps.api.addr_validate(&d)?;
+                    deps.api.addr_validate(d)?;
                 }
 
                 // Validate slashing percentage
@@ -292,7 +292,7 @@ impl Punishment {
                 ..
             } => {
                 // Validate member address
-                let addr = deps.api.addr_validate(&member)?;
+                let addr = deps.api.addr_validate(member)?;
 
                 // Validate slashing percentage
                 if !(Decimal::zero()..=Decimal::one()).contains(slashing_percentage) {

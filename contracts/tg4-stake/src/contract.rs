@@ -1340,7 +1340,7 @@ mod tests {
             let sends: Vec<_> = sends.into_iter().map(|(_, _, msg)| msg).collect();
 
             // Tuples are sorted simply first by addresses, then by amount
-            expected_transfers.sort();
+            expected_transfers.sort_unstable();
 
             // Build messages for comparison
             let expected_transfers: Vec<_> = expected_transfers

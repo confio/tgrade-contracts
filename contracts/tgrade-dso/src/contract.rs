@@ -221,7 +221,7 @@ fn convert_all_paid_members_to_voters(
     }
     // make this a promoted and save
     batch.batch_promoted = true;
-    batches().save(storage, batch_id.into(), &batch)?;
+    batches().save(storage, batch_id.into(), batch)?;
 
     // update the total with the new weight
     if added > 0 {
@@ -389,8 +389,8 @@ pub fn validate_proposal(
             if add.is_empty() && remove.is_empty() {
                 return Err(ContractError::NoMembers {});
             }
-            validate_addresses(deps.api, &add)?;
-            validate_addresses(deps.api, &remove)
+            validate_addresses(deps.api, add)?;
+            validate_addresses(deps.api, remove)
         }
         ProposalContent::AddVotingMembers { voters } => {
             if voters.is_empty() {
@@ -410,7 +410,7 @@ pub fn validate_proposal(
 pub fn validate_addresses(api: &dyn Api, addrs: &[String]) -> Result<(), ContractError> {
     addrs
         .iter()
-        .map(|addr| api.addr_validate(&addr))
+        .map(|addr| api.addr_validate(addr))
         .collect::<StdResult<Vec<_>>>()?;
     Ok(())
 }
@@ -850,7 +850,7 @@ pub fn proposal_add_voting_members(
 
     let addrs = to_add
         .iter()
-        .map(|addr| deps.api.addr_validate(&addr))
+        .map(|addr| deps.api.addr_validate(addr))
         .collect::<StdResult<Vec<_>>>()?;
     create_batch(deps.storage, &env, proposal_id, grace_period, &addrs)?;
 
