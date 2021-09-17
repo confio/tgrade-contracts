@@ -1,6 +1,6 @@
 [package]
 name = "tg4-engagement"
-version = "0.3.0"
+version = "0.4.0-rc1"
 authors = ["Ethan Frey <ethanfrey@users.noreply.github.com>"]
 edition = "2018"
 description = "Simple TG4 implementation of group membership controlled by an admin"
@@ -23,9 +23,9 @@ cw0 = { version = "0.9.0" }
 cw2 = { version = "0.9.0" }
 cw-controllers = { version = "0.9.0" }
 cw-storage-plus = { version = "0.9.0" }
-tg4 = { path = "../../packages/tg4", version = "0.3.0" }
-tg-controllers = { version = "0.3.0", path = "../../packages/controllers" }
-tg-bindings = { version = "0.3.0", path = "../../packages/bindings" }
+tg4 = { path = "../../packages/tg4", version = "0.4.0-rc1" }
+tg-controllers = { version = "0.4.0-rc1", path = "../../packages/controllers" }
+tg-bindings = { version = "0.4.0-rc1", path = "../../packages/bindings" }
 cosmwasm-std = { version = "0.16.0" }
 schemars = "0.8"
 serde = { version = "1.0.103", default-features = false, features = ["derive"] }
