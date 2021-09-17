@@ -1257,6 +1257,7 @@ mod tests {
         // check is number of claims is properly limited
         let claims = get_claims(deps.as_ref(), Addr::unchecked(USER1), Some(6), None);
         assert_eq!(claims.len(), 6);
+        // check if rest is equal to remainder
         let next = get_claims(
             deps.as_ref(),
             Addr::unchecked(USER1),
@@ -1264,5 +1265,13 @@ mod tests {
             Some(claims[5].release_at),
         );
         assert_eq!(next.len(), 4);
+
+        // check if joining and sorting both vectors equal number from start
+        let mut all_claims = get_claims(deps.as_ref(), Addr::unchecked(USER1), None, None);
+        all_claims.sort_by_key(|claim| claim.addr.clone());
+
+        let mut concatenated = [claims, next].concat();
+        concatenated.sort_by_key(|claim| claim.addr.clone());
+        assert_eq!(concatenated, all_claims);
     }
 }
