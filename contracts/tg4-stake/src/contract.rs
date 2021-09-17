@@ -332,8 +332,17 @@ pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
             to_binary(&list_members_by_weight(deps, start_after, limit)?)
         }
         QueryMsg::TotalWeight {} => to_binary(&query_total_weight(deps)?),
-        QueryMsg::Claims { address } => to_binary(&ClaimsResponse {
-            claims: claims().query_claims(deps, deps.api.addr_validate(&address)?)?,
+        QueryMsg::Claims {
+            address,
+            limit,
+            start_after,
+        } => to_binary(&ClaimsResponse {
+            claims: claims().query_claims(
+                deps,
+                deps.api.addr_validate(&address)?,
+                limit,
+                start_after,
+            )?,
         }),
         QueryMsg::Staked { address } => to_binary(&query_staked(deps, address)?),
         QueryMsg::Admin {} => to_binary(&ADMIN.query_admin(deps)?),
@@ -435,7 +444,7 @@ fn list_members_by_weight(
 #[cfg(test)]
 mod tests {
     use crate::claim::Claim;
-    use crate::state::Duration;
+    use crate::state::{Duration, Expiration};
     use cosmwasm_std::testing::{mock_dependencies, mock_env, mock_info};
     use cosmwasm_std::{from_slice, OverflowError, OverflowOperation, StdError, Storage};
     use tg4::{member_key, TOTAL_KEY};
@@ -842,8 +851,15 @@ mod tests {
     }
 
     #[track_caller]
-    fn get_claims(deps: Deps, addr: Addr) -> Vec<Claim> {
-        claims().query_claims(deps, addr).unwrap()
+    fn get_claims(
+        deps: Deps,
+        addr: Addr,
+        limit: Option<u32>,
+        start_after: Option<Expiration>,
+    ) -> Vec<Claim> {
+        claims()
+            .query_claims(deps, addr, limit, start_after)
+            .unwrap()
     }
 
     #[test]
@@ -861,7 +877,7 @@ mod tests {
         // check the claims for each user
         let expires = Duration::new_from_seconds(UNBONDING_DURATION).after(&env.block);
         assert_eq!(
-            get_claims(deps.as_ref(), Addr::unchecked(USER1)),
+            get_claims(deps.as_ref(), Addr::unchecked(USER1), None, None),
             vec![Claim::new(
                 Addr::unchecked(USER1),
                 4_500,
@@ -870,7 +886,7 @@ mod tests {
             )]
         );
         assert_eq!(
-            get_claims(deps.as_ref(), Addr::unchecked(USER2)),
+            get_claims(deps.as_ref(), Addr::unchecked(USER2), None, None),
             vec![Claim::new(
                 Addr::unchecked(USER2),
                 2_600,
@@ -878,7 +894,10 @@ mod tests {
                 env.block.height
             )]
         );
-        assert_eq!(get_claims(deps.as_ref(), Addr::unchecked(USER3)), vec![]);
+        assert_eq!(
+            get_claims(deps.as_ref(), Addr::unchecked(USER3), None, None),
+            vec![]
+        );
 
         // do another unbond later on
         let mut env2 = mock_env();
@@ -892,7 +911,7 @@ mod tests {
             Duration::new_from_seconds(UNBONDING_DURATION + time_delta).after(&env2.block);
         assert_ne!(expires, expires2);
         assert_eq!(
-            get_claims(deps.as_ref(), Addr::unchecked(USER1)),
+            get_claims(deps.as_ref(), Addr::unchecked(USER1), None, None),
             vec![Claim::new(
                 Addr::unchecked(USER1),
                 4_500,
@@ -901,14 +920,14 @@ mod tests {
             )]
         );
         assert_eq!(
-            get_claims(deps.as_ref(), Addr::unchecked(USER2)),
+            get_claims(deps.as_ref(), Addr::unchecked(USER2), None, None),
             vec![
                 Claim::new(Addr::unchecked(USER2), 2_600, expires, env.block.height),
                 Claim::new(Addr::unchecked(USER2), 1_345, expires2, env2.block.height)
             ]
         );
         assert_eq!(
-            get_claims(deps.as_ref(), Addr::unchecked(USER3)),
+            get_claims(deps.as_ref(), Addr::unchecked(USER3), None, None),
             vec![Claim::new(
                 Addr::unchecked(USER3),
                 1_500,
@@ -973,9 +992,12 @@ mod tests {
         assert_eq!(err, ContractError::NothingToClaim {});
 
         // claims updated properly
-        assert_eq!(get_claims(deps.as_ref(), Addr::unchecked(USER1)), vec![]);
         assert_eq!(
-            get_claims(deps.as_ref(), Addr::unchecked(USER2)),
+            get_claims(deps.as_ref(), Addr::unchecked(USER1), None, None),
+            vec![]
+        );
+        assert_eq!(
+            get_claims(deps.as_ref(), Addr::unchecked(USER2), None, None),
             vec![Claim::new(
                 Addr::unchecked(USER2),
                 1_345,
@@ -984,7 +1006,7 @@ mod tests {
             )]
         );
         assert_eq!(
-            get_claims(deps.as_ref(), Addr::unchecked(USER3)),
+            get_claims(deps.as_ref(), Addr::unchecked(USER3), None, None),
             vec![Claim::new(
                 Addr::unchecked(USER3),
                 1_500,
@@ -1018,7 +1040,10 @@ mod tests {
                 amount: coins(2_950, DENOM),
             })]
         );
-        assert_eq!(get_claims(deps.as_ref(), Addr::unchecked(USER2)), vec![]);
+        assert_eq!(
+            get_claims(deps.as_ref(), Addr::unchecked(USER2), None, None),
+            vec![]
+        );
     }
 
     #[test]
@@ -1207,5 +1232,37 @@ mod tests {
         // reducing to 0 token makes us None even with min_bond 0
         unbond(deps.as_mut(), 49, 1, 102, 2, 0);
         assert_users(deps.as_ref(), Some(0), None, None, None);
+    }
+
+    #[test]
+    fn paginated_claim_query() {
+        let mut deps = mock_dependencies(&[]);
+        default_instantiate(deps.as_mut());
+
+        // create some data
+        let mut env = mock_env();
+        let msg = ExecuteMsg::Bond {};
+        let info = mock_info(USER1, &coins(500, DENOM));
+        execute(deps.as_mut(), env.clone(), info, msg).unwrap();
+
+        let info = mock_info(USER1, &[]);
+        for _ in 0..10 {
+            env.block.time = env.block.time.plus_seconds(10);
+            let msg = ExecuteMsg::Unbond {
+                tokens: Uint128::new(10),
+            };
+            execute(deps.as_mut(), env.clone(), info.clone(), msg).unwrap();
+        }
+
+        // check is number of claims is properly limited
+        let claims = get_claims(deps.as_ref(), Addr::unchecked(USER1), Some(6), None);
+        assert_eq!(claims.len(), 6);
+        let next = get_claims(
+            deps.as_ref(),
+            Addr::unchecked(USER1),
+            None,
+            Some(claims[5].release_at),
+        );
+        assert_eq!(next.len(), 4);
     }
 }

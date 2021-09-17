@@ -8,6 +8,7 @@ use cw_storage_plus::{
     Index, IndexList, IndexedSnapshotMap, Item, Map, MultiIndex, Prefixer, PrimaryKey, SnapshotMap,
     Strategy, U64Key,
 };
+use std::convert::From;
 use tg4::TOTAL_KEY;
 use tg_controllers::{Hooks, Preauth};
 
@@ -41,6 +42,13 @@ impl ExpirationKey {
 impl From<Expiration> for ExpirationKey {
     fn from(expiration: Expiration) -> Self {
         Self::new(expiration)
+    }
+}
+
+/// we need this implementation to work well with Bound::exclusive, like U64Key does
+impl From<ExpirationKey> for Vec<u8> {
+    fn from(key: ExpirationKey) -> Self {
+        key.0.into()
     }
 }
 
