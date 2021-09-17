@@ -30,12 +30,6 @@ impl Expiration {
     }
 }
 
-impl From<Expiration> for u64 {
-    fn from(e: Expiration) -> u64 {
-        e.0.seconds()
-    }
-}
-
 #[derive(Clone, PartialEq, Eq, Debug)]
 pub struct ExpirationKey(U64Key);
 
@@ -48,6 +42,13 @@ impl ExpirationKey {
 impl From<Expiration> for ExpirationKey {
     fn from(expiration: Expiration) -> Self {
         Self::new(expiration)
+    }
+}
+
+/// we need this implementation to work well with Bound::exclusive, like U64Key does
+impl From<ExpirationKey> for Vec<u8> {
+    fn from(key: ExpirationKey) -> Self {
+        key.0.into()
     }
 }
 

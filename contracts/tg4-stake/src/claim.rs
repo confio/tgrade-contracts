@@ -7,7 +7,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::state::{Expiration, ExpirationKey};
 use cosmwasm_std::{Addr, BlockInfo, Deps, Order, StdResult, Storage, Uint128};
-use cw_storage_plus::{Bound, Index, IndexList, IndexedMap, MultiIndex, PrimaryKey, U64Key};
+use cw_storage_plus::{Bound, Index, IndexList, IndexedMap, MultiIndex, PrimaryKey};
 
 // settings for pagination
 const MAX_LIMIT: u32 = 30;
@@ -216,7 +216,7 @@ impl<'a> Claims<'a> {
         start_after: Option<Expiration>,
     ) -> StdResult<Vec<Claim>> {
         let limit = limit.unwrap_or(DEFAULT_LIMIT).min(MAX_LIMIT) as usize;
-        let start = start_after.map(|s| Bound::Exclusive(U64Key::new(s.into()).into()));
+        let start = start_after.map(|s| Bound::exclusive(ExpirationKey::new(s)));
 
         self.claims
             .prefix(&address)
