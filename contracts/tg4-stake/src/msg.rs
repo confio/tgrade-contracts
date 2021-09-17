@@ -3,7 +3,7 @@ use cosmwasm_std::{Coin, Uint128};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
-pub use crate::claim::Claim;
+pub use crate::{claim::Claim, state::Expiration};
 use tg4::Member;
 
 const fn default_auto_return_limit() -> u64 {
@@ -57,7 +57,7 @@ pub enum QueryMsg {
     Claims {
         address: String,
         limit: Option<u32>,
-        start_after: Option<String>,
+        start_after: Option<Expiration>,
     },
     // Show the number of tokens currently staked by this address.
     Staked {

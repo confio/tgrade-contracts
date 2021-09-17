@@ -8,6 +8,7 @@ use cw_storage_plus::{
     Index, IndexList, IndexedSnapshotMap, Item, Map, MultiIndex, Prefixer, PrimaryKey, SnapshotMap,
     Strategy, U64Key,
 };
+use std::convert::From;
 use tg4::TOTAL_KEY;
 use tg_controllers::{Hooks, Preauth};
 
@@ -26,6 +27,12 @@ impl Expiration {
 
     pub fn is_expired(&self, block: &BlockInfo) -> bool {
         block.time >= self.0
+    }
+}
+
+impl From<Expiration> for u64 {
+    fn from(e: Expiration) -> u64 {
+        e.0.seconds()
     }
 }
 

@@ -444,7 +444,7 @@ fn list_members_by_weight(
 #[cfg(test)]
 mod tests {
     use crate::claim::Claim;
-    use crate::state::Duration;
+    use crate::state::{Duration, Expiration};
     use cosmwasm_std::testing::{mock_dependencies, mock_env, mock_info};
     use cosmwasm_std::{from_slice, OverflowError, OverflowOperation, StdError, Storage};
     use tg4::{member_key, TOTAL_KEY};
@@ -855,7 +855,7 @@ mod tests {
         deps: Deps,
         addr: Addr,
         limit: Option<u32>,
-        start_after: Option<String>,
+        start_after: Option<Expiration>,
     ) -> Vec<Claim> {
         claims()
             .query_claims(deps, addr, limit, start_after)
@@ -1246,25 +1246,23 @@ mod tests {
         execute(deps.as_mut(), env.clone(), info, msg).unwrap();
 
         let info = mock_info(USER1, &[]);
-        for i in 1..10 {
+        for _ in 0..10 {
             env.block.time = env.block.time.plus_seconds(10);
             let msg = ExecuteMsg::Unbond {
-                tokens: Uint128::new(i),
+                tokens: Uint128::new(10),
             };
             execute(deps.as_mut(), env.clone(), info.clone(), msg).unwrap();
         }
 
         // check is number of claims is properly limited
-        let query_limit = 5;
-        assert_eq!(
-            get_claims(
-                deps.as_ref(),
-                Addr::unchecked(USER1),
-                Some(query_limit),
-                None
-            )
-            .len(),
-            query_limit as usize
+        let claims = get_claims(deps.as_ref(), Addr::unchecked(USER1), Some(6), None);
+        assert_eq!(claims.len(), 6);
+        let next = get_claims(
+            deps.as_ref(),
+            Addr::unchecked(USER1),
+            None,
+            Some(claims[5].release_at),
         );
+        assert_eq!(next.len(), 4);
     }
 }
