@@ -1,6 +1,6 @@
 [package]
 name = "tg-controllers"
-version = "0.4.0-rc1"
+version = "0.4.0-rc2"
 authors = ["Ethan Frey <ethanfrey@users.noreply.github.com>"]
 edition = "2018"
 description = "Tgrade Controllers: helpers for various contracts"
@@ -16,4 +16,4 @@ cw-storage-plus = { version = "0.9.0" }
 schemars = "0.8.1"
 serde = { version = "1.0.103", default-features = false, features = ["derive"] }
 thiserror = { version = "1.0.21" }
-tg-bindings = { path = "../bindings", version = "0.4.0-rc1" }
+tg-bindings = { path = "../bindings", version = "0.4.0-rc2" }
