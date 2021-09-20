@@ -455,9 +455,9 @@ mod tests {
     use super::*;
 
     const INIT_ADMIN: &str = "juan";
-    const USER1: &str = "somebody";
-    const USER2: &str = "else";
-    const USER3: &str = "funny";
+    const USER1: &str = "user1";
+    const USER2: &str = "user2";
+    const USER3: &str = "user3";
     const DENOM: &str = "stake";
     const TOKENS_PER_WEIGHT: Uint128 = Uint128::new(1_000);
     const MIN_BOND: Uint128 = Uint128::new(5_000);
@@ -469,6 +469,7 @@ mod tests {
             TOKENS_PER_WEIGHT,
             MIN_BOND,
             Duration::new_from_seconds(UNBONDING_DURATION),
+            0,
         )
     }
 
@@ -477,6 +478,7 @@ mod tests {
         tokens_per_weight: Uint128,
         min_bond: Uint128,
         unbonding_period: Duration,
+        auto_return_limit: u64,
     ) {
         let msg = InstantiateMsg {
             denom: "stake".to_owned(),
@@ -485,7 +487,7 @@ mod tests {
             unbonding_period,
             admin: Some(INIT_ADMIN.into()),
             preauths: Some(1),
-            auto_return_limit: 0,
+            auto_return_limit,
         };
         let info = mock_info("creator", &[]);
         instantiate(deps, mock_env(), info, msg).unwrap();
@@ -663,12 +665,12 @@ mod tests {
             members,
             vec![
                 Member {
-                    addr: USER2.into(),
-                    weight: 7
-                },
-                Member {
                     addr: USER1.into(),
                     weight: 12
+                },
+                Member {
+                    addr: USER2.into(),
+                    weight: 7
                 },
             ]
         );
@@ -680,8 +682,8 @@ mod tests {
         assert_eq!(
             members,
             vec![Member {
-                addr: USER2.into(),
-                weight: 7
+                addr: USER1.into(),
+                weight: 12
             },]
         );
 
@@ -695,8 +697,8 @@ mod tests {
         assert_eq!(
             members,
             vec![Member {
-                addr: USER1.into(),
-                weight: 12
+                addr: USER2.into(),
+                weight: 7
             },]
         );
 
@@ -1222,6 +1224,7 @@ mod tests {
             Uint128::new(100),
             Uint128::zero(),
             Duration::new_from_seconds(5),
+            0,
         );
 
         // setting 50 tokens, gives us Some(0) weight
@@ -1273,5 +1276,249 @@ mod tests {
         let mut concatenated = [claims, next].concat();
         concatenated.sort_by_key(|claim| claim.addr.clone());
         assert_eq!(concatenated, all_claims);
+    }
+
+    mod auto_release_claims {
+        // Because of tests framework limitations at the point of implementing this test, it is
+        // difficult to actually test reaction for tgrade sudo messages. Instead to check the
+        // auto-release functionality, there are assumptions made:
+        // * Registration to sudo events is correct
+        // * Auto-releasing claims occurs on sudo EndBlock message, and the message is purely
+        // calling the `end_block` function - calling this function in test is simulating actual
+        // end block
+
+        use cosmwasm_std::CosmosMsg;
+
+        use super::*;
+
+        fn do_instantiate(deps: DepsMut, limit: u64) {
+            super::do_instantiate(
+                deps,
+                TOKENS_PER_WEIGHT,
+                MIN_BOND,
+                Duration::new_from_seconds(UNBONDING_DURATION),
+                limit,
+            )
+        }
+
+        /// Helper for asserting if expected transfers occurred in response. Panics if any non
+        /// `BankMsg::Send` occurred, or transfers are different than expected.
+        ///
+        /// Transfers are passed in form of pairs `(addr, amount)`, as for all test in this module
+        /// expected denom is fixed
+        #[track_caller]
+        fn assert_transfers(response: Response, mut expected_transfers: Vec<(&str, u128)>) {
+            let mut sends: Vec<_> = response
+                .messages
+                .into_iter()
+                .map(|msg| match msg.msg {
+                    // Trick is used here - bank send messages are filtered out, and mapped to tripple
+                    // `(addr, amount_sum, msg)` - `addr` and `amount_sum` would be used only to
+                    // properly sort messages, then they would be discarded. As in expected messages
+                    // always only one coin is expected for all send messages, taking sum for sorting
+                    // is good enough - in case of multiple of invalid denoms it would be visible on
+                    // comparison.
+                    //
+                    // Possibly in future it would be possible for another messages to occur - in such
+                    // case instead of returning err and panicking from this function, such messages
+                    // should be filtered out.
+                    CosmosMsg::Bank(BankMsg::Send { to_address, amount }) => Ok((
+                        to_address.clone(),
+                        amount.iter().map(|c| c.amount).sum::<Uint128>(),
+                        BankMsg::Send { to_address, amount },
+                    )),
+                    msg => Err(format!(
+                        "Unexpected message on response, expected only bank send messages: {:?}",
+                        msg
+                    )),
+                })
+                .collect::<Result<_, _>>()
+                .unwrap();
+
+            sends.sort_by_key(|(addr, amount_sum, _)| (addr.clone(), *amount_sum));
+            // Drop  addr and amount_sum for comparison
+            let sends: Vec<_> = sends.into_iter().map(|(_, _, msg)| msg).collect();
+
+            // Tuples are sorted simply first by addresses, then by amount
+            expected_transfers.sort_unstable();
+
+            // Build messages for comparison
+            let expected_transfers: Vec<_> = expected_transfers
+                .into_iter()
+                .map(|(addr, amount)| BankMsg::Send {
+                    to_address: addr.to_owned(),
+                    amount: coins(amount, DENOM),
+                })
+                .collect();
+
+            assert_eq!(sends, expected_transfers);
+        }
+
+        #[test]
+        fn single_claim() {
+            let mut deps = mock_dependencies(&[]);
+            do_instantiate(deps.as_mut(), 2);
+
+            bond(deps.as_mut(), 12_000, 7_500, 4_000, 1);
+            let height_delta = 2;
+
+            unbond(deps.as_mut(), 1000, 0, 0, height_delta, 0);
+            let mut env = mock_env();
+            env.block.height += height_delta;
+            env.block.time = env.block.time.plus_seconds(UNBONDING_DURATION);
+
+            let resp = end_block(deps.as_mut(), env).unwrap();
+            assert_transfers(resp, vec![(USER1, 1000)]);
+        }
+
+        #[test]
+        fn multiple_users_claims() {
+            let mut deps = mock_dependencies(&[]);
+            do_instantiate(deps.as_mut(), 4);
+
+            bond(deps.as_mut(), 12_000, 7_500, 4_000, 1);
+            let height_delta = 2;
+
+            unbond(deps.as_mut(), 1000, 500, 0, height_delta, 0);
+            unbond(deps.as_mut(), 0, 0, 200, height_delta, 1);
+            let mut env = mock_env();
+            env.block.height += height_delta;
+            env.block.time = env.block.time.plus_seconds(UNBONDING_DURATION + 1);
+
+            let resp = end_block(deps.as_mut(), env).unwrap();
+            assert_transfers(resp, vec![(USER1, 1000), (USER2, 500), (USER3, 200)]);
+        }
+
+        #[test]
+        fn single_user_multiple_claims() {
+            let mut deps = mock_dependencies(&[]);
+            do_instantiate(deps.as_mut(), 3);
+
+            bond(deps.as_mut(), 12_000, 7_500, 4_000, 1);
+            let height_delta = 2;
+
+            unbond(deps.as_mut(), 1000, 0, 0, height_delta, 0);
+            unbond(deps.as_mut(), 500, 0, 0, height_delta, 1);
+            let mut env = mock_env();
+            env.block.height += height_delta;
+            env.block.time = env.block.time.plus_seconds(UNBONDING_DURATION + 1);
+
+            let resp = end_block(deps.as_mut(), env).unwrap();
+            assert_transfers(resp, vec![(USER1, 1500)]);
+        }
+
+        #[test]
+        fn only_expired_claims() {
+            let mut deps = mock_dependencies(&[]);
+            do_instantiate(deps.as_mut(), 3);
+
+            bond(deps.as_mut(), 12_000, 7_500, 4_000, 1);
+            let height_delta = 2;
+
+            // Claims to be returned
+            unbond(deps.as_mut(), 1000, 0, 0, height_delta, 0);
+            unbond(deps.as_mut(), 500, 600, 0, height_delta, 1);
+
+            // Clams not yet expired
+            unbond(deps.as_mut(), 200, 300, 400, height_delta, 2);
+            unbond(deps.as_mut(), 700, 0, 0, height_delta, 3);
+            unbond(deps.as_mut(), 0, 100, 50, height_delta, 4);
+
+            let mut env = mock_env();
+            env.block.height += height_delta;
+            env.block.time = env.block.time.plus_seconds(UNBONDING_DURATION + 1);
+
+            let resp = end_block(deps.as_mut(), env).unwrap();
+            assert_transfers(resp, vec![(USER1, 1500), (USER2, 600)]);
+        }
+
+        #[test]
+        fn claim_returned_once() {
+            let mut deps = mock_dependencies(&[]);
+            do_instantiate(deps.as_mut(), 5);
+
+            bond(deps.as_mut(), 12_000, 7_500, 4_000, 1);
+            let height_delta = 2;
+
+            // Claims to be returned
+            unbond(deps.as_mut(), 1000, 0, 0, height_delta, 0);
+            unbond(deps.as_mut(), 500, 600, 0, height_delta, 1);
+
+            // Clams not yet expired
+            unbond(deps.as_mut(), 200, 300, 400, height_delta, 2);
+
+            let mut env = mock_env();
+            env.block.height += height_delta;
+            env.block.time = env.block.time.plus_seconds(UNBONDING_DURATION + 1);
+
+            let resp = end_block(deps.as_mut(), env).unwrap();
+            assert_transfers(resp, vec![(USER1, 1500), (USER2, 600)]);
+
+            // Some additional claims
+            unbond(deps.as_mut(), 700, 0, 0, height_delta, 3);
+            unbond(deps.as_mut(), 0, 100, 50, height_delta, 4);
+
+            let mut env = mock_env();
+            env.block.height += height_delta;
+            env.block.time = env.block.time.plus_seconds(UNBONDING_DURATION + 3);
+
+            // Expected that claims at time offset 2 and 3 are returned (0 and 1 are already
+            // returned, 4 is not yet expired)
+            let resp = end_block(deps.as_mut(), env).unwrap();
+            assert_transfers(resp, vec![(USER1, 900), (USER2, 300), (USER3, 400)]);
+        }
+
+        #[test]
+        fn up_to_limit_claims_returned() {
+            let mut deps = mock_dependencies(&[]);
+            do_instantiate(deps.as_mut(), 2);
+
+            bond(deps.as_mut(), 12_000, 7_500, 4_000, 1);
+            let height_delta = 2;
+
+            // Claims to be returned
+            unbond(deps.as_mut(), 1000, 500, 0, height_delta, 0);
+            unbond(deps.as_mut(), 0, 600, 0, height_delta, 1);
+            unbond(deps.as_mut(), 200, 0, 0, height_delta, 2);
+            unbond(deps.as_mut(), 0, 0, 300, height_delta, 3);
+
+            // Even if all claims are already expired, only two of them (time offset 0) should be
+            // returned
+            let mut env = mock_env();
+            env.block.height += height_delta;
+            env.block.time = env.block.time.plus_seconds(UNBONDING_DURATION + 3);
+
+            let resp = end_block(deps.as_mut(), env).unwrap();
+            assert_transfers(resp, vec![(USER1, 1000), (USER2, 500)]);
+
+            // Then on next block next batch is returned (time offset 1 and 2)
+            let mut env = mock_env();
+            env.block.height += height_delta;
+            env.block.time = env.block.time.plus_seconds(UNBONDING_DURATION + 4);
+
+            let resp = end_block(deps.as_mut(), env).unwrap();
+            assert_transfers(resp, vec![(USER1, 200), (USER2, 600)]);
+
+            // Some additional claims
+            unbond(deps.as_mut(), 700, 0, 0, height_delta, 5);
+            unbond(deps.as_mut(), 0, 100, 50, height_delta, 6);
+
+            // Claims are returned in batches
+            let mut env = mock_env();
+            env.block.height += height_delta;
+            env.block.time = env.block.time.plus_seconds(UNBONDING_DURATION + 6);
+
+            // offset 3 and 5
+            let resp = end_block(deps.as_mut(), env).unwrap();
+            assert_transfers(resp, vec![(USER1, 700), (USER3, 300)]);
+
+            let mut env = mock_env();
+            env.block.height += height_delta;
+            env.block.time = env.block.time.plus_seconds(UNBONDING_DURATION + 6);
+
+            // offset 6
+            let resp = end_block(deps.as_mut(), env).unwrap();
+            assert_transfers(resp, vec![(USER2, 100), (USER3, 50)]);
+        }
     }
 }
