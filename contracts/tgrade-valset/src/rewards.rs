@@ -31,10 +31,14 @@ pub fn pay_block_rewards(
     let mut block_reward = config.epoch_reward;
     block_reward.amount = Uint128::new(block_reward.amount.u128() * (pay_epochs as u128));
     let denom = block_reward.denom.clone();
-    let amount = block_reward.amount;
 
     // query existing balance
     let balances = deps.querier.query_all_balances(&env.contract.address)?;
+    let fees_amount = get_fees_amount(&balances, &denom);
+
+    let amount = block_reward
+        .amount
+        .saturating_sub(config.fee_percentage * fees_amount);
 
     // create the distribution messages
     let mut messages = distribute_tokens(block_reward, balances, pay_validators);
@@ -48,6 +52,14 @@ pub fn pay_block_rewards(
     messages.insert(0, minting);
 
     Ok(messages)
+}
+
+fn get_fees_amount(coins: &[Coin], denom: &str) -> Uint128 {
+    coins
+        .iter()
+        .find(|coin| coin.denom == denom)
+        .map(|coin| coin.amount)
+        .unwrap_or_else(Uint128::zero)
 }
 
 fn distribute_tokens(
@@ -131,7 +143,7 @@ mod test {
     use super::*;
 
     use cosmwasm_std::testing::{mock_dependencies, mock_env};
-    use cosmwasm_std::{coins, Addr};
+    use cosmwasm_std::{coins, Addr, Decimal};
     use tg4::Tg4Contract;
 
     use crate::state::{Config, ValidatorInfo};
@@ -158,6 +170,7 @@ mod test {
             max_validators: 100,
             scaling: None,
             epoch_reward: coin(amount, REWARD_DENOM),
+            fee_percentage: Decimal::zero(),
         };
         CONFIG.save(deps.storage, &cfg).unwrap();
     }

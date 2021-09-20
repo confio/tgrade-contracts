@@ -17,6 +17,15 @@
         }
       ]
     },
+    "fee_percentage": {
+      "description": "Percentage of total accumulated fees which is substracted from tokens minted as a rewards. 50% as default. To disable this feature just set it to 0 (which efectivelly means that fees doesn't affect the per epoch reward).",
+      "default": "0.5",
+      "allOf": [
+        {
+          "$ref": "#/definitions/Decimal"
+        }
+      ]
+    },
     "max_validators": {
       "description": "The maximum number of validators that can be included in the Tendermint validator set. If there are more validators than slots, we select the top N by membership weight descending. (In case of ties at the last slot, select by \"first\" tendermint pubkey lexicographically sorted).",
       "type": "integer",
@@ -66,6 +75,10 @@
           "type": "string"
         }
       }
+    },
+    "Decimal": {
+      "description": "A fixed-point decimal value with 18 fractional digits, i.e. Decimal(1_000_000_000_000_000_000) == 1.0\n\nThe greatest possible value that can be represented is 340282366920938463463.374607431768211455 (which is (2^128 - 1) / 10^18)",
+      "type": "string"
     },
     "Tg4Contract": {
       "description": "Tg4Contract is a wrapper around Addr that provides a lot of helpers for working with tg4 contracts",

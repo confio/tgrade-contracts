@@ -6,7 +6,7 @@ use tg_bindings::{Ed25519Pubkey, Pubkey};
 
 use crate::error::ContractError;
 use crate::state::{Config, OperatorInfo, ValidatorInfo};
-use cosmwasm_std::Coin;
+use cosmwasm_std::{Coin, Decimal};
 
 #[derive(Serialize, Deserialize, Clone, PartialEq, JsonSchema, Debug)]
 pub struct InstantiateMsg {
@@ -40,6 +40,16 @@ pub struct InstantiateMsg {
     /// A scaling factor to multiply cw4-group weights to produce the tendermint validator power
     /// (TODO: should we allow this to reduce weight? Like 1/1000?)
     pub scaling: Option<u32>,
+
+    /// Percentage of total accumulated fees which is substracted from tokens minted as a rewards.
+    /// 50% as default. To disable this feature just set it to 0 (which efectivelly means that fees
+    /// doesn't affect the per epoch reward).
+    #[serde(default = "default_fee_percentage")]
+    pub fee_percentage: Decimal,
+}
+
+pub fn default_fee_percentage() -> Decimal {
+    Decimal::percent(50)
 }
 
 impl InstantiateMsg {
@@ -225,6 +235,7 @@ mod test {
             epoch_reward: coin(7777, "foobar"),
             initial_keys: vec![valid_operator("foo"), valid_operator("bar")],
             scaling: None,
+            fee_percentage: Decimal::zero(),
         };
         proper.validate().unwrap();
 

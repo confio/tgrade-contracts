@@ -1,11 +1,11 @@
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
-use cosmwasm_std::{Addr, Coin};
+use cosmwasm_std::{Addr, Coin, Decimal};
 use cw_storage_plus::{Index, IndexList, IndexedMap, Item, UniqueIndex};
 use tg4::Tg4Contract;
 
-use crate::msg::ValidatorMetadata;
+use crate::msg::{default_fee_percentage, ValidatorMetadata};
 use tg_bindings::{Ed25519Pubkey, Pubkey};
 
 #[derive(Serialize, Deserialize, Clone, PartialEq, JsonSchema, Debug)]
@@ -30,6 +30,12 @@ pub struct Config {
     /// (epoch_reward.amount * 86_400 * 30 / epoch_length) is reward tokens to mint each month.
     /// Ensure this is sensible in relation to the total token supply.
     pub epoch_reward: Coin,
+
+    /// Percentage of total accumulated fees which is substracted from tokens minted as a rewards.
+    /// 50% as default. To disable this feature just set it to 0 (which efectivelly means that fees
+    /// doesn't affect the per epoch reward).
+    #[serde(default = "default_fee_percentage")]
+    pub fee_percentage: Decimal,
 }
 
 #[derive(Serialize, Deserialize, Clone, PartialEq, JsonSchema, Debug)]
