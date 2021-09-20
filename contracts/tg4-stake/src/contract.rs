@@ -19,7 +19,9 @@ use crate::msg::{
     ClaimsResponse, ExecuteMsg, InstantiateMsg, PreauthResponse, QueryMsg, StakedResponse,
     UnbondingPeriodResponse,
 };
-use crate::state::{claims, members, Config, ADMIN, CONFIG, HOOKS, PREAUTH, STAKE, TOTAL};
+use crate::state::{
+    claims, members, Config, Duration, ADMIN, CONFIG, HOOKS, PREAUTH, STAKE, TOTAL,
+};
 
 pub type Response = cosmwasm_std::Response<TgradeMsg>;
 pub type SubMsg = cosmwasm_std::SubMsg<TgradeMsg>;
@@ -54,7 +56,7 @@ pub fn instantiate(
         denom: msg.denom,
         tokens_per_weight: msg.tokens_per_weight,
         min_bond,
-        unbonding_period: msg.unbonding_period,
+        unbonding_period: Duration::new_from_seconds(msg.unbonding_period),
         auto_return_limit: msg.auto_return_limit,
     };
     CONFIG.save(deps.storage, &config)?;
@@ -464,20 +466,14 @@ mod tests {
     const UNBONDING_DURATION: u64 = 100;
 
     fn default_instantiate(deps: DepsMut) {
-        do_instantiate(
-            deps,
-            TOKENS_PER_WEIGHT,
-            MIN_BOND,
-            Duration::new_from_seconds(UNBONDING_DURATION),
-            0,
-        )
+        do_instantiate(deps, TOKENS_PER_WEIGHT, MIN_BOND, UNBONDING_DURATION, 0)
     }
 
     fn do_instantiate(
         deps: DepsMut,
         tokens_per_weight: Uint128,
         min_bond: Uint128,
-        unbonding_period: Duration,
+        unbonding_period: u64,
         auto_return_limit: u64,
     ) {
         let msg = InstantiateMsg {
@@ -1219,13 +1215,7 @@ mod tests {
     fn ensure_bonding_edge_cases() {
         // use min_bond 0, tokens_per_weight 500
         let mut deps = mock_dependencies(&[]);
-        do_instantiate(
-            deps.as_mut(),
-            Uint128::new(100),
-            Uint128::zero(),
-            Duration::new_from_seconds(5),
-            0,
-        );
+        do_instantiate(deps.as_mut(), Uint128::new(100), Uint128::zero(), 5, 0);
 
         // setting 50 tokens, gives us Some(0) weight
         // even setting to 1 token
@@ -1292,13 +1282,7 @@ mod tests {
         use super::*;
 
         fn do_instantiate(deps: DepsMut, limit: u64) {
-            super::do_instantiate(
-                deps,
-                TOKENS_PER_WEIGHT,
-                MIN_BOND,
-                Duration::new_from_seconds(UNBONDING_DURATION),
-                limit,
-            )
+            super::do_instantiate(deps, TOKENS_PER_WEIGHT, MIN_BOND, UNBONDING_DURATION, limit)
         }
 
         /// Helper for asserting if expected transfers occurred in response. Panics if any non

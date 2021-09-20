@@ -329,7 +329,6 @@ mod tests {
     use super::*;
     use cosmwasm_std::{coins, Addr, Uint128};
     use cw_multi_test::{next_block, App, AppBuilder, Contract, ContractWrapper, Executor};
-    use tg4_stake::state::Duration;
     use tg_bindings::TgradeMsg;
 
     const STAKE_DENOM: &str = "utgd";
@@ -395,7 +394,7 @@ mod tests {
             denom: STAKE_DENOM.to_owned(),
             tokens_per_weight: Uint128::new(1),
             min_bond: Uint128::new(100),
-            unbonding_period: Duration::new_from_seconds(3600),
+            unbonding_period: 3600,
             admin: admin.clone(),
             preauths: Some(1),
             auto_return_limit: 0,
