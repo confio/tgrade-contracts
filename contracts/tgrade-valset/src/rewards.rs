@@ -39,6 +39,7 @@ pub fn pay_block_rewards(
     let amount = block_reward
         .amount
         .saturating_sub(config.fee_percentage * fees_amount);
+    block_reward.amount = amount;
 
     // create the distribution messages
     let mut messages = distribute_tokens(block_reward, balances, pay_validators);

@@ -49,7 +49,7 @@ pub struct InstantiateMsg {
 }
 
 pub fn default_fee_percentage() -> Decimal {
-    Decimal::percent(50)
+    Decimal::zero()
 }
 
 impl InstantiateMsg {
