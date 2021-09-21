@@ -19,7 +19,7 @@
     },
     "fee_percentage": {
       "description": "Percentage of total accumulated fees which is substracted from tokens minted as a rewards. 50% as default. To disable this feature just set it to 0 (which efectivelly means that fees doesn't affect the per epoch reward).",
-      "default": "0.5",
+      "default": "0",
       "allOf": [
         {
           "$ref": "#/definitions/Decimal"
