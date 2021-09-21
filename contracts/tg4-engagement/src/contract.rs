@@ -217,7 +217,16 @@ pub fn update_members(
 pub fn sudo(deps: DepsMut, env: Env, msg: SudoMsg) -> Result<Response, ContractError> {
     match msg {
         SudoMsg::UpdateMember(member) => sudo_add_member(deps, env, member),
+        SudoMsg::EndBlock => end_block(deps, env),
     }
+}
+
+fn end_block(_deps: DepsMut, _env: Env) -> Result<Response, ContractError> {
+    let resp = Response::new();
+
+    // logic goes here...
+
+    Ok(resp)
 }
 
 #[cfg_attr(not(feature = "library"), entry_point)]

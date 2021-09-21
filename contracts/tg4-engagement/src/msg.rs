@@ -11,6 +11,7 @@ pub struct InstantiateMsg {
     pub admin: Option<String>,
     pub members: Vec<Member>,
     pub preauths: Option<u64>,
+    pub halftime: Option<Duration>,
 }
 
 #[derive(Serialize, Deserialize, Clone, PartialEq, JsonSchema, Debug)]
@@ -65,6 +66,8 @@ pub enum SudoMsg {
     /// Use case: for post-genesis validators, we want to set some initial engagement points / weight.
     /// Note: If the member already exists, its weight will be reset to the weight sent here.
     UpdateMember(Member),
+    /// This will be delivered every block if the contract is currently registered for End Block
+    EndBlock,
 }
 
 #[derive(Serialize, Deserialize, Clone, PartialEq, JsonSchema, Debug)]
