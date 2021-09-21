@@ -44,13 +44,15 @@ pub fn pay_block_rewards(
     // create the distribution messages
     let mut messages = distribute_tokens(block_reward, balances, pay_validators);
 
-    // create a minting action (and do this first)
-    let minting = SubMsg::new(TgradeMsg::MintTokens {
-        denom,
-        amount,
-        recipient: env.contract.address.into(),
-    });
-    messages.insert(0, minting);
+    // create a minting action if needed (and do this first)
+    if amount > Uint128::zero() {
+        let minting = SubMsg::new(TgradeMsg::MintTokens {
+            denom,
+            amount,
+            recipient: env.contract.address.into(),
+        });
+        messages.insert(0, minting);
+    }
 
     Ok(messages)
 }
@@ -164,14 +166,14 @@ mod test {
         vals
     }
 
-    fn set_block_rewards_config(deps: DepsMut, amount: u128) {
+    fn set_block_rewards_config(deps: DepsMut, amount: u128, fee_percentage: Decimal) {
         let cfg = Config {
             membership: Tg4Contract(Addr::unchecked("group-contract")),
             min_weight: 1,
             max_validators: 100,
             scaling: None,
             epoch_reward: coin(amount, REWARD_DENOM),
-            fee_percentage: Decimal::zero(),
+            fee_percentage,
         };
         CONFIG.save(deps.storage, &cfg).unwrap();
     }
@@ -286,7 +288,7 @@ mod test {
     #[test]
     fn block_rewards_basic() {
         let mut deps = mock_dependencies(&[]);
-        set_block_rewards_config(deps.as_mut(), 6000);
+        set_block_rewards_config(deps.as_mut(), 6000, Decimal::zero());
         // powers: 1, 2, 3
         let validators = validators(3);
         let pay_to = distribute_to_validators(&validators);
@@ -315,7 +317,7 @@ mod test {
     #[test]
     fn block_rewards_rollover() {
         let mut deps = mock_dependencies(&coins(1500, REWARD_DENOM));
-        set_block_rewards_config(deps.as_mut(), 10000);
+        set_block_rewards_config(deps.as_mut(), 10000, Decimal::zero());
         // powers: 1, 2, 3
         let validators = validators(3);
         let pay_to = distribute_to_validators(&validators);
@@ -354,7 +356,7 @@ mod test {
             coin(1, "star"),
         ];
         let mut deps = mock_dependencies(&fees);
-        set_block_rewards_config(deps.as_mut(), 10000);
+        set_block_rewards_config(deps.as_mut(), 10000, Decimal::zero());
         // powers: 1, 2, 3, 4
         let validators = validators(4);
         let pay_to = distribute_to_validators(&validators);
@@ -395,6 +397,83 @@ mod test {
                     amount: payout.clone(),
                 })
             );
+        }
+    }
+
+    mod fee_reduction {
+        use super::*;
+
+        fn build_expected_payouts(expected: Vec<(&str, Vec<Coin>)>) -> Vec<SubMsg<TgradeMsg>> {
+            expected
+                .into_iter()
+                .map(|(addr, reward)| {
+                    SubMsg::new(BankMsg::Send {
+                        to_address: addr.to_owned(),
+                        amount: reward,
+                    })
+                })
+                .collect()
+        }
+
+        // existing fees to distribute: 1000 REWARD_DENOM
+        // per epoch reward: 1000 REWARD_DENOM
+        // fee percentage: 0.5
+        // 4 validators, total weight 10
+        // expected total reward: (1000 - 0.5 * 1000) + 1000 = 1500 REWARD_DENOM
+        // expected tokens distribution: (150, 300, 450, 600)
+        #[test]
+        fn tokens_still_minted() {
+            let fees = coins(1000, REWARD_DENOM);
+            let mut deps = mock_dependencies(&fees);
+            set_block_rewards_config(deps.as_mut(), 1000, Decimal::percent(50));
+            let validators = validators(4);
+            let pay_to = distribute_to_validators(&validators);
+            let mut msgs = pay_block_rewards(deps.as_mut(), mock_env(), pay_to, 1).unwrap();
+
+            assert_eq!(
+                msgs.remove(0),
+                SubMsg::new(TgradeMsg::MintTokens {
+                    denom: REWARD_DENOM.to_owned(),
+                    amount: Uint128::new(500),
+                    recipient: mock_env().contract.address.into(),
+                })
+            );
+
+            let expected_payouts: Vec<_> = vec![
+                ("operator-001", coins(150, REWARD_DENOM)),
+                ("operator-002", coins(300, REWARD_DENOM)),
+                ("operator-003", coins(450, REWARD_DENOM)),
+                ("operator-004", coins(600, REWARD_DENOM)),
+            ];
+            let expected_payouts = build_expected_payouts(expected_payouts);
+
+            assert_eq!(msgs, expected_payouts);
+        }
+
+        // existing fees to distribute: 4000 REWARD_DENOM
+        // per epoch reward: 1000 REWARD_DENOM
+        // fee percentage: 0.5
+        // 4 validators, total weight 10
+        // expected total reward: max(0, (1000 - 0.5 * 4000)) + 4000 = 4000 REWARD_DENOM
+        // expected tokens distribution: (400, 800, 1200, 1600)
+        #[test]
+        fn fees_only() {
+            let fees = coins(4000, REWARD_DENOM);
+            let mut deps = mock_dependencies(&fees);
+            set_block_rewards_config(deps.as_mut(), 1000, Decimal::percent(50));
+            let validators = validators(4);
+            let pay_to = distribute_to_validators(&validators);
+            let msgs = pay_block_rewards(deps.as_mut(), mock_env(), pay_to, 1).unwrap();
+
+            let expected_payouts: Vec<_> = vec![
+                ("operator-001", coins(400, REWARD_DENOM)),
+                ("operator-002", coins(800, REWARD_DENOM)),
+                ("operator-003", coins(1200, REWARD_DENOM)),
+                ("operator-004", coins(1600, REWARD_DENOM)),
+            ];
+            let expected_payouts = build_expected_payouts(expected_payouts);
+
+            assert_eq!(msgs, expected_payouts);
         }
     }
 }

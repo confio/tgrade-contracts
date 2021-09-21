@@ -31,9 +31,7 @@ transactions, fees are enough reward for validations, so new tokens doesn't need
 to be minted, so there is no actual need to introduce tokens inflation.
 
 The reward reduction functionality can be easily disabled by setting `fee_percentage`
-to `0` (which effectively makes `fee_percentage * fees` always `0`). Note, that
-setting `fee_percentage` below `0` is technically possible, but will cause minting
-more tokens per epoch while fees are growing (so causing superinflation). Also setting
+to `0` (which effectively makes `fee_percentage * fees` always `0`). Setting
 it over `1` (or `100%`) would cause that `cumulative_reward` would diminish as fees
 are growing up to the point, when `fees` would reach `epoch_reward / fee_percentage`
 threshold (as from this point, no new tokens are minted, only fees are splitted between
