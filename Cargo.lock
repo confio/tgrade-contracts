@@ -816,6 +816,7 @@ dependencies = [
  "schemars",
  "serde",
  "tg-bindings",
+ "tg-common",
  "tg4",
  "tg4-engagement",
  "tg4-stake",

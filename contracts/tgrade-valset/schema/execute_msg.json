@@ -38,12 +38,49 @@
         }
       },
       "additionalProperties": false
+    },
+    {
+      "description": "Jails validator. Can be executed only by the admin.",
+      "type": "object",
+      "required": [
+        "jail"
+      ],
+      "properties": {
+        "jail": {
+          "type": "object",
+          "required": [
+            "duration",
+            "operator"
+          ],
+          "properties": {
+            "duration": {
+              "description": "Duration for how long validator is jailed",
+              "allOf": [
+                {
+                  "$ref": "#/definitions/Duration"
+                }
+              ]
+            },
+            "operator": {
+              "description": "Operator which should be jailed",
+              "type": "string"
+            }
+          }
+        }
+      },
+      "additionalProperties": false
     }
   ],
   "definitions": {
     "Binary": {
       "description": "Binary is a wrapper around Vec<u8> to add base64 de/serialization with serde. It also adds some helper methods to help encode inline.\n\nThis is only needed as serde-json-{core,wasm} has a horrible encoding for Vec<u8>",
       "type": "string"
+    },
+    "Duration": {
+      "description": "Duration is an amount of time, measured in seconds",
+      "type": "integer",
+      "format": "uint64",
+      "minimum": 0.0
     },
     "Pubkey": {
       "description": "A Tendermint validator pubkey.\n\nSee https://github.com/tendermint/tendermint/blob/master/proto/tendermint/crypto/keys.proto for a list of available types. Sr25519 is added here as it is likely to join the party.\n\nThis type is optimized for the JSON interface. No data validation on the enum cases is performed. If you don't trust the data source, you can create a `ValidatedPubkey` enum that mirrors this type and uses fixed sized data fields.",

@@ -16,6 +16,7 @@ use tg_bindings::{
     request_privileges, Ed25519Pubkey, Privilege, PrivilegeChangeMsg, Pubkey, TgradeMsg,
     TgradeSudoMsg, ValidatorDiff, ValidatorUpdate,
 };
+use tg_common::Duration;
 
 use crate::error::ContractError;
 use crate::msg::{
@@ -24,7 +25,8 @@ use crate::msg::{
 };
 use crate::rewards::{distribute_to_validators, pay_block_rewards};
 use crate::state::{
-    operators, Config, EpochInfo, OperatorInfo, ValidatorInfo, ADMIN, CONFIG, EPOCH, VALIDATORS,
+    operators, Config, EpochInfo, OperatorInfo, ValidatorInfo, ADMIN, CONFIG, EPOCH, JAIL,
+    VALIDATORS,
 };
 
 // version info for migration info
@@ -100,6 +102,9 @@ pub fn execute(
             execute_register_validator_key(deps, env, info, pubkey, metadata)
         }
         ExecuteMsg::UpdateMetadata(metadata) => execute_update_metadata(deps, env, info, metadata),
+        ExecuteMsg::Jail { operator, duration } => {
+            execute_jail(deps, env, info, operator, duration)
+        }
     }
 }
 
@@ -150,6 +155,30 @@ fn execute_update_metadata(
         .add_attribute("action", "update_metadata")
         .add_attribute("operator", &info.sender)
         .add_attribute("moniker", moniker);
+    Ok(res)
+}
+
+fn execute_jail(
+    deps: DepsMut,
+    env: Env,
+    info: MessageInfo,
+    operator: String,
+    duration: Duration,
+) -> Result<Response, ContractError> {
+    ADMIN.assert_admin(deps.as_ref(), &info.sender)?;
+
+    let expiration = duration.after(&env.block);
+    JAIL.save(
+        deps.storage,
+        &deps.api.addr_validate(&operator)?,
+        &expiration,
+    )?;
+
+    let res = Response::new()
+        .add_attribute("action", "jail")
+        .add_attribute("operator", &operator)
+        .add_attribute("duration", &duration.seconds().to_string());
+
     Ok(res)
 }
 

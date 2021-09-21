@@ -16,6 +16,10 @@ impl Duration {
     pub fn after(&self, block: &BlockInfo) -> Expiration {
         Expiration::at_timestamp(block.time.plus_seconds(self.0))
     }
+
+    pub fn seconds(&self) -> u64 {
+        self.0
+    }
 }
 
 #[derive(Serialize, Deserialize, Clone, Copy, PartialEq, JsonSchema, Debug)]

@@ -3,6 +3,7 @@ use serde::{Deserialize, Serialize};
 use std::convert::TryFrom;
 
 use tg_bindings::{Ed25519Pubkey, Pubkey};
+use tg_common::Duration;
 
 use crate::error::ContractError;
 use crate::state::{Config, OperatorInfo, ValidatorInfo};
@@ -137,6 +138,13 @@ pub enum ExecuteMsg {
         metadata: ValidatorMetadata,
     },
     UpdateMetadata(ValidatorMetadata),
+    /// Jails validator. Can be executed only by the admin.
+    Jail {
+        /// Operator which should be jailed
+        operator: String,
+        /// Duration for how long validator is jailed
+        duration: Duration,
+    },
 }
 
 #[derive(Serialize, Deserialize, Clone, PartialEq, JsonSchema, Debug)]
