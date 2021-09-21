@@ -5,9 +5,9 @@ use itertools::Itertools;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
-use crate::state::{Expiration, ExpirationKey};
 use cosmwasm_std::{Addr, BlockInfo, Deps, Order, StdResult, Storage, Uint128};
 use cw_storage_plus::{Bound, Index, IndexList, IndexedMap, MultiIndex, PrimaryKey};
+use tg_controllers::{Expiration, ExpirationKey};
 
 // settings for pagination
 const MAX_LIMIT: u32 = 30;

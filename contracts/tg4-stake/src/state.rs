@@ -2,87 +2,17 @@ use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
 use crate::claim::Claims;
-use cosmwasm_std::{Addr, BlockInfo, Timestamp, Uint128};
+use cosmwasm_std::{Addr, Uint128};
 use cw_controllers::Admin;
 use cw_storage_plus::{
-    Index, IndexList, IndexedSnapshotMap, Item, Map, MultiIndex, Prefixer, PrimaryKey, SnapshotMap,
-    Strategy, U64Key,
+    Index, IndexList, IndexedSnapshotMap, Item, Map, MultiIndex, SnapshotMap, Strategy, U64Key,
 };
-use std::convert::From;
 use tg4::TOTAL_KEY;
-use tg_controllers::{Hooks, Preauth};
+use tg_controllers::{Duration, Hooks, Preauth};
 
 /// Builds a claims map as it cannot be done in const time
 pub fn claims() -> Claims<'static> {
     Claims::new("claims", "claims__release")
-}
-
-#[derive(Serialize, Deserialize, Clone, Copy, PartialEq, JsonSchema, Debug)]
-pub struct Expiration(Timestamp);
-
-impl Expiration {
-    pub fn now(block: &BlockInfo) -> Self {
-        Self(block.time)
-    }
-
-    pub fn at_timestamp(timestamp: Timestamp) -> Self {
-        Self(timestamp)
-    }
-
-    pub fn is_expired(&self, block: &BlockInfo) -> bool {
-        block.time >= self.0
-    }
-}
-
-#[derive(Clone, PartialEq, Eq, Debug)]
-pub struct ExpirationKey(U64Key);
-
-impl ExpirationKey {
-    pub fn new(expiration: Expiration) -> Self {
-        Self(U64Key::new(expiration.0.nanos()))
-    }
-}
-
-impl From<Expiration> for ExpirationKey {
-    fn from(expiration: Expiration) -> Self {
-        Self::new(expiration)
-    }
-}
-
-/// we need this implementation to work well with Bound::exclusive, like U64Key does
-impl From<ExpirationKey> for Vec<u8> {
-    fn from(key: ExpirationKey) -> Self {
-        key.0.into()
-    }
-}
-
-impl<'a> PrimaryKey<'a> for ExpirationKey {
-    type Prefix = ();
-    type SubPrefix = ();
-
-    fn key(&self) -> Vec<&[u8]> {
-        self.0.key()
-    }
-}
-
-impl<'a> Prefixer<'a> for ExpirationKey {
-    fn prefix(&self) -> Vec<&[u8]> {
-        self.0.prefix()
-    }
-}
-
-/// Duration is an amount of time, measured in seconds
-#[derive(Serialize, Deserialize, Clone, Copy, PartialEq, JsonSchema, Debug)]
-pub struct Duration(u64);
-
-impl Duration {
-    pub fn new(secs: u64) -> Duration {
-        Duration(secs)
-    }
-
-    pub fn after(&self, block: &BlockInfo) -> Expiration {
-        Expiration(block.time.plus_seconds(self.0))
-    }
 }
 
 #[derive(Serialize, Deserialize, Clone, PartialEq, JsonSchema, Debug)]
@@ -151,6 +81,9 @@ pub const STAKE: Map<&Addr, Uint128> = Map::new("stake");
 mod tests {
     use super::*;
 
+    use cosmwasm_std::{BlockInfo, Timestamp};
+    use tg_controllers::Expiration;
+
     #[test]
     fn create_expiration_from_duration() {
         let duration = Duration::new(33);
@@ -161,13 +94,13 @@ mod tests {
         };
         assert_eq!(
             duration.after(&block_info),
-            Expiration(Timestamp::from_seconds(99))
+            Expiration::at_timestamp(Timestamp::from_seconds(99))
         );
     }
 
     #[test]
     fn expiration_is_expired() {
-        let expiration = Expiration(Timestamp::from_seconds(10));
+        let expiration = Expiration::at_timestamp(Timestamp::from_seconds(10));
         let block_info = BlockInfo {
             height: 1,
             time: Timestamp::from_seconds(9),

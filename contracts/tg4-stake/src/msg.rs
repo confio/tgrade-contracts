@@ -1,9 +1,9 @@
-use crate::state::Duration;
 use cosmwasm_std::{Coin, Uint128};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
+use tg_controllers::{Duration, Expiration};
 
-pub use crate::{claim::Claim, state::Expiration};
+pub use crate::claim::Claim;
 use tg4::Member;
 
 const fn default_auto_return_limit() -> u64 {
@@ -113,8 +113,9 @@ pub struct ClaimsResponse {
 
 #[cfg(test)]
 mod tests {
+    use super::*;
+
     use crate::msg::UnbondingPeriodResponse;
-    use crate::state::Duration;
     use cosmwasm_std::to_vec;
 
     #[test]
