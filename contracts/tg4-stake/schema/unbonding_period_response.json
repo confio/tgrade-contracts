@@ -1,0 +1,21 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "UnbondingPeriodResponse",
+  "type": "object",
+  "required": [
+    "unbonding_period"
+  ],
+  "properties": {
+    "unbonding_period": {
+      "$ref": "#/definitions/Duration"
+    }
+  },
+  "definitions": {
+    "Duration": {
+      "description": "Duration is an amount of time, measured in seconds",
+      "type": "integer",
+      "format": "uint64",
+      "minimum": 0.0
+    }
+  }
+}
