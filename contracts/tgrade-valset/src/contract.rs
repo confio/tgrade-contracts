@@ -24,7 +24,7 @@ use crate::msg::{
 };
 use crate::rewards::{distribute_to_validators, pay_block_rewards};
 use crate::state::{
-    operators, Config, EpochInfo, OperatorInfo, ValidatorInfo, CONFIG, EPOCH, VALIDATORS,
+    operators, Config, EpochInfo, OperatorInfo, ValidatorInfo, ADMIN, CONFIG, EPOCH, VALIDATORS,
 };
 
 // version info for migration info
@@ -78,6 +78,11 @@ pub fn instantiate(
             metadata: op.metadata,
         };
         operators().save(deps.storage, &oper, &info)?;
+    }
+
+    if let Some(admin) = &msg.admin {
+        let admin = deps.api.addr_validate(admin)?;
+        ADMIN.set(deps, Some(admin))?;
     }
 
     Ok(Response::default())
@@ -507,6 +512,7 @@ mod test {
             .map(|s| valid_operator(&s));
 
         InstantiateMsg {
+            admin: None,
             membership: group_addr.into(),
             min_weight,
             max_validators,

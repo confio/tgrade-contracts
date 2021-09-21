@@ -97,6 +97,7 @@ fn init_msg(stake_addr: &str, max_validators: u32, min_weight: u64) -> Instantia
         .map(|s| valid_operator(&s))
         .collect();
     InstantiateMsg {
+        admin: None,
         membership: stake_addr.into(),
         min_weight,
         max_validators,

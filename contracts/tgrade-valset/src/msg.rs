@@ -10,6 +10,9 @@ use cosmwasm_std::{Coin, Decimal};
 
 #[derive(Serialize, Deserialize, Clone, PartialEq, JsonSchema, Debug)]
 pub struct InstantiateMsg {
+    /// Address allowed to jail, meant to be a OC voting contract. If `None`, then jailing is
+    /// impossible in this contract.
+    pub admin: Option<String>,
     /// address of a cw4 contract with the raw membership used to feed the validator set
     pub membership: String,
     /// minimum weight needed by an address in `membership` to be considered for the validator set.
@@ -228,6 +231,7 @@ mod test {
     #[test]
     fn validate_init_msg() {
         let proper = InstantiateMsg {
+            admin: None,
             membership: "contract-addr".into(),
             min_weight: 5,
             max_validators: 20,

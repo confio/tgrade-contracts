@@ -2,6 +2,7 @@ use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
 use cosmwasm_std::{Addr, Coin, Decimal};
+use cw_controllers::Admin;
 use cw_storage_plus::{Index, IndexList, IndexedMap, Item, UniqueIndex};
 use tg4::Tg4Contract;
 
@@ -30,7 +31,6 @@ pub struct Config {
     /// (epoch_reward.amount * 86_400 * 30 / epoch_length) is reward tokens to mint each month.
     /// Ensure this is sensible in relation to the total token supply.
     pub epoch_reward: Coin,
-
     /// Percentage of total accumulated fees which is substracted from tokens minted as a rewards.
     /// 50% as default. To disable this feature just set it to 0 (which efectivelly means that fees
     /// doesn't affect the per epoch reward).
@@ -67,6 +67,9 @@ pub const EPOCH: Item<EpochInfo> = Item::new("epoch");
 /// VALIDATORS is the calculated list of the active validators from the last execution.
 /// This will be empty only on the first run.
 pub const VALIDATORS: Item<Vec<ValidatorInfo>> = Item::new("validators");
+
+/// Address which is allowed to jail, meant to be set to OC voting contract
+pub const ADMIN: Admin = Admin::new("admin");
 
 /// This stores the immutible info for an operator. Both their Tendermint key as well as
 /// their metadata
