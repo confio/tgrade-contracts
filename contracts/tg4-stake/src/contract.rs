@@ -13,14 +13,14 @@ use tg4::{
     TotalWeightResponse,
 };
 use tg_bindings::{request_privileges, Privilege, PrivilegeChangeMsg, TgradeMsg, TgradeSudoMsg};
-use tg_controllers::Duration;
+use tg_controllers::{members, Duration, ADMIN, HOOKS, PREAUTH, TOTAL};
 
 use crate::error::ContractError;
 use crate::msg::{
     ClaimsResponse, ExecuteMsg, InstantiateMsg, PreauthResponse, QueryMsg, StakedResponse,
     UnbondingPeriodResponse,
 };
-use crate::state::{claims, members, Config, ADMIN, CONFIG, HOOKS, PREAUTH, STAKE, TOTAL};
+use crate::state::{claims, Config, CONFIG, STAKE};
 
 pub type Response = cosmwasm_std::Response<TgradeMsg>;
 pub type SubMsg = cosmwasm_std::SubMsg<TgradeMsg>;

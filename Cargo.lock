@@ -691,11 +691,13 @@ name = "tg-controllers"
 version = "0.4.0"
 dependencies = [
  "cosmwasm-std",
+ "cw-controllers",
  "cw-storage-plus",
  "cw0",
  "schemars",
  "serde",
  "tg-bindings",
+ "tg4",
  "thiserror",
 ]
 
