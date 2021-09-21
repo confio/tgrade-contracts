@@ -6,6 +6,7 @@ use cw2::set_contract_version;
 use cw_storage_plus::{Bound, PrimaryKey, U64Key};
 use integer_sqrt::IntegerSquareRoot;
 use tg_bindings::TgradeMsg;
+use tg_controllers::{members, HOOKS, PREAUTH, TOTAL};
 
 use tg4::{
     HooksResponse, Member, MemberChangedHookMsg, MemberDiff, MemberListResponse, MemberResponse,
@@ -14,7 +15,7 @@ use tg4::{
 
 use crate::error::ContractError;
 use crate::msg::{ExecuteMsg, GroupsResponse, InstantiateMsg, PreauthResponse, QueryMsg};
-use crate::state::{members, Groups, GROUPS, HOOKS, PREAUTH, TOTAL};
+use crate::state::{Groups, GROUPS};
 
 pub type Response = cosmwasm_std::Response<TgradeMsg>;
 pub type SubMsg = cosmwasm_std::SubMsg<TgradeMsg>;

@@ -10,13 +10,9 @@ use cosmwasm_std::{
 };
 use cw0::Expiration;
 use cw3::{Status, Vote};
-use cw_storage_plus::{
-    Index, IndexList, IndexedMap, IndexedSnapshotMap, Item, Map, MultiIndex, Strategy, U64Key,
-    U8Key,
-};
+use cw_storage_plus::{Index, IndexList, IndexedMap, Item, Map, MultiIndex, U64Key, U8Key};
 use std::cmp::max;
 use std::convert::TryInto;
-use tg4::TOTAL_KEY;
 
 const ONE_TGD: u128 = 1_000_000; // One million µTGD
 
@@ -317,43 +313,6 @@ impl Punishment {
 }
 
 pub const DSO: Item<Dso> = Item::new("dso");
-
-pub const TOTAL: Item<u64> = Item::new(TOTAL_KEY);
-
-pub struct MemberIndexes<'a> {
-    // pk goes to second tuple element
-    pub weight: MultiIndex<'a, (U64Key, Vec<u8>), u64>,
-}
-
-impl<'a> IndexList<u64> for MemberIndexes<'a> {
-    fn get_indexes(&'_ self) -> Box<dyn Iterator<Item = &'_ dyn Index<u64>> + '_> {
-        let v: Vec<&dyn Index<u64>> = vec![&self.weight];
-        Box::new(v.into_iter())
-    }
-}
-
-/// Indexed snapshot map for members.
-/// This allows to query the map members, sorted by weight.
-/// The weight index is a `MultiIndex`, as there can be multiple members with the same weight.
-/// The primary key is added to the `MultiIndex` as second element (this is requirement of the
-/// `MultiIndex` implementation).
-/// The weight index is not snapshotted; only the current weights are indexed at any given time.
-pub fn members<'a>() -> IndexedSnapshotMap<'a, &'a Addr, u64, MemberIndexes<'a>> {
-    let indexes = MemberIndexes {
-        weight: MultiIndex::new(
-            |&w, k| (U64Key::new(w), k),
-            tg4::MEMBERS_KEY,
-            "members__weight",
-        ),
-    };
-    IndexedSnapshotMap::new(
-        tg4::MEMBERS_KEY,
-        tg4::MEMBERS_CHECKPOINTS,
-        tg4::MEMBERS_CHANGELOG,
-        Strategy::EveryBlock,
-        indexes,
-    )
-}
 
 /// We store escrow and status together for all members.
 /// This is set for any address where weight is not None.

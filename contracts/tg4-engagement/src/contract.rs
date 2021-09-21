@@ -11,8 +11,8 @@ use tg4::{
 
 use crate::error::ContractError;
 use crate::msg::{ExecuteMsg, InstantiateMsg, PreauthResponse, QueryMsg, SudoMsg};
-use crate::state::{members, ADMIN, HOOKS, PREAUTH, TOTAL};
 use tg_bindings::TgradeMsg;
+use tg_controllers::{members, ADMIN, HOOKS, PREAUTH, TOTAL};
 
 pub type Response = cosmwasm_std::Response<TgradeMsg>;
 pub type SubMsg = cosmwasm_std::SubMsg<TgradeMsg>;
