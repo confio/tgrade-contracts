@@ -110,3 +110,19 @@ pub struct UnbondingPeriodResponse {
 pub struct ClaimsResponse {
     pub claims: Vec<Claim>,
 }
+
+#[cfg(test)]
+mod tests {
+    use crate::msg::UnbondingPeriodResponse;
+    use crate::state::Duration;
+    use cosmwasm_std::to_vec;
+
+    #[test]
+    fn unbonding_period_serializes_in_seconds() {
+        let res = UnbondingPeriodResponse {
+            unbonding_period: Duration::new(12345),
+        };
+        let json = to_vec(&res).unwrap();
+        assert_eq!(&json, br#"{"unbonding_period":12345}"#);
+    }
+}
