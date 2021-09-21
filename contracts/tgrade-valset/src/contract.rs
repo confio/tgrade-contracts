@@ -383,6 +383,12 @@ fn calculate_validators(deps: Deps) -> Result<Vec<ValidatorInfo>, ContractError>
                 // All 3 cases are handled properly below (operators.load() returns an Error on
                 // both 2 and 3), so we do not need to perform N addr_validate calls here
                 let m_addr = Addr::unchecked(&m.addr);
+
+                // check if address is jailed
+                if JAIL.has(deps.storage, &m_addr) {
+                    return None;
+                }
+
                 operators()
                     .load(deps.storage, &m_addr)
                     .ok()
