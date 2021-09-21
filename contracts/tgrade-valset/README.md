@@ -7,6 +7,51 @@ pointing to `cw4-stake` contract would make a pure (undelegated) PoS chain.
 
 (Slashing and reward distributions are future work for other contracts)
 
+## Rewards calculation
+
+On the `Tgrade::EndBlock` sudo message this contract performs rewards calculation
+and distribution for active validators for the passed epoch.
+
+The cumulative reward value contains:
+* Per epoch reward - newly minted tokens each epoch
+* Fees for transactions in validated blocks
+
+Per epoch reward is configurable in instantiation message, the `epoch_reward`
+field. Fees are accumulated on the contract itself.
+
+The epoch reward is not constant - `epoch_reward` is its base value, but it is
+modified based on how much fees are acumulated. The final reward formula is:
+```
+cumulative_reward = max(0, epoch_rewards - fee_percentage * fees) + fees
+```
+
+The idea is, that on early epochs not so many transactions are expected, so
+reward is minted to make validation profitable. However later on when there are more
+transactions, fees are enough reward for validations, so new tokens doesn't need
+to be minted, so there is no actual need to introduce tokens inflation.
+
+The reward reduction functionality can be easily disabled by setting `fee_percentage`
+to `0` (which effectively makes `fee_percentage * fees` always `0`). Setting
+it over `1` (or `100%`) would cause that `cumulative_reward` would diminish as fees
+are growing up to the point, when `fees` would reach `epoch_reward / fee_percentage`
+threshold (as from this point, no new tokens are minted, only fees are splitted between
+validators). Setting `fee_percentage` anywhere in the range `(0; 1]` causes that
+cumulative reward grow is reduced - basically up to the time when `fees` reaches
+`epoch_reward / fee_percentage`, all fees are worth `(1 - fee_percentage) * fees`
+(they are scalded).
+
+When `cumulative_reward` is calculated, it is split between active validators.
+Active validators are up to `max_validators` validators with the highest weight,
+but with at least `min_weight`. `scaling` is optional field which allows to scale
+weight for Tendermint purposes (it should not affect reward split). When validators
+are selected, then `cumulative_reward` is split between them, proportionally to
+validators `weight`. All of `max_validators`, `min_weight`, and `scaling` are
+configurable while instantiation.
+
+The default value of `fee_percentage` is `0` (so when it is not specified in message,
+the reward reduction is disabled). At the genesis of Tgrade `fee_percentage` is meant
+to be set to `0.5`.
+
 ## Init
 
 ```rust
@@ -27,6 +72,11 @@ pub struct InstantiateMsg {
     /// Epoch # is env.block.time/epoch_length (round down). First block with a new epoch number
     /// will trigger a new validator calculation.
     pub epoch_length: u64,
+    /// Total reward paid out each epoch. This will be split among all validators during the last
+    /// epoch.
+    /// (epoch_reward.amount * 86_400 * 30 / epoch_length) is reward tokens to mint each month.
+    /// Ensure this is sensible in relation to the total token supply.
+    pub epoch_reward: Coin,
 
     /// Initial operators and validator keys registered - needed to have non-empty validator
     /// set upon initialization.
@@ -35,6 +85,11 @@ pub struct InstantiateMsg {
     /// A scaling factor to multiply cw4-group weights to produce the tendermint validator power
     /// (TODO: should we allow this to reduce weight? Like 1/1000?)
     pub scaling: Option<u32>,
+    /// Percentage of total accumulated fees which is substracted from tokens minted as a rewards.
+    /// 50% as default. To disable this feature just set it to 0 (which efectivelly means that fees
+    /// doesn't affect the per epoch reward).
+    #[serde(default = "default_fee_percentage")]
+    pub fee_percentage: Decimal,
 }
 ```
 
@@ -46,6 +101,7 @@ pub enum ExecuteMsg {
     /// The operator cannot re-register another key.
     /// No two operators may have the same consensus_key.
     RegisterValidatorKey { pubkey: Binary },
+    UpdateMetadata(ValidatorMetadata),
 }
 ```
 

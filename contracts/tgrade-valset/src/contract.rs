@@ -56,6 +56,7 @@ pub fn instantiate(
         max_validators: msg.max_validators,
         scaling: msg.scaling,
         epoch_reward: msg.epoch_reward,
+        fee_percentage: msg.fee_percentage,
     };
     CONFIG.save(deps.storage, &cfg)?;
 
@@ -421,7 +422,7 @@ mod test {
         addrs, contract_valset, members, mock_metadata, mock_pubkey, nonmembers, valid_operator,
         valid_validator,
     };
-    use cosmwasm_std::{coin, Coin};
+    use cosmwasm_std::{coin, Coin, Decimal};
 
     const EPOCH_LENGTH: u64 = 100;
     const GROUP_OWNER: &str = "admin";
@@ -513,6 +514,7 @@ mod test {
             epoch_reward: epoch_reward(),
             initial_keys: members.chain(nonmembers).collect(),
             scaling: None,
+            fee_percentage: Decimal::zero(),
         }
     }
 
@@ -537,7 +539,8 @@ mod test {
                 min_weight: 5,
                 max_validators: 10,
                 epoch_reward: epoch_reward(),
-                scaling: None
+                scaling: None,
+                fee_percentage: Decimal::zero(),
             }
         );
 

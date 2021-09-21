@@ -1,5 +1,5 @@
 #![cfg(test)]
-use cosmwasm_std::{coin, Addr, Coin, Uint128};
+use cosmwasm_std::{coin, Addr, Coin, Decimal, Uint128};
 
 use tg4::Tg4Contract;
 use tg_bindings::TgradeMsg;
@@ -104,6 +104,7 @@ fn init_msg(stake_addr: &str, max_validators: u32, min_weight: u64) -> Instantia
         epoch_reward: epoch_reward(),
         initial_keys: members,
         scaling: None,
+        fee_percentage: Decimal::zero(),
     }
 }
 
@@ -152,7 +153,8 @@ fn init_and_query_state() {
             min_weight: 5,
             max_validators: 10,
             scaling: None,
-            epoch_reward: epoch_reward()
+            epoch_reward: epoch_reward(),
+            fee_percentage: Decimal::zero(),
         }
     );
 
