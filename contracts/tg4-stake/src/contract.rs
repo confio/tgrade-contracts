@@ -56,7 +56,7 @@ pub fn instantiate(
         denom: msg.denom,
         tokens_per_weight: msg.tokens_per_weight,
         min_bond,
-        unbonding_period: Duration::new_from_seconds(msg.unbonding_period),
+        unbonding_period: Duration::new(msg.unbonding_period),
         auto_return_limit: msg.auto_return_limit,
     };
     CONFIG.save(deps.storage, &config)?;
@@ -545,10 +545,7 @@ mod tests {
 
         let raw = query(deps.as_ref(), mock_env(), QueryMsg::UnbondingPeriod {}).unwrap();
         let res: UnbondingPeriodResponse = from_slice(&raw).unwrap();
-        assert_eq!(
-            res.unbonding_period,
-            Duration::new_from_seconds(UNBONDING_DURATION)
-        );
+        assert_eq!(res.unbonding_period, Duration::new(UNBONDING_DURATION));
     }
 
     fn get_member(deps: Deps, addr: String, at_height: Option<u64>) -> Option<u64> {
@@ -873,7 +870,7 @@ mod tests {
         env.block.height += height_delta;
 
         // check the claims for each user
-        let expires = Duration::new_from_seconds(UNBONDING_DURATION).after(&env.block);
+        let expires = Duration::new(UNBONDING_DURATION).after(&env.block);
         assert_eq!(
             get_claims(deps.as_ref(), Addr::unchecked(USER1), None, None),
             vec![Claim::new(
@@ -905,8 +902,7 @@ mod tests {
         unbond(deps.as_mut(), 0, 1_345, 1_500, height_delta, time_delta);
 
         // with updated claims
-        let expires2 =
-            Duration::new_from_seconds(UNBONDING_DURATION + time_delta).after(&env2.block);
+        let expires2 = Duration::new(UNBONDING_DURATION + time_delta).after(&env2.block);
         assert_ne!(expires, expires2);
         assert_eq!(
             get_claims(deps.as_ref(), Addr::unchecked(USER1), None, None),

@@ -71,16 +71,17 @@ impl<'a> Prefixer<'a> for ExpirationKey {
     }
 }
 
+/// Duration is an amount of time, measured in seconds
 #[derive(Serialize, Deserialize, Clone, Copy, PartialEq, JsonSchema, Debug)]
-pub struct Duration(Timestamp);
+pub struct Duration(u64);
 
 impl Duration {
-    pub fn new_from_seconds(secs: u64) -> Duration {
-        Duration(Timestamp::from_seconds(secs))
+    pub fn new(secs: u64) -> Duration {
+        Duration(secs)
     }
 
     pub fn after(&self, block: &BlockInfo) -> Expiration {
-        Expiration(block.time.plus_seconds(self.0.seconds()))
+        Expiration(block.time.plus_seconds(self.0))
     }
 }
 
@@ -152,7 +153,7 @@ mod tests {
 
     #[test]
     fn create_expiration_from_duration() {
-        let duration = Duration::new_from_seconds(33);
+        let duration = Duration::new(33);
         let block_info = BlockInfo {
             height: 1,
             time: Timestamp::from_seconds(66),
