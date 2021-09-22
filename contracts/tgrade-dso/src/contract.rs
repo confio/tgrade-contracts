@@ -9,6 +9,7 @@ use cw2::set_contract_version;
 use cw3::{Status, Vote};
 use cw_storage_plus::{Bound, PrimaryKey, U64Key};
 use tg4::{Member, MemberListResponse, MemberResponse, TotalWeightResponse};
+use tg_controllers::{members, TOTAL};
 
 use crate::error::ContractError;
 use crate::msg::{
@@ -17,9 +18,9 @@ use crate::msg::{
 };
 use crate::state::MemberStatus::NonVoting;
 use crate::state::{
-    batches, create_batch, create_proposal, members, parse_id, save_ballot, Ballot, Batch, Dso,
+    batches, create_batch, create_proposal, parse_id, save_ballot, Ballot, Batch, Dso,
     DsoAdjustments, EscrowStatus, MemberStatus, Proposal, ProposalContent, Punishment, Votes,
-    VotingRules, BALLOTS, BALLOTS_BY_VOTER, DSO, ESCROWS, PROPOSALS, PROPOSAL_BY_EXPIRY, TOTAL,
+    VotingRules, BALLOTS, BALLOTS_BY_VOTER, DSO, ESCROWS, PROPOSALS, PROPOSAL_BY_EXPIRY,
 };
 
 // version info for migration info

@@ -13,15 +13,14 @@ use tg4::{
     TotalWeightResponse,
 };
 use tg_bindings::{request_privileges, Privilege, PrivilegeChangeMsg, TgradeMsg, TgradeSudoMsg};
+use tg_controllers::{members, Duration, ADMIN, HOOKS, PREAUTH, TOTAL};
 
 use crate::error::ContractError;
 use crate::msg::{
     ClaimsResponse, ExecuteMsg, InstantiateMsg, PreauthResponse, QueryMsg, StakedResponse,
     UnbondingPeriodResponse,
 };
-use crate::state::{
-    claims, members, Config, Duration, ADMIN, CONFIG, HOOKS, PREAUTH, STAKE, TOTAL,
-};
+use crate::state::{claims, Config, CONFIG, STAKE};
 
 pub type Response = cosmwasm_std::Response<TgradeMsg>;
 pub type SubMsg = cosmwasm_std::SubMsg<TgradeMsg>;
@@ -446,11 +445,10 @@ fn list_members_by_weight(
 #[cfg(test)]
 mod tests {
     use crate::claim::Claim;
-    use crate::state::{Duration, Expiration};
     use cosmwasm_std::testing::{mock_dependencies, mock_env, mock_info};
     use cosmwasm_std::{from_slice, OverflowError, OverflowOperation, StdError, Storage};
     use tg4::{member_key, TOTAL_KEY};
-    use tg_controllers::{HookError, PreauthError};
+    use tg_controllers::{Expiration, HookError, PreauthError};
 
     use crate::error::ContractError;
 
