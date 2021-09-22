@@ -13,7 +13,7 @@ use tg4::{
     TotalWeightResponse,
 };
 use tg_bindings::{request_privileges, Privilege, PrivilegeChangeMsg, TgradeMsg, TgradeSudoMsg};
-use tg_controllers::{members, Duration, ADMIN, HOOKS, PREAUTH, TOTAL};
+use tg_utils::{members, Duration, ADMIN, HOOKS, PREAUTH, TOTAL};
 
 use crate::error::ContractError;
 use crate::msg::{
@@ -448,7 +448,7 @@ mod tests {
     use cosmwasm_std::testing::{mock_dependencies, mock_env, mock_info};
     use cosmwasm_std::{from_slice, OverflowError, OverflowOperation, StdError, Storage};
     use tg4::{member_key, TOTAL_KEY};
-    use tg_controllers::{Expiration, HookError, PreauthError};
+    use tg_utils::{Expiration, HookError, PreauthError};
 
     use crate::error::ContractError;
 

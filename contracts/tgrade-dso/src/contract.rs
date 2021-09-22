@@ -9,7 +9,7 @@ use cw2::set_contract_version;
 use cw3::{Status, Vote};
 use cw_storage_plus::{Bound, PrimaryKey, U64Key};
 use tg4::{Member, MemberListResponse, MemberResponse, TotalWeightResponse};
-use tg_controllers::{members, TOTAL};
+use tg_utils::{members, TOTAL};
 
 use crate::error::ContractError;
 use crate::msg::{

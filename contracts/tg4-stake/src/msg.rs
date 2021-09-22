@@ -1,7 +1,7 @@
 use cosmwasm_std::{Coin, Uint128};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
-use tg_controllers::{Duration, Expiration};
+use tg_utils::{Duration, Expiration};
 
 pub use crate::claim::Claim;
 use tg4::Member;

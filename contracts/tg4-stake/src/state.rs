@@ -4,7 +4,7 @@ use serde::{Deserialize, Serialize};
 use crate::claim::Claims;
 use cosmwasm_std::{Addr, Uint128};
 use cw_storage_plus::{Item, Map};
-use tg_controllers::Duration;
+use tg_utils::Duration;
 
 /// Builds a claims map as it cannot be done in const time
 pub fn claims() -> Claims<'static> {

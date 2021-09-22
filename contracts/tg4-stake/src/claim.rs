@@ -7,7 +7,7 @@ use serde::{Deserialize, Serialize};
 
 use cosmwasm_std::{Addr, BlockInfo, Deps, Order, StdResult, Storage, Uint128};
 use cw_storage_plus::{Bound, Index, IndexList, IndexedMap, MultiIndex, PrimaryKey};
-use tg_controllers::{Expiration, ExpirationKey};
+use tg_utils::{Expiration, ExpirationKey};
 
 // settings for pagination
 const MAX_LIMIT: u32 = 30;
