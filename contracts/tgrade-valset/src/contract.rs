@@ -27,9 +27,9 @@ use crate::msg::{
 };
 use crate::rewards::{distribute_to_validators, pay_block_rewards};
 use crate::state::{
-    operators, Config, EpochInfo, OperatorInfo, ValidatorInfo, ADMIN, CONFIG, EPOCH, JAIL,
-    VALIDATORS,
+    operators, Config, EpochInfo, OperatorInfo, ValidatorInfo, CONFIG, EPOCH, JAIL, VALIDATORS,
 };
+use tg_utils::ADMIN;
 
 // version info for migration info
 const CONTRACT_NAME: &str = "crates.io:tgrade-valset";

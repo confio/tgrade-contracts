@@ -2,7 +2,6 @@ use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
 use cosmwasm_std::{Addr, Coin, Decimal};
-use cw_controllers::Admin;
 use cw_storage_plus::{Index, IndexList, IndexedMap, Item, Map, UniqueIndex};
 use tg4::Tg4Contract;
 
@@ -71,9 +70,6 @@ pub const EPOCH: Item<EpochInfo> = Item::new("epoch");
 /// VALIDATORS is the calculated list of the active validators from the last execution.
 /// This will be empty only on the first run.
 pub const VALIDATORS: Item<Vec<ValidatorInfo>> = Item::new("validators");
-
-/// Address which is allowed to jail, meant to be set to OC voting contract
-pub const ADMIN: Admin = Admin::new("admin");
 
 /// Map of jailed operator addr to jail expiration time. If operator doesn't appear in this map he
 /// is not jailed
