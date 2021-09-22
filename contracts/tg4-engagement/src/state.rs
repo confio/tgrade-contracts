@@ -24,3 +24,41 @@ impl Halflife {
 }
 
 pub const HALFLIFE: Item<Halflife> = Item::new("halflife");
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn halflife_should_apply() {
+        let hf = Halflife {
+            halflife: None,
+            last_applied: Timestamp::from_seconds(0),
+        };
+        assert!(!hf.should_apply(Timestamp::from_seconds(0)));
+
+        let hf = Halflife {
+            halflife: Some(Duration::new(1)),
+            last_applied: Timestamp::from_seconds(0),
+        };
+        assert!(!hf.should_apply(Timestamp::from_seconds(0)));
+
+        let hf = Halflife {
+            halflife: Some(Duration::new(1)),
+            last_applied: Timestamp::from_seconds(0),
+        };
+        assert!(hf.should_apply(Timestamp::from_seconds(1)));
+
+        let hf = Halflife {
+            halflife: Some(Duration::new(1)),
+            last_applied: Timestamp::from_seconds(2),
+        };
+        assert!(!hf.should_apply(Timestamp::from_seconds(2)));
+
+        let hf = Halflife {
+            halflife: Some(Duration::new(1)),
+            last_applied: Timestamp::from_seconds(2),
+        };
+        assert!(hf.should_apply(Timestamp::from_seconds(3)));
+    }
+}

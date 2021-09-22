@@ -410,6 +410,7 @@ mod tests {
                 },
             ],
             preauths: Some(1),
+            halflife: Some(Duration::new(180 * 24 * 60 * 60)),
         };
         let info = mock_info("creator", &[]);
         instantiate(deps, mock_env(), info, msg).unwrap();
