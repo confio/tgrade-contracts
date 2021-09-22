@@ -49,15 +49,17 @@
         "jail": {
           "type": "object",
           "required": [
-            "duration",
             "operator"
           ],
           "properties": {
             "duration": {
-              "description": "Duration for how long validator is jailed",
-              "allOf": [
+              "description": "Duration for how long validator is jailed, `None` for jailing forever",
+              "anyOf": [
                 {
                   "$ref": "#/definitions/Duration"
+                },
+                {
+                  "type": "null"
                 }
               ]
             },

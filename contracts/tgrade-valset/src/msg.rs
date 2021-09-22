@@ -7,7 +7,7 @@ use tg_utils::{Duration, Expiration};
 
 use crate::error::ContractError;
 use crate::state::{Config, OperatorInfo, ValidatorInfo};
-use cosmwasm_std::{Coin, Decimal};
+use cosmwasm_std::{BlockInfo, Coin, Decimal};
 
 #[derive(Serialize, Deserialize, Clone, PartialEq, JsonSchema, Debug)]
 pub struct InstantiateMsg {
@@ -147,8 +147,8 @@ pub enum ExecuteMsg {
     Jail {
         /// Operator which should be jailed
         operator: String,
-        /// Duration for how long validator is jailed
-        duration: Duration,
+        /// Duration for how long validator is jailed, `None` for jailing forever
+        duration: Option<Duration>,
     },
     /// Unjails validator. Admin can unjail anyone anytime, others can unjail only themselves and
     /// only if jail duration passed
@@ -206,20 +206,35 @@ pub struct OperatorResponse {
     pub operator: String,
     pub pubkey: Pubkey,
     pub metadata: ValidatorMetadata,
-    pub jailed_until: Option<Expiration>,
+    pub jailed_until: Option<JailingPeriod>,
 }
 
 impl OperatorResponse {
     pub fn from_info(
         info: OperatorInfo,
         operator: String,
-        jailed_until: impl Into<Option<Expiration>>,
+        jailed_until: impl Into<Option<JailingPeriod>>,
     ) -> Self {
         OperatorResponse {
             operator,
             pubkey: info.pubkey.into(),
             metadata: info.metadata,
             jailed_until: jailed_until.into(),
+        }
+    }
+}
+
+#[derive(Serialize, Deserialize, Clone, PartialEq, JsonSchema, Debug)]
+pub enum JailingPeriod {
+    Forever {},
+    Until(Expiration),
+}
+
+impl JailingPeriod {
+    pub fn is_expired(&self, block: &BlockInfo) -> bool {
+        match self {
+            Self::Forever {} => false,
+            Self::Until(expires) => expires.is_expired(block),
         }
     }
 }

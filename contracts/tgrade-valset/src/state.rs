@@ -6,9 +6,8 @@ use cw_controllers::Admin;
 use cw_storage_plus::{Index, IndexList, IndexedMap, Item, Map, UniqueIndex};
 use tg4::Tg4Contract;
 
-use crate::msg::{default_fee_percentage, ValidatorMetadata};
+use crate::msg::{default_fee_percentage, JailingPeriod, ValidatorMetadata};
 use tg_bindings::{Ed25519Pubkey, Pubkey};
-use tg_utils::Expiration;
 
 #[derive(Serialize, Deserialize, Clone, PartialEq, JsonSchema, Debug)]
 pub struct Config {
@@ -78,7 +77,7 @@ pub const ADMIN: Admin = Admin::new("admin");
 
 /// Map of jailed operator addr to jail expiration time. If operator doesn't appear in this map he
 /// is not jailed
-pub const JAIL: Map<&Addr, Expiration> = Map::new("jail");
+pub const JAIL: Map<&Addr, JailingPeriod> = Map::new("jail");
 
 /// This stores the immutible info for an operator. Both their Tendermint key as well as
 /// their metadata

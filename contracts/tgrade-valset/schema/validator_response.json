@@ -23,6 +23,34 @@
     "Expiration": {
       "$ref": "#/definitions/Timestamp"
     },
+    "JailingPeriod": {
+      "anyOf": [
+        {
+          "type": "object",
+          "required": [
+            "Forever"
+          ],
+          "properties": {
+            "Forever": {
+              "type": "object"
+            }
+          },
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "required": [
+            "Until"
+          ],
+          "properties": {
+            "Until": {
+              "$ref": "#/definitions/Expiration"
+            }
+          },
+          "additionalProperties": false
+        }
+      ]
+    },
     "OperatorResponse": {
       "type": "object",
       "required": [
@@ -34,7 +62,7 @@
         "jailed_until": {
           "anyOf": [
             {
-              "$ref": "#/definitions/Expiration"
+              "$ref": "#/definitions/JailingPeriod"
             },
             {
               "type": "null"

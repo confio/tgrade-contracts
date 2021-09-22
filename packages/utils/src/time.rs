@@ -54,6 +54,12 @@ impl From<Expiration> for ExpirationKey {
     }
 }
 
+impl From<Expiration> for Timestamp {
+    fn from(expiration: Expiration) -> Timestamp {
+        expiration.0
+    }
+}
+
 /// we need this implementation to work well with Bound::exclusive, like U64Key does
 impl From<ExpirationKey> for Vec<u8> {
     fn from(key: ExpirationKey) -> Self {

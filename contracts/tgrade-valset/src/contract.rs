@@ -21,8 +21,9 @@ use tg_utils::Duration;
 
 use crate::error::ContractError;
 use crate::msg::{
-    ConfigResponse, EpochResponse, ExecuteMsg, InstantiateMsg, ListActiveValidatorsResponse,
-    ListValidatorResponse, OperatorResponse, QueryMsg, ValidatorMetadata, ValidatorResponse,
+    ConfigResponse, EpochResponse, ExecuteMsg, InstantiateMsg, JailingPeriod,
+    ListActiveValidatorsResponse, ListValidatorResponse, OperatorResponse, QueryMsg,
+    ValidatorMetadata, ValidatorResponse,
 };
 use crate::rewards::{distribute_to_validators, pay_block_rewards};
 use crate::state::{
@@ -166,21 +167,31 @@ fn execute_jail(
     env: Env,
     info: MessageInfo,
     operator: String,
-    duration: Duration,
+    duration: Option<Duration>,
 ) -> Result<Response, ContractError> {
     ADMIN.assert_admin(deps.as_ref(), &info.sender)?;
 
-    let expiration = duration.after(&env.block);
+    let expiration = if let Some(duration) = &duration {
+        JailingPeriod::Until(duration.after(&env.block))
+    } else {
+        JailingPeriod::Forever {}
+    };
+
     JAIL.save(
         deps.storage,
         &deps.api.addr_validate(&operator)?,
         &expiration,
     )?;
 
+    let until_attr = match expiration {
+        JailingPeriod::Until(expires) => Timestamp::from(expires).to_string(),
+        JailingPeriod::Forever {} => "forever".to_owned(),
+    };
+
     let res = Response::new()
         .add_attribute("action", "jail")
         .add_attribute("operator", &operator)
-        .add_attribute("duration", &duration.seconds().to_string());
+        .add_attribute("until", &until_attr);
 
     Ok(res)
 }
