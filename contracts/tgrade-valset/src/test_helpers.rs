@@ -9,8 +9,8 @@ use tg_bindings::{Pubkey, TgradeMsg};
 use tg_utils::Duration;
 
 use crate::msg::{
-    ExecuteMsg, InstantiateMsg, JailingPeriod, ListValidatorResponse, OperatorInitInfo,
-    OperatorResponse, QueryMsg, ValidatorMetadata,
+    ExecuteMsg, InstantiateMsg, JailingPeriod, ListActiveValidatorsResponse, ListValidatorResponse,
+    OperatorInitInfo, OperatorResponse, QueryMsg, ValidatorMetadata,
 };
 use crate::state::ValidatorInfo;
 
@@ -99,7 +99,7 @@ pub fn mock_pubkey(base: &[u8]) -> Pubkey {
     Pubkey::Ed25519(Binary(raw))
 }
 
-/// Utility function for veryfying validators - in tests in most cases pubkey and metadata all
+/// Utility function for verifying validators - in tests in most cases pubkey and metadata all
 /// completely ignored, therefore as expected value vector of `(addr, jailed_until)` are taken.
 /// Also order of operators should not matter, so proper sorting is also handled.
 #[track_caller]
@@ -110,6 +110,22 @@ pub fn assert_operators(
     let mut received: Vec<_> = received
         .into_iter()
         .map(|operator| (operator.operator, operator.jailed_until))
+        .collect();
+
+    received.sort_unstable_by_key(|(addr, _)| addr.clone());
+    expected.sort_unstable_by_key(|(addr, _)| addr.clone());
+
+    assert_eq!(received, expected);
+}
+
+/// Utility function for verifying active validators - in tests in most cases is completely ignored,
+/// therefore as expected value vector of `(addr, voting_power)` are taken.
+/// Also order of operators should not matter, so proper sorting is also handled.
+#[track_caller]
+pub fn assert_active_validators(received: Vec<ValidatorInfo>, mut expected: Vec<(String, u64)>) {
+    let mut received: Vec<_> = received
+        .into_iter()
+        .map(|validator| (validator.operator.to_string(), validator.power))
         .collect();
 
     received.sort_unstable_by_key(|(addr, _)| addr.clone());
@@ -323,5 +339,11 @@ impl Suite {
                 limit: limit.into(),
             },
         )
+    }
+
+    pub fn simulate_active_validators(&self) -> StdResult<ListActiveValidatorsResponse> {
+        self.app
+            .wrap()
+            .query_wasm_smart(self.valset.clone(), &QueryMsg::SimulateActiveValidators {})
     }
 }
