@@ -265,13 +265,20 @@ fn query_epoch(deps: Deps, env: Env) -> Result<EpochResponse, ContractError> {
 
 fn query_validator_key(
     deps: Deps,
-    _env: Env,
+    env: Env,
     operator: String,
 ) -> Result<ValidatorResponse, ContractError> {
+    let cfg = CONFIG.load(deps.storage)?;
+
     let operator_addr = deps.api.addr_validate(&operator)?;
     let info = operators().may_load(deps.storage, &operator_addr)?;
+
+    let jailed_until = JAIL
+        .may_load(deps.storage, &operator_addr)?
+        .filter(|expires| !(cfg.auto_unjail && expires.is_expired(&env.block)));
+
     Ok(ValidatorResponse {
-        validator: info.map(|i| OperatorResponse::from_info(i, operator)),
+        validator: info.map(|i| OperatorResponse::from_info(i, operator, jailed_until)),
     })
 }
 
@@ -281,10 +288,11 @@ const DEFAULT_LIMIT: u32 = 10;
 
 fn list_validator_keys(
     deps: Deps,
-    _env: Env,
+    env: Env,
     start_after: Option<String>,
     limit: Option<u32>,
 ) -> Result<ListValidatorResponse, ContractError> {
+    let cfg = CONFIG.load(deps.storage)?;
     let limit = limit.unwrap_or(DEFAULT_LIMIT).min(MAX_LIMIT) as usize;
     let start_after = maybe_addr(deps.api, start_after)?;
     let start = start_after.map(|addr| Bound::exclusive(addr.as_str()));
@@ -294,10 +302,16 @@ fn list_validator_keys(
         .map(|r| {
             let (key, info) = r?;
             let operator = String::from_utf8(key)?;
+
+            let jailed_until = JAIL
+                .may_load(deps.storage, &Addr::unchecked(&operator))?
+                .filter(|expires| !(cfg.auto_unjail && expires.is_expired(&env.block)));
+
             Ok(OperatorResponse {
                 operator,
                 metadata: info.metadata,
                 pubkey: info.pubkey.into(),
+                jailed_until,
             })
         })
         .take(limit)
@@ -817,6 +831,7 @@ mod test {
                     operator: val.operator,
                     pubkey: val.validator_pubkey,
                     metadata: mock_metadata(&addr),
+                    jailed_until: None,
                 }
             })
             .collect();
@@ -846,6 +861,7 @@ mod test {
                     operator: val.operator,
                     pubkey: val.validator_pubkey,
                     metadata: mock_metadata(&addr),
+                    jailed_until: None,
                 }
             })
             .collect();
@@ -897,6 +913,7 @@ mod test {
             operator: new_operator.into(),
             pubkey: mock_pubkey(new_operator.as_bytes()),
             metadata: mock_metadata("master"),
+            jailed_until: None,
         }];
         assert_eq!(expected, validator_keys.validators);
     }

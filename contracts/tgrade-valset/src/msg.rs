@@ -3,7 +3,7 @@ use serde::{Deserialize, Serialize};
 use std::convert::TryFrom;
 
 use tg_bindings::{Ed25519Pubkey, Pubkey};
-use tg_utils::Duration;
+use tg_utils::{Duration, Expiration};
 
 use crate::error::ContractError;
 use crate::state::{Config, OperatorInfo, ValidatorInfo};
@@ -206,14 +206,20 @@ pub struct OperatorResponse {
     pub operator: String,
     pub pubkey: Pubkey,
     pub metadata: ValidatorMetadata,
+    pub jailed_until: Option<Expiration>,
 }
 
 impl OperatorResponse {
-    pub fn from_info(info: OperatorInfo, operator: String) -> Self {
+    pub fn from_info(
+        info: OperatorInfo,
+        operator: String,
+        jailed_until: impl Into<Option<Expiration>>,
+    ) -> Self {
         OperatorResponse {
             operator,
             pubkey: info.pubkey.into(),
             metadata: info.metadata,
+            jailed_until: jailed_until.into(),
         }
     }
 }
