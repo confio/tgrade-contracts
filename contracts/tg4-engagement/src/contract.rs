@@ -1,6 +1,8 @@
 #[cfg(not(feature = "library"))]
 use cosmwasm_std::entry_point;
-use cosmwasm_std::{to_binary, Binary, Deps, DepsMut, Env, MessageInfo, Order, StdResult, Timestamp};
+use cosmwasm_std::{
+    to_binary, Binary, Deps, DepsMut, Env, MessageInfo, Order, StdResult, Timestamp,
+};
 use cw0::maybe_addr;
 use cw2::set_contract_version;
 use cw_storage_plus::{Bound, PrimaryKey, U64Key};
@@ -11,8 +13,8 @@ use tg4::{
 
 use crate::error::ContractError;
 use crate::msg::{ExecuteMsg, InstantiateMsg, PreauthResponse, QueryMsg, SudoMsg};
-use crate::state::{HALFLIFE, Halflife};
-use tg_bindings::TgradeMsg;
+use crate::state::{Halflife, HALFLIFE};
+use tg_bindings::{request_privileges, Privilege, PrivilegeChangeMsg, TgradeMsg};
 use tg_utils::{members, Duration, ADMIN, HOOKS, PREAUTH, TOTAL};
 
 pub type Response = cosmwasm_std::Response<TgradeMsg>;
@@ -228,29 +230,53 @@ pub fn update_members(
 pub fn sudo(deps: DepsMut, env: Env, msg: SudoMsg) -> Result<Response, ContractError> {
     match msg {
         SudoMsg::UpdateMember(member) => sudo_add_member(deps, env, member),
-        SudoMsg::EndBlock => end_block(deps, env),
+        SudoMsg::PrivilegeChange(PrivilegeChangeMsg::Promoted {}) => privilege_promote(deps),
+        SudoMsg::EndBlock {} => end_block(deps, env),
+        _ => Err(ContractError::UnknownSudoMsg {}),
     }
 }
 
-fn end_block(deps: DepsMut, _env: Env) -> Result<Response, ContractError> {
+fn privilege_promote(deps: DepsMut) -> Result<Response, ContractError> {
+    let halflife = HALFLIFE.load(deps.storage)?;
+
+    if halflife.halflife.is_some() {
+        let msgs = request_privileges(&[Privilege::EndBlocker]);
+        Ok(Response::new().add_submessages(msgs))
+    } else {
+        Ok(Response::new())
+    }
+}
+
+fn end_block(deps: DepsMut, env: Env) -> Result<Response, ContractError> {
     let resp = Response::new();
 
-    // half-life logic goes here...
-    for member in list_members(deps.as_ref(), None, None)
-        .unwrap()
-        .members
-        .into_iter()
-    {
-        // How to check whether Duration is completed? Change to or compare with timestamp?
+    let halflife = HALFLIFE.load(deps.storage)?;
 
-        // if halving logic is triggered
-        use cosmwasm_std::Addr;
-        members().save(
-            deps.storage,
-            &Addr::unchecked(member.addr),
-            &(member.weight / 2),
-            1, // HEIGHT, temp value
-        )?;
+    if !halflife.should_apply(env.block.time) {
+        return Ok(resp);
+    }
+
+    let members_to_update: StdResult<Vec<_>> = members()
+        .range(deps.storage, None, None, Order::Ascending)
+        .map(|item| {
+            let (key, weight) = item?;
+            Ok(Member {
+                addr: String::from_utf8(key)?,
+                weight,
+            })
+        })
+        .collect();
+
+    for member in members_to_update? {
+        if member.weight > 1 {
+            use cosmwasm_std::Addr;
+            members().save(
+                deps.storage,
+                &Addr::unchecked(member.addr),
+                &(member.weight / 2),
+                env.block.height,
+            )?;
+        }
     }
 
     Ok(resp)

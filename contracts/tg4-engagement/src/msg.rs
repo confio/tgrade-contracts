@@ -2,6 +2,7 @@ use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
 use tg4::Member;
+use tg_bindings::{Evidence, PrivilegeChangeMsg};
 use tg_utils::Duration;
 
 #[derive(Serialize, Deserialize, Clone, PartialEq, JsonSchema, Debug)]
@@ -63,12 +64,24 @@ pub enum QueryMsg {
 #[derive(Serialize, Deserialize, Clone, PartialEq, JsonSchema, Debug)]
 #[serde(rename_all = "snake_case")]
 pub enum SudoMsg {
+    /// This will be delivered every block if the contract is currently registered for Begin Block
+    /// types based on subset of https://github.com/tendermint/tendermint/blob/v0.34.8/proto/tendermint/abci/types.proto#L81
+    BeginBlock {
+        /// This is proven evidence of malice and the basis for slashing validators
+        evidence: Vec<Evidence>,
+    },
+    /// This will be delivered every block if the contract is currently registered for End Block
+    /// Block height and time is already in Env.
+    EndBlock {},
+    /// This will be delivered after all end blockers if this is registered for ValidatorUpdates.
+    /// If it sets Response.data, it must be a JSON-encoded ValidatorDiff,
+    /// which will be used to change the validator set.
+    EndWithValidatorUpdate {},
+    PrivilegeChange(PrivilegeChangeMsg),
     /// This allows updating group membership via sudo.
     /// Use case: for post-genesis validators, we want to set some initial engagement points / weight.
     /// Note: If the member already exists, its weight will be reset to the weight sent here.
     UpdateMember(Member),
-    /// This will be delivered every block if the contract is currently registered for End Block
-    EndBlock,
 }
 
 #[derive(Serialize, Deserialize, Clone, PartialEq, JsonSchema, Debug)]

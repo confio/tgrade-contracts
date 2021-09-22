@@ -13,5 +13,14 @@ pub struct Halflife {
     pub last_applied: Timestamp,
 }
 
-pub const HALFLIFE: Item<Halflife> = Item::new("halflife");
+impl Halflife {
+    pub fn should_apply(&self, t: Timestamp) -> bool {
+        if let Some(halflife) = self.halflife {
+            halflife.after_time(self.last_applied).is_expired_time(t)
+        } else {
+            false
+        }
+    }
+}
 
+pub const HALFLIFE: Item<Halflife> = Item::new("halflife");
