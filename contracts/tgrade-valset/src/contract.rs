@@ -539,7 +539,7 @@ fn calculate_diff(cur_vals: Vec<ValidatorInfo>, old_vals: Vec<ValidatorInfo>) ->
 
 #[cfg(test)]
 mod test {
-    use cw_multi_test::{App, AppBuilder, Contract, ContractWrapper, Executor};
+    use cw_multi_test::{next_block, App, AppBuilder, Executor};
 
     use super::*;
     use crate::test_helpers::{
@@ -1205,6 +1205,9 @@ mod test {
                 .jail(&admin, &operators[6].addr, Duration::new(3600))
                 .unwrap();
 
+            let jailed_until =
+                JailingPeriod::Until(Duration::new(3600).after(&suite.app().block_info()));
+
             let err = suite
                 .jail(&operators[0].addr, &operators[2].addr, None)
                 .unwrap_err();
@@ -1233,15 +1236,112 @@ mod test {
                     (operators[3].addr.clone(), None),
                     (operators[4].addr.clone(), Some(JailingPeriod::Forever {})),
                     (operators[5].addr.clone(), None),
-                    (
-                        operators[6].addr.clone(),
-                        Some(JailingPeriod::Until(
-                            Duration::new(3600).after(&suite.block_info()),
-                        )),
-                    ),
+                    (operators[6].addr.clone(), Some(jailed_until)),
                     (operators[7].addr.clone(), None),
                     (operators[8].addr.clone(), None),
                     (operators[9].addr.clone(), None),
+                ],
+            )
+        }
+
+        #[test]
+        fn admin_can_unjail_anyone() {
+            let mut suite = SuiteBuilder::new().make_operators(4, 0).build();
+            let admin = suite.admin().to_owned();
+            let operators = suite.member_operators().to_vec();
+
+            suite.jail(&admin, &operators[0].addr, None).unwrap();
+            suite
+                .jail(&admin, &operators[1].addr, Duration::new(3600))
+                .unwrap();
+
+            suite.app().update_block(next_block);
+
+            suite.unjail(&admin, operators[0].addr.as_ref()).unwrap();
+            suite.unjail(&admin, operators[1].addr.as_ref()).unwrap();
+            suite.unjail(&admin, operators[2].addr.as_ref()).unwrap();
+
+            let resp = suite.list_validators(None, None).unwrap();
+            assert_operators(
+                resp.validators,
+                vec![
+                    (operators[0].addr.clone(), None),
+                    (operators[1].addr.clone(), None),
+                    (operators[2].addr.clone(), None),
+                    (operators[3].addr.clone(), None),
+                ],
+            )
+        }
+
+        #[test]
+        fn anyone_can_unjail_self_after_period() {
+            let mut suite = SuiteBuilder::new().make_operators(4, 0).build();
+            let admin = suite.admin().to_owned();
+            let operators = suite.member_operators().to_vec();
+
+            suite
+                .jail(&admin, &operators[0].addr, Duration::new(3600))
+                .unwrap();
+            suite
+                .jail(&admin, &operators[1].addr, Duration::new(3600))
+                .unwrap();
+            suite
+                .jail(&admin, &operators[2].addr, Duration::new(3600))
+                .unwrap();
+
+            let jailed_until =
+                JailingPeriod::Until(Duration::new(3600).after(&suite.app().block_info()));
+
+            suite.app().update_block(next_block);
+
+            let err = suite.unjail(&operators[0].addr, None).unwrap_err();
+            assert_eq!(
+                ContractError::AdminError(AdminError::NotAdmin {}),
+                err.downcast().unwrap(),
+            );
+
+            let err = suite
+                .unjail(&operators[0].addr, operators[0].addr.as_ref())
+                .unwrap_err();
+            assert_eq!(
+                ContractError::AdminError(AdminError::NotAdmin {}),
+                err.downcast().unwrap(),
+            );
+
+            let err = suite
+                .unjail(&operators[0].addr, operators[1].addr.as_ref())
+                .unwrap_err();
+            assert_eq!(
+                ContractError::AdminError(AdminError::NotAdmin {}),
+                err.downcast().unwrap(),
+            );
+
+            suite.app().update_block(|block| {
+                block.height += 2000;
+                block.time = block.time.plus_seconds(3800);
+            });
+
+            suite.unjail(&operators[0].addr, None).unwrap();
+            let err = suite
+                .unjail(&operators[0].addr, operators[1].addr.as_ref())
+                .unwrap_err();
+            assert_eq!(
+                ContractError::AdminError(AdminError::NotAdmin {}),
+                err.downcast().unwrap(),
+            );
+
+            suite
+                .unjail(&operators[2].addr, operators[2].addr.as_ref())
+                .unwrap();
+
+            let resp = suite.list_validators(None, None).unwrap();
+            assert_operators(
+                resp.validators,
+                vec![
+                    (operators[0].addr.clone(), None),
+                    (operators[1].addr.clone(), Some(jailed_until)),
+                    (operators[2].addr.clone(), None),
+                    (operators[3].addr.clone(), None),
                 ],
             )
         }

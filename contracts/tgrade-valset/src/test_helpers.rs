@@ -1,6 +1,6 @@
 #![cfg(test)]
 use anyhow::Result as AnyResult;
-use cosmwasm_std::{coin, Addr, Binary, BlockInfo, Coin, Decimal, StdResult};
+use cosmwasm_std::{coin, Addr, Binary, Coin, Decimal, StdResult};
 use cw_multi_test::{App, AppBuilder, AppResponse, Contract, ContractWrapper, Executor};
 use derivative::Derivative;
 
@@ -126,7 +126,8 @@ pub struct SuiteBuilder {
     /// Valset operators included in `initial_keys`, but not members of cw4 group (addresses only,
     /// no weights)
     non_member_operators: Vec<String>,
-    /// Minimum weight of operator to be considered as validator
+    /// Minimum weight of operator to be considered as validator, 1 by default
+    #[derivative(Default(value = "1"))]
     min_weight: u64,
     /// Maximum number of validators for single epoch
     #[derivative(Default(value = "u32::MAX"))]
@@ -175,8 +176,8 @@ impl SuiteBuilder {
         let operators: Vec<_> = {
             let members = members.iter().map(|member| OperatorInitInfo {
                 operator: member.addr.clone(),
-                validator_pubkey: Pubkey::Ed25519(b"too-short".into()),
-                metadata: mock_metadata(""),
+                validator_pubkey: mock_pubkey(member.addr.as_bytes()),
+                metadata: mock_metadata(&member.addr),
             });
 
             let non_members = self
@@ -184,8 +185,8 @@ impl SuiteBuilder {
                 .iter()
                 .map(|addr| OperatorInitInfo {
                     operator: addr.clone(),
-                    validator_pubkey: Pubkey::Ed25519(b"too-short".into()),
-                    metadata: mock_metadata(""),
+                    validator_pubkey: mock_pubkey(addr.as_bytes()),
+                    metadata: mock_metadata(&addr),
                 });
 
             members.chain(non_members).collect()
@@ -274,8 +275,8 @@ impl Suite {
         &self.non_member_operators
     }
 
-    pub fn block_info(&self) -> BlockInfo {
-        self.app.block_info()
+    pub fn app(&mut self) -> &mut App<TgradeMsg> {
+        &mut self.app
     }
 
     pub fn jail(
@@ -290,6 +291,21 @@ impl Suite {
             &ExecuteMsg::Jail {
                 operator: operator.to_owned(),
                 duration: duration.into(),
+            },
+            &[],
+        )
+    }
+
+    pub fn unjail<'a>(
+        &mut self,
+        executor: &str,
+        operator: impl Into<Option<&'a str>>,
+    ) -> AnyResult<AppResponse> {
+        self.app.execute_contract(
+            Addr::unchecked(executor),
+            self.valset.clone(),
+            &ExecuteMsg::Unjail {
+                operator: operator.into().map(str::to_owned),
             },
             &[],
         )
