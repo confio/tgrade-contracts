@@ -4,6 +4,20 @@ use serde::{Deserialize, Serialize};
 use cosmwasm_std::{BlockInfo, Timestamp};
 use cw_storage_plus::{Prefixer, PrimaryKey, U64Key};
 
+/// Duration is an amount of time, measured in seconds
+#[derive(Serialize, Deserialize, Clone, Copy, PartialEq, JsonSchema, Debug)]
+pub struct Duration(u64);
+
+impl Duration {
+    pub fn new(secs: u64) -> Duration {
+        Duration(secs)
+    }
+
+    pub fn after(&self, block: &BlockInfo) -> Expiration {
+        Expiration::at_timestamp(block.time.plus_seconds(self.0))
+    }
+}
+
 #[derive(Serialize, Deserialize, Clone, Copy, PartialEq, JsonSchema, Debug)]
 pub struct Expiration(Timestamp);
 
