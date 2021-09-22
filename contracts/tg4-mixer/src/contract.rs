@@ -382,6 +382,7 @@ mod tests {
             admin: admin.clone(),
             members,
             preauths: Some(1),
+            halflife: None,
         };
         app.instantiate_contract(group_id, Addr::unchecked(OWNER), &msg, &[], "group", admin)
             .unwrap()
