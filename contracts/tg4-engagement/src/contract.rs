@@ -253,7 +253,6 @@ fn end_block(deps: DepsMut, env: Env) -> Result<Response, ContractError> {
     if !HALFLIFE.load(deps.storage)?.should_apply(env.block.time) {
         return Ok(resp);
     }
-
     let members_to_update: StdResult<Vec<_>> = members()
         .range(deps.storage, None, None, Order::Ascending)
         .map(|item| {
@@ -277,6 +276,14 @@ fn end_block(deps: DepsMut, env: Env) -> Result<Response, ContractError> {
             )?;
         }
     }
+
+    // We need to update half life last applied timestamp to current one
+    HALFLIFE.update(deps.storage, |hf| -> StdResult<_> {
+        Ok(Halflife {
+            halflife: hf.halflife,
+            last_applied: env.block.time,
+        })
+    })?;
 
     Ok(resp)
 }
@@ -959,8 +966,8 @@ mod tests {
         );
 
         // end block second after half life
-        env.block.time = env.block.time.plus_seconds(HALFLIFE + 1);
-        assert_eq!(end_block(deps.as_mut(), env), Ok(Response::new())); // TODO: this needs some better message
+        env.block.time = env.block.time.plus_seconds(HALFLIFE);
+        assert_eq!(end_block(deps.as_mut(), env.clone()), Ok(Response::new())); // TODO: this needs some better message
         assert_eq!(
             query_member(deps.as_ref(), USER1.into(), None)
                 .unwrap()
@@ -978,6 +985,33 @@ mod tests {
                 .unwrap()
                 .weight,
             None
+        );
+
+        // end block at same timestamp after last half life was met - do nothing
+        end_block(deps.as_mut(), env.clone()).unwrap();
+        assert_eq!(
+            query_member(deps.as_ref(), USER1.into(), None)
+                .unwrap()
+                .weight,
+            Some(5)
+        );
+
+        // after two more iterations of halftime + end block, both users should have weight 1
+        env.block.time = env.block.time.plus_seconds(HALFLIFE);
+        end_block(deps.as_mut(), env.clone()).unwrap();
+        env.block.time = env.block.time.plus_seconds(HALFLIFE);
+        end_block(deps.as_mut(), env).unwrap();
+        assert_eq!(
+            query_member(deps.as_ref(), USER1.into(), None)
+                .unwrap()
+                .weight,
+            Some(1)
+        );
+        assert_eq!(
+            query_member(deps.as_ref(), USER2.into(), None)
+                .unwrap()
+                .weight,
+            Some(1)
         );
     }
 }
