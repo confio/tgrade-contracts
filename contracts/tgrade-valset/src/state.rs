@@ -8,7 +8,7 @@ use tg4::Tg4Contract;
 
 use crate::msg::{default_fee_percentage, ValidatorMetadata};
 use tg_bindings::{Ed25519Pubkey, Pubkey};
-use tg_common::Expiration;
+use tg_utils::Expiration;
 
 #[derive(Serialize, Deserialize, Clone, PartialEq, JsonSchema, Debug)]
 pub struct Config {

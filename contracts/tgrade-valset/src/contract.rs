@@ -17,7 +17,7 @@ use tg_bindings::{
     request_privileges, Ed25519Pubkey, Privilege, PrivilegeChangeMsg, Pubkey, TgradeMsg,
     TgradeSudoMsg, ValidatorDiff, ValidatorUpdate,
 };
-use tg_common::Duration;
+use tg_utils::Duration;
 
 use crate::error::ContractError;
 use crate::msg::{

@@ -31,7 +31,7 @@ cw-controllers = { version = "0.9.0" }
 cw-storage-plus = { version = "0.9.0" }
 cosmwasm-std = { version = "0.16.0" }
 tg-bindings = { version = "0.4.0", path = "../../packages/bindings" }
-tg-common = { version = "0.1.0", path = "../../packages/common" }
+tg-utils = { version = "0.4.0", path = "../../packages/utils" }
 schemars = "0.8"
 serde = { version = "1.0.103", default-features = false, features = ["derive"] }
 thiserror = { version = "1.0.21" }

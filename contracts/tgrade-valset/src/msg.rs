@@ -3,7 +3,7 @@ use serde::{Deserialize, Serialize};
 use std::convert::TryFrom;
 
 use tg_bindings::{Ed25519Pubkey, Pubkey};
-use tg_common::Duration;
+use tg_utils::Duration;
 
 use crate::error::ContractError;
 use crate::state::{Config, OperatorInfo, ValidatorInfo};
