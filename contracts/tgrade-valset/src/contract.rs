@@ -334,7 +334,7 @@ fn simulate_active_validators(
     deps: Deps,
     env: Env,
 ) -> Result<ListActiveValidatorsResponse, ContractError> {
-    let validators = calculate_validators(deps, &env, &CONFIG.load(deps.storage)?)?;
+    let (validators, _) = calculate_validators(deps, &env)?;
     Ok(ListActiveValidatorsResponse { validators })
 }
 
@@ -370,8 +370,6 @@ fn is_genesis_block(block: &BlockInfo) -> bool {
 }
 
 fn end_block(deps: DepsMut, env: Env) -> Result<Response, ContractError> {
-    let cfg = CONFIG.load(deps.storage)?;
-
     // check if needed and quit early if we didn't hit epoch boundary
     let mut epoch = EPOCH.load(deps.storage)?;
     let cur_epoch = env.block.time.nanos() / (1_000_000_000 * epoch.epoch_length);
@@ -391,13 +389,11 @@ fn end_block(deps: DepsMut, env: Env) -> Result<Response, ContractError> {
     EPOCH.save(deps.storage, &epoch)?;
 
     // calculate and store new validator set
-    let validators = calculate_validators(deps.as_ref(), &env, &cfg)?;
+    let (validators, auto_unjail) = calculate_validators(deps.as_ref(), &env)?;
 
-    // auto unjailing (`calculate_validators` already checks if jailing period expired)
-    if cfg.auto_unjail {
-        for validator in &validators {
-            JAIL.remove(deps.storage, &validator.operator)
-        }
+    // auto unjailing
+    for addr in &auto_unjail {
+        JAIL.remove(deps.storage, addr)
     }
 
     let old_validators = VALIDATORS.load(deps.storage)?;
@@ -416,11 +412,14 @@ fn end_block(deps: DepsMut, env: Env) -> Result<Response, ContractError> {
 
 const QUERY_LIMIT: Option<u32> = Some(30);
 
+/// Selects validators to be used for incomming epoch. Returns vector of validators info paired
+/// with vector of addresses to be unjailed (always empty if auto unjailing is disabled).
 fn calculate_validators(
     deps: Deps,
     env: &Env,
-    cfg: &Config,
-) -> Result<Vec<ValidatorInfo>, ContractError> {
+) -> Result<(Vec<ValidatorInfo>, Vec<Addr>), ContractError> {
+    let cfg = CONFIG.load(deps.storage)?;
+
     let min_weight = max(cfg.min_weight, 1);
     let scaling: u64 = cfg.scaling.unwrap_or(1).into();
 
@@ -429,6 +428,8 @@ fn calculate_validators(
     let mut batch = cfg
         .membership
         .list_members_by_weight(&deps.querier, None, QUERY_LIMIT)?;
+    let mut auto_unjail = vec![];
+
     while !batch.is_empty() && validators.len() < cfg.max_validators as usize {
         let last = Some(batch.last().unwrap().clone());
 
@@ -453,21 +454,22 @@ fn calculate_validators(
                     Err(err) => return Some(Err(err)),
                     // address not jailed, proceed
                     Ok(None) => (),
-                    // address jailed, but period axpired and auto unjailing enabled, proceed
-                    Ok(Some(expires)) if cfg.auto_unjail && expires.is_expired(&env.block) => (),
+                    // address jailed, but period axpired and auto unjailing enabled, add to
+                    // auto_unjail list
+                    Ok(Some(expires)) if cfg.auto_unjail && expires.is_expired(&env.block) => {
+                        auto_unjail.push(m_addr.clone())
+                    }
                     // address jailed and cannot be unjailed - filter validator out
                     _ => return None,
-                }
+                };
 
-                Ok(operators()
-                    .load(deps.storage, &m_addr)
-                    .ok()
-                    .map(|op| ValidatorInfo {
+                operators().load(deps.storage, &m_addr).ok().map(|op| {
+                    Ok(ValidatorInfo {
                         operator: m_addr,
                         validator_pubkey: op.pubkey.into(),
                         power: m.weight * scaling,
-                    }))
-                .transpose()
+                    })
+                })
             })
             .take(cfg.max_validators as usize - validators.len() as usize)
             .collect::<Result<_, _>>()?;
@@ -479,7 +481,7 @@ fn calculate_validators(
             .list_members_by_weight(&deps.querier, last, QUERY_LIMIT)?;
     }
 
-    Ok(validators)
+    Ok((validators, auto_unjail))
 }
 
 /// Computes validator differences.
