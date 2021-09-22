@@ -1,7 +1,7 @@
 #[cfg(not(feature = "library"))]
 use cosmwasm_std::entry_point;
 use cosmwasm_std::{
-    to_binary, Binary, Deps, DepsMut, Env, MessageInfo, Order, StdResult, Timestamp,
+    to_binary, Addr, Binary, Deps, DepsMut, Env, MessageInfo, Order, StdResult, Timestamp,
 };
 use cw0::maybe_addr;
 use cw2::set_contract_version;
@@ -269,11 +269,11 @@ fn end_block(deps: DepsMut, env: Env) -> Result<Response, ContractError> {
 
     for member in members_to_update? {
         if member.weight > 1 {
-            use cosmwasm_std::Addr;
-            members().save(
+            members().replace(
                 deps.storage,
                 &Addr::unchecked(member.addr),
-                &(member.weight / 2),
+                Some(&(member.weight / 2)),
+                Some(&member.weight),
                 env.block.height,
             )?;
         }
