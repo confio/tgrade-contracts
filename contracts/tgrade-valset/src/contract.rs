@@ -201,13 +201,13 @@ fn execute_unjail(
         return Err(AdminError::NotAdmin {}.into());
     }
 
-    match JAIL.may_load(deps.storage, &operator) {
+    match JAIL.may_load(deps.storage, operator) {
         Err(err) => return Err(err.into()),
         // Operator is not jailed, unjailing does nothing and succeeds
         Ok(None) => (),
         // Jailing period expired or called by admin - can unjail
         Ok(Some(expiration)) if (expiration.is_expired(&env.block) || is_admin) => {
-            JAIL.remove(deps.storage, &operator);
+            JAIL.remove(deps.storage, operator);
         }
         // Jail not expired and called by non-admin
         _ => return Err(AdminError::NotAdmin {}.into()),
