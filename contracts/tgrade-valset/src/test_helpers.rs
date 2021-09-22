@@ -175,6 +175,11 @@ impl SuiteBuilder {
         self
     }
 
+    pub fn with_auto_unjail(mut self) -> Self {
+        self.auto_unjail = true;
+        self
+    }
+
     #[track_caller]
     pub fn build(mut self) -> Suite {
         self.member_operators.sort();
@@ -202,7 +207,7 @@ impl SuiteBuilder {
                 .map(|addr| OperatorInitInfo {
                     operator: addr.clone(),
                     validator_pubkey: mock_pubkey(addr.as_bytes()),
-                    metadata: mock_metadata(&addr),
+                    metadata: mock_metadata(addr),
                 });
 
             members.chain(non_members).collect()
@@ -285,10 +290,6 @@ impl Suite {
 
     pub fn member_operators(&self) -> &[Member] {
         &self.member_operators
-    }
-
-    pub fn non_member_operators(&self) -> &[String] {
-        &self.non_member_operators
     }
 
     pub fn app(&mut self) -> &mut App<TgradeMsg> {

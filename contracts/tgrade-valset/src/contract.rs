@@ -1404,5 +1404,71 @@ mod test {
                 ],
             );
         }
+
+        #[test]
+        fn auto_unjail() {
+            let mut suite = SuiteBuilder::new()
+                .make_operators(4, 0)
+                .with_auto_unjail()
+                .build();
+
+            let admin = suite.admin().to_owned();
+            let operators = suite.member_operators().to_vec();
+
+            let jailed_until =
+                JailingPeriod::Until(Duration::new(3600).after(&suite.app().block_info()));
+
+            suite
+                .jail(&admin, &operators[0].addr, Duration::new(3600))
+                .unwrap();
+            suite.jail(&admin, &operators[1].addr, None).unwrap();
+
+            suite.app().update_block(next_block);
+
+            let resp = suite.list_validators(None, None).unwrap();
+            assert_operators(
+                resp.validators,
+                vec![
+                    (operators[0].addr.clone(), Some(jailed_until)),
+                    (operators[1].addr.clone(), Some(JailingPeriod::Forever {})),
+                    (operators[2].addr.clone(), None),
+                    (operators[3].addr.clone(), None),
+                ],
+            );
+
+            let resp = suite.simulate_active_validators().unwrap();
+            assert_active_validators(
+                resp.validators,
+                vec![
+                    (operators[2].addr.clone(), 3),
+                    (operators[3].addr.clone(), 4),
+                ],
+            );
+
+            suite.app().update_block(|block| {
+                block.time = block.time.plus_seconds(4000);
+            });
+
+            let resp = suite.list_validators(None, None).unwrap();
+            assert_operators(
+                resp.validators,
+                vec![
+                    (operators[0].addr.clone(), None),
+                    (operators[1].addr.clone(), Some(JailingPeriod::Forever {})),
+                    (operators[2].addr.clone(), None),
+                    (operators[3].addr.clone(), None),
+                ],
+            );
+
+            let resp = suite.simulate_active_validators().unwrap();
+            assert_active_validators(
+                resp.validators,
+                vec![
+                    (operators[0].addr.clone(), 1),
+                    (operators[2].addr.clone(), 3),
+                    (operators[3].addr.clone(), 4),
+                ],
+            );
+        }
     }
 }
