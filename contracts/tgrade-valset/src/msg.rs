@@ -145,6 +145,13 @@ pub enum ExecuteMsg {
         /// Duration for how long validator is jailed
         duration: Duration,
     },
+    /// Unjails validator. Admin can unjail anyone anytime, others can unjail only themselves and
+    /// only if jail duration passed
+    Unjail {
+        /// Address to unjail. Optional, as if not provided it is assumed to be sender of the
+        /// message (for convenience when unjailing self after jail period).
+        operator: Option<String>,
+    },
 }
 
 #[derive(Serialize, Deserialize, Clone, PartialEq, JsonSchema, Debug)]

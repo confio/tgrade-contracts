@@ -69,6 +69,28 @@
         }
       },
       "additionalProperties": false
+    },
+    {
+      "description": "Unjails validator. Admin can unjail anyone anytime, others can unjail only themselves and only if jail duration passed",
+      "type": "object",
+      "required": [
+        "unjail"
+      ],
+      "properties": {
+        "unjail": {
+          "type": "object",
+          "properties": {
+            "operator": {
+              "description": "Address to unjail. Optional, as if not provided it is assumed to be sender of the message (for convenience when unjailing self after jail period).",
+              "type": [
+                "string",
+                "null"
+              ]
+            }
+          }
+        }
+      },
+      "additionalProperties": false
     }
   ],
   "definitions": {

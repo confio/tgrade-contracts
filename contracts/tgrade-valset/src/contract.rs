@@ -9,6 +9,7 @@ use cosmwasm_std::{
 
 use cw0::maybe_addr;
 use cw2::set_contract_version;
+use cw_controllers::AdminError;
 use cw_storage_plus::Bound;
 
 use tg4::Tg4Contract;
@@ -105,6 +106,7 @@ pub fn execute(
         ExecuteMsg::Jail { operator, duration } => {
             execute_jail(deps, env, info, operator, duration)
         }
+        ExecuteMsg::Unjail { operator } => execute_unjail(deps, env, info, operator),
     }
 }
 
@@ -178,6 +180,41 @@ fn execute_jail(
         .add_attribute("action", "jail")
         .add_attribute("operator", &operator)
         .add_attribute("duration", &duration.seconds().to_string());
+
+    Ok(res)
+}
+
+fn execute_unjail(
+    deps: DepsMut,
+    env: Env,
+    info: MessageInfo,
+    operator: Option<String>,
+) -> Result<Response, ContractError> {
+    // It is OK to get unchecked address here - invalid address would just not occur in the JAIL
+    let operator = operator.map(|op| Addr::unchecked(&op));
+    let operator = operator.as_ref().unwrap_or(&info.sender);
+
+    let is_admin = ADMIN.is_admin(deps.as_ref(), &info.sender)?;
+
+    if operator != &info.sender && !is_admin {
+        return Err(AdminError::NotAdmin {}.into());
+    }
+
+    match JAIL.may_load(deps.storage, &operator) {
+        Err(err) => return Err(err.into()),
+        // Operator is not jailed, unjailing does nothing and succeeds
+        Ok(None) => (),
+        // Jailing period expired or called by admin - can unjail
+        Ok(Some(expiration)) if (expiration.is_expired(&env.block) || is_admin) => {
+            JAIL.remove(deps.storage, &operator);
+        }
+        // Jail not expired and called by non-admin
+        _ => return Err(AdminError::NotAdmin {}.into()),
+    }
+
+    let res = Response::new()
+        .add_attribute("action", "unjail")
+        .add_attribute("operator", operator.as_str());
 
     Ok(res)
 }
