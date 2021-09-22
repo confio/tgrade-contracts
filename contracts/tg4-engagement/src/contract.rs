@@ -237,9 +237,7 @@ pub fn sudo(deps: DepsMut, env: Env, msg: SudoMsg) -> Result<Response, ContractE
 }
 
 fn privilege_promote(deps: DepsMut) -> Result<Response, ContractError> {
-    let halflife = HALFLIFE.load(deps.storage)?;
-
-    if halflife.halflife.is_some() {
+    if HALFLIFE.load(deps.storage)?.halflife.is_some() {
         let msgs = request_privileges(&[Privilege::EndBlocker]);
         Ok(Response::new().add_submessages(msgs))
     } else {
@@ -250,9 +248,9 @@ fn privilege_promote(deps: DepsMut) -> Result<Response, ContractError> {
 fn end_block(deps: DepsMut, env: Env) -> Result<Response, ContractError> {
     let resp = Response::new();
 
-    let halflife = HALFLIFE.load(deps.storage)?;
-
-    if !halflife.should_apply(env.block.time) {
+    // If duration of half life added to timestamp of last applied
+    // if lesser then current timestamp, do nothing
+    if !HALFLIFE.load(deps.storage)?.should_apply(env.block.time) {
         return Ok(resp);
     }
 
@@ -268,6 +266,7 @@ fn end_block(deps: DepsMut, env: Env) -> Result<Response, ContractError> {
         .collect();
 
     for member in members_to_update? {
+        // Halving weight lesser then 1 would introduce floats
         if member.weight > 1 {
             members().replace(
                 deps.storage,
@@ -385,10 +384,11 @@ mod tests {
     use tg4::{member_key, TOTAL_KEY};
     use tg_utils::{HookError, PreauthError};
 
-    const INIT_ADMIN: &str = "juan";
-    const USER1: &str = "somebody";
-    const USER2: &str = "else";
-    const USER3: &str = "funny";
+    const INIT_ADMIN: &str = "ADMIN";
+    const USER1: &str = "USER1";
+    const USER2: &str = "USER2";
+    const USER3: &str = "USER3";
+    const HALFLIFE: u64 = 180 * 24 * 60 * 60;
 
     fn mock_env_height(height_offset: u64) -> Env {
         let mut env = mock_env();
@@ -410,7 +410,7 @@ mod tests {
                 },
             ],
             preauths: Some(1),
-            halflife: Some(Duration::new(180 * 24 * 60 * 60)),
+            halflife: Some(Duration::new(HALFLIFE)),
         };
         let info = mock_info("creator", &[]);
         instantiate(deps, mock_env(), info, msg).unwrap();
@@ -456,12 +456,12 @@ mod tests {
             members,
             vec![
                 Member {
-                    addr: USER2.into(),
-                    weight: 6
-                },
-                Member {
                     addr: USER1.into(),
                     weight: 11
+                },
+                Member {
+                    addr: USER2.into(),
+                    weight: 6
                 },
             ]
         );
@@ -473,8 +473,8 @@ mod tests {
         assert_eq!(
             members,
             vec![Member {
-                addr: USER2.into(),
-                weight: 6
+                addr: USER1.into(),
+                weight: 11
             },]
         );
 
@@ -488,8 +488,8 @@ mod tests {
         assert_eq!(
             members,
             vec![Member {
-                addr: USER1.into(),
-                weight: 11
+                addr: USER2.into(),
+                weight: 6
             },]
         );
 
@@ -929,5 +929,55 @@ mod tests {
         // and execute misses
         let member3_raw = deps.storage.get(&member_key(USER3));
         assert_eq!(None, member3_raw);
+    }
+
+    #[test]
+    fn halflife_workflow() {
+        let mut deps = mock_dependencies(&[]);
+        do_instantiate(deps.as_mut());
+        let mut env = mock_env();
+
+        // end block at the same time - do nothing
+        assert_eq!(end_block(deps.as_mut(), env.clone()), Ok(Response::new()));
+        assert_eq!(
+            query_member(deps.as_ref(), USER1.into(), None)
+                .unwrap()
+                .weight,
+            Some(11)
+        );
+        assert_eq!(
+            query_member(deps.as_ref(), USER2.into(), None)
+                .unwrap()
+                .weight,
+            Some(6)
+        );
+        assert_eq!(
+            query_member(deps.as_ref(), USER3.into(), None)
+                .unwrap()
+                .weight,
+            None
+        );
+
+        // end block second after half life
+        env.block.time = env.block.time.plus_seconds(HALFLIFE + 1);
+        assert_eq!(end_block(deps.as_mut(), env), Ok(Response::new())); // TODO: this needs some better message
+        assert_eq!(
+            query_member(deps.as_ref(), USER1.into(), None)
+                .unwrap()
+                .weight,
+            Some(5)
+        );
+        assert_eq!(
+            query_member(deps.as_ref(), USER2.into(), None)
+                .unwrap()
+                .weight,
+            Some(3)
+        );
+        assert_eq!(
+            query_member(deps.as_ref(), USER3.into(), None)
+                .unwrap()
+                .weight,
+            None
+        );
     }
 }
