@@ -687,7 +687,7 @@ dependencies = [
 ]
 
 [[package]]
-name = "tg-controllers"
+name = "tg-utils"
 version = "0.4.0"
 dependencies = [
  "cosmwasm-std",
@@ -725,7 +725,7 @@ dependencies = [
  "schemars",
  "serde",
  "tg-bindings",
- "tg-controllers",
+ "tg-utils",
  "tg4",
  "thiserror",
 ]
@@ -745,7 +745,7 @@ dependencies = [
  "schemars",
  "serde",
  "tg-bindings",
- "tg-controllers",
+ "tg-utils",
  "tg4",
  "tg4-engagement",
  "tg4-stake",
@@ -766,7 +766,7 @@ dependencies = [
  "schemars",
  "serde",
  "tg-bindings",
- "tg-controllers",
+ "tg-utils",
  "tg4",
  "thiserror",
 ]
@@ -784,7 +784,7 @@ dependencies = [
  "cw3",
  "schemars",
  "serde",
- "tg-controllers",
+ "tg-utils",
  "tg4",
  "thiserror",
 ]

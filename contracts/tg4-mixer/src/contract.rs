@@ -6,7 +6,7 @@ use cw2::set_contract_version;
 use cw_storage_plus::{Bound, PrimaryKey, U64Key};
 use integer_sqrt::IntegerSquareRoot;
 use tg_bindings::TgradeMsg;
-use tg_controllers::{members, HOOKS, PREAUTH, TOTAL};
+use tg_utils::{members, HOOKS, PREAUTH, TOTAL};
 
 use tg4::{
     HooksResponse, Member, MemberChangedHookMsg, MemberDiff, MemberListResponse, MemberResponse,

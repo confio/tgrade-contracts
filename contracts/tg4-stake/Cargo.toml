@@ -24,7 +24,7 @@ cw2 = { version = "0.9.0" }
 cw-controllers = { version = "0.9.0" }
 cw-storage-plus = { version = "0.9.0" }
 tg4 = { path = "../../packages/tg4", version = "0.4.0" }
-tg-controllers = { path = "../../packages/controllers", version = "0.4.0" }
+tg-utils = { path = "../../packages/utils", version = "0.4.0" }
 tg-bindings = { path = "../../packages/bindings", version = "0.4.0" }
 cosmwasm-std = { version = "0.16.0" }
 schemars = "0.8.1"

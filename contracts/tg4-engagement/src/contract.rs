@@ -12,7 +12,7 @@ use tg4::{
 use crate::error::ContractError;
 use crate::msg::{ExecuteMsg, InstantiateMsg, PreauthResponse, QueryMsg, SudoMsg};
 use tg_bindings::TgradeMsg;
-use tg_controllers::{members, ADMIN, HOOKS, PREAUTH, TOTAL};
+use tg_utils::{members, ADMIN, HOOKS, PREAUTH, TOTAL};
 
 pub type Response = cosmwasm_std::Response<TgradeMsg>;
 pub type SubMsg = cosmwasm_std::SubMsg<TgradeMsg>;
@@ -321,7 +321,7 @@ mod tests {
     use cw_controllers::AdminError;
     use cw_storage_plus::Map;
     use tg4::{member_key, TOTAL_KEY};
-    use tg_controllers::{HookError, PreauthError};
+    use tg_utils::{HookError, PreauthError};
 
     const INIT_ADMIN: &str = "juan";
     const USER1: &str = "somebody";

@@ -1,5 +1,5 @@
 use cosmwasm_std::StdError;
-use tg_controllers::{HookError, PreauthError};
+use tg_utils::{HookError, PreauthError};
 use thiserror::Error;
 
 #[derive(Error, Debug, PartialEq)]
