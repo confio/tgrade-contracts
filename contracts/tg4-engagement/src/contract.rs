@@ -12,7 +12,7 @@ use tg4::{
 use crate::error::ContractError;
 use crate::msg::{ExecuteMsg, InstantiateMsg, PreauthResponse, QueryMsg, SudoMsg};
 use tg_bindings::TgradeMsg;
-use tg_utils::{members, ADMIN, HOOKS, PREAUTH, TOTAL};
+use tg_utils::{members, Duration, ADMIN, HOOKS, PREAUTH, TOTAL};
 
 pub type Response = cosmwasm_std::Response<TgradeMsg>;
 pub type SubMsg = cosmwasm_std::SubMsg<TgradeMsg>;
@@ -37,6 +37,7 @@ pub fn instantiate(
         msg.members,
         msg.preauths.unwrap_or_default(),
         env.block.height,
+        msg.halflife,
     )?;
     Ok(Response::default())
 }
@@ -49,6 +50,7 @@ pub fn create(
     members_list: Vec<Member>,
     preauths: u64,
     height: u64,
+    halftime: Option<Duration>,
 ) -> Result<(), ContractError> {
     let admin_addr = admin
         .map(|admin| deps.api.addr_validate(&admin))
@@ -56,6 +58,13 @@ pub fn create(
     ADMIN.set(deps.branch(), admin_addr)?;
 
     PREAUTH.set_auth(deps.storage, preauths)?;
+
+    let _halftime = if let Some(halftime) = halftime {
+        halftime
+    } else {
+        Duration::new(180 * 24 * 60 * 60) // stored in seconds
+    };
+    // Should new controller be created to store halftime value?
 
     let mut total = 0u64;
     for member in members_list.into_iter() {
@@ -221,10 +230,28 @@ pub fn sudo(deps: DepsMut, env: Env, msg: SudoMsg) -> Result<Response, ContractE
     }
 }
 
-fn end_block(_deps: DepsMut, _env: Env) -> Result<Response, ContractError> {
+fn end_block(deps: DepsMut, _env: Env) -> Result<Response, ContractError> {
     let resp = Response::new();
 
-    // logic goes here...
+    // half-life logic goes here...
+    for member in list_members(deps.as_ref(), None, None)
+        .unwrap()
+        .members
+        .into_iter()
+    {
+        // How to check whether Duration is completed? Change to or compare with timestamp?
+
+        let height = 1; // How to get height for save/update?
+
+        // if halving logic is triggered
+        use cosmwasm_std::Addr;
+        members().save(
+            deps.storage,
+            &Addr::unchecked(member.addr),
+            &(member.weight / 2),
+            height,
+        )?;
+    }
 
     Ok(resp)
 }
