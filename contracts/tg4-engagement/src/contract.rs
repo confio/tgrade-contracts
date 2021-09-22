@@ -1,6 +1,6 @@
 #[cfg(not(feature = "library"))]
 use cosmwasm_std::entry_point;
-use cosmwasm_std::{to_binary, Binary, Deps, DepsMut, Env, MessageInfo, Order, StdResult};
+use cosmwasm_std::{to_binary, Binary, Deps, DepsMut, Env, MessageInfo, Order, StdResult, Timestamp};
 use cw0::maybe_addr;
 use cw2::set_contract_version;
 use cw_storage_plus::{Bound, PrimaryKey, U64Key};
@@ -11,6 +11,7 @@ use tg4::{
 
 use crate::error::ContractError;
 use crate::msg::{ExecuteMsg, InstantiateMsg, PreauthResponse, QueryMsg, SudoMsg};
+use crate::state::{HALFLIFE, Halflife};
 use tg_bindings::TgradeMsg;
 use tg_utils::{members, Duration, ADMIN, HOOKS, PREAUTH, TOTAL};
 
@@ -37,6 +38,7 @@ pub fn instantiate(
         msg.members,
         msg.preauths.unwrap_or_default(),
         env.block.height,
+        env.block.time,
         msg.halflife,
     )?;
     Ok(Response::default())
@@ -50,7 +52,8 @@ pub fn create(
     members_list: Vec<Member>,
     preauths: u64,
     height: u64,
-    halftime: Option<Duration>,
+    time: Timestamp,
+    halflife: Option<Duration>,
 ) -> Result<(), ContractError> {
     let admin_addr = admin
         .map(|admin| deps.api.addr_validate(&admin))
@@ -59,12 +62,11 @@ pub fn create(
 
     PREAUTH.set_auth(deps.storage, preauths)?;
 
-    let _halftime = if let Some(halftime) = halftime {
-        halftime
-    } else {
-        Duration::new(180 * 24 * 60 * 60) // stored in seconds
+    let data = Halflife {
+        halflife,
+        last_applied: time,
     };
-    // Should new controller be created to store halftime value?
+    HALFLIFE.save(deps.storage, &data)?;
 
     let mut total = 0u64;
     for member in members_list.into_iter() {
@@ -241,15 +243,13 @@ fn end_block(deps: DepsMut, _env: Env) -> Result<Response, ContractError> {
     {
         // How to check whether Duration is completed? Change to or compare with timestamp?
 
-        let height = 1; // How to get height for save/update?
-
         // if halving logic is triggered
         use cosmwasm_std::Addr;
         members().save(
             deps.storage,
             &Addr::unchecked(member.addr),
             &(member.weight / 2),
-            height,
+            1, // HEIGHT, temp value
         )?;
     }
 
