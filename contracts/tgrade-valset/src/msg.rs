@@ -50,6 +50,11 @@ pub struct InstantiateMsg {
     /// doesn't affect the per epoch reward).
     #[serde(default = "default_fee_percentage")]
     pub fee_percentage: Decimal,
+
+    /// Flag determining if validators should be automatically unjailed after jailing period, false
+    /// by default.
+    #[serde(default)]
+    pub auto_unjail: bool,
 }
 
 pub fn default_fee_percentage() -> Decimal {
@@ -255,6 +260,7 @@ mod test {
             initial_keys: vec![valid_operator("foo"), valid_operator("bar")],
             scaling: None,
             fee_percentage: Decimal::zero(),
+            auto_unjail: false,
         };
         proper.validate().unwrap();
 

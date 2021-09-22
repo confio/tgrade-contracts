@@ -37,6 +37,10 @@ pub struct Config {
     /// doesn't affect the per epoch reward).
     #[serde(default = "default_fee_percentage")]
     pub fee_percentage: Decimal,
+    /// Flag determining if validators should be automatically unjailed after jailing period, false
+    /// by default.
+    #[serde(default)]
+    pub auto_unjail: bool,
 }
 
 #[derive(Serialize, Deserialize, Clone, PartialEq, JsonSchema, Debug)]

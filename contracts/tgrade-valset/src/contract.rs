@@ -60,6 +60,7 @@ pub fn instantiate(
         scaling: msg.scaling,
         epoch_reward: msg.epoch_reward,
         fee_percentage: msg.fee_percentage,
+        auto_unjail: msg.auto_unjail,
     };
     CONFIG.save(deps.storage, &cfg)?;
 
@@ -317,9 +318,9 @@ fn list_active_validators(
 
 fn simulate_active_validators(
     deps: Deps,
-    _env: Env,
+    env: Env,
 ) -> Result<ListActiveValidatorsResponse, ContractError> {
-    let validators = calculate_validators(deps)?;
+    let validators = calculate_validators(deps, &env, &CONFIG.load(deps.storage)?)?;
     Ok(ListActiveValidatorsResponse { validators })
 }
 
@@ -355,6 +356,8 @@ fn is_genesis_block(block: &BlockInfo) -> bool {
 }
 
 fn end_block(deps: DepsMut, env: Env) -> Result<Response, ContractError> {
+    let cfg = CONFIG.load(deps.storage)?;
+
     // check if needed and quit early if we didn't hit epoch boundary
     let mut epoch = EPOCH.load(deps.storage)?;
     let cur_epoch = env.block.time.nanos() / (1_000_000_000 * epoch.epoch_length);
@@ -374,7 +377,14 @@ fn end_block(deps: DepsMut, env: Env) -> Result<Response, ContractError> {
     EPOCH.save(deps.storage, &epoch)?;
 
     // calculate and store new validator set
-    let validators = calculate_validators(deps.as_ref())?;
+    let validators = calculate_validators(deps.as_ref(), &env, &cfg)?;
+
+    // auto unjailing (`calculate_validators` already checks if jailing period expired)
+    if cfg.auto_unjail {
+        for validator in &validators {
+            JAIL.remove(deps.storage, &validator.operator)
+        }
+    }
 
     let old_validators = VALIDATORS.load(deps.storage)?;
     let pay_to = distribute_to_validators(&old_validators);
@@ -392,8 +402,11 @@ fn end_block(deps: DepsMut, env: Env) -> Result<Response, ContractError> {
 
 const QUERY_LIMIT: Option<u32> = Some(30);
 
-fn calculate_validators(deps: Deps) -> Result<Vec<ValidatorInfo>, ContractError> {
-    let cfg = CONFIG.load(deps.storage)?;
+fn calculate_validators(
+    deps: Deps,
+    env: &Env,
+    cfg: &Config,
+) -> Result<Vec<ValidatorInfo>, ContractError> {
     let min_weight = max(cfg.min_weight, 1);
     let scaling: u64 = cfg.scaling.unwrap_or(1).into();
 
@@ -408,7 +421,7 @@ fn calculate_validators(deps: Deps) -> Result<Vec<ValidatorInfo>, ContractError>
         let filtered: Vec<_> = batch
             .into_iter()
             .filter(|m| m.weight >= min_weight)
-            .filter_map(|m| {
+            .filter_map(|m| -> Option<StdResult<_>> {
                 // why do we allow Addr::unchecked here?
                 // all valid keys for `operators()` are already validated before insertion
                 // we have 3 cases:
@@ -422,21 +435,28 @@ fn calculate_validators(deps: Deps) -> Result<Vec<ValidatorInfo>, ContractError>
                 let m_addr = Addr::unchecked(&m.addr);
 
                 // check if address is jailed
-                if JAIL.has(deps.storage, &m_addr) {
-                    return None;
+                match JAIL.may_load(deps.storage, &m_addr) {
+                    Err(err) => return Some(Err(err)),
+                    // address not jailed, proceed
+                    Ok(None) => (),
+                    // address jailed, but period axpired and auto unjailing enabled, proceed
+                    Ok(Some(expires)) if cfg.auto_unjail && expires.is_expired(&env.block) => (),
+                    // address jailed and cannot be unjailed - filter validator out
+                    _ => return None,
                 }
 
-                operators()
+                Ok(operators()
                     .load(deps.storage, &m_addr)
                     .ok()
                     .map(|op| ValidatorInfo {
                         operator: m_addr,
                         validator_pubkey: op.pubkey.into(),
                         power: m.weight * scaling,
-                    })
+                    }))
+                .transpose()
             })
             .take(cfg.max_validators as usize - validators.len() as usize)
-            .collect();
+            .collect::<Result<_, _>>()?;
         validators.extend_from_slice(&filtered);
 
         // and get the next page
@@ -593,6 +613,7 @@ mod test {
             initial_keys: members.chain(nonmembers).collect(),
             scaling: None,
             fee_percentage: Decimal::zero(),
+            auto_unjail: false,
         }
     }
 
@@ -619,6 +640,7 @@ mod test {
                 epoch_reward: epoch_reward(),
                 scaling: None,
                 fee_percentage: Decimal::zero(),
+                auto_unjail: false,
             }
         );
 
