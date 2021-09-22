@@ -806,6 +806,7 @@ dependencies = [
 name = "tgrade-valset"
 version = "0.4.0"
 dependencies = [
+ "anyhow",
  "cosmwasm-schema",
  "cosmwasm-std",
  "cw-controllers",
@@ -813,6 +814,7 @@ dependencies = [
  "cw-storage-plus",
  "cw0",
  "cw2",
+ "derivative",
  "schemars",
  "serde",
  "tg-bindings",

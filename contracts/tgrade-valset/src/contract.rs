@@ -543,8 +543,8 @@ mod test {
 
     use super::*;
     use crate::test_helpers::{
-        addrs, contract_valset, members, mock_metadata, mock_pubkey, nonmembers, valid_operator,
-        valid_validator,
+        addrs, assert_operators, contract_group, contract_valset, members, mock_metadata,
+        mock_pubkey, nonmembers, valid_operator, valid_validator, SuiteBuilder,
     };
     use cosmwasm_std::{coin, Coin, Decimal};
 
@@ -576,15 +576,6 @@ mod test {
             })
             .collect();
         vals
-    }
-
-    fn contract_group() -> Box<dyn Contract<TgradeMsg>> {
-        let contract = ContractWrapper::new(
-            tg4_engagement::contract::execute,
-            tg4_engagement::contract::instantiate,
-            tg4_engagement::contract::query,
-        );
-        Box::new(contract)
     }
 
     // always registers 24 members and 12 non-members with pubkeys
@@ -631,7 +622,7 @@ mod test {
             .map(|s| valid_operator(&s));
 
         InstantiateMsg {
-            admin: None,
+            admin: Some(GROUP_OWNER.to_owned()),
             membership: group_addr.into(),
             min_weight,
             max_validators,
@@ -1198,5 +1189,61 @@ mod test {
             },
             diff
         );
+    }
+
+    mod jailing {
+        use super::*;
+
+        #[test]
+        fn only_admin_can_jail() {
+            let mut suite = SuiteBuilder::new().make_operators(10, 0).build();
+            let admin = suite.admin().to_owned();
+            let operators = suite.member_operators().to_vec();
+
+            suite.jail(&admin, &operators[4].addr, None).unwrap();
+            suite
+                .jail(&admin, &operators[6].addr, Duration::new(3600))
+                .unwrap();
+
+            let err = suite
+                .jail(&operators[0].addr, &operators[2].addr, None)
+                .unwrap_err();
+
+            assert_eq!(
+                ContractError::AdminError(AdminError::NotAdmin {}),
+                err.downcast().unwrap(),
+            );
+
+            let err = suite
+                .jail(&operators[0].addr, &operators[5].addr, Duration::new(3600))
+                .unwrap_err();
+
+            assert_eq!(
+                ContractError::AdminError(AdminError::NotAdmin {}),
+                err.downcast().unwrap(),
+            );
+
+            let resp = suite.list_validators(None, None).unwrap();
+            assert_operators(
+                resp.validators,
+                vec![
+                    (operators[0].addr.clone(), None),
+                    (operators[1].addr.clone(), None),
+                    (operators[2].addr.clone(), None),
+                    (operators[3].addr.clone(), None),
+                    (operators[4].addr.clone(), Some(JailingPeriod::Forever {})),
+                    (operators[5].addr.clone(), None),
+                    (
+                        operators[6].addr.clone(),
+                        Some(JailingPeriod::Until(
+                            Duration::new(3600).after(&suite.block_info()),
+                        )),
+                    ),
+                    (operators[7].addr.clone(), None),
+                    (operators[8].addr.clone(), None),
+                    (operators[9].addr.clone(), None),
+                ],
+            )
+        }
     }
 }
