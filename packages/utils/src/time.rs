@@ -14,7 +14,11 @@ impl Duration {
     }
 
     pub fn after(&self, block: &BlockInfo) -> Expiration {
-        Expiration::at_timestamp(block.time.plus_seconds(self.0))
+        self.after_time(block.time)
+    }
+
+    pub fn after_time(&self, timestamp: Timestamp) -> Expiration {
+        Expiration::at_timestamp(timestamp.plus_seconds(self.0))
     }
 
     pub fn seconds(&self) -> u64 {
@@ -35,7 +39,11 @@ impl Expiration {
     }
 
     pub fn is_expired(&self, block: &BlockInfo) -> bool {
-        block.time >= self.0
+        self.is_expired_time(block.time)
+    }
+
+    pub fn is_expired_time(&self, timestamp: Timestamp) -> bool {
+        timestamp >= self.0
     }
 }
 

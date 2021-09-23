@@ -1,6 +1,8 @@
 #[cfg(not(feature = "library"))]
 use cosmwasm_std::entry_point;
-use cosmwasm_std::{to_binary, Binary, Deps, DepsMut, Env, MessageInfo, Order, StdResult};
+use cosmwasm_std::{
+    to_binary, Addr, Binary, Deps, DepsMut, Env, Event, MessageInfo, Order, StdResult, Timestamp,
+};
 use cw0::maybe_addr;
 use cw2::set_contract_version;
 use cw_storage_plus::{Bound, PrimaryKey, U64Key};
@@ -11,8 +13,9 @@ use tg4::{
 
 use crate::error::ContractError;
 use crate::msg::{ExecuteMsg, InstantiateMsg, PreauthResponse, QueryMsg, SudoMsg};
-use tg_bindings::TgradeMsg;
-use tg_utils::{members, ADMIN, HOOKS, PREAUTH, TOTAL};
+use crate::state::{Halflife, HALFLIFE};
+use tg_bindings::{request_privileges, Privilege, PrivilegeChangeMsg, TgradeMsg};
+use tg_utils::{members, Duration, ADMIN, HOOKS, PREAUTH, TOTAL};
 
 pub type Response = cosmwasm_std::Response<TgradeMsg>;
 pub type SubMsg = cosmwasm_std::SubMsg<TgradeMsg>;
@@ -37,6 +40,8 @@ pub fn instantiate(
         msg.members,
         msg.preauths.unwrap_or_default(),
         env.block.height,
+        env.block.time,
+        msg.halflife,
     )?;
     Ok(Response::default())
 }
@@ -49,6 +54,8 @@ pub fn create(
     members_list: Vec<Member>,
     preauths: u64,
     height: u64,
+    time: Timestamp,
+    halflife: Option<Duration>,
 ) -> Result<(), ContractError> {
     let admin_addr = admin
         .map(|admin| deps.api.addr_validate(&admin))
@@ -56,6 +63,12 @@ pub fn create(
     ADMIN.set(deps.branch(), admin_addr)?;
 
     PREAUTH.set_auth(deps.storage, preauths)?;
+
+    let data = Halflife {
+        halflife,
+        last_applied: time,
+    };
+    HALFLIFE.save(deps.storage, &data)?;
 
     let mut total = 0u64;
     for member in members_list.into_iter() {
@@ -217,7 +230,82 @@ pub fn update_members(
 pub fn sudo(deps: DepsMut, env: Env, msg: SudoMsg) -> Result<Response, ContractError> {
     match msg {
         SudoMsg::UpdateMember(member) => sudo_add_member(deps, env, member),
+        SudoMsg::PrivilegeChange(PrivilegeChangeMsg::Promoted {}) => privilege_promote(deps),
+        SudoMsg::EndBlock {} => end_block(deps, env),
+        _ => Err(ContractError::UnknownSudoMsg {}),
     }
+}
+
+fn privilege_promote(deps: DepsMut) -> Result<Response, ContractError> {
+    if HALFLIFE.load(deps.storage)?.halflife.is_some() {
+        let msgs = request_privileges(&[Privilege::EndBlocker]);
+        Ok(Response::new().add_submessages(msgs))
+    } else {
+        Ok(Response::new())
+    }
+}
+
+fn weight_reduction(weight: u64) -> u64 {
+    weight - (weight / 2)
+}
+
+fn end_block(deps: DepsMut, env: Env) -> Result<Response, ContractError> {
+    let resp = Response::new();
+
+    // If duration of half life added to timestamp of last applied
+    // if lesser then current timestamp, do nothing
+    if !HALFLIFE.load(deps.storage)?.should_apply(env.block.time) {
+        return Ok(resp);
+    }
+
+    let mut reduction = 0;
+
+    let members_to_update: Vec<_> = members()
+        .range(deps.storage, None, None, Order::Ascending)
+        .filter_map(|item| {
+            (move || -> StdResult<Option<_>> {
+                let (key, weight) = item?;
+                if weight <= 1 {
+                    return Ok(None);
+                }
+                Ok(Some(Member {
+                    addr: String::from_utf8(key)?,
+                    weight,
+                }))
+            })()
+            .transpose()
+        })
+        .collect::<StdResult<_>>()?;
+
+    for member in members_to_update {
+        reduction += weight_reduction(member.weight);
+        members().replace(
+            deps.storage,
+            &Addr::unchecked(member.addr),
+            Some(&(member.weight / 2)),
+            Some(&member.weight),
+            env.block.height,
+        )?;
+    }
+
+    // We need to update half life's last applied timestamp to current one
+    HALFLIFE.update(deps.storage, |hf| -> StdResult<_> {
+        Ok(Halflife {
+            halflife: hf.halflife,
+            last_applied: env.block.time,
+        })
+    })?;
+
+    let mut total = TOTAL.load(deps.storage)?;
+    total -= reduction;
+    TOTAL.save(deps.storage, &total)?;
+
+    let evt = Event::new("halflife")
+        .add_attribute("height", env.block.height.to_string())
+        .add_attribute("reduction", reduction.to_string());
+    let resp = resp.add_event(evt);
+
+    Ok(resp)
 }
 
 #[cfg_attr(not(feature = "library"), entry_point)]
@@ -323,10 +411,13 @@ mod tests {
     use tg4::{member_key, TOTAL_KEY};
     use tg_utils::{HookError, PreauthError};
 
-    const INIT_ADMIN: &str = "juan";
-    const USER1: &str = "somebody";
-    const USER2: &str = "else";
-    const USER3: &str = "funny";
+    const INIT_ADMIN: &str = "ADMIN";
+    const USER1: &str = "USER1";
+    const USER1_WEIGHT: u64 = 11;
+    const USER2: &str = "USER2";
+    const USER2_WEIGHT: u64 = 6;
+    const USER3: &str = "USER3";
+    const HALFLIFE: u64 = 180 * 24 * 60 * 60;
 
     fn mock_env_height(height_offset: u64) -> Env {
         let mut env = mock_env();
@@ -340,14 +431,15 @@ mod tests {
             members: vec![
                 Member {
                     addr: USER1.into(),
-                    weight: 11,
+                    weight: USER1_WEIGHT,
                 },
                 Member {
                     addr: USER2.into(),
-                    weight: 6,
+                    weight: USER2_WEIGHT,
                 },
             ],
             preauths: Some(1),
+            halflife: Some(Duration::new(HALFLIFE)),
         };
         let info = mock_info("creator", &[]);
         instantiate(deps, mock_env(), info, msg).unwrap();
@@ -393,12 +485,12 @@ mod tests {
             members,
             vec![
                 Member {
-                    addr: USER2.into(),
-                    weight: 6
-                },
-                Member {
                     addr: USER1.into(),
                     weight: 11
+                },
+                Member {
+                    addr: USER2.into(),
+                    weight: 6
                 },
             ]
         );
@@ -410,8 +502,8 @@ mod tests {
         assert_eq!(
             members,
             vec![Member {
-                addr: USER2.into(),
-                weight: 6
+                addr: USER1.into(),
+                weight: 11
             },]
         );
 
@@ -425,8 +517,8 @@ mod tests {
         assert_eq!(
             members,
             vec![Member {
-                addr: USER1.into(),
-                weight: 11
+                addr: USER2.into(),
+                weight: 6
             },]
         );
 
@@ -866,5 +958,50 @@ mod tests {
         // and execute misses
         let member3_raw = deps.storage.get(&member_key(USER3));
         assert_eq!(None, member3_raw);
+    }
+
+    #[test]
+    fn halflife_workflow() {
+        let mut deps = mock_dependencies(&[]);
+        do_instantiate(deps.as_mut());
+        let mut env = mock_env();
+
+        // end block just before half life time is met - do nothing
+        env.block.time = env.block.time.plus_seconds(HALFLIFE - 2);
+        assert_eq!(end_block(deps.as_mut(), env.clone()), Ok(Response::new()));
+        assert_users(&deps, Some(USER1_WEIGHT), Some(USER2_WEIGHT), None, None);
+
+        // end block at half life
+        env.block.time = env.block.time.plus_seconds(HALFLIFE);
+        let expected_reduction = weight_reduction(USER1_WEIGHT) + weight_reduction(USER2_WEIGHT);
+        let evt = Event::new("halflife")
+            .add_attribute("height", env.block.height.to_string())
+            .add_attribute("reduction", expected_reduction.to_string());
+        let resp = Response::new().add_event(evt);
+        assert_eq!(end_block(deps.as_mut(), env.clone()), Ok(resp));
+        assert_users(
+            &deps,
+            Some(USER1_WEIGHT / 2),
+            Some(USER2_WEIGHT / 2),
+            None,
+            None,
+        );
+
+        // end block at same timestamp after last half life was met - do nothing
+        end_block(deps.as_mut(), env.clone()).unwrap();
+        assert_users(
+            &deps,
+            Some(USER1_WEIGHT / 2),
+            Some(USER2_WEIGHT / 2),
+            None,
+            None,
+        );
+
+        // after two more iterations of halftime + end block, both users should have weight 1
+        env.block.time = env.block.time.plus_seconds(HALFLIFE);
+        end_block(deps.as_mut(), env.clone()).unwrap();
+        env.block.time = env.block.time.plus_seconds(HALFLIFE);
+        end_block(deps.as_mut(), env).unwrap();
+        assert_users(&deps, Some(1), Some(1), None, None);
     }
 }

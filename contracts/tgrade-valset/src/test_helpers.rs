@@ -226,6 +226,7 @@ impl SuiteBuilder {
                     admin: Some(admin.to_string()),
                     members: members.clone(),
                     preauths: None,
+                    halflife: None,
                 },
                 &[],
                 "group",
