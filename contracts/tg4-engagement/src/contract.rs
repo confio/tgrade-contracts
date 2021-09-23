@@ -6,7 +6,6 @@ use cosmwasm_std::{
 use cw0::maybe_addr;
 use cw2::set_contract_version;
 use cw_storage_plus::{Bound, PrimaryKey, U64Key};
-use itertools::Itertools;
 use tg4::{
     HooksResponse, Member, MemberChangedHookMsg, MemberDiff, MemberListResponse, MemberResponse,
     TotalWeightResponse,
@@ -261,23 +260,24 @@ fn end_block(deps: DepsMut, env: Env) -> Result<Response, ContractError> {
 
     let mut reduction = 0;
 
-    let members_to_update: StdResult<Vec<_>> = members()
+    let members_to_update: Vec<_> = members()
         .range(deps.storage, None, None, Order::Ascending)
-        .filter_map_ok(|item| {
-            let (key, weight) = item;
-            // Halving weight lesser then 1 would introduce floats
-            if weight > 1 {
-                Some(Member {
-                    addr: String::from_utf8(key).ok()?,
+        .filter_map(|item| {
+            (move || -> StdResult<Option<_>> {
+                let (key, weight) = item?;
+                if weight <= 1 {
+                    return Ok(None);
+                }
+                Ok(Some(Member {
+                    addr: String::from_utf8(key)?,
                     weight,
-                })
-            } else {
-                None
-            }
+                }))
+            })()
+            .transpose()
         })
-        .collect();
+        .collect::<StdResult<_>>()?;
 
-    for member in members_to_update? {
+    for member in members_to_update {
         reduction += weight_reduction(member.weight);
         members().replace(
             deps.storage,
@@ -288,7 +288,7 @@ fn end_block(deps: DepsMut, env: Env) -> Result<Response, ContractError> {
         )?;
     }
 
-    // We need to update half life last applied timestamp to current one
+    // We need to update half life's last applied timestamp to current one
     HALFLIFE.update(deps.storage, |hf| -> StdResult<_> {
         Ok(Halflife {
             halflife: hf.halflife,
@@ -300,7 +300,7 @@ fn end_block(deps: DepsMut, env: Env) -> Result<Response, ContractError> {
     total -= reduction;
     TOTAL.save(deps.storage, &total)?;
 
-    let evt = Event::new("half-life")
+    let evt = Event::new("halflife")
         .add_attribute("height", env.block.height.to_string())
         .add_attribute("reduction", reduction.to_string());
     let resp = resp.add_event(evt);
@@ -971,10 +971,10 @@ mod tests {
         assert_eq!(end_block(deps.as_mut(), env.clone()), Ok(Response::new()));
         assert_users(&deps, Some(USER1_WEIGHT), Some(USER2_WEIGHT), None, None);
 
-        // end block second after half life
+        // end block at half life
         env.block.time = env.block.time.plus_seconds(HALFLIFE);
         let expected_reduction = weight_reduction(USER1_WEIGHT) + weight_reduction(USER2_WEIGHT);
-        let evt = Event::new("half-life")
+        let evt = Event::new("halflife")
             .add_attribute("height", env.block.height.to_string())
             .add_attribute("reduction", expected_reduction.to_string());
         let resp = Response::new().add_event(evt);

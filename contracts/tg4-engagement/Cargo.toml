@@ -23,7 +23,6 @@ cw0 = { version = "0.9.0" }
 cw2 = { version = "0.9.0" }
 cw-controllers = { version = "0.9.0" }
 cw-storage-plus = { version = "0.9.0" }
-itertools = "0.10.1"
 tg4 = { path = "../../packages/tg4", version = "0.4.0" }
 tg-utils = { version = "0.4.0", path = "../../packages/utils" }
 tg-bindings = { version = "0.4.0", path = "../../packages/bindings" }
