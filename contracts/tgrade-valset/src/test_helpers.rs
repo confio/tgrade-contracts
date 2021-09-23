@@ -16,7 +16,7 @@ use crate::state::ValidatorInfo;
 
 const ED25519_PUBKEY_LENGTH: usize = 32;
 
-pub fn contract_group() -> Box<dyn Contract<TgradeMsg>> {
+pub fn contract_engagement() -> Box<dyn Contract<TgradeMsg>> {
     let contract = ContractWrapper::new(
         tg4_engagement::contract::execute,
         tg4_engagement::contract::instantiate,
@@ -217,7 +217,7 @@ impl SuiteBuilder {
 
         let mut app = AppBuilder::new().build();
 
-        let group_id = app.store_code(contract_group());
+        let group_id = app.store_code(contract_engagement());
         let group = app
             .instantiate_contract(
                 group_id,

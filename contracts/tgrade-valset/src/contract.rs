@@ -543,7 +543,7 @@ mod test {
 
     use super::*;
     use crate::test_helpers::{
-        addrs, assert_active_validators, assert_operators, contract_group, contract_valset,
+        addrs, assert_active_validators, assert_operators, contract_engagement, contract_valset,
         members, mock_metadata, mock_pubkey, nonmembers, valid_operator, valid_validator,
         SuiteBuilder,
     };
@@ -601,7 +601,7 @@ mod test {
 
     // the group has a list of
     fn instantiate_group(app: &mut App<TgradeMsg>, num_members: u32) -> Addr {
-        let group_id = app.store_code(contract_group());
+        let group_id = app.store_code(contract_engagement());
         let admin = Some(GROUP_OWNER.into());
         let msg = tg4_engagement::msg::InstantiateMsg {
             admin: admin.clone(),
@@ -1201,7 +1201,9 @@ mod test {
             let admin = suite.admin().to_owned();
             let operators = suite.member_operators().to_vec();
 
+            // Admin can jail forever
             suite.jail(&admin, &operators[4].addr, None).unwrap();
+            // Admin can jail for particular duration
             suite
                 .jail(&admin, &operators[6].addr, Duration::new(3600))
                 .unwrap();
@@ -1209,6 +1211,7 @@ mod test {
             let jailed_until =
                 JailingPeriod::Until(Duration::new(3600).after(&suite.app().block_info()));
 
+            // Non-admin cannot jail forever
             let err = suite
                 .jail(&operators[0].addr, &operators[2].addr, None)
                 .unwrap_err();
@@ -1218,6 +1221,7 @@ mod test {
                 err.downcast().unwrap(),
             );
 
+            // Non-admin cannot jail for any duration
             let err = suite
                 .jail(&operators[0].addr, &operators[5].addr, Duration::new(3600))
                 .unwrap_err();
@@ -1227,6 +1231,7 @@ mod test {
                 err.downcast().unwrap(),
             );
 
+            // Just verify validators are actually jailed in the process
             let resp = suite.list_validators(None, None).unwrap();
             assert_operators(
                 resp.validators,
@@ -1251,6 +1256,7 @@ mod test {
             let admin = suite.admin().to_owned();
             let operators = suite.member_operators().to_vec();
 
+            // Jailing some operators to have someone to unjail
             suite.jail(&admin, &operators[0].addr, None).unwrap();
             suite
                 .jail(&admin, &operators[1].addr, Duration::new(3600))
@@ -1258,10 +1264,15 @@ mod test {
 
             suite.app().update_block(next_block);
 
+            // Admin can unjail if unjailing period didn't expire
             suite.unjail(&admin, operators[0].addr.as_ref()).unwrap();
+            // But also if it did
             suite.unjail(&admin, operators[1].addr.as_ref()).unwrap();
+            // Admin can also unjail someone who is not even jailed - it does nothing, but doesn't
+            // fail
             suite.unjail(&admin, operators[2].addr.as_ref()).unwrap();
 
+            // Verify everyone is unjailed at the end
             let resp = suite.list_validators(None, None).unwrap();
             assert_operators(
                 resp.validators,
@@ -1280,6 +1291,7 @@ mod test {
             let admin = suite.admin().to_owned();
             let operators = suite.member_operators().to_vec();
 
+            // Jail some operators to have someone to unjail in tests
             suite
                 .jail(&admin, &operators[0].addr, Duration::new(3600))
                 .unwrap();
@@ -1293,14 +1305,18 @@ mod test {
             let jailed_until =
                 JailingPeriod::Until(Duration::new(3600).after(&suite.app().block_info()));
 
+            // Move a little bit forward, so some time passed, but not eough for any jailing to
+            // expire
             suite.app().update_block(next_block);
 
+            // I cannot unjail myself before expiration...
             let err = suite.unjail(&operators[0].addr, None).unwrap_err();
             assert_eq!(
                 ContractError::AdminError(AdminError::NotAdmin {}),
                 err.downcast().unwrap(),
             );
 
+            // ...even directly pointing myself
             let err = suite
                 .unjail(&operators[0].addr, operators[0].addr.as_ref())
                 .unwrap_err();
@@ -1309,6 +1325,7 @@ mod test {
                 err.downcast().unwrap(),
             );
 
+            // And I cannot unjail anyone else
             let err = suite
                 .unjail(&operators[0].addr, operators[1].addr.as_ref())
                 .unwrap_err();
@@ -1317,12 +1334,15 @@ mod test {
                 err.downcast().unwrap(),
             );
 
+            // This time go seriously into future, so jail doors become open
             suite.app().update_block(|block| {
-                block.height += 2000;
                 block.time = block.time.plus_seconds(3800);
             });
 
+            // I can unjail myself without without passing operator directly
             suite.unjail(&operators[0].addr, None).unwrap();
+
+            // But I still cannot unjail my dear friend
             let err = suite
                 .unjail(&operators[0].addr, operators[1].addr.as_ref())
                 .unwrap_err();
@@ -1331,6 +1351,7 @@ mod test {
                 err.downcast().unwrap(),
             );
 
+            // However he can do it himself, also passing operator directly
             suite
                 .unjail(&operators[2].addr, operators[2].addr.as_ref())
                 .unwrap();
@@ -1353,60 +1374,68 @@ mod test {
             let admin = suite.admin().to_owned();
             let operators = suite.member_operators().to_vec();
 
+            // Jailing operators as test prerequirements
             suite
                 .jail(&admin, &operators[0].addr, Duration::new(3600))
                 .unwrap();
             suite.jail(&admin, &operators[1].addr, None).unwrap();
 
+            // Move forward a bit
             suite.app().update_block(next_block);
 
+            // Only unjailed validators are selected
             let resp = suite.simulate_active_validators().unwrap();
             assert_active_validators(
                 resp.validators,
                 vec![
-                    (operators[2].addr.clone(), 3),
-                    (operators[3].addr.clone(), 4),
+                    (operators[2].addr.clone(), operators[2].weight),
+                    (operators[3].addr.clone(), operators[3].weight),
                 ],
             );
 
+            // Moving forward so jailing periods expired
             suite.app().update_block(|block| {
                 block.time = block.time.plus_seconds(4000);
             });
+            // But validators are still not selected, as they have to be unjailed
             let resp = suite.simulate_active_validators().unwrap();
             assert_active_validators(
                 resp.validators,
                 vec![
-                    (operators[2].addr.clone(), 3),
-                    (operators[3].addr.clone(), 4),
+                    (operators[2].addr.clone(), operators[2].weight),
+                    (operators[3].addr.clone(), operators[3].weight),
                 ],
             );
 
+            // Unjailed operator is taken into the account
             suite.unjail(&admin, operators[0].addr.as_ref()).unwrap();
             let resp = suite.simulate_active_validators().unwrap();
             assert_active_validators(
                 resp.validators,
                 vec![
-                    (operators[0].addr.clone(), 1),
-                    (operators[2].addr.clone(), 3),
-                    (operators[3].addr.clone(), 4),
+                    (operators[0].addr.clone(), operators[0].weight),
+                    (operators[2].addr.clone(), operators[2].weight),
+                    (operators[3].addr.clone(), operators[3].weight),
                 ],
             );
 
+            // Unjailed operator is taken into account even if jailing period didn't expire
             suite.unjail(&admin, operators[1].addr.as_ref()).unwrap();
             let resp = suite.simulate_active_validators().unwrap();
             assert_active_validators(
                 resp.validators,
                 vec![
-                    (operators[0].addr.clone(), 1),
-                    (operators[1].addr.clone(), 2),
-                    (operators[2].addr.clone(), 3),
-                    (operators[3].addr.clone(), 4),
+                    (operators[0].addr.clone(), operators[0].weight),
+                    (operators[1].addr.clone(), operators[1].weight),
+                    (operators[2].addr.clone(), operators[2].weight),
+                    (operators[3].addr.clone(), operators[3].weight),
                 ],
             );
         }
 
         #[test]
         fn auto_unjail() {
+            // Non-standard config: auto unjail is enabled
             let mut suite = SuiteBuilder::new()
                 .make_operators(4, 0)
                 .with_auto_unjail()
@@ -1418,13 +1447,16 @@ mod test {
             let jailed_until =
                 JailingPeriod::Until(Duration::new(3600).after(&suite.app().block_info()));
 
+            // Jailing some operators to begin with
             suite
                 .jail(&admin, &operators[0].addr, Duration::new(3600))
                 .unwrap();
             suite.jail(&admin, &operators[1].addr, None).unwrap();
 
+            // Move forward a little, but not enough for jailing to expire
             suite.app().update_block(next_block);
 
+            // Operators are jailed...
             let resp = suite.list_validators(None, None).unwrap();
             assert_operators(
                 resp.validators,
@@ -1436,6 +1468,7 @@ mod test {
                 ],
             );
 
+            // ...and not taken into account on simulation
             let resp = suite.simulate_active_validators().unwrap();
             assert_active_validators(
                 resp.validators,
@@ -1445,10 +1478,12 @@ mod test {
                 ],
             );
 
+            // Now moving forward to pass the validation expiration point
             suite.app().update_block(|block| {
                 block.time = block.time.plus_seconds(4000);
             });
 
+            // Jailed operator is automatically considered free...
             let resp = suite.list_validators(None, None).unwrap();
             assert_operators(
                 resp.validators,
@@ -1460,6 +1495,7 @@ mod test {
                 ],
             );
 
+            // ...and returned in simulation
             let resp = suite.simulate_active_validators().unwrap();
             assert_active_validators(
                 resp.validators,
