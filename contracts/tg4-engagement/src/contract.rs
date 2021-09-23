@@ -246,6 +246,10 @@ fn privilege_promote(deps: DepsMut) -> Result<Response, ContractError> {
     }
 }
 
+fn weight_reduction(weight: u64) -> u64 {
+    weight - (weight / 2)
+}
+
 fn end_block(deps: DepsMut, env: Env) -> Result<Response, ContractError> {
     let resp = Response::new();
 
@@ -256,7 +260,7 @@ fn end_block(deps: DepsMut, env: Env) -> Result<Response, ContractError> {
     }
 
     let total = TOTAL.load(deps.storage)?;
-    let reduction = 0;
+    let mut reduction = 0;
 
     let members_to_update: StdResult<Vec<_>> = members()
         .range(deps.storage, None, None, Order::Ascending)
@@ -275,6 +279,7 @@ fn end_block(deps: DepsMut, env: Env) -> Result<Response, ContractError> {
         .collect();
 
     for member in members_to_update? {
+        reduction += weight_reduction(member.weight);
         members().replace(
             deps.storage,
             &Addr::unchecked(member.addr),
@@ -407,7 +412,9 @@ mod tests {
 
     const INIT_ADMIN: &str = "ADMIN";
     const USER1: &str = "USER1";
+    const USER1_WEIGHT: u64 = 11;
     const USER2: &str = "USER2";
+    const USER2_WEIGHT: u64 = 6;
     const USER3: &str = "USER3";
     const HALFLIFE: u64 = 180 * 24 * 60 * 60;
 
@@ -423,11 +430,11 @@ mod tests {
             members: vec![
                 Member {
                     addr: USER1.into(),
-                    weight: 11,
+                    weight: USER1_WEIGHT,
                 },
                 Member {
                     addr: USER2.into(),
-                    weight: 6,
+                    weight: USER2_WEIGHT,
                 },
             ],
             preauths: Some(1),
@@ -965,13 +972,13 @@ mod tests {
             query_member(deps.as_ref(), USER1.into(), None)
                 .unwrap()
                 .weight,
-            Some(11)
+            Some(USER1_WEIGHT)
         );
         assert_eq!(
             query_member(deps.as_ref(), USER2.into(), None)
                 .unwrap()
                 .weight,
-            Some(6)
+            Some(USER2_WEIGHT)
         );
         assert_eq!(
             query_member(deps.as_ref(), USER3.into(), None)
@@ -982,9 +989,11 @@ mod tests {
 
         // end block second after half life
         env.block.time = env.block.time.plus_seconds(HALFLIFE);
+
+        let expected_reduction = weight_reduction(USER1_WEIGHT) + weight_reduction(USER2_WEIGHT);
         let evt = Event::new("half-life")
             .add_attribute("height", env.block.height.to_string())
-            .add_attribute("reduction", 0.to_string());
+            .add_attribute("reduction", expected_reduction.to_string());
         let resp = Response::new().add_event(evt);
         assert_eq!(end_block(deps.as_mut(), env.clone()), Ok(resp));
         assert_eq!(
