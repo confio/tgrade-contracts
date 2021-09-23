@@ -969,60 +969,32 @@ mod tests {
         // end block just before half life time is met - do nothing
         env.block.time = env.block.time.plus_seconds(HALFLIFE - 2);
         assert_eq!(end_block(deps.as_mut(), env.clone()), Ok(Response::new()));
-        assert_eq!(
-            query_member(deps.as_ref(), USER1.into(), None)
-                .unwrap()
-                .weight,
-            Some(USER1_WEIGHT)
-        );
-        assert_eq!(
-            query_member(deps.as_ref(), USER2.into(), None)
-                .unwrap()
-                .weight,
-            Some(USER2_WEIGHT)
-        );
-        assert_eq!(
-            query_member(deps.as_ref(), USER3.into(), None)
-                .unwrap()
-                .weight,
-            None
-        );
+        assert_users(&deps, Some(USER1_WEIGHT), Some(USER2_WEIGHT), None, None);
 
         // end block second after half life
         env.block.time = env.block.time.plus_seconds(HALFLIFE);
-
         let expected_reduction = weight_reduction(USER1_WEIGHT) + weight_reduction(USER2_WEIGHT);
         let evt = Event::new("half-life")
             .add_attribute("height", env.block.height.to_string())
             .add_attribute("reduction", expected_reduction.to_string());
         let resp = Response::new().add_event(evt);
         assert_eq!(end_block(deps.as_mut(), env.clone()), Ok(resp));
-        assert_eq!(
-            query_member(deps.as_ref(), USER1.into(), None)
-                .unwrap()
-                .weight,
-            Some(5)
-        );
-        assert_eq!(
-            query_member(deps.as_ref(), USER2.into(), None)
-                .unwrap()
-                .weight,
-            Some(3)
-        );
-        assert_eq!(
-            query_member(deps.as_ref(), USER3.into(), None)
-                .unwrap()
-                .weight,
-            None
+        assert_users(
+            &deps,
+            Some(USER1_WEIGHT / 2),
+            Some(USER2_WEIGHT / 2),
+            None,
+            None,
         );
 
         // end block at same timestamp after last half life was met - do nothing
         end_block(deps.as_mut(), env.clone()).unwrap();
-        assert_eq!(
-            query_member(deps.as_ref(), USER1.into(), None)
-                .unwrap()
-                .weight,
-            Some(5)
+        assert_users(
+            &deps,
+            Some(USER1_WEIGHT / 2),
+            Some(USER2_WEIGHT / 2),
+            None,
+            None,
         );
 
         // after two more iterations of halftime + end block, both users should have weight 1
@@ -1030,17 +1002,6 @@ mod tests {
         end_block(deps.as_mut(), env.clone()).unwrap();
         env.block.time = env.block.time.plus_seconds(HALFLIFE);
         end_block(deps.as_mut(), env).unwrap();
-        assert_eq!(
-            query_member(deps.as_ref(), USER1.into(), None)
-                .unwrap()
-                .weight,
-            Some(1)
-        );
-        assert_eq!(
-            query_member(deps.as_ref(), USER2.into(), None)
-                .unwrap()
-                .weight,
-            Some(1)
-        );
+        assert_users(&deps, Some(1), Some(1), None, None);
     }
 }
