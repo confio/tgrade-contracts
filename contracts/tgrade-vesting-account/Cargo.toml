@@ -1,0 +1,26 @@
+[package]
+name = "tgrade-vesting-account"
+version = "0.4.0"
+authors = ["Jakub Bogucki <jakub@confio.gmbh>"]
+edition = "2018"
+description = "Vesting Account as a contract"
+repository = "https://github.com/confio/tgrade-contracts"
+homepage = "https://tgrade.finance"
+
+[lib]
+crate-type = ["cdylib", "rlib"]
+
+[features]
+# use library feature to disable all instantiate/execute/query exports
+library = []
+
+[dependencies]
+cosmwasm-std = { version = "0.16.0" }
+cw2 = "0.9.0"
+schemars = "0.8"
+serde = { version = "1.0.103", default-features = false, features = ["derive"] }
+tg-bindings = { version = "0.4.0", path = "../../packages/bindings" }
+thiserror = { version = "1.0.21" }
+
+[dev-dependencies]
+cosmwasm-schema = "0.16.0"
