@@ -9,6 +9,7 @@ use cosmwasm_std::{
 
 use cw0::maybe_addr;
 use cw2::set_contract_version;
+use cw_controllers::AdminError;
 use cw_storage_plus::Bound;
 
 use tg4::Tg4Contract;
@@ -16,16 +17,19 @@ use tg_bindings::{
     request_privileges, Ed25519Pubkey, Privilege, PrivilegeChangeMsg, Pubkey, TgradeMsg,
     TgradeSudoMsg, ValidatorDiff, ValidatorUpdate,
 };
+use tg_utils::Duration;
 
 use crate::error::ContractError;
 use crate::msg::{
-    ConfigResponse, EpochResponse, ExecuteMsg, InstantiateMsg, ListActiveValidatorsResponse,
-    ListValidatorResponse, OperatorResponse, QueryMsg, ValidatorMetadata, ValidatorResponse,
+    ConfigResponse, EpochResponse, ExecuteMsg, InstantiateMsg, JailingPeriod,
+    ListActiveValidatorsResponse, ListValidatorResponse, OperatorResponse, QueryMsg,
+    ValidatorMetadata, ValidatorResponse,
 };
 use crate::rewards::{distribute_to_validators, pay_block_rewards};
 use crate::state::{
-    operators, Config, EpochInfo, OperatorInfo, ValidatorInfo, CONFIG, EPOCH, VALIDATORS,
+    operators, Config, EpochInfo, OperatorInfo, ValidatorInfo, CONFIG, EPOCH, JAIL, VALIDATORS,
 };
+use tg_utils::ADMIN;
 
 // version info for migration info
 const CONTRACT_NAME: &str = "crates.io:tgrade-valset";
@@ -57,6 +61,7 @@ pub fn instantiate(
         scaling: msg.scaling,
         epoch_reward: msg.epoch_reward,
         fee_percentage: msg.fee_percentage,
+        auto_unjail: msg.auto_unjail,
     };
     CONFIG.save(deps.storage, &cfg)?;
 
@@ -80,6 +85,11 @@ pub fn instantiate(
         operators().save(deps.storage, &oper, &info)?;
     }
 
+    if let Some(admin) = &msg.admin {
+        let admin = deps.api.addr_validate(admin)?;
+        ADMIN.set(deps, Some(admin))?;
+    }
+
     Ok(Response::default())
 }
 
@@ -95,6 +105,10 @@ pub fn execute(
             execute_register_validator_key(deps, env, info, pubkey, metadata)
         }
         ExecuteMsg::UpdateMetadata(metadata) => execute_update_metadata(deps, env, info, metadata),
+        ExecuteMsg::Jail { operator, duration } => {
+            execute_jail(deps, env, info, operator, duration)
+        }
+        ExecuteMsg::Unjail { operator } => execute_unjail(deps, env, info, operator),
     }
 }
 
@@ -148,6 +162,75 @@ fn execute_update_metadata(
     Ok(res)
 }
 
+fn execute_jail(
+    deps: DepsMut,
+    env: Env,
+    info: MessageInfo,
+    operator: String,
+    duration: Option<Duration>,
+) -> Result<Response, ContractError> {
+    ADMIN.assert_admin(deps.as_ref(), &info.sender)?;
+
+    let expiration = if let Some(duration) = &duration {
+        JailingPeriod::Until(duration.after(&env.block))
+    } else {
+        JailingPeriod::Forever {}
+    };
+
+    JAIL.save(
+        deps.storage,
+        &deps.api.addr_validate(&operator)?,
+        &expiration,
+    )?;
+
+    let until_attr = match expiration {
+        JailingPeriod::Until(expires) => Timestamp::from(expires).to_string(),
+        JailingPeriod::Forever {} => "forever".to_owned(),
+    };
+
+    let res = Response::new()
+        .add_attribute("action", "jail")
+        .add_attribute("operator", &operator)
+        .add_attribute("until", &until_attr);
+
+    Ok(res)
+}
+
+fn execute_unjail(
+    deps: DepsMut,
+    env: Env,
+    info: MessageInfo,
+    operator: Option<String>,
+) -> Result<Response, ContractError> {
+    // It is OK to get unchecked address here - invalid address would just not occur in the JAIL
+    let operator = operator.map(|op| Addr::unchecked(&op));
+    let operator = operator.as_ref().unwrap_or(&info.sender);
+
+    let is_admin = ADMIN.is_admin(deps.as_ref(), &info.sender)?;
+
+    if operator != &info.sender && !is_admin {
+        return Err(AdminError::NotAdmin {}.into());
+    }
+
+    match JAIL.may_load(deps.storage, operator) {
+        Err(err) => return Err(err.into()),
+        // Operator is not jailed, unjailing does nothing and succeeds
+        Ok(None) => (),
+        // Jailing period expired or called by admin - can unjail
+        Ok(Some(expiration)) if (expiration.is_expired(&env.block) || is_admin) => {
+            JAIL.remove(deps.storage, operator);
+        }
+        // Jail not expired and called by non-admin
+        _ => return Err(AdminError::NotAdmin {}.into()),
+    }
+
+    let res = Response::new()
+        .add_attribute("action", "unjail")
+        .add_attribute("operator", operator.as_str());
+
+    Ok(res)
+}
+
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn query(deps: Deps, env: Env, msg: QueryMsg) -> Result<Binary, ContractError> {
     match msg {
@@ -193,13 +276,20 @@ fn query_epoch(deps: Deps, env: Env) -> Result<EpochResponse, ContractError> {
 
 fn query_validator_key(
     deps: Deps,
-    _env: Env,
+    env: Env,
     operator: String,
 ) -> Result<ValidatorResponse, ContractError> {
+    let cfg = CONFIG.load(deps.storage)?;
+
     let operator_addr = deps.api.addr_validate(&operator)?;
     let info = operators().may_load(deps.storage, &operator_addr)?;
+
+    let jailed_until = JAIL
+        .may_load(deps.storage, &operator_addr)?
+        .filter(|expires| !(cfg.auto_unjail && expires.is_expired(&env.block)));
+
     Ok(ValidatorResponse {
-        validator: info.map(|i| OperatorResponse::from_info(i, operator)),
+        validator: info.map(|i| OperatorResponse::from_info(i, operator, jailed_until)),
     })
 }
 
@@ -209,10 +299,11 @@ const DEFAULT_LIMIT: u32 = 10;
 
 fn list_validator_keys(
     deps: Deps,
-    _env: Env,
+    env: Env,
     start_after: Option<String>,
     limit: Option<u32>,
 ) -> Result<ListValidatorResponse, ContractError> {
+    let cfg = CONFIG.load(deps.storage)?;
     let limit = limit.unwrap_or(DEFAULT_LIMIT).min(MAX_LIMIT) as usize;
     let start_after = maybe_addr(deps.api, start_after)?;
     let start = start_after.map(|addr| Bound::exclusive(addr.as_str()));
@@ -222,10 +313,16 @@ fn list_validator_keys(
         .map(|r| {
             let (key, info) = r?;
             let operator = String::from_utf8(key)?;
+
+            let jailed_until = JAIL
+                .may_load(deps.storage, &Addr::unchecked(&operator))?
+                .filter(|expires| !(cfg.auto_unjail && expires.is_expired(&env.block)));
+
             Ok(OperatorResponse {
                 operator,
                 metadata: info.metadata,
                 pubkey: info.pubkey.into(),
+                jailed_until,
             })
         })
         .take(limit)
@@ -246,9 +343,9 @@ fn list_active_validators(
 
 fn simulate_active_validators(
     deps: Deps,
-    _env: Env,
+    env: Env,
 ) -> Result<ListActiveValidatorsResponse, ContractError> {
-    let validators = calculate_validators(deps)?;
+    let (validators, _) = calculate_validators(deps, &env)?;
     Ok(ListActiveValidatorsResponse { validators })
 }
 
@@ -303,7 +400,12 @@ fn end_block(deps: DepsMut, env: Env) -> Result<Response, ContractError> {
     EPOCH.save(deps.storage, &epoch)?;
 
     // calculate and store new validator set
-    let validators = calculate_validators(deps.as_ref())?;
+    let (validators, auto_unjail) = calculate_validators(deps.as_ref(), &env)?;
+
+    // auto unjailing
+    for addr in &auto_unjail {
+        JAIL.remove(deps.storage, addr)
+    }
 
     let old_validators = VALIDATORS.load(deps.storage)?;
     let pay_to = distribute_to_validators(&old_validators);
@@ -321,8 +423,14 @@ fn end_block(deps: DepsMut, env: Env) -> Result<Response, ContractError> {
 
 const QUERY_LIMIT: Option<u32> = Some(30);
 
-fn calculate_validators(deps: Deps) -> Result<Vec<ValidatorInfo>, ContractError> {
+/// Selects validators to be used for incomming epoch. Returns vector of validators info paired
+/// with vector of addresses to be unjailed (always empty if auto unjailing is disabled).
+fn calculate_validators(
+    deps: Deps,
+    env: &Env,
+) -> Result<(Vec<ValidatorInfo>, Vec<Addr>), ContractError> {
     let cfg = CONFIG.load(deps.storage)?;
+
     let min_weight = max(cfg.min_weight, 1);
     let scaling: u64 = cfg.scaling.unwrap_or(1).into();
 
@@ -331,13 +439,15 @@ fn calculate_validators(deps: Deps) -> Result<Vec<ValidatorInfo>, ContractError>
     let mut batch = cfg
         .membership
         .list_members_by_weight(&deps.querier, None, QUERY_LIMIT)?;
+    let mut auto_unjail = vec![];
+
     while !batch.is_empty() && validators.len() < cfg.max_validators as usize {
         let last = Some(batch.last().unwrap().clone());
 
         let filtered: Vec<_> = batch
             .into_iter()
             .filter(|m| m.weight >= min_weight)
-            .filter_map(|m| {
+            .filter_map(|m| -> Option<StdResult<_>> {
                 // why do we allow Addr::unchecked here?
                 // all valid keys for `operators()` are already validated before insertion
                 // we have 3 cases:
@@ -349,17 +459,31 @@ fn calculate_validators(deps: Deps) -> Result<Vec<ValidatorInfo>, ContractError>
                 // All 3 cases are handled properly below (operators.load() returns an Error on
                 // both 2 and 3), so we do not need to perform N addr_validate calls here
                 let m_addr = Addr::unchecked(&m.addr);
-                operators()
-                    .load(deps.storage, &m_addr)
-                    .ok()
-                    .map(|op| ValidatorInfo {
+
+                // check if address is jailed
+                match JAIL.may_load(deps.storage, &m_addr) {
+                    Err(err) => return Some(Err(err)),
+                    // address not jailed, proceed
+                    Ok(None) => (),
+                    // address jailed, but period axpired and auto unjailing enabled, add to
+                    // auto_unjail list
+                    Ok(Some(expires)) if cfg.auto_unjail && expires.is_expired(&env.block) => {
+                        auto_unjail.push(m_addr.clone())
+                    }
+                    // address jailed and cannot be unjailed - filter validator out
+                    _ => return None,
+                };
+
+                operators().load(deps.storage, &m_addr).ok().map(|op| {
+                    Ok(ValidatorInfo {
                         operator: m_addr,
                         validator_pubkey: op.pubkey.into(),
                         power: m.weight * scaling,
                     })
+                })
             })
             .take(cfg.max_validators as usize - validators.len() as usize)
-            .collect();
+            .collect::<Result<_, _>>()?;
         validators.extend_from_slice(&filtered);
 
         // and get the next page
@@ -368,7 +492,7 @@ fn calculate_validators(deps: Deps) -> Result<Vec<ValidatorInfo>, ContractError>
             .list_members_by_weight(&deps.querier, last, QUERY_LIMIT)?;
     }
 
-    Ok(validators)
+    Ok((validators, auto_unjail))
 }
 
 /// Computes validator differences.
@@ -415,12 +539,13 @@ fn calculate_diff(cur_vals: Vec<ValidatorInfo>, old_vals: Vec<ValidatorInfo>) ->
 
 #[cfg(test)]
 mod test {
-    use cw_multi_test::{App, AppBuilder, Contract, ContractWrapper, Executor};
+    use cw_multi_test::{next_block, App, AppBuilder, Executor};
 
     use super::*;
     use crate::test_helpers::{
-        addrs, contract_valset, members, mock_metadata, mock_pubkey, nonmembers, valid_operator,
-        valid_validator,
+        addrs, assert_active_validators, assert_operators, contract_engagement, contract_valset,
+        members, mock_metadata, mock_pubkey, nonmembers, valid_operator, valid_validator,
+        SuiteBuilder,
     };
     use cosmwasm_std::{coin, Coin, Decimal};
 
@@ -454,15 +579,6 @@ mod test {
         vals
     }
 
-    fn contract_group() -> Box<dyn Contract<TgradeMsg>> {
-        let contract = ContractWrapper::new(
-            tg4_engagement::contract::execute,
-            tg4_engagement::contract::instantiate,
-            tg4_engagement::contract::query,
-        );
-        Box::new(contract)
-    }
-
     // always registers 24 members and 12 non-members with pubkeys
     pub fn instantiate_valset(
         app: &mut App<TgradeMsg>,
@@ -485,7 +601,7 @@ mod test {
 
     // the group has a list of
     fn instantiate_group(app: &mut App<TgradeMsg>, num_members: u32) -> Addr {
-        let group_id = app.store_code(contract_group());
+        let group_id = app.store_code(contract_engagement());
         let admin = Some(GROUP_OWNER.into());
         let msg = tg4_engagement::msg::InstantiateMsg {
             admin: admin.clone(),
@@ -507,6 +623,7 @@ mod test {
             .map(|s| valid_operator(&s));
 
         InstantiateMsg {
+            admin: Some(GROUP_OWNER.to_owned()),
             membership: group_addr.into(),
             min_weight,
             max_validators,
@@ -515,6 +632,7 @@ mod test {
             initial_keys: members.chain(nonmembers).collect(),
             scaling: None,
             fee_percentage: Decimal::zero(),
+            auto_unjail: false,
         }
     }
 
@@ -541,6 +659,7 @@ mod test {
                 epoch_reward: epoch_reward(),
                 scaling: None,
                 fee_percentage: Decimal::zero(),
+                auto_unjail: false,
             }
         );
 
@@ -717,6 +836,7 @@ mod test {
                     operator: val.operator,
                     pubkey: val.validator_pubkey,
                     metadata: mock_metadata(&addr),
+                    jailed_until: None,
                 }
             })
             .collect();
@@ -746,6 +866,7 @@ mod test {
                     operator: val.operator,
                     pubkey: val.validator_pubkey,
                     metadata: mock_metadata(&addr),
+                    jailed_until: None,
                 }
             })
             .collect();
@@ -797,6 +918,7 @@ mod test {
             operator: new_operator.into(),
             pubkey: mock_pubkey(new_operator.as_bytes()),
             metadata: mock_metadata("master"),
+            jailed_until: None,
         }];
         assert_eq!(expected, validator_keys.validators);
     }
@@ -1068,5 +1190,350 @@ mod test {
             },
             diff
         );
+    }
+
+    mod jailing {
+        use super::*;
+
+        #[test]
+        fn only_admin_can_jail() {
+            let mut suite = SuiteBuilder::new().make_operators(10, 0).build();
+            let admin = suite.admin().to_owned();
+            let operators = suite.member_operators().to_vec();
+
+            // Admin can jail forever
+            suite.jail(&admin, &operators[4].addr, None).unwrap();
+            // Admin can jail for particular duration
+            suite
+                .jail(&admin, &operators[6].addr, Duration::new(3600))
+                .unwrap();
+
+            let jailed_until =
+                JailingPeriod::Until(Duration::new(3600).after(&suite.app().block_info()));
+
+            // Non-admin cannot jail forever
+            let err = suite
+                .jail(&operators[0].addr, &operators[2].addr, None)
+                .unwrap_err();
+
+            assert_eq!(
+                ContractError::AdminError(AdminError::NotAdmin {}),
+                err.downcast().unwrap(),
+            );
+
+            // Non-admin cannot jail for any duration
+            let err = suite
+                .jail(&operators[0].addr, &operators[5].addr, Duration::new(3600))
+                .unwrap_err();
+
+            assert_eq!(
+                ContractError::AdminError(AdminError::NotAdmin {}),
+                err.downcast().unwrap(),
+            );
+
+            // Just verify validators are actually jailed in the process
+            let resp = suite.list_validators(None, None).unwrap();
+            assert_operators(
+                resp.validators,
+                vec![
+                    (operators[0].addr.clone(), None),
+                    (operators[1].addr.clone(), None),
+                    (operators[2].addr.clone(), None),
+                    (operators[3].addr.clone(), None),
+                    (operators[4].addr.clone(), Some(JailingPeriod::Forever {})),
+                    (operators[5].addr.clone(), None),
+                    (operators[6].addr.clone(), Some(jailed_until)),
+                    (operators[7].addr.clone(), None),
+                    (operators[8].addr.clone(), None),
+                    (operators[9].addr.clone(), None),
+                ],
+            )
+        }
+
+        #[test]
+        fn admin_can_unjail_anyone() {
+            let mut suite = SuiteBuilder::new().make_operators(4, 0).build();
+            let admin = suite.admin().to_owned();
+            let operators = suite.member_operators().to_vec();
+
+            // Jailing some operators to have someone to unjail
+            suite.jail(&admin, &operators[0].addr, None).unwrap();
+            suite
+                .jail(&admin, &operators[1].addr, Duration::new(3600))
+                .unwrap();
+
+            suite.app().update_block(next_block);
+
+            // Admin can unjail if unjailing period didn't expire
+            suite.unjail(&admin, operators[0].addr.as_ref()).unwrap();
+            // But also if it did
+            suite.unjail(&admin, operators[1].addr.as_ref()).unwrap();
+            // Admin can also unjail someone who is not even jailed - it does nothing, but doesn't
+            // fail
+            suite.unjail(&admin, operators[2].addr.as_ref()).unwrap();
+
+            // Verify everyone is unjailed at the end
+            let resp = suite.list_validators(None, None).unwrap();
+            assert_operators(
+                resp.validators,
+                vec![
+                    (operators[0].addr.clone(), None),
+                    (operators[1].addr.clone(), None),
+                    (operators[2].addr.clone(), None),
+                    (operators[3].addr.clone(), None),
+                ],
+            )
+        }
+
+        #[test]
+        fn anyone_can_unjail_self_after_period() {
+            let mut suite = SuiteBuilder::new().make_operators(4, 0).build();
+            let admin = suite.admin().to_owned();
+            let operators = suite.member_operators().to_vec();
+
+            // Jail some operators to have someone to unjail in tests
+            suite
+                .jail(&admin, &operators[0].addr, Duration::new(3600))
+                .unwrap();
+            suite
+                .jail(&admin, &operators[1].addr, Duration::new(3600))
+                .unwrap();
+            suite
+                .jail(&admin, &operators[2].addr, Duration::new(3600))
+                .unwrap();
+
+            let jailed_until =
+                JailingPeriod::Until(Duration::new(3600).after(&suite.app().block_info()));
+
+            // Move a little bit forward, so some time passed, but not eough for any jailing to
+            // expire
+            suite.app().update_block(next_block);
+
+            // I cannot unjail myself before expiration...
+            let err = suite.unjail(&operators[0].addr, None).unwrap_err();
+            assert_eq!(
+                ContractError::AdminError(AdminError::NotAdmin {}),
+                err.downcast().unwrap(),
+            );
+
+            // ...even directly pointing myself
+            let err = suite
+                .unjail(&operators[0].addr, operators[0].addr.as_ref())
+                .unwrap_err();
+            assert_eq!(
+                ContractError::AdminError(AdminError::NotAdmin {}),
+                err.downcast().unwrap(),
+            );
+
+            // And I cannot unjail anyone else
+            let err = suite
+                .unjail(&operators[0].addr, operators[1].addr.as_ref())
+                .unwrap_err();
+            assert_eq!(
+                ContractError::AdminError(AdminError::NotAdmin {}),
+                err.downcast().unwrap(),
+            );
+
+            // This time go seriously into future, so jail doors become open
+            suite.app().update_block(|block| {
+                block.time = block.time.plus_seconds(3800);
+            });
+
+            // I can unjail myself without without passing operator directly
+            suite.unjail(&operators[0].addr, None).unwrap();
+
+            // But I still cannot unjail my dear friend
+            let err = suite
+                .unjail(&operators[0].addr, operators[1].addr.as_ref())
+                .unwrap_err();
+            assert_eq!(
+                ContractError::AdminError(AdminError::NotAdmin {}),
+                err.downcast().unwrap(),
+            );
+
+            // However he can do it himself, also passing operator directly
+            suite
+                .unjail(&operators[2].addr, operators[2].addr.as_ref())
+                .unwrap();
+
+            let resp = suite.list_validators(None, None).unwrap();
+            assert_operators(
+                resp.validators,
+                vec![
+                    (operators[0].addr.clone(), None),
+                    (operators[1].addr.clone(), Some(jailed_until)),
+                    (operators[2].addr.clone(), None),
+                    (operators[3].addr.clone(), None),
+                ],
+            )
+        }
+
+        #[test]
+        fn jailed_validators_are_ignored_on_selection() {
+            let mut suite = SuiteBuilder::new().make_operators(4, 0).build();
+            let admin = suite.admin().to_owned();
+            let operators = suite.member_operators().to_vec();
+
+            // Jailing operators as test prerequirements
+            suite
+                .jail(&admin, &operators[0].addr, Duration::new(3600))
+                .unwrap();
+            suite.jail(&admin, &operators[1].addr, None).unwrap();
+
+            // Move forward a bit
+            suite.app().update_block(next_block);
+
+            // Only unjailed validators are selected
+            let resp = suite.simulate_active_validators().unwrap();
+            assert_active_validators(
+                resp.validators,
+                vec![
+                    (operators[2].addr.clone(), operators[2].weight),
+                    (operators[3].addr.clone(), operators[3].weight),
+                ],
+            );
+
+            // Moving forward so jailing periods expired
+            suite.app().update_block(|block| {
+                block.time = block.time.plus_seconds(4000);
+            });
+            // But validators are still not selected, as they have to be unjailed
+            let resp = suite.simulate_active_validators().unwrap();
+            assert_active_validators(
+                resp.validators,
+                vec![
+                    (operators[2].addr.clone(), operators[2].weight),
+                    (operators[3].addr.clone(), operators[3].weight),
+                ],
+            );
+
+            // Unjailed operator is taken into the account
+            suite.unjail(&admin, operators[0].addr.as_ref()).unwrap();
+            let resp = suite.simulate_active_validators().unwrap();
+            assert_active_validators(
+                resp.validators,
+                vec![
+                    (operators[0].addr.clone(), operators[0].weight),
+                    (operators[2].addr.clone(), operators[2].weight),
+                    (operators[3].addr.clone(), operators[3].weight),
+                ],
+            );
+
+            // Unjailed operator is taken into account even if jailing period didn't expire
+            suite.unjail(&admin, operators[1].addr.as_ref()).unwrap();
+            let resp = suite.simulate_active_validators().unwrap();
+            assert_active_validators(
+                resp.validators,
+                vec![
+                    (operators[0].addr.clone(), operators[0].weight),
+                    (operators[1].addr.clone(), operators[1].weight),
+                    (operators[2].addr.clone(), operators[2].weight),
+                    (operators[3].addr.clone(), operators[3].weight),
+                ],
+            );
+        }
+
+        #[test]
+        fn auto_unjail() {
+            // Non-standard config: auto unjail is enabled
+            let mut suite = SuiteBuilder::new()
+                .make_operators(4, 0)
+                .with_auto_unjail()
+                .build();
+
+            let admin = suite.admin().to_owned();
+            let operators = suite.member_operators().to_vec();
+
+            let jailed_until =
+                JailingPeriod::Until(Duration::new(3600).after(&suite.app().block_info()));
+
+            // Jailing some operators to begin with
+            suite
+                .jail(&admin, &operators[0].addr, Duration::new(3600))
+                .unwrap();
+            suite.jail(&admin, &operators[1].addr, None).unwrap();
+
+            // Move forward a little, but not enough for jailing to expire
+            suite.app().update_block(next_block);
+
+            // Operators are jailed...
+            let resp = suite.list_validators(None, None).unwrap();
+            assert_operators(
+                resp.validators,
+                vec![
+                    (operators[0].addr.clone(), Some(jailed_until)),
+                    (operators[1].addr.clone(), Some(JailingPeriod::Forever {})),
+                    (operators[2].addr.clone(), None),
+                    (operators[3].addr.clone(), None),
+                ],
+            );
+
+            // ...and not taken into account on simulation
+            let resp = suite.simulate_active_validators().unwrap();
+            assert_active_validators(
+                resp.validators,
+                vec![
+                    (operators[2].addr.clone(), 3),
+                    (operators[3].addr.clone(), 4),
+                ],
+            );
+
+            // Now moving forward to pass the validation expiration point
+            suite.app().update_block(|block| {
+                block.time = block.time.plus_seconds(4000);
+            });
+
+            // Jailed operator is automatically considered free...
+            let resp = suite.list_validators(None, None).unwrap();
+            assert_operators(
+                resp.validators,
+                vec![
+                    (operators[0].addr.clone(), None),
+                    (operators[1].addr.clone(), Some(JailingPeriod::Forever {})),
+                    (operators[2].addr.clone(), None),
+                    (operators[3].addr.clone(), None),
+                ],
+            );
+
+            // ...and returned in simulation
+            let resp = suite.simulate_active_validators().unwrap();
+            assert_active_validators(
+                resp.validators,
+                vec![
+                    (operators[0].addr.clone(), 1),
+                    (operators[2].addr.clone(), 3),
+                    (operators[3].addr.clone(), 4),
+                ],
+            );
+        }
+
+        #[test]
+        fn enb_block_ignores_jailed_validators() {
+            let mut suite = SuiteBuilder::new().make_operators(4, 0).build();
+
+            let admin = suite.admin().to_owned();
+            let operators = suite.member_operators().to_vec();
+
+            // Jailing some operators to begin with
+            suite
+                .jail(&admin, &operators[0].addr, Duration::new(3600))
+                .unwrap();
+            suite.jail(&admin, &operators[1].addr, None).unwrap();
+
+            // Move forward a little, but not enough for jailing to expire
+            suite.app().update_block(next_block);
+
+            // Endblock triggered - only unjailed validators are active
+            suite.end_block().unwrap();
+
+            let resp = suite.list_active_validators().unwrap();
+            assert_active_validators(
+                resp.validators,
+                vec![
+                    (operators[2].addr.clone(), operators[2].weight),
+                    (operators[3].addr.clone(), operators[3].weight),
+                ],
+            );
+        }
     }
 }

@@ -16,6 +16,10 @@ impl Duration {
     pub fn after(&self, block: &BlockInfo) -> Expiration {
         Expiration::at_timestamp(block.time.plus_seconds(self.0))
     }
+
+    pub fn seconds(&self) -> u64 {
+        self.0
+    }
 }
 
 #[derive(Serialize, Deserialize, Clone, Copy, PartialEq, JsonSchema, Debug)]
@@ -47,6 +51,12 @@ impl ExpirationKey {
 impl From<Expiration> for ExpirationKey {
     fn from(expiration: Expiration) -> Self {
         Self::new(expiration)
+    }
+}
+
+impl From<Expiration> for Timestamp {
+    fn from(expiration: Expiration) -> Timestamp {
+        expiration.0
     }
 }
 

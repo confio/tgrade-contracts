@@ -115,8 +115,8 @@ pub struct ClaimsResponse {
 mod tests {
     use super::*;
 
-    use crate::msg::UnbondingPeriodResponse;
     use cosmwasm_std::to_vec;
+    use tg_utils::Duration;
 
     #[test]
     fn unbonding_period_serializes_in_seconds() {

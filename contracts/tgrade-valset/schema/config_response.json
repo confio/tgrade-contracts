@@ -9,6 +9,11 @@
     "min_weight"
   ],
   "properties": {
+    "auto_unjail": {
+      "description": "Flag determining if validators should be automatically unjailed after jailing period, false by default.",
+      "default": false,
+      "type": "boolean"
+    },
     "epoch_reward": {
       "description": "Total reward paid out each epoch. This will be split among all validators during the last epoch. (epoch_reward.amount * 86_400 * 30 / epoch_length) is reward tokens to mint each month. Ensure this is sensible in relation to the total token supply.",
       "allOf": [

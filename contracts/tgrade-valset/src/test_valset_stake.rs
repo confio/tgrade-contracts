@@ -97,6 +97,7 @@ fn init_msg(stake_addr: &str, max_validators: u32, min_weight: u64) -> Instantia
         .map(|s| valid_operator(&s))
         .collect();
     InstantiateMsg {
+        admin: None,
         membership: stake_addr.into(),
         min_weight,
         max_validators,
@@ -105,6 +106,7 @@ fn init_msg(stake_addr: &str, max_validators: u32, min_weight: u64) -> Instantia
         initial_keys: members,
         scaling: None,
         fee_percentage: Decimal::zero(),
+        auto_unjail: false,
     }
 }
 
@@ -155,6 +157,7 @@ fn init_and_query_state() {
             scaling: None,
             epoch_reward: epoch_reward(),
             fee_percentage: Decimal::zero(),
+            auto_unjail: false,
         }
     );
 
