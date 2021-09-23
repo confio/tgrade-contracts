@@ -2,10 +2,10 @@ use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
 use cosmwasm_std::{Addr, Coin, Decimal};
-use cw_storage_plus::{Index, IndexList, IndexedMap, Item, UniqueIndex};
+use cw_storage_plus::{Index, IndexList, IndexedMap, Item, Map, UniqueIndex};
 use tg4::Tg4Contract;
 
-use crate::msg::{default_fee_percentage, ValidatorMetadata};
+use crate::msg::{default_fee_percentage, JailingPeriod, ValidatorMetadata};
 use tg_bindings::{Ed25519Pubkey, Pubkey};
 
 #[derive(Serialize, Deserialize, Clone, PartialEq, JsonSchema, Debug)]
@@ -30,12 +30,15 @@ pub struct Config {
     /// (epoch_reward.amount * 86_400 * 30 / epoch_length) is reward tokens to mint each month.
     /// Ensure this is sensible in relation to the total token supply.
     pub epoch_reward: Coin,
-
     /// Percentage of total accumulated fees which is substracted from tokens minted as a rewards.
     /// 50% as default. To disable this feature just set it to 0 (which efectivelly means that fees
     /// doesn't affect the per epoch reward).
     #[serde(default = "default_fee_percentage")]
     pub fee_percentage: Decimal,
+    /// Flag determining if validators should be automatically unjailed after jailing period, false
+    /// by default.
+    #[serde(default)]
+    pub auto_unjail: bool,
 }
 
 #[derive(Serialize, Deserialize, Clone, PartialEq, JsonSchema, Debug)]
@@ -67,6 +70,10 @@ pub const EPOCH: Item<EpochInfo> = Item::new("epoch");
 /// VALIDATORS is the calculated list of the active validators from the last execution.
 /// This will be empty only on the first run.
 pub const VALIDATORS: Item<Vec<ValidatorInfo>> = Item::new("validators");
+
+/// Map of jailed operator addr to jail expiration time. If operator doesn't appear in this map he
+/// is not jailed
+pub const JAIL: Map<&Addr, JailingPeriod> = Map::new("jail");
 
 /// This stores the immutible info for an operator. Both their Tendermint key as well as
 /// their metadata

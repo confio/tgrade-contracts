@@ -1,12 +1,16 @@
 use cosmwasm_std::StdError;
 use thiserror::Error;
 
+use cw_controllers::AdminError;
 use tg_bindings::Ed25519PubkeyConversionError;
 
 #[derive(Error, Debug, PartialEq)]
 pub enum ContractError {
     #[error("{0}")]
     Std(#[from] StdError),
+
+    #[error("{0}")]
+    AdminError(#[from] AdminError),
 
     #[error("Operator is already registered, cannot change Tendermint pubkey")]
     OperatorRegistered {},

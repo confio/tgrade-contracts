@@ -11,6 +11,18 @@
     "min_weight"
   ],
   "properties": {
+    "admin": {
+      "description": "Address allowed to jail, meant to be a OC voting contract. If `None`, then jailing is impossible in this contract.",
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "auto_unjail": {
+      "description": "Flag determining if validators should be automatically unjailed after jailing period, false by default.",
+      "default": false,
+      "type": "boolean"
+    },
     "epoch_length": {
       "description": "Number of seconds in one epoch. We update the Tendermint validator set only once per epoch. Epoch # is env.block.time/epoch_length (round down). First block with a new epoch number will trigger a new validator calculation.",
       "type": "integer",

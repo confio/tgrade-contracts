@@ -174,6 +174,7 @@ mod test {
             scaling: None,
             epoch_reward: coin(amount, REWARD_DENOM),
             fee_percentage,
+            auto_unjail: false,
         };
         CONFIG.save(deps.storage, &cfg).unwrap();
     }

@@ -3,13 +3,17 @@ use serde::{Deserialize, Serialize};
 use std::convert::TryFrom;
 
 use tg_bindings::{Ed25519Pubkey, Pubkey};
+use tg_utils::{Duration, Expiration};
 
 use crate::error::ContractError;
 use crate::state::{Config, OperatorInfo, ValidatorInfo};
-use cosmwasm_std::{Coin, Decimal};
+use cosmwasm_std::{BlockInfo, Coin, Decimal};
 
 #[derive(Serialize, Deserialize, Clone, PartialEq, JsonSchema, Debug)]
 pub struct InstantiateMsg {
+    /// Address allowed to jail, meant to be a OC voting contract. If `None`, then jailing is
+    /// impossible in this contract.
+    pub admin: Option<String>,
     /// address of a cw4 contract with the raw membership used to feed the validator set
     pub membership: String,
     /// minimum weight needed by an address in `membership` to be considered for the validator set.
@@ -46,6 +50,11 @@ pub struct InstantiateMsg {
     /// doesn't affect the per epoch reward).
     #[serde(default = "default_fee_percentage")]
     pub fee_percentage: Decimal,
+
+    /// Flag determining if validators should be automatically unjailed after jailing period, false
+    /// by default.
+    #[serde(default)]
+    pub auto_unjail: bool,
 }
 
 pub fn default_fee_percentage() -> Decimal {
@@ -134,6 +143,20 @@ pub enum ExecuteMsg {
         metadata: ValidatorMetadata,
     },
     UpdateMetadata(ValidatorMetadata),
+    /// Jails validator. Can be executed only by the admin.
+    Jail {
+        /// Operator which should be jailed
+        operator: String,
+        /// Duration for how long validator is jailed, `None` for jailing forever
+        duration: Option<Duration>,
+    },
+    /// Unjails validator. Admin can unjail anyone anytime, others can unjail only themselves and
+    /// only if jail duration passed
+    Unjail {
+        /// Address to unjail. Optional, as if not provided it is assumed to be sender of the
+        /// message (for convenience when unjailing self after jail period).
+        operator: Option<String>,
+    },
 }
 
 #[derive(Serialize, Deserialize, Clone, PartialEq, JsonSchema, Debug)]
@@ -183,14 +206,35 @@ pub struct OperatorResponse {
     pub operator: String,
     pub pubkey: Pubkey,
     pub metadata: ValidatorMetadata,
+    pub jailed_until: Option<JailingPeriod>,
 }
 
 impl OperatorResponse {
-    pub fn from_info(info: OperatorInfo, operator: String) -> Self {
+    pub fn from_info(
+        info: OperatorInfo,
+        operator: String,
+        jailed_until: impl Into<Option<JailingPeriod>>,
+    ) -> Self {
         OperatorResponse {
             operator,
             pubkey: info.pubkey.into(),
             metadata: info.metadata,
+            jailed_until: jailed_until.into(),
+        }
+    }
+}
+
+#[derive(Serialize, Deserialize, Clone, PartialEq, JsonSchema, Debug)]
+pub enum JailingPeriod {
+    Forever {},
+    Until(Expiration),
+}
+
+impl JailingPeriod {
+    pub fn is_expired(&self, block: &BlockInfo) -> bool {
+        match self {
+            Self::Forever {} => false,
+            Self::Until(expires) => expires.is_expired(block),
         }
     }
 }
@@ -228,6 +272,7 @@ mod test {
     #[test]
     fn validate_init_msg() {
         let proper = InstantiateMsg {
+            admin: None,
             membership: "contract-addr".into(),
             min_weight: 5,
             max_validators: 20,
@@ -236,6 +281,7 @@ mod test {
             initial_keys: vec![valid_operator("foo"), valid_operator("bar")],
             scaling: None,
             fee_percentage: Decimal::zero(),
+            auto_unjail: false,
         };
         proper.validate().unwrap();
 
