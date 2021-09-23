@@ -1,7 +1,8 @@
 #[cfg(not(feature = "library"))]
 use cosmwasm_std::entry_point;
 use cosmwasm_std::{
-    to_binary, Addr, Binary, Deps, DepsMut, Env, Event, MessageInfo, Order, StdResult, Timestamp,
+    coins, to_binary, Addr, BankMsg, Binary, Deps, DepsMut, Env, Event, MessageInfo, Order,
+    StdResult, Timestamp,
 };
 use cw0::maybe_addr;
 use cw2::set_contract_version;
@@ -49,6 +50,7 @@ pub fn instantiate(
 
 // create is the instantiation logic with set_contract_version removed so it can more
 // easily be imported in other contracts
+#[allow(clippy::too_many_arguments)]
 pub fn create(
     mut deps: DepsMut,
     admin: Option<String>,
@@ -110,7 +112,7 @@ pub fn execute(
         ExecuteMsg::DistributeFunds { sender } => {
             execute_distribute_tokens(deps, env, info, sender)
         }
-        ExecuteMsg::WithdrawFunds { .. } => todo!(),
+        ExecuteMsg::WithdrawFunds { receiver } => execute_withdraw_tokens(deps, info, receiver),
     }
 }
 
@@ -248,6 +250,46 @@ pub fn execute_distribute_tokens(
         .add_attribute("sender", sender.as_str())
         .add_attribute("token", &denom)
         .add_attribute("amount", &distributed.to_string());
+
+    Ok(resp)
+}
+
+pub fn execute_withdraw_tokens(
+    deps: DepsMut,
+    info: MessageInfo,
+    receiver: Option<String>,
+) -> Result<Response, ContractError> {
+    let denom = TOKEN
+        .may_load(deps.storage)?
+        .ok_or(ContractError::NoTokenDistributable {})?;
+
+    let receiver = receiver
+        .map(|receiver| deps.api.addr_validate(&receiver))
+        .transpose()?
+        .unwrap_or_else(|| info.sender.clone());
+
+    let amount = WITHDRAWABLE_FUNDS
+        .may_load(deps.storage, &info.sender)?
+        .unwrap_or_default();
+
+    if amount == 0 {
+        // Just do nothing
+        return Ok(Response::new());
+    }
+
+    WITHDRAWABLE_FUNDS.remove(deps.storage, &info.sender);
+    WITHDRAWABLE_TOTAL.update(deps.storage, |total| -> StdResult<_> { Ok(total - amount) })?;
+
+    let resp = Response::new()
+        .add_submessage(SubMsg::new(BankMsg::Send {
+            to_address: receiver.to_string(),
+            amount: coins(amount, &denom),
+        }))
+        .add_attribute("action", "withdraw_tokens")
+        .add_attribute("owner", info.sender.as_str())
+        .add_attribute("receiver", receiver.as_str())
+        .add_attribute("token", &denom)
+        .add_attribute("amount", &amount.to_string());
 
     Ok(resp)
 }
