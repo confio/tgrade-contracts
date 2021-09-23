@@ -259,7 +259,6 @@ fn end_block(deps: DepsMut, env: Env) -> Result<Response, ContractError> {
         return Ok(resp);
     }
 
-    let total = TOTAL.load(deps.storage)?;
     let mut reduction = 0;
 
     let members_to_update: StdResult<Vec<_>> = members()
@@ -297,6 +296,8 @@ fn end_block(deps: DepsMut, env: Env) -> Result<Response, ContractError> {
         })
     })?;
 
+    let mut total = TOTAL.load(deps.storage)?;
+    total -= reduction;
     TOTAL.save(deps.storage, &total)?;
 
     let evt = Event::new("half-life")
