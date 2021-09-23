@@ -539,7 +539,7 @@ fn calculate_diff(cur_vals: Vec<ValidatorInfo>, old_vals: Vec<ValidatorInfo>) ->
 
 #[cfg(test)]
 mod test {
-    use cw_multi_test::{next_block, App, AppBuilder, Executor};
+    use cw_multi_test::{next_block, AppBuilder, BasicApp, Executor};
 
     use super::*;
     use crate::test_helpers::{
@@ -581,7 +581,7 @@ mod test {
 
     // always registers 24 members and 12 non-members with pubkeys
     pub fn instantiate_valset(
-        app: &mut App<TgradeMsg>,
+        app: &mut BasicApp<TgradeMsg>,
         stake: Addr,
         max_validators: u32,
         min_weight: u64,
@@ -600,7 +600,7 @@ mod test {
     }
 
     // the group has a list of
-    fn instantiate_group(app: &mut App<TgradeMsg>, num_members: u32) -> Addr {
+    fn instantiate_group(app: &mut BasicApp<TgradeMsg>, num_members: u32) -> Addr {
         let group_id = app.store_code(contract_engagement());
         let admin = Some(GROUP_OWNER.into());
         let msg = tg4_engagement::msg::InstantiateMsg {
@@ -639,7 +639,7 @@ mod test {
 
     #[test]
     fn init_and_query_state() {
-        let mut app = AppBuilder::new().build();
+        let mut app = AppBuilder::new_custom().build(|_, _, _| ());
 
         // make a simple group
         let group_addr = instantiate_group(&mut app, 36);
@@ -711,7 +711,7 @@ mod test {
     // TODO: test this with other cutoffs... higher max_vals, higher min_weight so they cannot all be filled
     #[test]
     fn simulate_validators() {
-        let mut app = AppBuilder::new().build();
+        let mut app = AppBuilder::new_custom().build(|_, _, _| ());
 
         // make a simple group
         let group_addr = instantiate_group(&mut app, 36);
@@ -746,7 +746,7 @@ mod test {
 
     #[test]
     fn update_metadata_works() {
-        let mut app = AppBuilder::new().build();
+        let mut app = AppBuilder::new_custom().build(|_, _, _| ());
 
         // make a simple group
         let group_addr = instantiate_group(&mut app, 36);
@@ -805,7 +805,7 @@ mod test {
 
     #[test]
     fn validator_list() {
-        let mut app = AppBuilder::new().build();
+        let mut app = AppBuilder::new_custom().build(|_, _, _| ());
 
         // make a simple group
         let group_addr = instantiate_group(&mut app, 36);
@@ -926,7 +926,7 @@ mod test {
 
     #[test]
     fn end_block_run() {
-        let mut app = AppBuilder::new().build();
+        let mut app = AppBuilder::new_custom().build(|_, _, _| ());
 
         // make a simple group
         let group_addr = instantiate_group(&mut app, 36);

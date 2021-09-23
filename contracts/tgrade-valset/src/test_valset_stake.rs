@@ -6,7 +6,7 @@ use tg_bindings::TgradeMsg;
 
 use tg4_stake::msg::ExecuteMsg;
 
-use cw_multi_test::{App, AppBuilder, Contract, ContractWrapper, Executor};
+use cw_multi_test::{AppBuilder, BasicApp, Contract, ContractWrapper, Executor};
 
 use crate::msg::{
     ConfigResponse, EpochResponse, InstantiateMsg, ListActiveValidatorsResponse, QueryMsg,
@@ -49,7 +49,7 @@ fn contract_stake() -> Box<dyn Contract<TgradeMsg>> {
 
 // always registers 24 members and 12 non-members with pubkeys
 pub fn instantiate_valset(
-    app: &mut App<TgradeMsg>,
+    app: &mut BasicApp<TgradeMsg>,
     stake: &Addr,
     max_validators: u32,
     min_weight: u64,
@@ -67,7 +67,7 @@ pub fn instantiate_valset(
     .unwrap()
 }
 
-fn instantiate_stake(app: &mut App<TgradeMsg>) -> Addr {
+fn instantiate_stake(app: &mut BasicApp<TgradeMsg>) -> Addr {
     let stake_id = app.store_code(contract_stake());
     let admin = Some(STAKE_OWNER.into());
     let msg = tg4_stake::msg::InstantiateMsg {
@@ -110,7 +110,7 @@ fn init_msg(stake_addr: &str, max_validators: u32, min_weight: u64) -> Instantia
     }
 }
 
-fn bond(app: &mut App<TgradeMsg>, addr: &Addr, stake_addr: &Addr, stake: &[Coin]) {
+fn bond(app: &mut BasicApp<TgradeMsg>, addr: &Addr, stake_addr: &Addr, stake: &[Coin]) {
     let _ = app
         .execute_contract(
             addr.clone(),
@@ -121,7 +121,7 @@ fn bond(app: &mut App<TgradeMsg>, addr: &Addr, stake_addr: &Addr, stake: &[Coin]
         .unwrap();
 }
 
-fn unbond(app: &mut App<TgradeMsg>, addr: &Addr, stake_addr: &Addr, tokens: u128) {
+fn unbond(app: &mut BasicApp<TgradeMsg>, addr: &Addr, stake_addr: &Addr, tokens: u128) {
     let _ = app
         .execute_contract(
             addr.clone(),
@@ -136,7 +136,7 @@ fn unbond(app: &mut App<TgradeMsg>, addr: &Addr, stake_addr: &Addr, tokens: u128
 
 #[test]
 fn init_and_query_state() {
-    let mut app = AppBuilder::new().build();
+    let mut app = AppBuilder::new_custom().build(|_, _, _| ());
 
     // make a simple stake
     let stake_addr = instantiate_stake(&mut app);
@@ -207,7 +207,20 @@ fn init_and_query_state() {
 
 #[test]
 fn simulate_validators() {
-    let mut app = AppBuilder::new().build();
+    let operators: Vec<_> = addrs(PREREGISTER_MEMBERS)
+        .iter()
+        .map(Addr::unchecked)
+        .collect();
+
+    let mut app = AppBuilder::new_custom().build(|router, _, storage| {
+        let operator_funds = cosmwasm_std::coins(OPERATOR_FUNDS, BOND_DENOM);
+        for op_addr in &operators {
+            router
+                .bank
+                .init_balance(storage, &op_addr, operator_funds.clone())
+                .unwrap();
+        }
+    });
 
     // make a simple stake
     let stake_addr = instantiate_stake(&mut app);
@@ -221,18 +234,6 @@ fn simulate_validators() {
         .query_wasm_smart(&valset_addr, &QueryMsg::SimulateActiveValidators {})
         .unwrap();
     assert_eq!(0, active.validators.len());
-
-    let operators: Vec<_> = addrs(PREREGISTER_MEMBERS)
-        .iter()
-        .map(Addr::unchecked)
-        .collect();
-
-    // First, let's fund the operators
-    let operator_funds = cosmwasm_std::coins(OPERATOR_FUNDS, BOND_DENOM);
-    for op_addr in &operators {
-        app.init_bank_balance(&op_addr, operator_funds.clone())
-            .unwrap();
-    }
 
     // One member bonds needed tokens to have enough weight
     let op1_addr = &operators[0];
