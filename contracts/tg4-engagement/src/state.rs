@@ -31,34 +31,36 @@ mod tests {
 
     #[test]
     fn halflife_should_apply() {
+        let epoch = 123456789;
         let hf = Halflife {
             halflife: None,
-            last_applied: Timestamp::from_seconds(0),
+            last_applied: Timestamp::from_seconds(epoch),
         };
-        assert!(!hf.should_apply(Timestamp::from_seconds(0)));
+        assert!(!hf.should_apply(Timestamp::from_seconds(epoch)));
 
         let hf = Halflife {
-            halflife: Some(Duration::new(1)),
-            last_applied: Timestamp::from_seconds(0),
+            halflife: Some(Duration::new(epoch + 1)),
+            last_applied: Timestamp::from_seconds(epoch),
         };
-        assert!(!hf.should_apply(Timestamp::from_seconds(0)));
+        assert!(!hf.should_apply(Timestamp::from_seconds(epoch)));
 
         let hf = Halflife {
-            halflife: Some(Duration::new(1)),
-            last_applied: Timestamp::from_seconds(0),
+            halflife: Some(Duration::new(epoch + 1)),
+            last_applied: Timestamp::from_seconds(epoch),
         };
-        assert!(hf.should_apply(Timestamp::from_seconds(1)));
+        // because halflife + last_applied + 1 = one second after half life is expected to be met
+        assert!(hf.should_apply(Timestamp::from_seconds(epoch * 2 + 1)));
 
         let hf = Halflife {
-            halflife: Some(Duration::new(1)),
-            last_applied: Timestamp::from_seconds(2),
+            halflife: Some(Duration::new(epoch + 1)),
+            last_applied: Timestamp::from_seconds(epoch + 2),
         };
-        assert!(!hf.should_apply(Timestamp::from_seconds(2)));
+        assert!(!hf.should_apply(Timestamp::from_seconds(epoch + 2)));
 
         let hf = Halflife {
-            halflife: Some(Duration::new(1)),
-            last_applied: Timestamp::from_seconds(2),
+            halflife: Some(Duration::new(epoch + 1)),
+            last_applied: Timestamp::from_seconds(epoch + 2),
         };
-        assert!(hf.should_apply(Timestamp::from_seconds(3)));
+        assert!(hf.should_apply(Timestamp::from_seconds(epoch * 2 + 3)));
     }
 }
