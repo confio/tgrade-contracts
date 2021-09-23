@@ -144,6 +144,53 @@
         }
       },
       "additionalProperties": false
+    },
+    {
+      "description": "Return how much funds are assigned for withdrawal to given address. Returns `FundsResponse`.",
+      "type": "object",
+      "required": [
+        "withdrawable_funds"
+      ],
+      "properties": {
+        "withdrawable_funds": {
+          "type": "object",
+          "required": [
+            "owner"
+          ],
+          "properties": {
+            "owner": {
+              "type": "string"
+            }
+          }
+        }
+      },
+      "additionalProperties": false
+    },
+    {
+      "description": "Return how much funds were distributed in total by this contract. Returns `FundsResponse`.",
+      "type": "object",
+      "required": [
+        "distribute_funds"
+      ],
+      "properties": {
+        "distribute_funds": {
+          "type": "object"
+        }
+      },
+      "additionalProperties": false
+    },
+    {
+      "description": "Return how much funds were send to this contract since last `ExecuteMsg::DistribtueFunds`, and wait for distribution. Returns `FundsResponse`.",
+      "type": "object",
+      "required": [
+        "undistributed_funds"
+      ],
+      "properties": {
+        "undistributed_funds": {
+          "type": "object"
+        }
+      },
+      "additionalProperties": false
     }
   ],
   "definitions": {

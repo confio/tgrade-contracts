@@ -36,6 +36,13 @@
       ],
       "format": "uint64",
       "minimum": 0.0
+    },
+    "token": {
+      "description": "Token which may be distributed by this contract. If none, then distribution API is not usable (any calls would fail).",
+      "type": [
+        "string",
+        "null"
+      ]
     }
   },
   "definitions": {

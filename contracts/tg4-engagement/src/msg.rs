@@ -1,3 +1,4 @@
+use cosmwasm_std::Coin;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
@@ -14,6 +15,9 @@ pub struct InstantiateMsg {
     pub members: Vec<Member>,
     pub preauths: Option<u64>,
     pub halflife: Option<Duration>,
+    /// Token which may be distributed by this contract. If none, then distribution API is not
+    /// usable (any calls would fail).
+    pub token: Option<String>,
 }
 
 #[derive(Serialize, Deserialize, Clone, PartialEq, JsonSchema, Debug)]
@@ -31,6 +35,19 @@ pub enum ExecuteMsg {
     AddHook { addr: String },
     /// Remove a hook. Must be called by Admin
     RemoveHook { addr: String },
+    /// Distributes funds send with this message, and all funds transferred since last call of this
+    /// to members, proportionally to their weights. Funds are not immediately send to members, but
+    /// assigned to them for later withdrawal (see: `ExecuteMsg::WithdrawFunds`
+    DistributeFunds {
+        /// Original source of funds, informational. If present overwrites "sender" field on
+        /// propagated event.
+        sender: Option<String>,
+    },
+    /// Withdraws funds which were previously distributed and assigned to sender.
+    WithdrawFunds {
+        /// Address where to transfer funds. If not present, funds would be send to `sender`.
+        receiver: Option<String>,
+    },
 }
 
 #[derive(Serialize, Deserialize, Clone, PartialEq, JsonSchema, Debug)]
@@ -59,6 +76,15 @@ pub enum QueryMsg {
     Hooks {},
     /// Return the current number of preauths. Returns PreauthResponse.
     Preauths {},
+    /// Return how much funds are assigned for withdrawal to given address. Returns
+    /// `FundsResponse`.
+    WithdrawableFunds { owner: String },
+    /// Return how much funds were distributed in total by this contract. Returns
+    /// `FundsResponse`.
+    DistributeFunds {},
+    /// Return how much funds were send to this contract since last `ExecuteMsg::DistribtueFunds`,
+    /// and wait for distribution. Returns `FundsResponse`.
+    UndistributedFunds {},
 }
 
 #[derive(Serialize, Deserialize, Clone, PartialEq, JsonSchema, Debug)]
@@ -87,6 +113,11 @@ pub enum SudoMsg {
 #[derive(Serialize, Deserialize, Clone, PartialEq, JsonSchema, Debug)]
 pub struct PreauthResponse {
     pub preauths: u64,
+}
+
+#[derive(Serialize, Deserialize, Clone, PartialEq, JsonSchema, Debug)]
+pub struct FundsResponse {
+    pub funds: Coin,
 }
 
 #[cfg(test)]

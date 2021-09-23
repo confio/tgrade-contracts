@@ -101,6 +101,8 @@ pub fn execute(
         }
         ExecuteMsg::AddHook { addr } => execute_add_hook(deps, info, addr),
         ExecuteMsg::RemoveHook { addr } => execute_remove_hook(deps, info, addr),
+        ExecuteMsg::DistributeFunds { .. } => todo!(),
+        ExecuteMsg::WithdrawFunds { .. } => todo!(),
     }
 }
 
@@ -331,6 +333,9 @@ pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
             let preauths = PREAUTH.get_auth(deps.storage)?;
             to_binary(&PreauthResponse { preauths })
         }
+        QueryMsg::WithdrawableFunds { .. } => todo!(),
+        QueryMsg::DistributeFunds {} => todo!(),
+        QueryMsg::UndistributedFunds {} => todo!(),
     }
 }
 
@@ -440,6 +445,7 @@ mod tests {
             ],
             preauths: Some(1),
             halflife: Some(Duration::new(HALFLIFE)),
+            token: None,
         };
         let info = mock_info("creator", &[]);
         instantiate(deps, mock_env(), info, msg).unwrap();

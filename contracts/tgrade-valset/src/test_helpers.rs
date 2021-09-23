@@ -227,6 +227,7 @@ impl SuiteBuilder {
                     members: members.clone(),
                     preauths: None,
                     halflife: None,
+                    token: None,
                 },
                 &[],
                 "group",
