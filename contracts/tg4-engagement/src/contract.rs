@@ -74,7 +74,6 @@ pub fn create(
 
     if let Some(token) = token {
         TOKEN.save(deps.storage, &token)?;
-        WITHDRAWABLE_TOTAL.save(deps.storage, 0);
     }
 
     let mut total = 0u64;
@@ -108,7 +107,9 @@ pub fn execute(
         }
         ExecuteMsg::AddHook { addr } => execute_add_hook(deps, info, addr),
         ExecuteMsg::RemoveHook { addr } => execute_remove_hook(deps, info, addr),
-        ExecuteMsg::DistributeFunds { sender } => execute_distribute_tokens(deps, info, sender),
+        ExecuteMsg::DistributeFunds { sender } => {
+            execute_distribute_tokens(deps, env, info, sender)
+        }
         ExecuteMsg::WithdrawFunds { .. } => todo!(),
     }
 }
@@ -181,7 +182,8 @@ pub fn execute_update_members(
 }
 
 pub fn execute_distribute_tokens(
-    mut deps: DepsMut,
+    deps: DepsMut,
+    env: Env,
     info: MessageInfo,
     sender: Option<String>,
 ) -> Result<Response, ContractError> {
@@ -194,6 +196,21 @@ pub fn execute_distribute_tokens(
         .transpose()?
         .unwrap_or(info.sender);
 
+    // Calculate amount of not yet distributed tokens (leftover after previous calls, and funds
+    // send in the midtime)
+    let withdrawable = WITHDRAWABLE_TOTAL
+        .may_load(deps.storage)?
+        .unwrap_or_default();
+
+    let balance: u128 = deps
+        .querier
+        .query_balance(env.contract.address, denom.clone())?
+        .amount
+        .into();
+
+    let undistributed = balance - withdrawable;
+
+    // Calculate amount of funds to be distributed
     let amount: u128 = info
         .funds
         .into_iter()
@@ -201,28 +218,30 @@ pub fn execute_distribute_tokens(
         .map(|coin| coin.amount)
         .unwrap_or_default()
         .into();
+    let amount = amount + undistributed;
 
     let total = TOTAL.load(deps.storage)?;
-
-    let members = members().range(deps.storage, None, None, Order::Ascending);
+    let members: Vec<_> = members()
+        .range(deps.storage, None, None, Order::Ascending)
+        .collect::<StdResult<_>>()?;
     // Sum of all distributed funds. As all divisions are rounded down, it might happen that this
     // value is slightly lower than total amount. In this case undistributed funds are leftover on
     // contract, and will be distributed in future distribution.
-    let distributed = members.try_fold(0u128, |distributed, member| -> StdResult<_> {
-        let (addr, weight) = member?;
-        let amount = amount * (weight as u128) / (total as u128);
-        // Address is not checked here, as it is straight load from members storage, so it was
-        // validated while inserting into it.
-        let addr = Addr::unchecked(std::str::from_utf8(&addr)?);
-        WITHDRAWABLE_FUNDS.update(deps.storage, &addr, |funds| -> StdResult<_> {
-            Ok(funds.unwrap_or_default() + amount)
-        })?;
-        Ok(distributed + amount)
-    })?;
+    let distributed =
+        members
+            .into_iter()
+            .try_fold(0u128, |distributed, (addr, weight)| -> StdResult<_> {
+                let amount = amount * (weight as u128) / (total as u128);
+                // Address is not checked here, as it is straight load from members storage, so it was
+                // validated while inserting into it.
+                let addr = Addr::unchecked(std::str::from_utf8(&addr)?);
+                WITHDRAWABLE_FUNDS.update(deps.storage, &addr, |funds| -> StdResult<_> {
+                    Ok(funds.unwrap_or_default() + amount)
+                })?;
+                Ok(distributed + amount)
+            })?;
 
-    WITHDRAWABLE_TOTAL.update(deps.storage, |total| -> StdResult<_> {
-        Ok(total + distributed)
-    })?;
+    WITHDRAWABLE_TOTAL.save(deps.storage, &(withdrawable + distributed))?;
 
     let resp = Response::new()
         .add_attribute("action", "distribute_tokens")
