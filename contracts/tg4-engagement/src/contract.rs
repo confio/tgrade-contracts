@@ -255,6 +255,9 @@ fn end_block(deps: DepsMut, env: Env) -> Result<Response, ContractError> {
         return Ok(resp);
     }
 
+    let total = TOTAL.load(deps.storage)?;
+    let reduction = 0;
+
     let members_to_update: StdResult<Vec<_>> = members()
         .range(deps.storage, None, None, Order::Ascending)
         .filter_map_ok(|item| {
@@ -288,6 +291,13 @@ fn end_block(deps: DepsMut, env: Env) -> Result<Response, ContractError> {
             last_applied: env.block.time,
         })
     })?;
+
+    TOTAL.save(deps.storage, &total)?;
+
+    let evt = Event::new("half-life")
+        .add_attribute("height", env.block.height.to_string())
+        .add_attribute("reduction", reduction.to_string());
+    let resp = resp.add_event(evt);
 
     Ok(resp)
 }
@@ -948,7 +958,8 @@ mod tests {
         do_instantiate(deps.as_mut());
         let mut env = mock_env();
 
-        // end block at the same time - do nothing
+        // end block just before half life time is met - do nothing
+        env.block.time = env.block.time.plus_seconds(HALFLIFE - 2);
         assert_eq!(end_block(deps.as_mut(), env.clone()), Ok(Response::new()));
         assert_eq!(
             query_member(deps.as_ref(), USER1.into(), None)
@@ -971,7 +982,11 @@ mod tests {
 
         // end block second after half life
         env.block.time = env.block.time.plus_seconds(HALFLIFE);
-        assert_eq!(end_block(deps.as_mut(), env.clone()), Ok(Response::new())); // TODO: this needs some better message
+        let evt = Event::new("half-life")
+            .add_attribute("height", env.block.height.to_string())
+            .add_attribute("reduction", 0.to_string());
+        let resp = Response::new().add_event(evt);
+        assert_eq!(end_block(deps.as_mut(), env.clone()), Ok(resp));
         assert_eq!(
             query_member(deps.as_ref(), USER1.into(), None)
                 .unwrap()
