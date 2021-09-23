@@ -23,4 +23,7 @@ pub enum ContractError {
 
     #[error("Unknown sudo message")]
     UnknownSudoMsg {},
+
+    #[error("This contract has no token for distribution set")]
+    NoTokenDistributable {},
 }
