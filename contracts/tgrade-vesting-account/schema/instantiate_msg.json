@@ -3,17 +3,14 @@
   "title": "InstantiateMsg",
   "type": "object",
   "required": [
-    "release_at",
-    "tokens"
+    "vesting_accounts"
   ],
   "properties": {
-    "release_at": {
-      "$ref": "#/definitions/Timestamp"
-    },
-    "tokens": {
-      "type": "integer",
-      "format": "uint64",
-      "minimum": 0.0
+    "vesting_accounts": {
+      "type": "array",
+      "items": {
+        "$ref": "#/definitions/VestingAccount"
+      }
     }
   },
   "definitions": {
@@ -28,6 +25,35 @@
     "Uint64": {
       "description": "A thin wrapper around u64 that is using strings for JSON encoding/decoding, such that the full u64 range can be used for clients that convert JSON numbers to floats, like JavaScript and jq.\n\n# Examples\n\nUse `from` to create instances of this and `u64` to get the value out:\n\n``` # use cosmwasm_std::Uint64; let a = Uint64::from(42u64); assert_eq!(a.u64(), 42);\n\nlet b = Uint64::from(70u32); assert_eq!(b.u64(), 70); ```",
       "type": "string"
+    },
+    "VestingAccount": {
+      "type": "object",
+      "required": [
+        "account_type",
+        "release_at",
+        "tokens"
+      ],
+      "properties": {
+        "account_type": {
+          "$ref": "#/definitions/VestingAccountType"
+        },
+        "release_at": {
+          "$ref": "#/definitions/Timestamp"
+        },
+        "tokens": {
+          "type": "integer",
+          "format": "uint64",
+          "minimum": 0.0
+        }
+      }
+    },
+    "VestingAccountType": {
+      "description": "If vesting account is discrete, tokens can't be transferred until given point of time. If account is continuous, then tokens will be released lineary starting at pre-defined point.",
+      "type": "string",
+      "enum": [
+        "Discrete",
+        "Continuous"
+      ]
     }
   }
 }
