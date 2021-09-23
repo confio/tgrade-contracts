@@ -5,7 +5,7 @@ use cw_multi_test::{App, AppBuilder, AppResponse, Contract, ContractWrapper, Exe
 use derivative::Derivative;
 
 use tg4::Member;
-use tg_bindings::{Pubkey, TgradeMsg};
+use tg_bindings::{Pubkey, TgradeMsg, TgradeSudoMsg};
 use tg_utils::Duration;
 
 use crate::msg::{
@@ -296,6 +296,13 @@ impl Suite {
         &mut self.app
     }
 
+    pub fn end_block(&mut self) -> AnyResult<AppResponse> {
+        self.app.sudo(
+            self.valset.clone(),
+            &TgradeSudoMsg::EndWithValidatorUpdate {},
+        )
+    }
+
     pub fn jail(
         &mut self,
         executor: &str,
@@ -340,6 +347,12 @@ impl Suite {
                 limit: limit.into(),
             },
         )
+    }
+
+    pub fn list_active_validators(&self) -> StdResult<ListActiveValidatorsResponse> {
+        self.app
+            .wrap()
+            .query_wasm_smart(self.valset.clone(), &QueryMsg::ListActiveValidators {})
     }
 
     pub fn simulate_active_validators(&self) -> StdResult<ListActiveValidatorsResponse> {

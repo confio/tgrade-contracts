@@ -1506,5 +1506,34 @@ mod test {
                 ],
             );
         }
+
+        #[test]
+        fn enb_block_ignores_jailed_validators() {
+            let mut suite = SuiteBuilder::new().make_operators(4, 0).build();
+
+            let admin = suite.admin().to_owned();
+            let operators = suite.member_operators().to_vec();
+
+            // Jailing some operators to begin with
+            suite
+                .jail(&admin, &operators[0].addr, Duration::new(3600))
+                .unwrap();
+            suite.jail(&admin, &operators[1].addr, None).unwrap();
+
+            // Move forward a little, but not enough for jailing to expire
+            suite.app().update_block(next_block);
+
+            // Endblock triggered - only unjailed validators are active
+            suite.end_block().unwrap();
+
+            let resp = suite.list_active_validators().unwrap();
+            assert_active_validators(
+                resp.validators,
+                vec![
+                    (operators[2].addr.clone(), operators[2].weight),
+                    (operators[3].addr.clone(), operators[3].weight),
+                ],
+            );
+        }
     }
 }
