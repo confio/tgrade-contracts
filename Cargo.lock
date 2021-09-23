@@ -722,6 +722,7 @@ dependencies = [
  "cw-storage-plus",
  "cw0",
  "cw2",
+ "itertools",
  "schemars",
  "serde",
  "tg-bindings",

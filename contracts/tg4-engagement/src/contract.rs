@@ -1,11 +1,12 @@
 #[cfg(not(feature = "library"))]
 use cosmwasm_std::entry_point;
 use cosmwasm_std::{
-    to_binary, Addr, Binary, Deps, DepsMut, Env, MessageInfo, Order, StdResult, Timestamp,
+    to_binary, Addr, Binary, Deps, DepsMut, Env, Event, MessageInfo, Order, StdResult, Timestamp,
 };
 use cw0::maybe_addr;
 use cw2::set_contract_version;
 use cw_storage_plus::{Bound, PrimaryKey, U64Key};
+use itertools::Itertools;
 use tg4::{
     HooksResponse, Member, MemberChangedHookMsg, MemberDiff, MemberListResponse, MemberResponse,
     TotalWeightResponse,
@@ -253,28 +254,31 @@ fn end_block(deps: DepsMut, env: Env) -> Result<Response, ContractError> {
     if !HALFLIFE.load(deps.storage)?.should_apply(env.block.time) {
         return Ok(resp);
     }
+
     let members_to_update: StdResult<Vec<_>> = members()
         .range(deps.storage, None, None, Order::Ascending)
-        .map(|item| {
-            let (key, weight) = item?;
-            Ok(Member {
-                addr: String::from_utf8(key)?,
-                weight,
-            })
+        .filter_map_ok(|item| {
+            let (key, weight) = item;
+            // Halving weight lesser then 1 would introduce floats
+            if weight > 1 {
+                Some(Member {
+                    addr: String::from_utf8(key).ok()?,
+                    weight,
+                })
+            } else {
+                None
+            }
         })
         .collect();
 
     for member in members_to_update? {
-        // Halving weight lesser then 1 would introduce floats
-        if member.weight > 1 {
-            members().replace(
-                deps.storage,
-                &Addr::unchecked(member.addr),
-                Some(&(member.weight / 2)),
-                Some(&member.weight),
-                env.block.height,
-            )?;
-        }
+        members().replace(
+            deps.storage,
+            &Addr::unchecked(member.addr),
+            Some(&(member.weight / 2)),
+            Some(&member.weight),
+            env.block.height,
+        )?;
     }
 
     // We need to update half life last applied timestamp to current one
