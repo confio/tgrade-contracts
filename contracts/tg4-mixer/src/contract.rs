@@ -384,7 +384,7 @@ mod tests {
             members,
             preauths: Some(1),
             halflife: None,
-            token: None,
+            token: STAKE_DENOM.to_owned(),
         };
         app.instantiate_contract(group_id, Addr::unchecked(OWNER), &msg, &[], "group", admin)
             .unwrap()

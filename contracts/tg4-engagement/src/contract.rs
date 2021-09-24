@@ -14,7 +14,10 @@ use tg4::{
 
 use crate::error::ContractError;
 use crate::msg::{ExecuteMsg, InstantiateMsg, PreauthResponse, QueryMsg, SudoMsg};
-use crate::state::{Halflife, HALFLIFE, TOKEN, WITHDRAWABLE_FUNDS, WITHDRAWABLE_TOTAL};
+use crate::state::{
+    Halflife, HALFLIFE, POINTS_CORRECTION, POINTS_MULTIPLIER, POINTS_PER_WEIGHT, TOKEN,
+    WITHDRAWABLE_TOTAL, WITHDRAWN_FUNDS,
+};
 use tg_bindings::{request_privileges, Privilege, PrivilegeChangeMsg, TgradeMsg};
 use tg_utils::{members, Duration, ADMIN, HOOKS, PREAUTH, TOTAL};
 
@@ -59,7 +62,7 @@ pub fn create(
     height: u64,
     time: Timestamp,
     halflife: Option<Duration>,
-    token: Option<String>,
+    token: String,
 ) -> Result<(), ContractError> {
     let admin_addr = admin
         .map(|admin| deps.api.addr_validate(&admin))
@@ -74,15 +77,17 @@ pub fn create(
     };
     HALFLIFE.save(deps.storage, &data)?;
 
-    if let Some(token) = token {
-        TOKEN.save(deps.storage, &token)?;
-    }
+    TOKEN.save(deps.storage, &token)?;
+    POINTS_PER_WEIGHT.save(deps.storage, &0)?;
+    WITHDRAWABLE_TOTAL.save(deps.storage, &0)?;
 
     let mut total = 0u64;
     for member in members_list.into_iter() {
         total += member.weight;
         let member_addr = deps.api.addr_validate(&member.addr)?;
         members().save(deps.storage, &member_addr, &member.weight, height)?;
+        POINTS_CORRECTION.save(deps.storage, &member_addr, &0)?;
+        WITHDRAWN_FUNDS.save(deps.storage, &member_addr, &0)?;
     }
     TOTAL.save(deps.storage, &total)?;
 
@@ -189,6 +194,13 @@ pub fn execute_distribute_tokens(
     info: MessageInfo,
     sender: Option<String>,
 ) -> Result<Response, ContractError> {
+    let total = TOTAL.load(deps.storage)? as u128;
+
+    // There are no shares in play - noone to distribute to
+    if total == 0 {
+        return Err(ContractError::NoMembersToDistributeTo {});
+    }
+
     let denom = TOKEN
         .may_load(deps.storage)?
         .ok_or(ContractError::NoTokenDistributable {})?;
@@ -222,34 +234,26 @@ pub fn execute_distribute_tokens(
         .into();
     let amount = amount + undistributed;
 
-    let total = TOTAL.load(deps.storage)?;
-    let members: Vec<_> = members()
-        .range(deps.storage, None, None, Order::Ascending)
-        .collect::<StdResult<_>>()?;
-    // Sum of all distributed funds. As all divisions are rounded down, it might happen that this
-    // value is slightly lower than total amount. In this case undistributed funds are leftover on
-    // contract, and will be distributed in future distribution.
-    let distributed =
-        members
-            .into_iter()
-            .try_fold(0u128, |distributed, (addr, weight)| -> StdResult<_> {
-                let amount = amount * (weight as u128) / (total as u128);
-                // Address is not checked here, as it is straight load from members storage, so it was
-                // validated while inserting into it.
-                let addr = Addr::unchecked(std::str::from_utf8(&addr)?);
-                WITHDRAWABLE_FUNDS.update(deps.storage, &addr, |funds| -> StdResult<_> {
-                    Ok(funds.unwrap_or_default() + amount)
-                })?;
-                Ok(distributed + amount)
-            })?;
+    if amount == 0 {
+        return Ok(Response::new());
+    }
 
-    WITHDRAWABLE_TOTAL.save(deps.storage, &(withdrawable + distributed))?;
+    let points_per_share = amount * POINTS_MULTIPLIER / total;
+    let leftover = amount * POINTS_MULTIPLIER % total;
+    let amount = amount - leftover;
+    // Everything goes back to 128-bits/16-bytes
+    let withdrawable = withdrawable + amount;
+
+    WITHDRAWABLE_TOTAL.save(deps.storage, &withdrawable)?;
+    POINTS_PER_WEIGHT.update(deps.storage, move |ppw| -> StdResult<_> {
+        Ok(ppw + points_per_share)
+    })?;
 
     let resp = Response::new()
         .add_attribute("action", "distribute_tokens")
         .add_attribute("sender", sender.as_str())
         .add_attribute("token", &denom)
-        .add_attribute("amount", &distributed.to_string());
+        .add_attribute("amount", &amount.to_string());
 
     Ok(resp)
 }
@@ -268,16 +272,18 @@ pub fn execute_withdraw_tokens(
         .transpose()?
         .unwrap_or_else(|| info.sender.clone());
 
-    let amount = WITHDRAWABLE_FUNDS
-        .may_load(deps.storage, &info.sender)?
-        .unwrap_or_default();
+    let weight: u128 = members().load(deps.storage, &info.sender)?.into();
+    let ppw = POINTS_PER_WEIGHT.load(deps.storage)?;
+    let correction = POINTS_CORRECTION.load(deps.storage, &info.sender)?;
+    let withdrawn = WITHDRAWN_FUNDS.load(deps.storage, &info.sender)?;
+    let amount = ((ppw * weight) as i128 + correction) as u128 / POINTS_MULTIPLIER - withdrawn;
 
     if amount == 0 {
         // Just do nothing
         return Ok(Response::new());
     }
 
-    WITHDRAWABLE_FUNDS.remove(deps.storage, &info.sender);
+    WITHDRAWN_FUNDS.save(deps.storage, &info.sender, &(withdrawn + amount))?;
     WITHDRAWABLE_TOTAL.update(deps.storage, |total| -> StdResult<_> { Ok(total - amount) })?;
 
     let resp = Response::new()
@@ -331,6 +337,12 @@ pub fn update_members(
             total += add.weight;
             diffs.push(MemberDiff::new(add.addr, old, Some(add.weight)));
             Ok(add.weight)
+        })?;
+        POINTS_CORRECTION.update(deps.storage, &add_addr, |old| -> StdResult<_> {
+            Ok(old.unwrap_or_default())
+        })?;
+        WITHDRAWN_FUNDS.update(deps.storage, &add_addr, |old| -> StdResult<_> {
+            Ok(old.unwrap_or_default())
         })?;
     }
 
@@ -566,7 +578,7 @@ mod tests {
             ],
             preauths: Some(1),
             halflife: Some(Duration::new(HALFLIFE)),
-            token: None,
+            token: "usdc".to_owned(),
         };
         let info = mock_info("creator", &[]);
         instantiate(deps, mock_env(), info, msg).unwrap();

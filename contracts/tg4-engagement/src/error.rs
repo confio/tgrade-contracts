@@ -26,4 +26,7 @@ pub enum ContractError {
 
     #[error("This contract has no token for distribution set")]
     NoTokenDistributable {},
+
+    #[error("No members to distribute tokens to")]
+    NoMembersToDistributeTo {},
 }

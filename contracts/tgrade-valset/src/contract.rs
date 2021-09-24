@@ -608,7 +608,7 @@ mod test {
             members: members(num_members),
             preauths: None,
             halflife: None,
-            token: None,
+            token: REWARD_DENOM.to_owned(),
         };
         let owner = Addr::unchecked(GROUP_OWNER);
         app.instantiate_contract(group_id, owner, &msg, &[], "group", admin)

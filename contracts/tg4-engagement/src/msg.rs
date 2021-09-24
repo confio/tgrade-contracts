@@ -15,9 +15,8 @@ pub struct InstantiateMsg {
     pub members: Vec<Member>,
     pub preauths: Option<u64>,
     pub halflife: Option<Duration>,
-    /// Token which may be distributed by this contract. If none, then distribution API is not
-    /// usable (any calls would fail).
-    pub token: Option<String>,
+    /// Token which may be distributed by this contract.
+    pub token: String,
 }
 
 #[derive(Serialize, Deserialize, Clone, PartialEq, JsonSchema, Debug)]
