@@ -836,6 +836,19 @@ dependencies = [
 ]
 
 [[package]]
+name = "tgrade-vesting-account"
+version = "0.4.0"
+dependencies = [
+ "cosmwasm-schema",
+ "cosmwasm-std",
+ "cw2",
+ "schemars",
+ "serde",
+ "tg-bindings",
+ "thiserror",
+]
+
+[[package]]
 name = "thiserror"
 version = "1.0.29"
 source = "registry+https://github.com/rust-lang/crates.io-index"
