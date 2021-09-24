@@ -15,12 +15,12 @@ crate-type = ["cdylib", "rlib"]
 library = []
 
 [dependencies]
-cosmwasm-std = { version = "0.16.0" }
-cw2 = "0.9.0"
-schemars = "0.8"
+cosmwasm-std = { version = "1.0.0-soon" }
+cw2 = "0.10.0-soon"
+schemars = "0.8.1"
 serde = { version = "1.0.103", default-features = false, features = ["derive"] }
 tg-bindings = { version = "0.4.0", path = "../../packages/bindings" }
 thiserror = { version = "1.0.21" }
 
 [dev-dependencies]
-cosmwasm-schema = "0.16.0"
+cosmwasm-schema = "1.0.0-soon"
