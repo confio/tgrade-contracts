@@ -35,6 +35,7 @@ pub struct Config {
     vesting_plan: VestingPlan,
 }
 
+/// Response for tokens querry
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct Tokens {
     amount: Uint128,

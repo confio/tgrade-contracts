@@ -4,7 +4,7 @@ use std::fmt;
 
 use cosmwasm_std::{Addr, CosmosMsg, Empty, Uint128};
 
-use crate::state::Config;
+use crate::state::{Config, Tokens};
 
 #[derive(Serialize, Deserialize, Clone, PartialEq, JsonSchema, Debug)]
 #[serde(rename_all = "snake_case")]
@@ -63,3 +63,12 @@ pub enum QueryMsg {
     /// as liberated.
     IsLiberated {},
 }
+
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
+pub struct TokensResponse(Tokens);
+
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
+pub struct CanReleaseResponse(bool); // maybe change to Expiration with 0 meaning that release is allowed?
+
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
+pub struct IsLiberatedResponse(bool);
