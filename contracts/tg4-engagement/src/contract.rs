@@ -2,7 +2,7 @@
 use cosmwasm_std::entry_point;
 use cosmwasm_std::{
     coins, to_binary, Addr, BankMsg, Binary, Deps, DepsMut, Env, Event, MessageInfo, Order,
-    StdResult, Timestamp,
+    StdResult, Timestamp, Uint128,
 };
 use cw0::maybe_addr;
 use cw2::set_contract_version;
@@ -78,16 +78,16 @@ pub fn create(
     HALFLIFE.save(deps.storage, &data)?;
 
     TOKEN.save(deps.storage, &token)?;
-    POINTS_PER_WEIGHT.save(deps.storage, &0)?;
-    WITHDRAWABLE_TOTAL.save(deps.storage, &0)?;
+    POINTS_PER_WEIGHT.save(deps.storage, &Uint128::zero())?;
+    WITHDRAWABLE_TOTAL.save(deps.storage, &Uint128::zero())?;
 
     let mut total = 0u64;
     for member in members_list.into_iter() {
         total += member.weight;
         let member_addr = deps.api.addr_validate(&member.addr)?;
         members().save(deps.storage, &member_addr, &member.weight, height)?;
-        POINTS_CORRECTION.save(deps.storage, &member_addr, &0)?;
-        WITHDRAWN_FUNDS.save(deps.storage, &member_addr, &0)?;
+        POINTS_CORRECTION.save(deps.storage, &member_addr, &Uint128::zero())?;
+        WITHDRAWN_FUNDS.save(deps.storage, &member_addr, &Uint128::zero())?;
     }
     TOTAL.save(deps.storage, &total)?;
 
@@ -212,9 +212,10 @@ pub fn execute_distribute_tokens(
 
     // Calculate amount of not yet distributed tokens (leftover after previous calls, and funds
     // send in the midtime)
-    let withdrawable = WITHDRAWABLE_TOTAL
+    let withdrawable: u128 = WITHDRAWABLE_TOTAL
         .may_load(deps.storage)?
-        .unwrap_or_default();
+        .unwrap_or_default()
+        .into();
 
     let balance: u128 = deps
         .querier
@@ -244,9 +245,9 @@ pub fn execute_distribute_tokens(
     // Everything goes back to 128-bits/16-bytes
     let withdrawable = withdrawable + amount;
 
-    WITHDRAWABLE_TOTAL.save(deps.storage, &withdrawable)?;
+    WITHDRAWABLE_TOTAL.save(deps.storage, &withdrawable.into())?;
     POINTS_PER_WEIGHT.update(deps.storage, move |ppw| -> StdResult<_> {
-        Ok(ppw + points_per_share)
+        Ok(ppw + Uint128::from(points_per_share))
     })?;
 
     let resp = Response::new()
@@ -273,9 +274,9 @@ pub fn execute_withdraw_tokens(
         .unwrap_or_else(|| info.sender.clone());
 
     let weight: u128 = members().load(deps.storage, &info.sender)?.into();
-    let ppw = POINTS_PER_WEIGHT.load(deps.storage)?;
-    let correction = POINTS_CORRECTION.load(deps.storage, &info.sender)?;
-    let withdrawn = WITHDRAWN_FUNDS.load(deps.storage, &info.sender)?;
+    let ppw: u128 = POINTS_PER_WEIGHT.load(deps.storage)?.into();
+    let correction = u128::from(POINTS_CORRECTION.load(deps.storage, &info.sender)?) as i128;
+    let withdrawn: u128 = WITHDRAWN_FUNDS.load(deps.storage, &info.sender)?.into();
     let amount = ((ppw * weight) as i128 + correction) as u128 / POINTS_MULTIPLIER - withdrawn;
 
     if amount == 0 {
@@ -283,8 +284,10 @@ pub fn execute_withdraw_tokens(
         return Ok(Response::new());
     }
 
-    WITHDRAWN_FUNDS.save(deps.storage, &info.sender, &(withdrawn + amount))?;
-    WITHDRAWABLE_TOTAL.update(deps.storage, |total| -> StdResult<_> { Ok(total - amount) })?;
+    WITHDRAWN_FUNDS.save(deps.storage, &info.sender, &(withdrawn + amount).into())?;
+    WITHDRAWABLE_TOTAL.update(deps.storage, |total| -> StdResult<_> {
+        Ok(total - Uint128::from(amount))
+    })?;
 
     let resp = Response::new()
         .add_submessage(SubMsg::new(BankMsg::Send {
@@ -329,17 +332,23 @@ pub fn update_members(
     let mut total = TOTAL.load(deps.storage)?;
     let mut diffs: Vec<MemberDiff> = vec![];
 
+    let ppw = u128::from(POINTS_PER_WEIGHT.load(deps.storage)?) as i128;
+
     // add all new members and update total
     for add in to_add.into_iter() {
         let add_addr = deps.api.addr_validate(&add.addr)?;
+        let mut diff = 0;
         members().update(deps.storage, &add_addr, height, |old| -> StdResult<_> {
-            total -= old.unwrap_or_default();
-            total += add.weight;
             diffs.push(MemberDiff::new(add.addr, old, Some(add.weight)));
+            let old = old.unwrap_or_default();
+            total -= old;
+            total += add.weight;
+            diff = add.weight as i128 - old as i128;
             Ok(add.weight)
         })?;
         POINTS_CORRECTION.update(deps.storage, &add_addr, |old| -> StdResult<_> {
-            Ok(old.unwrap_or_default())
+            let old = old.unwrap_or_default();
+            Ok(old - Uint128::from((ppw * diff) as u128))
         })?;
         WITHDRAWN_FUNDS.update(deps.storage, &add_addr, |old| -> StdResult<_> {
             Ok(old.unwrap_or_default())
@@ -354,6 +363,10 @@ pub fn update_members(
             diffs.push(MemberDiff::new(remove, Some(weight), None));
             total -= weight;
             members().remove(deps.storage, &remove_addr, height)?;
+            POINTS_CORRECTION.update(deps.storage, &remove_addr, |old| -> StdResult<_> {
+                let old = old.unwrap_or_default();
+                Ok(old + Uint128::from((ppw * weight as i128) as u128))
+            })?;
         }
     }
 

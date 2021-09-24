@@ -1,7 +1,7 @@
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
-use cosmwasm_std::{Addr, Timestamp};
+use cosmwasm_std::{Addr, Timestamp, Uint128};
 use cw_storage_plus::{Item, Map};
 use tg_utils::Duration;
 
@@ -36,13 +36,16 @@ pub const HALFLIFE: Item<Halflife> = Item::new("halflife");
 /// Token which can be distributed by this token.
 pub const TOKEN: Item<String> = Item::new("token");
 /// How much points is single point of weight worth at this point.
-pub const POINTS_PER_WEIGHT: Item<u128> = Item::new("points_per_share");
+pub const POINTS_PER_WEIGHT: Item<Uint128> = Item::new("points_per_share");
 /// How much points should be added/removed from calculated funds while withdrawal.
-pub const POINTS_CORRECTION: Map<&Addr, i128> = Map::new("shares_correction");
+///
+/// Kept as Uint128 because of lack of Int128 type, but it is actualy an u2 number and should
+/// always be converted to i128 for calculations.
+pub const POINTS_CORRECTION: Map<&Addr, Uint128> = Map::new("shares_correction");
 /// How much funds addresses already withdrawn
-pub const WITHDRAWN_FUNDS: Map<&Addr, u128> = Map::new("withdrawn_funds");
+pub const WITHDRAWN_FUNDS: Map<&Addr, Uint128> = Map::new("withdrawn_funds");
 /// Total funds not yet withdrawn
-pub const WITHDRAWABLE_TOTAL: Item<u128> = Item::new("witdrawable_total");
+pub const WITHDRAWABLE_TOTAL: Item<Uint128> = Item::new("witdrawable_total");
 
 #[cfg(test)]
 mod tests {
