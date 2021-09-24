@@ -34,3 +34,9 @@ pub struct Config {
     tokens: Coin,
     vesting_plan: VestingPlan,
 }
+
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
+pub struct Tokens {
+    amount: Uint128,
+    frozen: Option<Uint128>,
+}
