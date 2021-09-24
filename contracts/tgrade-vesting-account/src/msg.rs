@@ -54,10 +54,8 @@ where
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 #[serde(rename_all = "snake_case")]
 pub enum QueryMsg {
-    /// Shows amount of tokens in total.
+    /// Shows amount of available and frozen tokens in total.
     Tokens {},
-    /// Shows amount of tokens that are frozen.
-    FrozenTokens {},
     /// Checks if timestamp defined for that vesting account has been met
     /// and there are no frozen tokens.
     CanRelease {},
