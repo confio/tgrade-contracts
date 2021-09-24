@@ -11,5 +11,5 @@ fn main() {
     create_dir_all(&out_dir).unwrap();
     remove_schemas(&out_dir).unwrap();
 
-    export_schema_with_title(&schema_for!(InstantiateMsg), &out_dir, "InstantiateMsg");
+    export_schema_with_title(&mut schema_for!(InstantiateMsg), &out_dir, "InstantiateMsg");
 }

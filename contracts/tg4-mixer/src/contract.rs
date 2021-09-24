@@ -328,8 +328,8 @@ fn list_members_by_weight(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use cosmwasm_std::{coins, Addr, Uint128};
-    use cw_multi_test::{next_block, App, AppBuilder, Contract, ContractWrapper, Executor};
+    use cosmwasm_std::{coins, Addr, BankMsg, Uint128};
+    use cw_multi_test::{next_block, AppBuilder, BasicApp, Contract, ContractWrapper, Executor};
     use tg_bindings::TgradeMsg;
 
     const STAKE_DENOM: &str = "utgd";
@@ -339,6 +339,7 @@ mod tests {
     const VOTER3: &str = "voter0003";
     const VOTER4: &str = "voter0004";
     const VOTER5: &str = "voter0005";
+    const RESERVE: &str = "reserve";
 
     fn member<T: Into<String>>(addr: T, weight: u64) -> Member {
         Member {
@@ -375,7 +376,7 @@ mod tests {
     }
 
     // uploads code and returns address of group contract
-    fn instantiate_group(app: &mut App<TgradeMsg>, members: Vec<Member>) -> Addr {
+    fn instantiate_group(app: &mut BasicApp<TgradeMsg>, members: Vec<Member>) -> Addr {
         let admin = Some(OWNER.into());
         let group_id = app.store_code(contract_group());
         let msg = tg4_engagement::msg::InstantiateMsg {
@@ -389,7 +390,7 @@ mod tests {
     }
 
     // uploads code and returns address of group contract
-    fn instantiate_staking(app: &mut App<TgradeMsg>, stakers: Vec<Member>) -> Addr {
+    fn instantiate_staking(app: &mut BasicApp<TgradeMsg>, stakers: Vec<Member>) -> Addr {
         let admin = Some(OWNER.into());
         let group_id = app.store_code(contract_staking());
         let msg = tg4_stake::msg::InstantiateMsg {
@@ -417,7 +418,6 @@ mod tests {
             // give them a balance
             let balance = coins(staker.weight as u128, STAKE_DENOM);
             let caller = Addr::unchecked(staker.addr);
-            app.init_bank_balance(&caller, balance.clone()).unwrap();
 
             // they stake to the contract
             let msg = tg4_stake::msg::ExecuteMsg::Bond {};
@@ -428,7 +428,7 @@ mod tests {
         contract
     }
 
-    fn instantiate_mixer(app: &mut App<TgradeMsg>, left: &Addr, right: &Addr) -> Addr {
+    fn instantiate_mixer(app: &mut BasicApp<TgradeMsg>, left: &Addr, right: &Addr) -> Addr {
         let flex_id = app.store_code(contract_mixer());
         let msg = crate::msg::InstantiateMsg {
             left_group: left.to_string(),
@@ -444,7 +444,7 @@ mod tests {
     /// and connectioning them all to the mixer.
     ///
     /// Returns (mixer address, group address, staking address).
-    fn setup_test_case(app: &mut App<TgradeMsg>, stakers: Vec<Member>) -> (Addr, Addr, Addr) {
+    fn setup_test_case(app: &mut BasicApp<TgradeMsg>, stakers: Vec<Member>) -> (Addr, Addr, Addr) {
         // 1. Instantiate group contract with members (and OWNER as admin)
         let members = vec![
             member(OWNER, 0),
@@ -470,7 +470,7 @@ mod tests {
 
     #[allow(clippy::too_many_arguments)]
     fn check_membership(
-        app: &App<TgradeMsg>,
+        app: &BasicApp<TgradeMsg>,
         mixer_addr: &Addr,
         owner: Option<u64>,
         voter1: Option<u64>,
@@ -503,12 +503,24 @@ mod tests {
 
     #[test]
     fn basic_init() {
-        let mut app = AppBuilder::new().build();
         let stakers = vec![
             member(OWNER, 88888888888), // 0 weight -> 0 mixed
             member(VOTER1, 10000),      // 10000 stake, 100 weight -> 1000 mixed
             member(VOTER3, 7500),       // 7500 stake, 300 weight -> 1500 mixed
         ];
+
+        let mut app = AppBuilder::new_custom().build(|router, _, storage| {
+            for staker in &stakers {
+                router
+                    .bank
+                    .init_balance(
+                        storage,
+                        &Addr::unchecked(&staker.addr),
+                        coins(staker.weight as u128, STAKE_DENOM),
+                    )
+                    .unwrap();
+            }
+        });
 
         let (mixer_addr, _, _) = setup_test_case(&mut app, stakers);
 
@@ -527,12 +539,29 @@ mod tests {
 
     #[test]
     fn update_with_upstream_change() {
-        let mut app = AppBuilder::new().build();
         let stakers = vec![
             member(VOTER1, 10000), // 10000 stake, 100 weight -> 1000 mixed
             member(VOTER3, 7500),  // 7500 stake, 300 weight -> 1500 mixed
             member(VOTER5, 50),    // below stake threshold -> None
         ];
+
+        let mut app = AppBuilder::new_custom().build(|router, _, storage| {
+            router
+                .bank
+                .init_balance(storage, &Addr::unchecked(RESERVE), coins(450, STAKE_DENOM))
+                .unwrap();
+
+            for staker in &stakers {
+                router
+                    .bank
+                    .init_balance(
+                        storage,
+                        &Addr::unchecked(&staker.addr),
+                        coins(staker.weight as u128, STAKE_DENOM),
+                    )
+                    .unwrap();
+            }
+        });
 
         let (mixer_addr, group_addr, staker_addr) = setup_test_case(&mut app, stakers);
 
@@ -550,8 +579,15 @@ mod tests {
 
         // stake some tokens, update the values
         let balance = coins(450, STAKE_DENOM);
-        app.init_bank_balance(&Addr::unchecked(VOTER5), balance.clone())
-            .unwrap();
+        app.execute(
+            Addr::unchecked(RESERVE),
+            BankMsg::Send {
+                to_address: VOTER5.to_owned(),
+                amount: balance.clone(),
+            }
+            .into(),
+        )
+        .unwrap();
         let msg = tg4_stake::msg::ExecuteMsg::Bond {};
         app.execute_contract(Addr::unchecked(VOTER5), staker_addr, &msg, &balance)
             .unwrap();

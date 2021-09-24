@@ -1,7 +1,7 @@
 #![cfg(test)]
 use anyhow::Result as AnyResult;
 use cosmwasm_std::{coin, Addr, Binary, Coin, Decimal, StdResult};
-use cw_multi_test::{App, AppBuilder, AppResponse, Contract, ContractWrapper, Executor};
+use cw_multi_test::{AppBuilder, AppResponse, BasicApp, Contract, ContractWrapper, Executor};
 use derivative::Derivative;
 
 use tg4::Member;
@@ -215,7 +215,7 @@ impl SuiteBuilder {
 
         let admin = Addr::unchecked("admin");
 
-        let mut app = AppBuilder::new().build();
+        let mut app = AppBuilder::new_custom().build(|_, _, _| ());
 
         let group_id = app.store_code(contract_engagement());
         let group = app
@@ -272,7 +272,7 @@ impl SuiteBuilder {
 pub struct Suite {
     /// Multitest app
     #[derivative(Debug = "ignore")]
-    app: App<TgradeMsg>,
+    app: BasicApp<TgradeMsg>,
     /// tgrade-valset contract address
     valset: Addr,
     /// Admin used for any administrative messages, but also admin of tgrade-valset contract
@@ -293,7 +293,7 @@ impl Suite {
         &self.member_operators
     }
 
-    pub fn app(&mut self) -> &mut App<TgradeMsg> {
+    pub fn app(&mut self) -> &mut BasicApp<TgradeMsg> {
         &mut self.app
     }
 
