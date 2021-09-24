@@ -1,7 +1,7 @@
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
-use cosmwasm_std::{Timestamp, Uint128};
+use cosmwasm_std::{Addr, Coin, Timestamp, Uint128};
 
 /// If vesting account is discrete, tokens can't be transferred
 /// until given point of time.
@@ -10,13 +10,27 @@ use cosmwasm_std::{Timestamp, Uint128};
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub enum VestingPlan {
     Discrete {
-        tokens: Uint128,
         release_at: Timestamp,
     },
     Continuous {
-        tokens: Uint128,
         start_at: Timestamp,
         /// end_at allows linear interpolation between these points.
         end_at: Timestamp,
     },
+}
+
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
+pub struct Config {
+    /// Account that receives the tokens once they have been vested and released.
+    recipient: Addr,
+    /// Secure multi-sig from SOB, which can be used to change the Operator
+    /// or to hald the release of future tokens in the case of misbehavior.
+    operator: Addr,
+    /// Validator or an optional delegation to an "operational" employee from
+    /// SOB, which can approve the payout of fully vested tokens to the final
+    /// recipient.
+    oversight: Addr,
+    /// Total amount of tokens vested
+    tokens: Coin,
+    vesting_plan: VestingPlan,
 }
