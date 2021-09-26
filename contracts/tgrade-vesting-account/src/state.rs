@@ -2,6 +2,7 @@ use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
 use cosmwasm_std::{Addr, Coin, Timestamp, Uint128};
+use cw_storage_plus::Item;
 
 /// If vesting account is discrete, tokens can't be transferred
 /// until given point of time.
@@ -41,3 +42,5 @@ pub struct Tokens {
     amount: Uint128,
     frozen: Option<Uint128>,
 }
+
+pub const VESTING_CONFIG: Item<Config> = Item::new("vestingconfig");

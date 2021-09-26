@@ -35,6 +35,7 @@ where
         amount: Uint128,
     },
 
+    // TODO: Add Bond/Unbond implementations
     Bond {},
     Unbond {
         amount: Uint128,
@@ -53,7 +54,13 @@ where
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 #[serde(rename_all = "snake_case")]
-pub enum QueryMsg {
+pub enum QueryMsg<T = Empty>
+where
+    T: Clone + fmt::Debug + PartialEq + JsonSchema,
+{
+    /// If CanExecute returns true then a call to `Execute` with the same message,
+    /// before any further state changes, should also succeed.
+    CanExecute { sender: String, msg: CosmosMsg<T> },
     /// Shows amount of available and frozen tokens in total.
     Tokens {},
     /// Checks if timestamp defined for that vesting account has been met

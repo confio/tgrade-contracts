@@ -842,6 +842,7 @@ version = "0.4.0"
 dependencies = [
  "cosmwasm-schema 1.0.0-soon",
  "cosmwasm-std",
+ "cw-storage-plus",
  "cw2",
  "schemars",
  "serde",
