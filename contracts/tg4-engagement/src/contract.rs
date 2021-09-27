@@ -337,7 +337,7 @@ pub fn sudo_add_member(
 
 // the logic from execute_update_members extracted for easier import
 pub fn update_members(
-    deps: DepsMut,
+    mut deps: DepsMut,
     height: u64,
     to_add: Vec<Member>,
     to_remove: Vec<String>,
@@ -345,7 +345,7 @@ pub fn update_members(
     let mut total = TOTAL.load(deps.storage)?;
     let mut diffs: Vec<MemberDiff> = vec![];
 
-    let ppw = u128::from(POINTS_PER_WEIGHT.load(deps.storage)?) as i128;
+    let ppw: u128 = POINTS_PER_WEIGHT.load(deps.storage)?.into();
 
     // add all new members and update total
     for add in to_add.into_iter() {
@@ -359,10 +359,7 @@ pub fn update_members(
             diff = add.weight as i128 - old as i128;
             Ok(add.weight)
         })?;
-        POINTS_CORRECTION.update(deps.storage, &add_addr, |old| -> StdResult<_> {
-            let old = old.unwrap_or_default();
-            Ok(old - Uint128::from((ppw * diff) as u128))
-        })?;
+        apply_points_correction(deps.branch(), &add_addr, ppw, diff)?;
         WITHDRAWN_FUNDS.update(deps.storage, &add_addr, |old| -> StdResult<_> {
             Ok(old.unwrap_or_default())
         })?;
@@ -376,15 +373,29 @@ pub fn update_members(
             diffs.push(MemberDiff::new(remove, Some(weight), None));
             total -= weight;
             members().remove(deps.storage, &remove_addr, height)?;
-            POINTS_CORRECTION.update(deps.storage, &remove_addr, |old| -> StdResult<_> {
-                let old = old.unwrap_or_default();
-                Ok(old + Uint128::from((ppw * weight as i128) as u128))
-            })?;
+            apply_points_correction(deps.branch(), &remove_addr, ppw, -(weight as i128))?;
         }
     }
 
     TOTAL.save(deps.storage, &total)?;
     Ok(MemberChangedHookMsg { diffs })
+}
+
+/// Applies points correction for given address.
+/// `points_per_weight` is current value from `POINTS_PER_WEIGHT` - not loaded in function, to
+/// avoid multiple queries on bulk updates.
+/// `diff` is the weight change
+pub fn apply_points_correction(
+    deps: DepsMut,
+    addr: &Addr,
+    points_per_weight: u128,
+    diff: i128,
+) -> StdResult<()> {
+    POINTS_CORRECTION.update(deps.storage, &addr, |old| -> StdResult<_> {
+        let old = old.unwrap_or_default();
+        Ok(old - Uint128::from((points_per_weight as i128 * diff) as u128))
+    })?;
+    Ok(())
 }
 
 #[cfg_attr(not(feature = "library"), entry_point)]
@@ -410,7 +421,7 @@ fn weight_reduction(weight: u64) -> u64 {
     weight - (weight / 2)
 }
 
-fn end_block(deps: DepsMut, env: Env) -> Result<Response, ContractError> {
+fn end_block(mut deps: DepsMut, env: Env) -> Result<Response, ContractError> {
     let resp = Response::new();
 
     // If duration of half life added to timestamp of last applied
@@ -418,6 +429,8 @@ fn end_block(deps: DepsMut, env: Env) -> Result<Response, ContractError> {
     if !HALFLIFE.load(deps.storage)?.should_apply(env.block.time) {
         return Ok(resp);
     }
+
+    let ppw: u128 = POINTS_PER_WEIGHT.load(deps.storage)?.into();
 
     let mut reduction = 0;
 
@@ -439,14 +452,17 @@ fn end_block(deps: DepsMut, env: Env) -> Result<Response, ContractError> {
         .collect::<StdResult<_>>()?;
 
     for member in members_to_update {
-        reduction += weight_reduction(member.weight);
+        let diff = weight_reduction(member.weight);
+        reduction += diff;
+        let addr = Addr::unchecked(member.addr);
         members().replace(
             deps.storage,
-            &Addr::unchecked(member.addr),
-            Some(&(member.weight / 2)),
+            &addr,
+            Some(&(member.weight - diff)),
             Some(&member.weight),
             env.block.height,
         )?;
+        apply_points_correction(deps.branch(), &addr, ppw, -(diff as i128))?;
     }
 
     // We need to update half life's last applied timestamp to current one
