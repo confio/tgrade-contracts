@@ -794,6 +794,7 @@ dependencies = [
  "cw3",
  "schemars",
  "serde",
+ "tg-bindings",
  "tg-utils",
  "tg4",
  "thiserror",

@@ -1,5 +1,5 @@
 #![cfg(test)]
-use cosmwasm_std::{Deps, SubMsg};
+use cosmwasm_std::Deps;
 
 use crate::state::{EscrowStatus, Punishment};
 

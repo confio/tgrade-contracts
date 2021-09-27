@@ -9,7 +9,7 @@ use std::fmt::Debug;
 use cosmwasm_std::testing::{mock_dependencies, mock_env, mock_info};
 use cosmwasm_std::{
     attr, coin, coins, from_slice, Api, Attribute, BankMsg, Coin, Decimal, Deps, DepsMut, Env,
-    MessageInfo, OwnedDeps, Querier, Response, Storage, Uint128,
+    MessageInfo, OwnedDeps, Querier, Storage, Uint128,
 };
 
 use cw0::PaymentError;

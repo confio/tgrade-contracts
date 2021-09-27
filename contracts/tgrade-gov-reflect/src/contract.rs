@@ -1,6 +1,4 @@
-use cosmwasm_std::{
-    entry_point, to_binary, Binary, Deps, DepsMut, Env, MessageInfo, Response, StdResult, SubMsg,
-};
+use cosmwasm_std::{entry_point, to_binary, Binary, Deps, DepsMut, Env, MessageInfo, StdResult};
 
 use crate::error::ContractError;
 use crate::msg::{ExecuteMsg, InstantiateMsg, OwnerResponse, QueryMsg};
@@ -8,6 +6,9 @@ use crate::state::{Config, CONFIG};
 use tg_bindings::{
     GovProposal, Privilege, PrivilegeChangeMsg, PrivilegeMsg, TgradeMsg, TgradeSudoMsg,
 };
+
+pub type Response = cosmwasm_std::Response<TgradeMsg>;
+pub type SubMsg = cosmwasm_std::SubMsg<TgradeMsg>;
 
 // Note, you can use StdResult in some functions where you do not
 // make use of the custom errors
@@ -30,7 +31,7 @@ pub fn execute(
     _env: Env,
     info: MessageInfo,
     msg: ExecuteMsg,
-) -> Result<Response<TgradeMsg>, ContractError> {
+) -> Result<Response, ContractError> {
     match msg {
         ExecuteMsg::Execute { msgs } => execute_execute(deps, info, msgs),
         ExecuteMsg::Proposal {
@@ -44,8 +45,8 @@ pub fn execute(
 pub fn execute_execute(
     deps: DepsMut,
     info: MessageInfo,
-    messages: Vec<SubMsg<TgradeMsg>>,
-) -> Result<Response<TgradeMsg>, ContractError> {
+    messages: Vec<SubMsg>,
+) -> Result<Response, ContractError> {
     let config = CONFIG.load(deps.storage)?;
     if info.sender != config.owner {
         return Err(ContractError::Unauthorized {});
@@ -59,7 +60,7 @@ pub fn execute_proposal(
     title: String,
     description: String,
     proposal: GovProposal,
-) -> Result<Response<TgradeMsg>, ContractError> {
+) -> Result<Response, ContractError> {
     let config = CONFIG.load(deps.storage)?;
     if info.sender != config.owner {
         return Err(ContractError::Unauthorized {});
@@ -87,18 +88,14 @@ fn query_owner(deps: Deps) -> StdResult<OwnerResponse> {
 }
 
 #[cfg_attr(not(feature = "library"), entry_point)]
-pub fn sudo(
-    deps: DepsMut,
-    _env: Env,
-    msg: TgradeSudoMsg,
-) -> Result<Response<TgradeMsg>, ContractError> {
+pub fn sudo(deps: DepsMut, _env: Env, msg: TgradeSudoMsg) -> Result<Response, ContractError> {
     match msg {
         TgradeSudoMsg::PrivilegeChange(change) => Ok(privilege_change(deps, change)),
         _ => Err(ContractError::UnknownSudoType {}),
     }
 }
 
-fn privilege_change(_deps: DepsMut, change: PrivilegeChangeMsg) -> Response<TgradeMsg> {
+fn privilege_change(_deps: DepsMut, change: PrivilegeChangeMsg) -> Response {
     match change {
         PrivilegeChangeMsg::Promoted {} => {
             Response::new().add_message(PrivilegeMsg::Request(Privilege::GovProposalExecutor))

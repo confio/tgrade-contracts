@@ -25,6 +25,7 @@ cw3 = "0.10.0-soon"
 cw-controllers = "0.10.0-soon"
 cw-storage-plus = "0.10.0-soon"
 tg4 = { path = "../../packages/tg4", version = "0.4.0" }
+tg-bindings = { path = "../../packages/bindings", version = "0.4.0" }
 tg-utils = { path = "../../packages/utils", version = "0.4.0" }
 cosmwasm-std = "1.0.0-soon"
 schemars = "0.8"
