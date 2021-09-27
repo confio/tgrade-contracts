@@ -2,13 +2,14 @@
 use cosmwasm_std::entry_point;
 use cosmwasm_std::{
     coin, to_binary, Addr, Api, BankMsg, Binary, BlockInfo, Deps, DepsMut, Env, Event, MessageInfo,
-    Order, Response, StdError, StdResult, Storage, Uint128,
+    Order, StdError, StdResult, Storage, Uint128,
 };
 use cw0::{maybe_addr, Expiration};
 use cw2::set_contract_version;
 use cw3::{Status, Vote};
 use cw_storage_plus::{Bound, PrimaryKey, U64Key};
 use tg4::{Member, MemberListResponse, MemberResponse, TotalWeightResponse};
+use tg_bindings::TgradeMsg;
 use tg_utils::{members, TOTAL};
 
 use crate::error::ContractError;
@@ -29,6 +30,9 @@ const CONTRACT_VERSION: &str = env!("CARGO_PKG_VERSION");
 
 pub const DSO_DENOM: &str = "utgd";
 pub const VOTING_WEIGHT: u64 = 1;
+
+pub type Response = cosmwasm_std::Response<TgradeMsg>;
+pub type SubMsg = cosmwasm_std::SubMsg<TgradeMsg>;
 
 // Note, you can use StdResult in some functions where you do not
 // make use of the custom errors
