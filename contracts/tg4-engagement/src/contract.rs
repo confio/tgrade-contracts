@@ -15,8 +15,8 @@ use tg4::{
 use crate::error::ContractError;
 use crate::msg::{ExecuteMsg, FundsResponse, InstantiateMsg, PreauthResponse, QueryMsg, SudoMsg};
 use crate::state::{
-    Halflife, HALFLIFE, POINTS_CORRECTION, POINTS_MULTIPLIER, POINTS_PER_WEIGHT, TOKEN,
-    WITHDRAWABLE_TOTAL, WITHDRAWN_FUNDS,
+    Halflife, DISTRIBTUED_TOTAL, HALFLIFE, POINTS_CORRECTION, POINTS_MULTIPLIER, POINTS_PER_WEIGHT,
+    TOKEN, WITHDRAWABLE_TOTAL, WITHDRAWN_FUNDS,
 };
 use tg_bindings::{request_privileges, Privilege, PrivilegeChangeMsg, TgradeMsg};
 use tg_utils::{members, Duration, ADMIN, HOOKS, PREAUTH, TOTAL};
@@ -80,6 +80,7 @@ pub fn create(
     TOKEN.save(deps.storage, &token)?;
     POINTS_PER_WEIGHT.save(deps.storage, &Uint128::zero())?;
     WITHDRAWABLE_TOTAL.save(deps.storage, &Uint128::zero())?;
+    DISTRIBTUED_TOTAL.save(deps.storage, &Uint128::zero())?;
 
     let mut total = 0u64;
     for member in members_list.into_iter() {
@@ -248,6 +249,9 @@ pub fn execute_distribute_tokens(
     WITHDRAWABLE_TOTAL.save(deps.storage, &withdrawable.into())?;
     POINTS_PER_WEIGHT.update(deps.storage, move |ppw| -> StdResult<_> {
         Ok(ppw + Uint128::from(points_per_share))
+    })?;
+    DISTRIBTUED_TOTAL.update(deps.storage, |total| -> StdResult<_> {
+        Ok(total + Uint128::new(amount))
     })?;
 
     let resp = Response::new()
@@ -490,7 +494,7 @@ pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
         }
         QueryMsg::WithdrawableFunds { owner } => to_binary(&query_withdrawable_funds(deps, owner)?),
         QueryMsg::DistributedFunds {} => to_binary(&query_undistributed_funds(deps)?),
-        QueryMsg::UndistributedFunds {} => todo!(),
+        QueryMsg::UndistributedFunds {} => to_binary(&query_distributed_total(deps)?),
     }
 }
 
@@ -519,6 +523,14 @@ pub fn query_withdrawable_funds(deps: Deps, owner: String) -> StdResult<FundsRes
 pub fn query_undistributed_funds(deps: Deps) -> StdResult<FundsResponse> {
     let denom = TOKEN.load(deps.storage)?;
     let amount = WITHDRAWABLE_TOTAL.load(deps.storage)?;
+    Ok(FundsResponse {
+        funds: coin(amount.into(), &denom),
+    })
+}
+
+pub fn query_distributed_total(deps: Deps) -> StdResult<FundsResponse> {
+    let denom = TOKEN.load(deps.storage)?;
+    let amount = DISTRIBTUED_TOTAL.load(deps.storage)?;
     Ok(FundsResponse {
         funds: coin(amount.into(), &denom),
     })
