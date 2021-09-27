@@ -10,15 +10,15 @@ use crate::state::VestingPlan;
 #[serde(rename_all = "snake_case")]
 pub struct InstantiateMsg {
     /// Account that receives the tokens once they have been vested and released.
-    recipient: Addr,
+    pub recipient: Addr,
     /// Secure multi-sig from SOB, which can be used to change the Operator
     /// or to hald the release of future tokens in the case of misbehavior.
-    operator: Addr,
+    pub operator: Addr,
     /// Validator or an optional delegation to an "operational" employee from
     /// SOB, which can approve the payout of fully vested tokens to the final
     /// recipient.
-    oversight: Addr,
-    vesting_plan: VestingPlan,
+    pub oversight: Addr,
+    pub vesting_plan: VestingPlan,
 }
 
 #[derive(Serialize, Deserialize, Clone, PartialEq, JsonSchema, Debug)]

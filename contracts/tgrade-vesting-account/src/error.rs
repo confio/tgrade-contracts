@@ -6,4 +6,7 @@ use thiserror::Error;
 pub enum ContractError {
     #[error("{0}")]
     Std(#[from] StdError),
+
+    #[error("No tokens found in vesting account instantiation message")]
+    NoTokensFound,
 }

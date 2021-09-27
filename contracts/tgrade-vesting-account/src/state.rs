@@ -22,16 +22,16 @@ pub enum VestingPlan {
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct VestingAccount {
-    recipient: Addr,
-    operator: Addr,
-    oversight: Addr,
-    vesting_plan: VestingPlan,
+    pub recipient: Addr,
+    pub operator: Addr,
+    pub oversight: Addr,
+    pub vesting_plan: VestingPlan,
     /// Number of currently frozen tokens
-    frozen_tokens: Uint128,
+    pub frozen_tokens: Uint128,
     /// Number of tokens that has been paid so far
-    paid_tokens: Uint128,
+    pub paid_tokens: Uint128,
     /// Number of initial tokens
-    initial_tokens: Uint128,
+    pub initial_tokens: Uint128,
 }
 
 pub const VESTING_ACCOUNT: Item<VestingAccount> = Item::new("vesting_account");
