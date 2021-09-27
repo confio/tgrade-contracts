@@ -21,20 +21,6 @@ pub enum VestingPlan {
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
-pub struct Config {
-    /// Account that receives the tokens once they have been vested and released.
-    recipient: Addr,
-    /// Secure multi-sig from SOB, which can be used to change the Operator
-    /// or to hald the release of future tokens in the case of misbehavior.
-    operator: Addr,
-    /// Validator or an optional delegation to an "operational" employee from
-    /// SOB, which can approve the payout of fully vested tokens to the final
-    /// recipient.
-    oversight: Addr,
-    vesting_plan: VestingPlan,
-}
-
-#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct VestingAccount {
     recipient: Addr,
     operator: Addr,
@@ -42,15 +28,10 @@ pub struct VestingAccount {
     vesting_plan: VestingPlan,
     /// Number of currently frozen tokens
     frozen_tokens: Uint128,
-    /// Number of spent tokens
+    /// Number of tokens that has been paid so far
     paid_tokens: Uint128,
-}
-
-/// Response for tokens querry
-#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
-pub struct Tokens {
-    amount_paid: Uint128,
-    amount_frozen: Uint128,
+    /// Number of initial tokens
+    initial_tokens: Uint128,
 }
 
 pub const VESTING_ACCOUNT: Item<VestingAccount> = Item::new("vestingaccount");

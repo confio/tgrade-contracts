@@ -4,11 +4,22 @@ use std::fmt;
 
 use cosmwasm_std::{Addr, CosmosMsg, Empty, Uint128};
 
-use crate::state::{Config, Tokens};
+use crate::state::VestingPlan;
 
 #[derive(Serialize, Deserialize, Clone, PartialEq, JsonSchema, Debug)]
 #[serde(rename_all = "snake_case")]
-pub struct InstantiateMsg(Config);
+pub struct InstantiateMsg {
+    /// Account that receives the tokens once they have been vested and released.
+    recipient: Addr,
+    /// Secure multi-sig from SOB, which can be used to change the Operator
+    /// or to hald the release of future tokens in the case of misbehavior.
+    operator: Addr,
+    /// Validator or an optional delegation to an "operational" employee from
+    /// SOB, which can approve the payout of fully vested tokens to the final
+    /// recipient.
+    oversight: Addr,
+    vesting_plan: VestingPlan,
+}
 
 #[derive(Serialize, Deserialize, Clone, PartialEq, JsonSchema, Debug)]
 #[serde(rename_all = "snake_case")]
@@ -58,26 +69,43 @@ where
     /// If CanExecute returns true then a call to `Execute` with the same message,
     /// before any further state changes, should also succeed.
     CanExecute { sender: String, msg: CosmosMsg<T> },
-    /// Shows amount of available and frozen tokens in total.
-    Tokens {},
-    /// Checks if timestamp defined for that vesting account has been met
-    /// and there are no frozen tokens.
-    CanRelease {},
+    /// Provides information about current recipient/operator/oversight addresses
+    /// as well as vesting plan for this account
+    AccountInfo {},
+    /// Shows current data about tokens from this vesting account.
+    TokensInfo {},
     /// After HandOff has been sucesfully finished, account will be set
     /// as liberated.
     IsLiberated {},
 }
 
-/// Response for Tokens query
+/// Response for AccountInfo query
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
-pub struct TokensResponse(Tokens);
+pub struct AccountInfoResponse {
+    pub recipient: Addr,
+    pub operator: Addr,
+    pub oversight: Addr,
+    /// Timestamps for current discrete or continuous vesting plan
+    pub vesting_plan: VestingPlan,
+}
 
-/// Response for CanRelease query
+/// Response for TokensInfo query
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
-pub struct CanReleaseResponse {
-    pub allowed_release_amount: u128,
+pub struct TokensInfoResponse {
+    /// Initial amount of vested tokens
+    pub initial: Uint128,
+    /// Amount of currently frozen tokens
+    pub frozen: Uint128,
+    /// Amount of tokens that has been paid so far
+    pub released: Uint128,
+    /// Amount of tokens that is allowed to release at that point
+    pub allowed_release: Uint128,
 }
 
 /// Response for IsLiberated query
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
-pub struct IsLiberatedResponse(bool);
+pub struct IsLiberatedResponse {
+    /// Does this account completed hand over procedure and thus achieved
+    /// "liberated" status
+    pub is_liberated: bool,
+}
