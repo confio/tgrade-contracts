@@ -1,6 +1,7 @@
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
+use crate::i128::Int128;
 use cosmwasm_std::{Addr, Timestamp, Uint128};
 use cw_storage_plus::{Item, Map};
 use tg_utils::Duration;
@@ -38,10 +39,7 @@ pub const TOKEN: Item<String> = Item::new("token");
 /// How much points is single point of weight worth at this point.
 pub const POINTS_PER_WEIGHT: Item<Uint128> = Item::new("points_per_share");
 /// How much points should be added/removed from calculated funds while withdrawal.
-///
-/// Kept as Uint128 because of lack of Int128 type, but it is actualy an u2 number and should
-/// always be converted to i128 for calculations.
-pub const POINTS_CORRECTION: Map<&Addr, Uint128> = Map::new("shares_correction");
+pub const POINTS_CORRECTION: Map<&Addr, Int128> = Map::new("shares_correction");
 /// How much funds addresses already withdrawn
 pub const WITHDRAWN_FUNDS: Map<&Addr, Uint128> = Map::new("withdrawn_funds");
 /// Total funds not yet withdrawn

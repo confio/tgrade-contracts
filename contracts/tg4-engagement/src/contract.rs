@@ -13,6 +13,7 @@ use tg4::{
 };
 
 use crate::error::ContractError;
+use crate::i128::Int128;
 use crate::msg::{ExecuteMsg, FundsResponse, InstantiateMsg, PreauthResponse, QueryMsg, SudoMsg};
 use crate::state::{
     Halflife, DISTRIBTUED_TOTAL, HALFLIFE, POINTS_CORRECTION, POINTS_MULTIPLIER, POINTS_PER_WEIGHT,
@@ -87,7 +88,7 @@ pub fn create(
         total += member.weight;
         let member_addr = deps.api.addr_validate(&member.addr)?;
         members().save(deps.storage, &member_addr, &member.weight, height)?;
-        POINTS_CORRECTION.save(deps.storage, &member_addr, &Uint128::zero())?;
+        POINTS_CORRECTION.save(deps.storage, &member_addr, &Int128::zero())?;
         WITHDRAWN_FUNDS.save(deps.storage, &member_addr, &Uint128::zero())?;
     }
     TOTAL.save(deps.storage, &total)?;
@@ -224,18 +225,7 @@ pub fn execute_distribute_tokens(
         .amount
         .into();
 
-    let undistributed = balance - withdrawable;
-
-    // Calculate amount of funds to be distributed
-    let amount: u128 = info
-        .funds
-        .into_iter()
-        .find(|coin| coin.denom == denom)
-        .map(|coin| coin.amount)
-        .unwrap_or_default()
-        .into();
-    let amount = amount + undistributed;
-
+    let amount = balance - withdrawable;
     if amount == 0 {
         return Ok(Response::new());
     }
@@ -309,7 +299,7 @@ pub fn withdrawable_funds(deps: Deps, owner: &Addr) -> StdResult<(Coin, u128)> {
 
     let weight: u128 = members().load(deps.storage, owner)?.into();
     let ppw: u128 = POINTS_PER_WEIGHT.load(deps.storage)?.into();
-    let correction = u128::from(POINTS_CORRECTION.load(deps.storage, owner)?) as i128;
+    let correction: i128 = POINTS_CORRECTION.load(deps.storage, owner)?.into();
     let withdrawn: u128 = WITHDRAWN_FUNDS.load(deps.storage, owner)?.into();
     let amount = ((ppw * weight) as i128 + correction) as u128 / POINTS_MULTIPLIER - withdrawn;
 
@@ -392,8 +382,8 @@ pub fn apply_points_correction(
     diff: i128,
 ) -> StdResult<()> {
     POINTS_CORRECTION.update(deps.storage, &addr, |old| -> StdResult<_> {
-        let old = old.unwrap_or_default();
-        Ok(old - Uint128::from((points_per_weight as i128 * diff) as u128))
+        let old: i128 = old.unwrap_or_default().into();
+        Ok((old - (points_per_weight as i128 * diff) as i128).into())
     })?;
     Ok(())
 }
