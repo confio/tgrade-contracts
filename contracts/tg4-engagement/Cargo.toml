@@ -33,3 +33,5 @@ thiserror = { version = "1.0.21" }
 
 [dev-dependencies]
 cosmwasm-schema = { version = "0.16.0" }
+cw-multi-test = { version = "0.10.0-soon" }
+derivative = "2"
