@@ -1,7 +1,7 @@
 use crate::error::ContractError;
 use crate::msg::*;
 use anyhow::Result as AnyResult;
-use cosmwasm_std::{coins, Addr, Coin};
+use cosmwasm_std::{coins, Addr, Coin, StdResult};
 use cw_multi_test::{AppBuilder, AppResponse, BasicApp, Contract, ContractWrapper, Executor};
 use derivative::Derivative;
 use tg4::Member;
@@ -119,6 +119,21 @@ impl Suite {
         )
     }
 
+    pub fn withdraw_funds<'s>(
+        &mut self,
+        executor: &str,
+        receiver: impl Into<Option<&'s str>>,
+    ) -> AnyResult<AppResponse> {
+        self.app.execute_contract(
+            Addr::unchecked(executor),
+            self.contract.clone(),
+            &ExecuteMsg::WithdrawFunds {
+                receiver: receiver.into().map(str::to_owned),
+            },
+            &[],
+        )
+    }
+
     pub fn withdrawable_funds(&self, owner: &str) -> Result<Coin, ContractError> {
         let resp: FundsResponse = self.app.wrap().query_wasm_smart(
             self.contract.clone(),
@@ -143,5 +158,15 @@ impl Suite {
             .wrap()
             .query_wasm_smart(self.contract.clone(), &QueryMsg::UndistributedFunds {})?;
         Ok(resp.funds)
+    }
+
+    /// Shortcut for querying distributeable token balance of contract
+    pub fn token_balance(&self, owner: &str) -> StdResult<u128> {
+        let amount = self
+            .app
+            .wrap()
+            .query_balance(&Addr::unchecked(owner), &self.token)?
+            .amount;
+        Ok(amount.into())
     }
 }

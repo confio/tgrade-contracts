@@ -37,6 +37,12 @@ mod funds_distribution {
 
         resp.assert_event(&distribution_event(&members[3], &token, 400));
 
+        assert_eq!(suite.token_balance(suite.contract.as_str()).unwrap(), 400);
+        assert_eq!(suite.token_balance(&members[0]).unwrap(), 0);
+        assert_eq!(suite.token_balance(&members[1]).unwrap(), 0);
+        assert_eq!(suite.token_balance(&members[2]).unwrap(), 0);
+        assert_eq!(suite.token_balance(&members[3]).unwrap(), 0);
+
         assert_eq!(
             suite.withdrawable_funds(&members[0]).unwrap(),
             coin(50, &token)
@@ -52,5 +58,15 @@ mod funds_distribution {
 
         assert_eq!(suite.distributed_funds().unwrap(), coin(400, &token));
         assert_eq!(suite.undistributed_funds().unwrap(), coin(0, &token));
+
+        suite.withdraw_funds(&members[0], None).unwrap();
+        suite.withdraw_funds(&members[1], None).unwrap();
+        suite.withdraw_funds(&members[2], None).unwrap();
+
+        assert_eq!(suite.token_balance(suite.contract.as_str()).unwrap(), 0);
+        assert_eq!(suite.token_balance(&members[0]).unwrap(), 50);
+        assert_eq!(suite.token_balance(&members[1]).unwrap(), 100);
+        assert_eq!(suite.token_balance(&members[2]).unwrap(), 250);
+        assert_eq!(suite.token_balance(&members[3]).unwrap(), 0);
     }
 }
