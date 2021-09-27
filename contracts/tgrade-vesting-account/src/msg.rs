@@ -75,7 +75,7 @@ pub struct TokensResponse(Tokens);
 /// Response for CanRelease query
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct CanReleaseResponse {
-    pub allowed_release_amount: u128
+    pub allowed_release_amount: u128,
 }
 
 /// Response for IsLiberated query
