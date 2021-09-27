@@ -1,7 +1,7 @@
 #[cfg(not(feature = "library"))]
 use cosmwasm_std::entry_point;
 use cosmwasm_std::{
-    coins, to_binary, Addr, BankMsg, Binary, Deps, DepsMut, Env, Event, MessageInfo, Order,
+    coin, to_binary, Addr, BankMsg, Binary, Coin, Deps, DepsMut, Env, Event, MessageInfo, Order,
     StdResult, Timestamp, Uint128,
 };
 use cw0::maybe_addr;
@@ -13,7 +13,7 @@ use tg4::{
 };
 
 use crate::error::ContractError;
-use crate::msg::{ExecuteMsg, InstantiateMsg, PreauthResponse, QueryMsg, SudoMsg};
+use crate::msg::{ExecuteMsg, FundsResponse, InstantiateMsg, PreauthResponse, QueryMsg, SudoMsg};
 use crate::state::{
     Halflife, HALFLIFE, POINTS_CORRECTION, POINTS_MULTIPLIER, POINTS_PER_WEIGHT, TOKEN,
     WITHDRAWABLE_TOTAL, WITHDRAWN_FUNDS,
@@ -264,43 +264,52 @@ pub fn execute_withdraw_tokens(
     info: MessageInfo,
     receiver: Option<String>,
 ) -> Result<Response, ContractError> {
-    let denom = TOKEN
-        .may_load(deps.storage)?
-        .ok_or(ContractError::NoTokenDistributable {})?;
-
+    let (token, withdrawn) = withdrawable_funds(deps.as_ref(), &info.sender)?;
     let receiver = receiver
         .map(|receiver| deps.api.addr_validate(&receiver))
         .transpose()?
         .unwrap_or_else(|| info.sender.clone());
 
-    let weight: u128 = members().load(deps.storage, &info.sender)?.into();
-    let ppw: u128 = POINTS_PER_WEIGHT.load(deps.storage)?.into();
-    let correction = u128::from(POINTS_CORRECTION.load(deps.storage, &info.sender)?) as i128;
-    let withdrawn: u128 = WITHDRAWN_FUNDS.load(deps.storage, &info.sender)?.into();
-    let amount = ((ppw * weight) as i128 + correction) as u128 / POINTS_MULTIPLIER - withdrawn;
-
-    if amount == 0 {
+    if token.amount.is_zero() {
         // Just do nothing
         return Ok(Response::new());
     }
 
-    WITHDRAWN_FUNDS.save(deps.storage, &info.sender, &(withdrawn + amount).into())?;
+    WITHDRAWN_FUNDS.save(
+        deps.storage,
+        &info.sender,
+        &(Uint128::from(withdrawn) + token.amount),
+    )?;
     WITHDRAWABLE_TOTAL.update(deps.storage, |total| -> StdResult<_> {
-        Ok(total - Uint128::from(amount))
+        Ok(total - token.amount)
     })?;
 
     let resp = Response::new()
-        .add_submessage(SubMsg::new(BankMsg::Send {
-            to_address: receiver.to_string(),
-            amount: coins(amount, &denom),
-        }))
         .add_attribute("action", "withdraw_tokens")
         .add_attribute("owner", info.sender.as_str())
         .add_attribute("receiver", receiver.as_str())
-        .add_attribute("token", &denom)
-        .add_attribute("amount", &amount.to_string());
+        .add_attribute("token", &token.denom)
+        .add_attribute("amount", &token.amount.to_string())
+        .add_submessage(SubMsg::new(BankMsg::Send {
+            to_address: receiver.to_string(),
+            amount: vec![token],
+        }));
 
     Ok(resp)
+}
+
+/// Retruns funds withdrawable by given owner paired with total sum of withdrawn funds so far, to
+/// avoid querying it extra time (in case if update is needed)
+pub fn withdrawable_funds(deps: Deps, owner: &Addr) -> StdResult<(Coin, u128)> {
+    let denom = TOKEN.load(deps.storage)?;
+
+    let weight: u128 = members().load(deps.storage, owner)?.into();
+    let ppw: u128 = POINTS_PER_WEIGHT.load(deps.storage)?.into();
+    let correction = u128::from(POINTS_CORRECTION.load(deps.storage, owner)?) as i128;
+    let withdrawn: u128 = WITHDRAWN_FUNDS.load(deps.storage, owner)?.into();
+    let amount = ((ppw * weight) as i128 + correction) as u128 / POINTS_MULTIPLIER - withdrawn;
+
+    Ok((coin(amount, &denom), withdrawn))
 }
 
 pub fn sudo_add_member(
@@ -479,8 +488,8 @@ pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
             let preauths = PREAUTH.get_auth(deps.storage)?;
             to_binary(&PreauthResponse { preauths })
         }
-        QueryMsg::WithdrawableFunds { .. } => todo!(),
-        QueryMsg::DistributeFunds {} => todo!(),
+        QueryMsg::WithdrawableFunds { owner } => to_binary(&query_withdrawable_funds(deps, owner)?),
+        QueryMsg::DistributedFunds {} => to_binary(&query_undistributed_funds(deps)?),
         QueryMsg::UndistributedFunds {} => todo!(),
     }
 }
@@ -497,6 +506,22 @@ fn query_member(deps: Deps, addr: String, height: Option<u64>) -> StdResult<Memb
         None => members().may_load(deps.storage, &addr),
     }?;
     Ok(MemberResponse { weight })
+}
+
+pub fn query_withdrawable_funds(deps: Deps, owner: String) -> StdResult<FundsResponse> {
+    // Not checking address, as if it is ivnalid it is guaranteed not to appear in maps, so
+    // `withdrawable_funds` would return error itself.
+    let owner = Addr::unchecked(&owner);
+    let (token, _) = withdrawable_funds(deps, &owner)?;
+    Ok(FundsResponse { funds: token })
+}
+
+pub fn query_undistributed_funds(deps: Deps) -> StdResult<FundsResponse> {
+    let denom = TOKEN.load(deps.storage)?;
+    let amount = WITHDRAWABLE_TOTAL.load(deps.storage)?;
+    Ok(FundsResponse {
+        funds: coin(amount.into(), &denom),
+    })
 }
 
 // settings for pagination

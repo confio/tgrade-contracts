@@ -80,7 +80,7 @@ pub enum QueryMsg {
     WithdrawableFunds { owner: String },
     /// Return how much funds were distributed in total by this contract. Returns
     /// `FundsResponse`.
-    DistributeFunds {},
+    DistributedFunds {},
     /// Return how much funds were send to this contract since last `ExecuteMsg::DistribtueFunds`,
     /// and wait for distribution. Returns `FundsResponse`.
     UndistributedFunds {},
