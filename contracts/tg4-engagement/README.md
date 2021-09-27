@@ -72,8 +72,8 @@ funds should be send, message sender by default.
 `WithdrawableFunds{owner}` - returns how much funds is assigned for withdrawal by
 owner.
 
-`DistributeFunds{}` - returns how much funds were distributed by this contract in
+`DistributedFunds{}` - returns how much funds were distributed by this contract in
 its lifetime.
 
-`UndistributeFunds{]` - returns how much funds is waiting for distribution on this
+`UndistributedFunds{]` - returns how much funds is waiting for distribution on this
 contract.

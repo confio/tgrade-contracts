@@ -45,7 +45,7 @@ pub const WITHDRAWN_FUNDS: Map<&Addr, Uint128> = Map::new("withdrawn_funds");
 /// Total funds not yet withdrawn
 pub const WITHDRAWABLE_TOTAL: Item<Uint128> = Item::new("witdrawable_total");
 /// Total funds distributed by this contract
-pub const DISTRIBTUED_TOTAL: Item<Uint128> = Item::new("distributed_total");
+pub const DISTRIBUTED_TOTAL: Item<Uint128> = Item::new("distributed_total");
 
 #[cfg(test)]
 mod tests {

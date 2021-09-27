@@ -16,7 +16,7 @@ use crate::error::ContractError;
 use crate::i128::Int128;
 use crate::msg::{ExecuteMsg, FundsResponse, InstantiateMsg, PreauthResponse, QueryMsg, SudoMsg};
 use crate::state::{
-    Halflife, DISTRIBTUED_TOTAL, HALFLIFE, POINTS_CORRECTION, POINTS_MULTIPLIER, POINTS_PER_WEIGHT,
+    Halflife, DISTRIBUTED_TOTAL, HALFLIFE, POINTS_CORRECTION, POINTS_MULTIPLIER, POINTS_PER_WEIGHT,
     TOKEN, WITHDRAWABLE_TOTAL, WITHDRAWN_FUNDS,
 };
 use tg_bindings::{request_privileges, Privilege, PrivilegeChangeMsg, TgradeMsg};
@@ -81,7 +81,7 @@ pub fn create(
     TOKEN.save(deps.storage, &token)?;
     POINTS_PER_WEIGHT.save(deps.storage, &Uint128::zero())?;
     WITHDRAWABLE_TOTAL.save(deps.storage, &Uint128::zero())?;
-    DISTRIBTUED_TOTAL.save(deps.storage, &Uint128::zero())?;
+    DISTRIBUTED_TOTAL.save(deps.storage, &Uint128::zero())?;
 
     let mut total = 0u64;
     for member in members_list.into_iter() {
@@ -240,7 +240,7 @@ pub fn execute_distribute_tokens(
     POINTS_PER_WEIGHT.update(deps.storage, move |ppw| -> StdResult<_> {
         Ok(ppw + Uint128::from(points_per_share))
     })?;
-    DISTRIBTUED_TOTAL.update(deps.storage, |total| -> StdResult<_> {
+    DISTRIBUTED_TOTAL.update(deps.storage, |total| -> StdResult<_> {
         Ok(total + Uint128::new(amount))
     })?;
 
@@ -542,7 +542,7 @@ pub fn query_undistributed_funds(deps: Deps, env: Env) -> StdResult<FundsRespons
 
 pub fn query_distributed_total(deps: Deps) -> StdResult<FundsResponse> {
     let denom = TOKEN.load(deps.storage)?;
-    let amount = DISTRIBTUED_TOTAL.load(deps.storage)?;
+    let amount = DISTRIBUTED_TOTAL.load(deps.storage)?;
     Ok(FundsResponse {
         funds: coin(amount.into(), &denom),
     })
