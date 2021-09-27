@@ -1,6 +1,8 @@
+use crate::error::ContractError;
 use crate::msg::*;
-use cosmwasm_std::Addr;
-use cw_multi_test::{AppBuilder, BasicApp, Contract, ContractWrapper, Executor};
+use anyhow::Result as AnyResult;
+use cosmwasm_std::{coins, Addr, Coin};
+use cw_multi_test::{AppBuilder, AppResponse, BasicApp, Contract, ContractWrapper, Executor};
 use derivative::Derivative;
 use tg4::Member;
 use tg_bindings::TgradeMsg;
@@ -19,8 +21,9 @@ pub fn contract_engagement() -> Box<dyn Contract<TgradeMsg>> {
 
 #[derive(Derivative)]
 #[derivative(Default = "new")]
-struct SuiteBuilder {
+pub struct SuiteBuilder {
     members: Vec<Member>,
+    funds: Vec<(Addr, u128)>,
     preauths: Option<u64>,
     halflife: Option<Duration>,
 }
@@ -34,12 +37,30 @@ impl SuiteBuilder {
         self
     }
 
+    /// Sets initial amount of distributable tokens on address
+    pub fn with_funds(mut self, addr: &str, amount: u128) -> Self {
+        self.funds.push((Addr::unchecked(addr), amount));
+        self
+    }
+
     #[track_caller]
     pub fn build(self) -> Suite {
-        let mut app = AppBuilder::new_custom().build(|_, _, _| ());
+        let funds = self.funds;
 
         let owner = Addr::unchecked("owner");
         let token = "usdc".to_owned();
+
+        let mut app = {
+            let token = &token;
+            AppBuilder::new_custom().build(move |router, _, storage| {
+                for (addr, amount) in funds {
+                    router
+                        .bank
+                        .init_balance(storage, &addr, coins(amount, token))
+                        .unwrap()
+                }
+            })
+        };
 
         let contract_id = app.store_code(contract_engagement());
         let contract = app
@@ -70,13 +91,41 @@ impl SuiteBuilder {
 
 #[derive(Derivative)]
 #[derivative(Debug)]
-struct Suite {
+pub struct Suite {
     #[derivative(Debug = "ignore")]
-    app: BasicApp<TgradeMsg>,
+    pub app: BasicApp<TgradeMsg>,
     /// Engagement contract address
-    contract: Addr,
+    pub contract: Addr,
     /// Extra account for calling any administrative messages, also an initial admin of engagement contract
     pub owner: Addr,
     /// Token which might be distributed by this contract
     pub token: String,
+}
+
+impl Suite {
+    pub fn distribute_funds<'s>(
+        &mut self,
+        executor: &str,
+        sender: impl Into<Option<&'s str>>,
+        funds: &[Coin],
+    ) -> AnyResult<AppResponse> {
+        self.app.execute_contract(
+            Addr::unchecked(executor),
+            self.contract.clone(),
+            &ExecuteMsg::DistributeFunds {
+                sender: sender.into().map(str::to_owned),
+            },
+            funds,
+        )
+    }
+
+    pub fn withdrawable_funds(&self, owner: &str) -> Result<Coin, ContractError> {
+        let resp: FundsResponse = self.app.wrap().query_wasm_smart(
+            self.contract.clone(),
+            &QueryMsg::WithdrawableFunds {
+                owner: owner.to_owned(),
+            },
+        )?;
+        Ok(resp.funds)
+    }
 }
