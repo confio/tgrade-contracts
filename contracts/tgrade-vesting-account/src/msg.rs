@@ -8,9 +8,7 @@ use crate::state::{Config, Tokens};
 
 #[derive(Serialize, Deserialize, Clone, PartialEq, JsonSchema, Debug)]
 #[serde(rename_all = "snake_case")]
-pub struct InstantiateMsg {
-    pub config: Config,
-}
+pub struct InstantiateMsg(Config);
 
 #[derive(Serialize, Deserialize, Clone, PartialEq, JsonSchema, Debug)]
 #[serde(rename_all = "snake_case")]
@@ -42,7 +40,6 @@ where
     },
 
     /// Oversight is able to change the operator'a account address.
-    /// If account is liberated, Recipient can do this as well.
     ChangeOperator {
         address: Addr,
     },
@@ -71,11 +68,16 @@ where
     IsLiberated {},
 }
 
+/// Response for Tokens query
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct TokensResponse(Tokens);
 
+/// Response for CanRelease query
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
-pub struct CanReleaseResponse(bool); // maybe change to Expiration with 0 meaning that release is allowed?
+pub struct CanReleaseResponse {
+    pub allowed_release_amount: u128
+}
 
+/// Response for IsLiberated query
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct IsLiberatedResponse(bool);
