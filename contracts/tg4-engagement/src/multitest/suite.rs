@@ -128,4 +128,20 @@ impl Suite {
         )?;
         Ok(resp.funds)
     }
+
+    pub fn distributed_funds(&self) -> Result<Coin, ContractError> {
+        let resp: FundsResponse = self
+            .app
+            .wrap()
+            .query_wasm_smart(self.contract.clone(), &QueryMsg::DistributedFunds {})?;
+        Ok(resp.funds)
+    }
+
+    pub fn undistributed_funds(&self) -> Result<Coin, ContractError> {
+        let resp: FundsResponse = self
+            .app
+            .wrap()
+            .query_wasm_smart(self.contract.clone(), &QueryMsg::UndistributedFunds {})?;
+        Ok(resp.funds)
+    }
 }

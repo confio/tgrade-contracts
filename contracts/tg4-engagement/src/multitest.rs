@@ -49,5 +49,8 @@ mod funds_distribution {
             suite.withdrawable_funds(&members[2]).unwrap(),
             coin(250, &token)
         );
+
+        assert_eq!(suite.distributed_funds().unwrap(), coin(400, &token));
+        assert_eq!(suite.undistributed_funds().unwrap(), coin(0, &token));
     }
 }

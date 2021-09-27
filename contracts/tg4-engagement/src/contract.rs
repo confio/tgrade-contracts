@@ -476,7 +476,7 @@ fn end_block(mut deps: DepsMut, env: Env) -> Result<Response, ContractError> {
 }
 
 #[cfg_attr(not(feature = "library"), entry_point)]
-pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
+pub fn query(deps: Deps, env: Env, msg: QueryMsg) -> StdResult<Binary> {
     match msg {
         QueryMsg::Member {
             addr,
@@ -499,8 +499,8 @@ pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
             to_binary(&PreauthResponse { preauths })
         }
         QueryMsg::WithdrawableFunds { owner } => to_binary(&query_withdrawable_funds(deps, owner)?),
-        QueryMsg::DistributedFunds {} => to_binary(&query_undistributed_funds(deps)?),
-        QueryMsg::UndistributedFunds {} => to_binary(&query_distributed_total(deps)?),
+        QueryMsg::DistributedFunds {} => to_binary(&query_distributed_total(deps)?),
+        QueryMsg::UndistributedFunds {} => to_binary(&query_undistributed_funds(deps, env)?),
     }
 }
 
@@ -526,11 +526,17 @@ pub fn query_withdrawable_funds(deps: Deps, owner: String) -> StdResult<FundsRes
     Ok(FundsResponse { funds: token })
 }
 
-pub fn query_undistributed_funds(deps: Deps) -> StdResult<FundsResponse> {
+pub fn query_undistributed_funds(deps: Deps, env: Env) -> StdResult<FundsResponse> {
     let denom = TOKEN.load(deps.storage)?;
-    let amount = WITHDRAWABLE_TOTAL.load(deps.storage)?;
+    let withdrawable: u128 = WITHDRAWABLE_TOTAL.load(deps.storage)?.into();
+    let balance: u128 = deps
+        .querier
+        .query_balance(env.contract.address, denom.clone())?
+        .amount
+        .into();
+
     Ok(FundsResponse {
-        funds: coin(amount.into(), &denom),
+        funds: coin(balance - withdrawable, &denom),
     })
 }
 
