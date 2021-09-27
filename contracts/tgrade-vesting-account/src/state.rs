@@ -34,4 +34,4 @@ pub struct VestingAccount {
     initial_tokens: Uint128,
 }
 
-pub const VESTING_ACCOUNT: Item<VestingAccount> = Item::new("vestingaccount");
+pub const VESTING_ACCOUNT: Item<VestingAccount> = Item::new("vesting_account");
