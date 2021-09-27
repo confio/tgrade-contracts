@@ -31,16 +31,14 @@ pub struct Config {
     /// SOB, which can approve the payout of fully vested tokens to the final
     /// recipient.
     oversight: Addr,
-    /// Total amount of tokens vested
-    tokens: Coin,
     vesting_plan: VestingPlan,
 }
 
 /// Response for tokens querry
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct Tokens {
-    amount: Uint128,
-    frozen: Option<Uint128>,
+    amount_paid: Uint128,
+    amount_frozen: Uint128,
 }
 
 pub const VESTING_CONFIG: Item<Config> = Item::new("vestingconfig");
