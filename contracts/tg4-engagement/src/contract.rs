@@ -392,7 +392,7 @@ pub fn apply_points_correction(
     points_per_weight: u128,
     diff: i128,
 ) -> StdResult<()> {
-    POINTS_CORRECTION.update(deps.storage, &addr, |old| -> StdResult<_> {
+    POINTS_CORRECTION.update(deps.storage, addr, |old| -> StdResult<_> {
         let old: i128 = old.unwrap_or_default().into();
         Ok((old - (points_per_weight as i128 * diff) as i128).into())
     })?;

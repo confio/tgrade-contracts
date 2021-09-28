@@ -170,10 +170,10 @@
       "description": "Return how much funds were distributed in total by this contract. Returns `FundsResponse`.",
       "type": "object",
       "required": [
-        "distribute_funds"
+        "distributed_funds"
       ],
       "properties": {
-        "distribute_funds": {
+        "distributed_funds": {
           "type": "object"
         }
       },
