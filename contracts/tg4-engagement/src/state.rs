@@ -30,7 +30,7 @@ impl Halflife {
 /// (for way more efficient division).
 ///
 /// `32, to have those 32 bits, but it reduces how much tokens may be handled by this contract
-/// (it is now 196-bit integer instead of 128). In original ERC2222 it is handled by 256-bit
+/// (it is now 96-bit integer instead of 128). In original ERC2222 it is handled by 256-bit
 /// calculations, but I256 is missing and it is required for this.
 pub const POINTS_SHIFT: u8 = 32;
 
@@ -38,27 +38,30 @@ pub const HALFLIFE: Item<Halflife> = Item::new("halflife");
 
 #[derive(Serialize, Deserialize, Clone, PartialEq, JsonSchema, Debug)]
 pub struct Distribution {
+    /// Token which can be distributed by this token.
+    pub token: String,
     /// How much points is single point of weight worth at this point.
     pub points_per_weight: Uint128,
     /// Points which were not fully distributed on previous distributions, and should be redistributed
     pub points_leftover: u64,
     /// Total funds distributed by this contract.
     pub distributed_total: Uint128,
+    /// Total funds not yet withdrawn.
+    pub withdrawable_total: Uint128,
 }
 
-/// Token which can be distributed by this token. Stored outside of `Distribution`, as it is never
-/// updates, so saving some space.
-pub const TOKEN: Item<String> = Item::new("token");
+#[derive(Serialize, Deserialize, Clone, PartialEq, JsonSchema, Debug, Default)]
+pub struct WithdrawAdjustment {
+    /// How much points should be added/removed from calculated funds while withdrawal.
+    pub points_correction: Int128,
+    /// How much funds addresses already withdrawn.
+    pub withdrawn_funds: Uint128,
+}
+
 /// Tokens distribution data
 pub const DISTRIBUTION: Item<Distribution> = Item::new("distribution");
-/// Total funds not yet withdrawn. Stored outside of distribution as it is updated also on
-/// withdrawal.
-pub const WITHDRAWABLE_TOTAL: Item<Uint128> = Item::new("withdrawable_total");
-
-/// How much points should be added/removed from calculated funds while withdrawal.
-pub const POINTS_CORRECTION: Map<&Addr, Int128> = Map::new("shares_correction");
-/// How much funds addresses already withdrawn.
-pub const WITHDRAWN_FUNDS: Map<&Addr, Uint128> = Map::new("withdrawn_funds");
+/// Information how to exactly adjust tokens while withdrawal
+pub const WITHDRAW_ADJUSTMENT: Map<&Addr, WithdrawAdjustment> = Map::new("withdraw_adjustment");
 
 #[cfg(test)]
 mod tests {
