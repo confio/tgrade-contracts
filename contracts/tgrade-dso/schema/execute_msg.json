@@ -1,7 +1,7 @@
 {
   "$schema": "http://json-schema.org/draft-07/schema#",
   "title": "ExecuteMsg",
-  "anyOf": [
+  "oneOf": [
     {
       "type": "object",
       "required": [
@@ -218,7 +218,7 @@
       }
     },
     "ProposalContent": {
-      "anyOf": [
+      "oneOf": [
         {
           "description": "Apply a diff to the existing non-voting members. Remove is applied after add, so if an address is in both, it is removed",
           "type": "object",
@@ -303,7 +303,7 @@
       ]
     },
     "Punishment": {
-      "anyOf": [
+      "oneOf": [
         {
           "type": "object",
           "required": [
