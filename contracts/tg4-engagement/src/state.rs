@@ -50,13 +50,18 @@ pub struct Distribution {
     pub withdrawable_total: Uint128,
 }
 
+#[derive(Serialize, Deserialize, Clone, PartialEq, JsonSchema, Debug, Default)]
+pub struct WithdrawAdjustment {
+    /// How much points should be added/removed from calculated funds while withdrawal.
+    pub points_correction: Int128,
+    /// How much funds addresses already withdrawn.
+    pub withdrawn_funds: Uint128,
+}
+
 /// Tokens distribution data
 pub const DISTRIBUTION: Item<Distribution> = Item::new("distribution");
-
-/// How much points should be added/removed from calculated funds while withdrawal.
-pub const POINTS_CORRECTION: Map<&Addr, Int128> = Map::new("shares_correction");
-/// How much funds addresses already withdrawn.
-pub const WITHDRAWN_FUNDS: Map<&Addr, Uint128> = Map::new("withdrawn_funds");
+/// Information how to exactly adjust tokens while withdrawal
+pub const WITHDRAW_ADJUSTMENT: Map<&Addr, WithdrawAdjustment> = Map::new("withdraw_adjustment");
 
 #[cfg(test)]
 mod tests {

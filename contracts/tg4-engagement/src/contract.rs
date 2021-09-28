@@ -13,11 +13,10 @@ use tg4::{
 };
 
 use crate::error::ContractError;
-use crate::i128::Int128;
 use crate::msg::{ExecuteMsg, FundsResponse, InstantiateMsg, PreauthResponse, QueryMsg, SudoMsg};
 use crate::state::{
-    Distribution, Halflife, DISTRIBUTION, HALFLIFE, POINTS_CORRECTION, POINTS_SHIFT,
-    WITHDRAWN_FUNDS,
+    Distribution, Halflife, WithdrawAdjustment, DISTRIBUTION, HALFLIFE, POINTS_SHIFT,
+    WITHDRAW_ADJUSTMENT,
 };
 use tg_bindings::{request_privileges, Privilege, PrivilegeChangeMsg, TgradeMsg};
 use tg_utils::{members, Duration, ADMIN, HOOKS, PREAUTH, TOTAL};
@@ -88,12 +87,17 @@ pub fn create(
     DISTRIBUTION.save(deps.storage, &distribution)?;
 
     let mut total = 0u64;
+    let adjustment = WithdrawAdjustment {
+        points_correction: 0i128.into(),
+        withdrawn_funds: Uint128::zero(),
+    };
+
     for member in members_list.into_iter() {
         total += member.weight;
         let member_addr = deps.api.addr_validate(&member.addr)?;
         members().save(deps.storage, &member_addr, &member.weight, height)?;
-        POINTS_CORRECTION.save(deps.storage, &member_addr, &Int128::zero())?;
-        WITHDRAWN_FUNDS.save(deps.storage, &member_addr, &Uint128::zero())?;
+
+        WITHDRAW_ADJUSTMENT.save(deps.storage, &member_addr, &adjustment)?;
     }
     TOTAL.save(deps.storage, &total)?;
 
@@ -255,7 +259,9 @@ pub fn execute_withdraw_tokens(
     info: MessageInfo,
     receiver: Option<String>,
 ) -> Result<Response, ContractError> {
-    let (token, withdrawn, mut distribution) = withdrawable_funds(deps.as_ref(), &info.sender)?;
+    let mut distribution = DISTRIBUTION.load(deps.storage)?;
+    let mut adjustment = WITHDRAW_ADJUSTMENT.load(deps.storage, &info.sender)?;
+    let token = withdrawable_funds(deps.as_ref(), &info.sender, &distribution, &adjustment)?;
     let receiver = receiver
         .map(|receiver| deps.api.addr_validate(&receiver))
         .transpose()?
@@ -266,7 +272,8 @@ pub fn execute_withdraw_tokens(
         return Ok(Response::new());
     }
 
-    WITHDRAWN_FUNDS.save(deps.storage, &info.sender, &(withdrawn + token.amount))?;
+    adjustment.withdrawn_funds += token.amount;
+    WITHDRAW_ADJUSTMENT.save(deps.storage, &info.sender, &adjustment)?;
     distribution.withdrawable_total -= token.amount;
     DISTRIBUTION.save(deps.storage, &distribution)?;
 
@@ -284,27 +291,26 @@ pub fn execute_withdraw_tokens(
     Ok(resp)
 }
 
-/// Returns funds withdrawable by given owner coupled with total wighdrawn funds so far and distribution metadata (in case they
-/// should be updated, to avoid double read)
-pub fn withdrawable_funds(deps: Deps, owner: &Addr) -> StdResult<(Coin, Uint128, Distribution)> {
-    let distribution = DISTRIBUTION.load(deps.storage)?;
+/// Calculates withdrawable funds from distribution and adjustment info.
+pub fn withdrawable_funds(
+    deps: Deps,
+    owner: &Addr,
+    distribution: &Distribution,
+    adjustment: &WithdrawAdjustment,
+) -> StdResult<Coin> {
     let ppw: u128 = distribution.points_per_weight.into();
     let weight: u128 = members()
         .may_load(deps.storage, owner)?
         .unwrap_or_default()
         .into();
-    let correction: i128 = POINTS_CORRECTION.load(deps.storage, owner)?.into();
-    let withdrawn: u128 = WITHDRAWN_FUNDS.load(deps.storage, owner)?.into();
+    let correction: i128 = adjustment.points_correction.into();
+    let withdrawn: u128 = adjustment.withdrawn_funds.into();
     let points = (ppw * weight) as i128;
     let points = points + correction;
     let amount = points as u128 >> POINTS_SHIFT;
     let amount = amount - withdrawn;
 
-    Ok((
-        coin(amount, &distribution.token),
-        withdrawn.into(),
-        distribution,
-    ))
+    Ok(coin(amount, &distribution.token))
 }
 
 pub fn sudo_add_member(
@@ -341,6 +347,7 @@ pub fn update_members(
     // add all new members and update total
     for add in to_add.into_iter() {
         let add_addr = deps.api.addr_validate(&add.addr)?;
+
         let mut diff = 0;
         let mut insert_funds = false;
         members().update(deps.storage, &add_addr, height, |old| -> StdResult<_> {
@@ -353,11 +360,6 @@ pub fn update_members(
             Ok(add.weight)
         })?;
         apply_points_correction(deps.branch(), &add_addr, ppw, diff)?;
-        if insert_funds {
-            WITHDRAWN_FUNDS.update(deps.storage, &add_addr, |old| -> StdResult<_> {
-                Ok(old.unwrap_or_default())
-            })?;
-        }
     }
 
     for remove in to_remove.into_iter() {
@@ -386,9 +388,11 @@ pub fn apply_points_correction(
     points_per_weight: u128,
     diff: i128,
 ) -> StdResult<()> {
-    POINTS_CORRECTION.update(deps.storage, addr, |old| -> StdResult<_> {
-        let old: i128 = old.unwrap_or_default().into();
-        Ok((old - (points_per_weight as i128 * diff) as i128).into())
+    WITHDRAW_ADJUSTMENT.update(deps.storage, addr, |old| -> StdResult<_> {
+        let mut old = old.unwrap_or_default();
+        let points_correction: i128 = old.points_correction.into();
+        old.points_correction = (points_correction - points_per_weight as i128 * diff).into();
+        Ok(old)
     })?;
     Ok(())
 }
@@ -527,7 +531,9 @@ pub fn query_withdrawable_funds(deps: Deps, owner: String) -> StdResult<FundsRes
     // Not checking address, as if it is ivnalid it is guaranteed not to appear in maps, so
     // `withdrawable_funds` would return error itself.
     let owner = Addr::unchecked(&owner);
-    let (token, _, _) = withdrawable_funds(deps, &owner)?;
+    let distribution = DISTRIBUTION.load(deps.storage)?;
+    let adjustment = WITHDRAW_ADJUSTMENT.load(deps.storage, &owner)?;
+    let token = withdrawable_funds(deps, &owner, &distribution, &adjustment)?;
     Ok(FundsResponse { funds: token })
 }
 
