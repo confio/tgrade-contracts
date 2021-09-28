@@ -2,7 +2,7 @@
   "$schema": "http://json-schema.org/draft-07/schema#",
   "title": "TgradeMsg",
   "description": "A number of Custom messages that can be returned by 'privileged' contracts. Returning them from any other contract will return an error and abort the transaction.",
-  "anyOf": [
+  "oneOf": [
     {
       "description": "request or release some privileges, such as BeginBlocker or TokenMinter",
       "type": "object",
@@ -215,7 +215,7 @@
       }
     },
     "GovProposal": {
-      "anyOf": [
+      "oneOf": [
         {
           "description": "Signaling proposal, the text and description field will be recorded",
           "type": "object",
@@ -600,7 +600,7 @@
       ]
     },
     "PrivilegeMsg": {
-      "anyOf": [
+      "oneOf": [
         {
           "type": "object",
           "required": [

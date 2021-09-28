@@ -124,7 +124,7 @@
     },
     "Expiration": {
       "description": "Expiration represents a point in time when some event happens. It can compare with a BlockInfo and will return is_expired() == true once the condition is hit (and for every block in the future)",
-      "anyOf": [
+      "oneOf": [
         {
           "description": "AtHeight will expire when `env.block.height` >= height",
           "type": "object",
@@ -169,7 +169,7 @@
       ]
     },
     "ProposalContent": {
-      "anyOf": [
+      "oneOf": [
         {
           "description": "Apply a diff to the existing non-voting members. Remove is applied after add, so if an address is in both, it is removed",
           "type": "object",
@@ -254,7 +254,7 @@
       ]
     },
     "Punishment": {
-      "anyOf": [
+      "oneOf": [
         {
           "type": "object",
           "required": [

@@ -942,7 +942,7 @@ mod test {
         assert_eq!(0, active.validators.len());
 
         // Trigger end block run through sudo call
-        app.sudo(
+        app.wasm_sudo(
             valset_addr.clone(),
             &TgradeSudoMsg::EndWithValidatorUpdate {},
         )

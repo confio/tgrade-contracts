@@ -1,7 +1,7 @@
 {
   "$schema": "http://json-schema.org/draft-07/schema#",
   "title": "TgradeSudoMsg",
-  "anyOf": [
+  "oneOf": [
     {
       "description": "This will be delivered every block if the contract is currently registered for Begin Block types based on subset of https://github.com/tendermint/tendermint/blob/v0.34.8/proto/tendermint/abci/types.proto#L81",
       "type": "object",
@@ -117,7 +117,7 @@
     },
     "PrivilegeChangeMsg": {
       "description": "These are called on a contract when it is made privileged or demoted",
-      "anyOf": [
+      "oneOf": [
         {
           "description": "This is called when a contract gets \"privileged status\". It is a proper place to call `RegisterXXX` methods that require this status. Contracts that require this should be in a \"frozen\" state until they get this callback.",
           "type": "object",

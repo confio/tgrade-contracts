@@ -56,7 +56,7 @@
     },
     "VestingPlan": {
       "description": "If vesting account is discrete, tokens can't be transferred until given point of time. If account is continuous, then tokens will be released lineary starting at pre-defined point.",
-      "anyOf": [
+      "oneOf": [
         {
           "type": "object",
           "required": [

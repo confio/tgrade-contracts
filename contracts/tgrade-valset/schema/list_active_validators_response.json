@@ -24,7 +24,7 @@
     },
     "Pubkey": {
       "description": "A Tendermint validator pubkey.\n\nSee https://github.com/tendermint/tendermint/blob/master/proto/tendermint/crypto/keys.proto for a list of available types. Sr25519 is added here as it is likely to join the party.\n\nThis type is optimized for the JSON interface. No data validation on the enum cases is performed. If you don't trust the data source, you can create a `ValidatedPubkey` enum that mirrors this type and uses fixed sized data fields.",
-      "anyOf": [
+      "oneOf": [
         {
           "description": "32 bytes Ed25519 pubkey",
           "type": "object",
