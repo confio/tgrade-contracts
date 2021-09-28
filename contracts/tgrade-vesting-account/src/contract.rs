@@ -87,6 +87,23 @@ fn release_tokens(
     }
 }
 
+fn freeze_tokens(
+    deps: DepsMut,
+    _env: Env,
+    info: MessageInfo,
+    amount: Uint128,
+) -> Result<Response, ContractError> {
+    let mut account = VESTING_ACCOUNT.load(deps.storage)?;
+
+    if info.sender == account.operator {
+        account.frozen_tokens += amount;
+        VESTING_ACCOUNT.save(deps.storage, &account)?;
+        Ok(Response::new())
+    } else {
+        Err(ContractError::Unauthorized("to freeze tokens sender must be an operator of this account!".to_string()))
+    }
+}
+
 fn query(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
     match msg {
         QueryMsg::AccountInfo {} => to_binary(&query_account_info(deps)?),

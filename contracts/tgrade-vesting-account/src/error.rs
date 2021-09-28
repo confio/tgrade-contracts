@@ -9,4 +9,7 @@ pub enum ContractError {
 
     #[error("No tokens found in vesting account instantiation message")]
     NoTokensFound,
+
+    #[error("Unauthorized operation: {0}")]
+    Unauthorized(String)
 }
