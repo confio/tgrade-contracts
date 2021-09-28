@@ -1,6 +1,6 @@
 {
   "$schema": "http://json-schema.org/draft-07/schema#",
-  "title": "QueryMsg",
+  "title": "Tg4QueryMsg",
   "oneOf": [
     {
       "description": "Return AdminResponse",
@@ -29,7 +29,7 @@
       "additionalProperties": false
     },
     {
-      "description": "Returns MemberListResponse",
+      "description": "Returns MemberListResponse. The result is sorted by address ascending",
       "type": "object",
       "required": [
         "list_members"
@@ -127,19 +127,6 @@
       ],
       "properties": {
         "hooks": {
-          "type": "object"
-        }
-      },
-      "additionalProperties": false
-    },
-    {
-      "description": "Return the current number of preauths. Returns PreauthResponse.",
-      "type": "object",
-      "required": [
-        "preauths"
-      ],
-      "properties": {
-        "preauths": {
           "type": "object"
         }
       },
