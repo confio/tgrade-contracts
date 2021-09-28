@@ -134,6 +134,30 @@ impl Suite {
         )
     }
 
+    pub fn modify_members(
+        &mut self,
+        executor: &str,
+        add: &[(&str, u64)],
+        remove: &[&str],
+    ) -> AnyResult<AppResponse> {
+        let add = add
+            .iter()
+            .map(|(addr, weight)| Member {
+                addr: (*addr).to_owned(),
+                weight: *weight,
+            })
+            .collect();
+
+        let remove = remove.iter().map(|addr| (*addr).to_owned()).collect();
+
+        self.app.execute_contract(
+            Addr::unchecked(executor),
+            self.contract.clone(),
+            &ExecuteMsg::UpdateMembers { add, remove },
+            &[],
+        )
+    }
+
     pub fn withdrawable_funds(&self, owner: &str) -> Result<Coin, ContractError> {
         let resp: FundsResponse = self.app.wrap().query_wasm_smart(
             self.contract.clone(),

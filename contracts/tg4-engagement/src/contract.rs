@@ -203,9 +203,7 @@ pub fn execute_distribute_tokens(
         return Err(ContractError::NoMembersToDistributeTo {});
     }
 
-    let denom = TOKEN
-        .may_load(deps.storage)?
-        .ok_or(ContractError::NoTokenDistributable {})?;
+    let denom = TOKEN.load(deps.storage)?;
 
     let sender = sender
         .map(|sender| deps.api.addr_validate(&sender))
@@ -297,7 +295,10 @@ pub fn execute_withdraw_tokens(
 pub fn withdrawable_funds(deps: Deps, owner: &Addr) -> StdResult<(Coin, u128)> {
     let denom = TOKEN.load(deps.storage)?;
 
-    let weight: u128 = members().load(deps.storage, owner)?.into();
+    let weight: u128 = members()
+        .may_load(deps.storage, owner)?
+        .unwrap_or_default()
+        .into();
     let ppw: u128 = POINTS_PER_WEIGHT.load(deps.storage)?.into();
     let correction: i128 = POINTS_CORRECTION.load(deps.storage, owner)?.into();
     let withdrawn: u128 = WITHDRAWN_FUNDS.load(deps.storage, owner)?.into();
