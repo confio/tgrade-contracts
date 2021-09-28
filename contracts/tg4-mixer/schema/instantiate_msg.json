@@ -1,0 +1,28 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "InstantiateMsg",
+  "type": "object",
+  "required": [
+    "left_group",
+    "right_group"
+  ],
+  "properties": {
+    "left_group": {
+      "description": "One of the groups we feed to the mixer function",
+      "type": "string"
+    },
+    "preauths": {
+      "description": "preauthorize some hooks on init (only way to add them)",
+      "type": [
+        "integer",
+        "null"
+      ],
+      "format": "uint64",
+      "minimum": 0.0
+    },
+    "right_group": {
+      "description": "The other group we feed to the mixer function",
+      "type": "string"
+    }
+  }
+}

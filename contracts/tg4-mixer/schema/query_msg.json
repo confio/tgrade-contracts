@@ -1,20 +1,7 @@
 {
   "$schema": "http://json-schema.org/draft-07/schema#",
-  "title": "Tg4QueryMsg",
+  "title": "QueryMsg",
   "oneOf": [
-    {
-      "description": "Return AdminResponse",
-      "type": "object",
-      "required": [
-        "admin"
-      ],
-      "properties": {
-        "admin": {
-          "type": "object"
-        }
-      },
-      "additionalProperties": false
-    },
     {
       "description": "Return TotalWeightResponse",
       "type": "object",
@@ -29,7 +16,7 @@
       "additionalProperties": false
     },
     {
-      "description": "Returns MemberListResponse. The result is sorted by address ascending",
+      "description": "Returns MemberListResponse",
       "type": "object",
       "required": [
         "list_members"
@@ -127,6 +114,32 @@
       ],
       "properties": {
         "hooks": {
+          "type": "object"
+        }
+      },
+      "additionalProperties": false
+    },
+    {
+      "description": "Which contracts we are listening to",
+      "type": "object",
+      "required": [
+        "groups"
+      ],
+      "properties": {
+        "groups": {
+          "type": "object"
+        }
+      },
+      "additionalProperties": false
+    },
+    {
+      "description": "Return the current number of preauths. Returns PreauthResponse.",
+      "type": "object",
+      "required": [
+        "preauths"
+      ],
+      "properties": {
+        "preauths": {
           "type": "object"
         }
       },
