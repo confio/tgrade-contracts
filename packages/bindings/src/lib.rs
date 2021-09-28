@@ -11,7 +11,7 @@ pub use gov::{GovProposal, ParamChange, ProtoAny};
 pub use hooks::{request_privileges, Privilege, PrivilegeMsg};
 pub use msg::{BlockParams, ConsensusParams, EvidenceParams, TgradeMsg};
 #[cfg(feature = "multitest")]
-pub use multitest::TgradeModule;
+pub use multitest::{Privileges, TgradeError, TgradeModule};
 pub use query::{ListPrivilegedResponse, TgradeQuery, ValidatorVoteResponse};
 pub use sudo::{Evidence, EvidenceType, PrivilegeChangeMsg, TgradeSudoMsg, ValidatorDiff};
 pub use validator::{

@@ -697,6 +697,7 @@ dependencies = [
  "schemars",
  "serde",
  "sha2",
+ "thiserror",
 ]
 
 [[package]]

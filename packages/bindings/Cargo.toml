@@ -10,7 +10,7 @@ homepage = "https://tgrade.finance"
 [features]
 # multitest is to be enabled in test code to allow using TgradeMsg in multitest
 default = []
-multitest = ["cw-multi-test", "cw-storage-plus", "anyhow"]
+multitest = ["cw-multi-test", "cw-storage-plus", "anyhow", "thiserror"]
 
 [dependencies]
 base64 = "0.13"
@@ -23,6 +23,7 @@ serde = { version = "1.0.103", default-features = false, features = ["derive"] }
 cw-multi-test = { version = "0.10.0-soon2", optional = true }
 cw-storage-plus = { version = "0.10.0-soon2", optional = true }
 anyhow = { version = "1", optional = true }
+thiserror = { version = "1.0.21", optional = true }
 
 [dev-dependencies]
 cosmwasm-schema = { version = "1.0.0-soon" }
