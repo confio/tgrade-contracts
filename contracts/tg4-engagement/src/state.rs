@@ -40,6 +40,8 @@ pub const TOKEN: Item<String> = Item::new("token");
 pub const POINTS_PER_WEIGHT: Item<Uint128> = Item::new("points_per_share");
 /// How much points should be added/removed from calculated funds while withdrawal.
 pub const POINTS_CORRECTION: Map<&Addr, Int128> = Map::new("shares_correction");
+/// Points which were not fully distributed on previous distributions, and should be redistributed
+pub const POINTS_LEFTOVER: Item<Uint128> = Item::new("points_leftover");
 /// How much funds addresses already withdrawn
 pub const WITHDRAWN_FUNDS: Map<&Addr, Uint128> = Map::new("withdrawn_funds");
 /// Total funds not yet withdrawn

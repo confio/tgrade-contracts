@@ -14,7 +14,7 @@ mod funds_distribution {
     }
 
     #[test]
-    fn divideable_amount_distributed() {
+    fn divisible_amount_distributed() {
         let members = vec![
             "member1".to_owned(),
             "member2".to_owned(),
@@ -71,7 +71,7 @@ mod funds_distribution {
     }
 
     #[test]
-    fn divideable_amount_distributed_twice() {
+    fn divisible_amount_distributed_twice() {
         let members = vec![
             "member1".to_owned(),
             "member2".to_owned(),
@@ -124,7 +124,7 @@ mod funds_distribution {
     }
 
     #[test]
-    fn divideable_amount_distributed_twice_accumulated() {
+    fn divisible_amount_distributed_twice_accumulated() {
         let members = vec![
             "member1".to_owned(),
             "member2".to_owned(),
@@ -272,5 +272,94 @@ mod funds_distribution {
         assert_eq!(suite.token_balance(&members[1]).unwrap(), 100);
         assert_eq!(suite.token_balance(&members[2]).unwrap(), 750);
         assert_eq!(suite.token_balance(&members[3]).unwrap(), 0);
+    }
+
+    #[test]
+    fn distribution_with_leftover() {
+        let members = vec![
+            "member1".to_owned(),
+            "member2".to_owned(),
+            "member3".to_owned(),
+            "member4".to_owned(),
+        ];
+
+        // Weights are set to be prime numbers, difficult to distribute over. All are mutually prime
+        // with distributed amount
+        let mut suite = SuiteBuilder::new()
+            .with_member(&members[0], 7)
+            .with_member(&members[1], 11)
+            .with_member(&members[2], 13)
+            .with_funds(&members[3], 3100)
+            .build();
+
+        let token = suite.token.clone();
+
+        suite
+            .distribute_funds(&members[3], None, &coins(100, &token))
+            .unwrap();
+
+        suite.withdraw_funds(&members[0], None).unwrap();
+        suite.withdraw_funds(&members[1], None).unwrap();
+        suite.withdraw_funds(&members[2], None).unwrap();
+
+        assert_eq!(suite.token_balance(suite.contract.as_str()).unwrap(), 2);
+        assert_eq!(suite.token_balance(&members[0]).unwrap(), 22);
+        assert_eq!(suite.token_balance(&members[1]).unwrap(), 35);
+        assert_eq!(suite.token_balance(&members[2]).unwrap(), 41);
+
+        // Second distribution adding to the first one would actually make it properly divisible,
+        // all shares should be properly split
+        suite
+            .distribute_funds(&members[3], None, &coins(3000, &token))
+            .unwrap();
+
+        suite.withdraw_funds(&members[0], None).unwrap();
+        suite.withdraw_funds(&members[1], None).unwrap();
+        suite.withdraw_funds(&members[2], None).unwrap();
+
+        assert_eq!(suite.token_balance(suite.contract.as_str()).unwrap(), 0);
+        assert_eq!(suite.token_balance(&members[0]).unwrap(), 700);
+        assert_eq!(suite.token_balance(&members[1]).unwrap(), 1100);
+        assert_eq!(suite.token_balance(&members[2]).unwrap(), 1300);
+    }
+
+    #[test]
+    fn distribution_with_leftover_accumulated() {
+        let members = vec![
+            "member1".to_owned(),
+            "member2".to_owned(),
+            "member3".to_owned(),
+            "member4".to_owned(),
+        ];
+
+        // Weights are set to be prime numbers, difficult to distribute over. All are mutually prime
+        // with distributed amount
+        let mut suite = SuiteBuilder::new()
+            .with_member(&members[0], 7)
+            .with_member(&members[1], 11)
+            .with_member(&members[2], 13)
+            .with_funds(&members[3], 3100)
+            .build();
+
+        let token = suite.token.clone();
+
+        suite
+            .distribute_funds(&members[3], None, &coins(100, &token))
+            .unwrap();
+
+        // Second distribution adding to the first one would actually make it properly divisible,
+        // all shares should be properly split
+        suite
+            .distribute_funds(&members[3], None, &coins(3000, &token))
+            .unwrap();
+
+        suite.withdraw_funds(&members[0], None).unwrap();
+        suite.withdraw_funds(&members[1], None).unwrap();
+        suite.withdraw_funds(&members[2], None).unwrap();
+
+        assert_eq!(suite.token_balance(suite.contract.as_str()).unwrap(), 0);
+        assert_eq!(suite.token_balance(&members[0]).unwrap(), 700);
+        assert_eq!(suite.token_balance(&members[1]).unwrap(), 1100);
+        assert_eq!(suite.token_balance(&members[2]).unwrap(), 1300);
     }
 }
