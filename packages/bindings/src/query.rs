@@ -1,7 +1,7 @@
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
-use cosmwasm_std::Addr;
+use cosmwasm_std::{Addr, CustomQuery};
 
 use crate::hooks::Privilege;
 use crate::validator::ValidatorVote;
@@ -15,6 +15,8 @@ pub enum TgradeQuery {
     /// Returns ListPrivilegedResponse
     ListPrivileged(Privilege),
 }
+
+impl CustomQuery for TgradeQuery {}
 
 #[derive(Serialize, Deserialize, Clone, PartialEq, JsonSchema, Debug)]
 pub struct ValidatorVoteResponse {

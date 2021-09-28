@@ -87,7 +87,7 @@ impl Module for TgradeModule {
                         Ok(AppResponse::default())
                     }
                     PrivilegeMsg::Release(_) => {
-                        // TODO: add later, not critical path
+                        // FIXME: add later, not critical path
                         Ok(AppResponse::default())
                     }
                 }
@@ -189,7 +189,7 @@ impl Module for TgradeModule {
     ) -> anyhow::Result<Binary> {
         match request {
             TgradeQuery::ListPrivileged(check) => {
-                // TODO: secondary index to make this more efficient
+                // FIXME: secondary index to make this more efficient
                 let privileged = PRIVILEGES
                     .range(storage, None, None, Order::Ascending)
                     .filter_map(|r| {
@@ -220,4 +220,48 @@ pub enum TgradeError {
 
     #[error("Unauthorized")]
     Unauthorized {},
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use cosmwasm_std::coin;
+    use cw_multi_test::{BasicAppBuilder, Executor};
+
+    #[test]
+    fn init_and_owner_mints_tokens() {
+        let owner = Addr::unchecked("govner");
+        let rcpt = Addr::unchecked("townies");
+
+        let mut app = BasicAppBuilder::<TgradeMsg, TgradeQuery>::new_custom()
+            .with_custom(TgradeModule {})
+            .build(|router, _, storage| {
+                router.custom.set_owner(storage, &owner).unwrap();
+            });
+
+        // no tokens
+        let start = app.wrap().query_all_balances(rcpt.as_str()).unwrap();
+        assert_eq!(start, vec![]);
+
+        // prepare to mint
+        let mintable = coin(123456, "shilling");
+        let msg = TgradeMsg::MintTokens {
+            denom: mintable.denom.clone(),
+            amount: mintable.amount.clone(),
+            recipient: rcpt.to_string(),
+        };
+
+        // townies cannot
+        let _ = app.execute(rcpt.clone(), msg.clone().into()).unwrap_err();
+
+        // Gov'ner can
+        app.execute(owner.clone(), msg.into()).unwrap();
+
+        // we got tokens!
+        let end = app
+            .wrap()
+            .query_balance(rcpt.as_str(), &mintable.denom)
+            .unwrap();
+        assert_eq!(end, mintable);
+    }
 }
