@@ -1,7 +1,8 @@
 #[cfg(not(feature = "library"))]
 use cosmwasm_std::entry_point;
 use cosmwasm_std::{
-    to_binary, Addr, Binary, Deps, DepsMut, Env, Event, MessageInfo, Order, StdResult, Timestamp,
+    coin, to_binary, Addr, BankMsg, Binary, Coin, Deps, DepsMut, Env, Event, MessageInfo, Order,
+    StdResult, Timestamp, Uint128,
 };
 use cw0::maybe_addr;
 use cw2::set_contract_version;
@@ -12,8 +13,12 @@ use tg4::{
 };
 
 use crate::error::ContractError;
-use crate::msg::{ExecuteMsg, InstantiateMsg, PreauthResponse, QueryMsg, SudoMsg};
-use crate::state::{Halflife, HALFLIFE};
+use crate::i128::Int128;
+use crate::msg::{ExecuteMsg, FundsResponse, InstantiateMsg, PreauthResponse, QueryMsg, SudoMsg};
+use crate::state::{
+    Distribution, Halflife, DISTRIBUTION, HALFLIFE, POINTS_CORRECTION, POINTS_SHIFT, TOKEN,
+    WITHDRAWABLE_TOTAL, WITHDRAWN_FUNDS,
+};
 use tg_bindings::{request_privileges, Privilege, PrivilegeChangeMsg, TgradeMsg};
 use tg_utils::{members, Duration, ADMIN, HOOKS, PREAUTH, TOTAL};
 
@@ -42,12 +47,14 @@ pub fn instantiate(
         env.block.height,
         env.block.time,
         msg.halflife,
+        msg.token,
     )?;
     Ok(Response::default())
 }
 
 // create is the instantiation logic with set_contract_version removed so it can more
 // easily be imported in other contracts
+#[allow(clippy::too_many_arguments)]
 pub fn create(
     mut deps: DepsMut,
     admin: Option<String>,
@@ -56,6 +63,7 @@ pub fn create(
     height: u64,
     time: Timestamp,
     halflife: Option<Duration>,
+    token: String,
 ) -> Result<(), ContractError> {
     let admin_addr = admin
         .map(|admin| deps.api.addr_validate(&admin))
@@ -70,11 +78,22 @@ pub fn create(
     };
     HALFLIFE.save(deps.storage, &data)?;
 
+    let distribution = Distribution {
+        points_per_weight: Uint128::zero(),
+        points_leftover: 0,
+        distributed_total: Uint128::zero(),
+    };
+    TOKEN.save(deps.storage, &token)?;
+    DISTRIBUTION.save(deps.storage, &distribution)?;
+    WITHDRAWABLE_TOTAL.save(deps.storage, &Uint128::zero())?;
+
     let mut total = 0u64;
     for member in members_list.into_iter() {
         total += member.weight;
         let member_addr = deps.api.addr_validate(&member.addr)?;
         members().save(deps.storage, &member_addr, &member.weight, height)?;
+        POINTS_CORRECTION.save(deps.storage, &member_addr, &Int128::zero())?;
+        WITHDRAWN_FUNDS.save(deps.storage, &member_addr, &Uint128::zero())?;
     }
     TOTAL.save(deps.storage, &total)?;
 
@@ -101,6 +120,10 @@ pub fn execute(
         }
         ExecuteMsg::AddHook { addr } => execute_add_hook(deps, info, addr),
         ExecuteMsg::RemoveHook { addr } => execute_remove_hook(deps, info, addr),
+        ExecuteMsg::DistributeFunds { sender } => {
+            execute_distribute_tokens(deps, env, info, sender)
+        }
+        ExecuteMsg::WithdrawFunds { receiver } => execute_withdraw_tokens(deps, info, receiver),
     }
 }
 
@@ -171,6 +194,121 @@ pub fn execute_update_members(
     Ok(res)
 }
 
+pub fn execute_distribute_tokens(
+    deps: DepsMut,
+    env: Env,
+    info: MessageInfo,
+    sender: Option<String>,
+) -> Result<Response, ContractError> {
+    let total = TOTAL.load(deps.storage)? as u128;
+
+    // There are no shares in play - noone to distribute to
+    if total == 0 {
+        return Err(ContractError::NoMembersToDistributeTo {});
+    }
+
+    let denom = TOKEN.load(deps.storage)?;
+
+    let sender = sender
+        .map(|sender| deps.api.addr_validate(&sender))
+        .transpose()?
+        .unwrap_or(info.sender);
+
+    let mut distribution = DISTRIBUTION.load(deps.storage)?;
+
+    let withdrawable: u128 = WITHDRAWABLE_TOTAL.load(deps.storage)?.into();
+    let balance: u128 = deps
+        .querier
+        .query_balance(env.contract.address, denom.clone())?
+        .amount
+        .into();
+
+    let amount = balance - withdrawable;
+    if amount == 0 {
+        return Ok(Response::new());
+    }
+
+    let leftover: u128 = distribution.points_leftover.into();
+    let points = (amount << POINTS_SHIFT) + leftover;
+    let points_per_share = points / total;
+    distribution.points_leftover = (points % total) as u64;
+
+    // Everything goes back to 128-bits/16-bytes
+    // Full amount is added here to total withdrawable, as it should not be considered on its own
+    // on future distributions - even if because of calculation offsets it is not fully
+    // distributed, the error is handled by leftover.
+    distribution.points_per_weight += Uint128::from(points_per_share);
+    distribution.distributed_total += Uint128::from(amount);
+
+    DISTRIBUTION.save(deps.storage, &distribution)?;
+    WITHDRAWABLE_TOTAL.update(deps.storage, |total| -> StdResult<_> {
+        Ok(total + Uint128::from(amount))
+    })?;
+
+    let resp = Response::new()
+        .add_attribute("action", "distribute_tokens")
+        .add_attribute("sender", sender.as_str())
+        .add_attribute("token", &denom)
+        .add_attribute("amount", &amount.to_string());
+
+    Ok(resp)
+}
+
+pub fn execute_withdraw_tokens(
+    deps: DepsMut,
+    info: MessageInfo,
+    receiver: Option<String>,
+) -> Result<Response, ContractError> {
+    let (token, withdrawn) = withdrawable_funds(deps.as_ref(), &info.sender)?;
+    let receiver = receiver
+        .map(|receiver| deps.api.addr_validate(&receiver))
+        .transpose()?
+        .unwrap_or_else(|| info.sender.clone());
+
+    if token.amount.is_zero() {
+        // Just do nothing
+        return Ok(Response::new());
+    }
+
+    WITHDRAWN_FUNDS.save(deps.storage, &info.sender, &(withdrawn + token.amount))?;
+    WITHDRAWABLE_TOTAL.update(deps.storage, |total| -> StdResult<_> {
+        Ok(total - token.amount)
+    })?;
+
+    let resp = Response::new()
+        .add_attribute("action", "withdraw_tokens")
+        .add_attribute("owner", info.sender.as_str())
+        .add_attribute("receiver", receiver.as_str())
+        .add_attribute("token", &token.denom)
+        .add_attribute("amount", &token.amount.to_string())
+        .add_submessage(SubMsg::new(BankMsg::Send {
+            to_address: receiver.to_string(),
+            amount: vec![token],
+        }));
+
+    Ok(resp)
+}
+
+/// Returns funds withdrawable by given owner paired with total sum of withdrawn funds so far, to
+/// avoid querying it extra time (in case if update is needed)
+pub fn withdrawable_funds(deps: Deps, owner: &Addr) -> StdResult<(Coin, Uint128)> {
+    let denom = TOKEN.load(deps.storage)?;
+
+    let ppw: u128 = DISTRIBUTION.load(deps.storage)?.points_per_weight.into();
+    let weight: u128 = members()
+        .may_load(deps.storage, owner)?
+        .unwrap_or_default()
+        .into();
+    let correction: i128 = POINTS_CORRECTION.load(deps.storage, owner)?.into();
+    let withdrawn: u128 = WITHDRAWN_FUNDS.load(deps.storage, owner)?.into();
+    let points = (ppw * weight) as i128;
+    let points = points + correction;
+    let amount = points as u128 >> POINTS_SHIFT;
+    let amount = amount - withdrawn;
+
+    Ok((coin(amount, &denom), withdrawn.into()))
+}
+
 pub fn sudo_add_member(
     mut deps: DepsMut,
     env: Env,
@@ -192,7 +330,7 @@ pub fn sudo_add_member(
 
 // the logic from execute_update_members extracted for easier import
 pub fn update_members(
-    deps: DepsMut,
+    mut deps: DepsMut,
     height: u64,
     to_add: Vec<Member>,
     to_remove: Vec<String>,
@@ -200,15 +338,28 @@ pub fn update_members(
     let mut total = TOTAL.load(deps.storage)?;
     let mut diffs: Vec<MemberDiff> = vec![];
 
+    let ppw: u128 = DISTRIBUTION.load(deps.storage)?.points_per_weight.into();
+
     // add all new members and update total
     for add in to_add.into_iter() {
         let add_addr = deps.api.addr_validate(&add.addr)?;
+        let mut diff = 0;
+        let mut insert_funds = false;
         members().update(deps.storage, &add_addr, height, |old| -> StdResult<_> {
-            total -= old.unwrap_or_default();
-            total += add.weight;
             diffs.push(MemberDiff::new(add.addr, old, Some(add.weight)));
+            insert_funds = old.is_none();
+            let old = old.unwrap_or_default();
+            total -= old;
+            total += add.weight;
+            diff = add.weight as i128 - old as i128;
             Ok(add.weight)
         })?;
+        apply_points_correction(deps.branch(), &add_addr, ppw, diff)?;
+        if insert_funds {
+            WITHDRAWN_FUNDS.update(deps.storage, &add_addr, |old| -> StdResult<_> {
+                Ok(old.unwrap_or_default())
+            })?;
+        }
     }
 
     for remove in to_remove.into_iter() {
@@ -219,11 +370,29 @@ pub fn update_members(
             diffs.push(MemberDiff::new(remove, Some(weight), None));
             total -= weight;
             members().remove(deps.storage, &remove_addr, height)?;
+            apply_points_correction(deps.branch(), &remove_addr, ppw, -(weight as i128))?;
         }
     }
 
     TOTAL.save(deps.storage, &total)?;
     Ok(MemberChangedHookMsg { diffs })
+}
+
+/// Applies points correction for given address.
+/// `points_per_weight` is current value from `POINTS_PER_WEIGHT` - not loaded in function, to
+/// avoid multiple queries on bulk updates.
+/// `diff` is the weight change
+pub fn apply_points_correction(
+    deps: DepsMut,
+    addr: &Addr,
+    points_per_weight: u128,
+    diff: i128,
+) -> StdResult<()> {
+    POINTS_CORRECTION.update(deps.storage, addr, |old| -> StdResult<_> {
+        let old: i128 = old.unwrap_or_default().into();
+        Ok((old - (points_per_weight as i128 * diff) as i128).into())
+    })?;
+    Ok(())
 }
 
 #[cfg_attr(not(feature = "library"), entry_point)]
@@ -249,7 +418,7 @@ fn weight_reduction(weight: u64) -> u64 {
     weight - (weight / 2)
 }
 
-fn end_block(deps: DepsMut, env: Env) -> Result<Response, ContractError> {
+fn end_block(mut deps: DepsMut, env: Env) -> Result<Response, ContractError> {
     let resp = Response::new();
 
     // If duration of half life added to timestamp of last applied
@@ -257,6 +426,8 @@ fn end_block(deps: DepsMut, env: Env) -> Result<Response, ContractError> {
     if !HALFLIFE.load(deps.storage)?.should_apply(env.block.time) {
         return Ok(resp);
     }
+
+    let ppw: u128 = DISTRIBUTION.load(deps.storage)?.points_per_weight.into();
 
     let mut reduction = 0;
 
@@ -278,14 +449,17 @@ fn end_block(deps: DepsMut, env: Env) -> Result<Response, ContractError> {
         .collect::<StdResult<_>>()?;
 
     for member in members_to_update {
-        reduction += weight_reduction(member.weight);
+        let diff = weight_reduction(member.weight);
+        reduction += diff;
+        let addr = Addr::unchecked(member.addr);
         members().replace(
             deps.storage,
-            &Addr::unchecked(member.addr),
-            Some(&(member.weight / 2)),
+            &addr,
+            Some(&(member.weight - diff)),
             Some(&member.weight),
             env.block.height,
         )?;
+        apply_points_correction(deps.branch(), &addr, ppw, -(diff as i128))?;
     }
 
     // We need to update half life's last applied timestamp to current one
@@ -309,7 +483,7 @@ fn end_block(deps: DepsMut, env: Env) -> Result<Response, ContractError> {
 }
 
 #[cfg_attr(not(feature = "library"), entry_point)]
-pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
+pub fn query(deps: Deps, env: Env, msg: QueryMsg) -> StdResult<Binary> {
     match msg {
         QueryMsg::Member {
             addr,
@@ -331,6 +505,9 @@ pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
             let preauths = PREAUTH.get_auth(deps.storage)?;
             to_binary(&PreauthResponse { preauths })
         }
+        QueryMsg::WithdrawableFunds { owner } => to_binary(&query_withdrawable_funds(deps, owner)?),
+        QueryMsg::DistributedFunds {} => to_binary(&query_distributed_total(deps)?),
+        QueryMsg::UndistributedFunds {} => to_binary(&query_undistributed_funds(deps, env)?),
     }
 }
 
@@ -346,6 +523,36 @@ fn query_member(deps: Deps, addr: String, height: Option<u64>) -> StdResult<Memb
         None => members().may_load(deps.storage, &addr),
     }?;
     Ok(MemberResponse { weight })
+}
+
+pub fn query_withdrawable_funds(deps: Deps, owner: String) -> StdResult<FundsResponse> {
+    // Not checking address, as if it is ivnalid it is guaranteed not to appear in maps, so
+    // `withdrawable_funds` would return error itself.
+    let owner = Addr::unchecked(&owner);
+    let (token, _) = withdrawable_funds(deps, &owner)?;
+    Ok(FundsResponse { funds: token })
+}
+
+pub fn query_undistributed_funds(deps: Deps, env: Env) -> StdResult<FundsResponse> {
+    let denom = TOKEN.load(deps.storage)?;
+    let withdrawable: u128 = WITHDRAWABLE_TOTAL.load(deps.storage)?.into();
+    let balance: u128 = deps
+        .querier
+        .query_balance(env.contract.address, denom.clone())?
+        .amount
+        .into();
+
+    Ok(FundsResponse {
+        funds: coin(balance - withdrawable, &denom),
+    })
+}
+
+pub fn query_distributed_total(deps: Deps) -> StdResult<FundsResponse> {
+    let denom = TOKEN.load(deps.storage)?;
+    let amount = DISTRIBUTION.load(deps.storage)?.distributed_total;
+    Ok(FundsResponse {
+        funds: coin(amount.into(), &denom),
+    })
 }
 
 // settings for pagination
@@ -440,6 +647,7 @@ mod tests {
             ],
             preauths: Some(1),
             halflife: Some(Duration::new(HALFLIFE)),
+            token: "usdc".to_owned(),
         };
         let info = mock_info("creator", &[]);
         instantiate(deps, mock_env(), info, msg).unwrap();

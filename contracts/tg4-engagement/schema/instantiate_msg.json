@@ -3,7 +3,8 @@
   "title": "InstantiateMsg",
   "type": "object",
   "required": [
-    "members"
+    "members",
+    "token"
   ],
   "properties": {
     "admin": {
@@ -36,6 +37,10 @@
       ],
       "format": "uint64",
       "minimum": 0.0
+    },
+    "token": {
+      "description": "Token which may be distributed by this contract.",
+      "type": "string"
     }
   },
   "definitions": {

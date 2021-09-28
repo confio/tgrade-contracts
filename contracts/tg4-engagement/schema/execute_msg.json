@@ -95,6 +95,50 @@
         }
       },
       "additionalProperties": false
+    },
+    {
+      "description": "Distributes funds sent with this message, and all funds transferred since last call of this to members, proportionally to their weights. Funds are not immediately send to members, but assigned to them for later withdrawal (see: `ExecuteMsg::WithdrawFunds`)",
+      "type": "object",
+      "required": [
+        "distribute_funds"
+      ],
+      "properties": {
+        "distribute_funds": {
+          "type": "object",
+          "properties": {
+            "sender": {
+              "description": "Original source of funds, informational. If present overwrites \"sender\" field on propagated event.",
+              "type": [
+                "string",
+                "null"
+              ]
+            }
+          }
+        }
+      },
+      "additionalProperties": false
+    },
+    {
+      "description": "Withdraws funds which were previously distributed and assigned to sender.",
+      "type": "object",
+      "required": [
+        "withdraw_funds"
+      ],
+      "properties": {
+        "withdraw_funds": {
+          "type": "object",
+          "properties": {
+            "receiver": {
+              "description": "Address where to transfer funds. If not present, funds would be send to `sender`.",
+              "type": [
+                "string",
+                "null"
+              ]
+            }
+          }
+        }
+      },
+      "additionalProperties": false
     }
   ],
   "definitions": {

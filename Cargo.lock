@@ -726,12 +726,15 @@ dependencies = [
 name = "tg4-engagement"
 version = "0.4.0"
 dependencies = [
+ "anyhow",
  "cosmwasm-schema 0.16.2",
  "cosmwasm-std",
  "cw-controllers",
+ "cw-multi-test",
  "cw-storage-plus",
  "cw0",
  "cw2",
+ "derivative",
  "schemars",
  "serde",
  "tg-bindings",
