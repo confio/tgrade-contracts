@@ -36,20 +36,29 @@ pub const POINTS_SHIFT: u8 = 32;
 
 pub const HALFLIFE: Item<Halflife> = Item::new("halflife");
 
-/// Token which can be distributed by this token.
+#[derive(Serialize, Deserialize, Clone, PartialEq, JsonSchema, Debug)]
+pub struct Distribution {
+    /// How much points is single point of weight worth at this point.
+    pub points_per_weight: Uint128,
+    /// Points which were not fully distributed on previous distributions, and should be redistributed
+    pub points_leftover: u64,
+    /// Total funds distributed by this contract.
+    pub distributed_total: Uint128,
+}
+
+/// Token which can be distributed by this token. Stored outside of `Distribution`, as it is never
+/// updates, so saving some space.
 pub const TOKEN: Item<String> = Item::new("token");
-/// How much points is single point of weight worth at this point.
-pub const POINTS_PER_WEIGHT: Item<Uint128> = Item::new("points_per_share");
+/// Tokens distribution data
+pub const DISTRIBUTION: Item<Distribution> = Item::new("distribution");
+/// Total funds not yet withdrawn. Stored outside of distribution as it is updated also on
+/// withdrawal.
+pub const WITHDRAWABLE_TOTAL: Item<Uint128> = Item::new("withdrawable_total");
+
 /// How much points should be added/removed from calculated funds while withdrawal.
 pub const POINTS_CORRECTION: Map<&Addr, Int128> = Map::new("shares_correction");
-/// Points which were not fully distributed on previous distributions, and should be redistributed
-pub const POINTS_LEFTOVER: Item<Uint128> = Item::new("points_leftover");
-/// How much funds addresses already withdrawn
+/// How much funds addresses already withdrawn.
 pub const WITHDRAWN_FUNDS: Map<&Addr, Uint128> = Map::new("withdrawn_funds");
-/// Total funds not yet withdrawn
-pub const WITHDRAWABLE_TOTAL: Item<Uint128> = Item::new("witdrawable_total");
-/// Total funds distributed by this contract
-pub const DISTRIBUTED_TOTAL: Item<Uint128> = Item::new("distributed_total");
 
 #[cfg(test)]
 mod tests {

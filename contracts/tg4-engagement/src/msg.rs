@@ -36,7 +36,7 @@ pub enum ExecuteMsg {
     RemoveHook { addr: String },
     /// Distributes funds send with this message, and all funds transferred since last call of this
     /// to members, proportionally to their weights. Funds are not immediately send to members, but
-    /// assigned to them for later withdrawal (see: `ExecuteMsg::WithdrawFunds`
+    /// assigned to them for later withdrawal (see: `ExecuteMsg::WithdrawFunds`)
     DistributeFunds {
         /// Original source of funds, informational. If present overwrites "sender" field on
         /// propagated event.

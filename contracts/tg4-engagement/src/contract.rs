@@ -16,8 +16,8 @@ use crate::error::ContractError;
 use crate::i128::Int128;
 use crate::msg::{ExecuteMsg, FundsResponse, InstantiateMsg, PreauthResponse, QueryMsg, SudoMsg};
 use crate::state::{
-    Halflife, DISTRIBUTED_TOTAL, HALFLIFE, POINTS_CORRECTION, POINTS_LEFTOVER, POINTS_PER_WEIGHT,
-    POINTS_SHIFT, TOKEN, WITHDRAWABLE_TOTAL, WITHDRAWN_FUNDS,
+    Distribution, Halflife, DISTRIBUTION, HALFLIFE, POINTS_CORRECTION, POINTS_SHIFT, TOKEN,
+    WITHDRAWABLE_TOTAL, WITHDRAWN_FUNDS,
 };
 use tg_bindings::{request_privileges, Privilege, PrivilegeChangeMsg, TgradeMsg};
 use tg_utils::{members, Duration, ADMIN, HOOKS, PREAUTH, TOTAL};
@@ -78,11 +78,14 @@ pub fn create(
     };
     HALFLIFE.save(deps.storage, &data)?;
 
+    let distribution = Distribution {
+        points_per_weight: Uint128::zero(),
+        points_leftover: 0,
+        distributed_total: Uint128::zero(),
+    };
     TOKEN.save(deps.storage, &token)?;
-    POINTS_PER_WEIGHT.save(deps.storage, &Uint128::zero())?;
+    DISTRIBUTION.save(deps.storage, &distribution)?;
     WITHDRAWABLE_TOTAL.save(deps.storage, &Uint128::zero())?;
-    DISTRIBUTED_TOTAL.save(deps.storage, &Uint128::zero())?;
-    POINTS_LEFTOVER.save(deps.storage, &Uint128::zero())?;
 
     let mut total = 0u64;
     for member in members_list.into_iter() {
@@ -211,13 +214,9 @@ pub fn execute_distribute_tokens(
         .transpose()?
         .unwrap_or(info.sender);
 
-    // Calculate amount of not yet distributed tokens (leftover after previous calls, and funds
-    // send in the midtime)
-    let withdrawable: u128 = WITHDRAWABLE_TOTAL
-        .may_load(deps.storage)?
-        .unwrap_or_default()
-        .into();
+    let mut distribution = DISTRIBUTION.load(deps.storage)?;
 
+    let withdrawable: u128 = WITHDRAWABLE_TOTAL.load(deps.storage)?.into();
     let balance: u128 = deps
         .querier
         .query_balance(env.contract.address, denom.clone())?
@@ -229,24 +228,21 @@ pub fn execute_distribute_tokens(
         return Ok(Response::new());
     }
 
-    let leftover: u128 = POINTS_LEFTOVER.load(deps.storage)?.into();
+    let leftover: u128 = distribution.points_leftover.into();
     let points = (amount << POINTS_SHIFT) + leftover;
     let points_per_share = points / total;
-    let leftover = points % total;
-    POINTS_LEFTOVER.save(deps.storage, &leftover.into())?;
+    distribution.points_leftover = (points % total) as u64;
 
     // Everything goes back to 128-bits/16-bytes
     // Full amount is added here to total withdrawable, as it should not be considered on its own
     // on future distributions - even if because of calculation offsets it is not fully
     // distributed, the error is handled by leftover.
-    let withdrawable = withdrawable + amount;
+    distribution.points_per_weight += Uint128::from(points_per_share);
+    distribution.distributed_total += Uint128::from(amount);
 
-    WITHDRAWABLE_TOTAL.save(deps.storage, &withdrawable.into())?;
-    POINTS_PER_WEIGHT.update(deps.storage, move |ppw| -> StdResult<_> {
-        Ok(ppw + Uint128::from(points_per_share))
-    })?;
-    DISTRIBUTED_TOTAL.update(deps.storage, |total| -> StdResult<_> {
-        Ok(total + Uint128::new(amount))
+    DISTRIBUTION.save(deps.storage, &distribution)?;
+    WITHDRAWABLE_TOTAL.update(deps.storage, |total| -> StdResult<_> {
+        Ok(total + Uint128::from(amount))
     })?;
 
     let resp = Response::new()
@@ -302,11 +298,11 @@ pub fn execute_withdraw_tokens(
 pub fn withdrawable_funds(deps: Deps, owner: &Addr) -> StdResult<(Coin, u128)> {
     let denom = TOKEN.load(deps.storage)?;
 
+    let ppw: u128 = DISTRIBUTION.load(deps.storage)?.points_per_weight.into();
     let weight: u128 = members()
         .may_load(deps.storage, owner)?
         .unwrap_or_default()
         .into();
-    let ppw: u128 = POINTS_PER_WEIGHT.load(deps.storage)?.into();
     let correction: i128 = POINTS_CORRECTION.load(deps.storage, owner)?.into();
     let withdrawn: u128 = WITHDRAWN_FUNDS.load(deps.storage, owner)?.into();
     let points = (ppw * weight) as i128;
@@ -346,7 +342,7 @@ pub fn update_members(
     let mut total = TOTAL.load(deps.storage)?;
     let mut diffs: Vec<MemberDiff> = vec![];
 
-    let ppw: u128 = POINTS_PER_WEIGHT.load(deps.storage)?.into();
+    let ppw: u128 = DISTRIBUTION.load(deps.storage)?.points_per_weight.into();
 
     // add all new members and update total
     for add in to_add.into_iter() {
@@ -431,7 +427,7 @@ fn end_block(mut deps: DepsMut, env: Env) -> Result<Response, ContractError> {
         return Ok(resp);
     }
 
-    let ppw: u128 = POINTS_PER_WEIGHT.load(deps.storage)?.into();
+    let ppw: u128 = DISTRIBUTION.load(deps.storage)?.points_per_weight.into();
 
     let mut reduction = 0;
 
@@ -553,7 +549,7 @@ pub fn query_undistributed_funds(deps: Deps, env: Env) -> StdResult<FundsRespons
 
 pub fn query_distributed_total(deps: Deps) -> StdResult<FundsResponse> {
     let denom = TOKEN.load(deps.storage)?;
-    let amount = DISTRIBUTED_TOTAL.load(deps.storage)?;
+    let amount = DISTRIBUTION.load(deps.storage)?.distributed_total;
     Ok(FundsResponse {
         funds: coin(amount.into(), &denom),
     })
