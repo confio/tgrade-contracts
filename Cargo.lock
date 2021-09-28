@@ -173,9 +173,9 @@ dependencies = [
 
 [[package]]
 name = "cw-controllers"
-version = "0.10.0-soon"
+version = "0.10.0-soon2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "0bda37b425378a9e320edd6dbe8a74aa9d2a798a96800934cfaf2c633acdc004"
+checksum = "069ac536c06d967c11e5c38b2250405062445ac851fc7f93f4af140796037d88"
 dependencies = [
  "cosmwasm-std",
  "cw-storage-plus",
@@ -187,9 +187,9 @@ dependencies = [
 
 [[package]]
 name = "cw-multi-test"
-version = "0.10.0-soon"
+version = "0.10.0-soon2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "c4a574abbe050f3bb648a67cbd5ee10b87c17e947a7a1a57f67797731f844714"
+checksum = "7d5e729b708d683ae4717ee8afac4e29c64d5dc84a2daf9a609d936b35167a6b"
 dependencies = [
  "anyhow",
  "cosmwasm-std",
@@ -206,9 +206,9 @@ dependencies = [
 
 [[package]]
 name = "cw-storage-plus"
-version = "0.10.0-soon"
+version = "0.10.0-soon2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "a41ccbef6e405dba618bcd3a139916073ca530b3e9f62267968b776235ad3efb"
+checksum = "55ad239274a1d28c892855fce953a48b95a2fb41f6619eb7bd5709523f3759c8"
 dependencies = [
  "cosmwasm-std",
  "schemars",
@@ -217,9 +217,9 @@ dependencies = [
 
 [[package]]
 name = "cw0"
-version = "0.10.0-soon"
+version = "0.10.0-soon2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "b9bd81e80fb2523b339e9534fd66c60341baac83a8e9130fdd4bc0dfcea37c87"
+checksum = "5bbd1302baf71cb31ee9e4570f1d4d8fcd76bd2cac38150163f8b40f7ab7d534"
 dependencies = [
  "cosmwasm-std",
  "schemars",
@@ -229,9 +229,9 @@ dependencies = [
 
 [[package]]
 name = "cw2"
-version = "0.10.0-soon"
+version = "0.10.0-soon2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "2171f61fc158351fc57a40e5a49fc8ea2e95f215f6af60f319ac84bf74dcea18"
+checksum = "7d55b71184d1789512cddc7689e812a8030eabcb2411ab8cfc72b6f20a2bc1c0"
 dependencies = [
  "cosmwasm-std",
  "cw-storage-plus",
@@ -241,9 +241,9 @@ dependencies = [
 
 [[package]]
 name = "cw20"
-version = "0.10.0-soon"
+version = "0.10.0-soon2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "e318fbbc57425460ec46b8bcbe2821802cd8f547cb6a8f72e10d5645afdcc497"
+checksum = "6d780434753e14b83f3183defa7bc688a5c9c3ba3934546482c0ee3cc5db6841"
 dependencies = [
  "cosmwasm-std",
  "cw0",
@@ -253,9 +253,9 @@ dependencies = [
 
 [[package]]
 name = "cw3"
-version = "0.10.0-soon"
+version = "0.10.0-soon2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "b45c201b58bfc89d9660726b0a9500623279abc7d76f5439130c40b204be83a1"
+checksum = "93e789b504a349406eb75560c8062e789391d8410ab2e8bcced5efebf96f70dc"
 dependencies = [
  "cosmwasm-std",
  "cw0",
@@ -459,9 +459,9 @@ dependencies = [
 
 [[package]]
 name = "libc"
-version = "0.2.102"
+version = "0.2.103"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "a2a5ac8f984bfcf3a823267e5fde638acc3325f6496633a5da6bb6eb2171e103"
+checksum = "dd8f7255a17a627354f321ef0055d63b898c6fb27eff628af4d1b66b7331edf6"
 
 [[package]]
 name = "num-traits"
@@ -555,9 +555,9 @@ checksum = "71d301d4193d031abdd79ff7e3dd721168a9572ef3fe51a1517aba235bd8f86e"
 
 [[package]]
 name = "schemars"
-version = "0.8.5"
+version = "0.8.6"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "b82485a532ef0af18878ad4281f73e58161cdba1db7918176e9294f0ca5498a5"
+checksum = "d7a48d098c2a7fdf5740b19deb1181b4fb8a9e68e03ae517c14cde04b5725409"
 dependencies = [
  "dyn-clone",
  "schemars_derive",
@@ -567,9 +567,9 @@ dependencies = [
 
 [[package]]
 name = "schemars_derive"
-version = "0.8.5"
+version = "0.8.6"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "791c2c848cff1abaeae34fef7e70da5f93171d9eea81ce0fe969a1df627a61a8"
+checksum = "4a9ea2a613fe4cd7118b2bb101a25d8ae6192e1975179b67b2f17afd11e70ac8"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -674,9 +674,9 @@ checksum = "6bdef32e8150c2a081110b42772ffe7d7c9032b606bc226c8260fd97e0976601"
 
 [[package]]
 name = "syn"
-version = "1.0.76"
+version = "1.0.77"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "c6f107db402c2c2055242dbf4d2af0e69197202e9faacbef9571bbe47f5a1b84"
+checksum = "5239bc68e0fef57495900cfea4e8dc75596d9a319d7e16b1e0a440d24e6fe0a0"
 dependencies = [
  "proc-macro2",
  "quote",
