@@ -47,7 +47,7 @@ impl TgradeModule {
         let allowed = PRIVILEGES
             .may_load(storage, addr)?
             .unwrap_or_default()
-            .iter()
+            .into_iter()
             .any(|p| p == required);
         if !allowed {
             Err(TgradeError::Unauthorized {})?;
@@ -94,6 +94,7 @@ impl Module for TgradeModule {
             }
             TgradeMsg::WasmSudo { contract_addr, msg } => {
                 self.require_privilege(storage, &sender, Privilege::Sudoer)?;
+                let contract_addr = api.addr_validate(&contract_addr)?;
                 let sudo = WasmSudo { contract_addr, msg };
                 router.sudo(api, storage, block, sudo.into())
             }
@@ -110,9 +111,8 @@ impl Module for TgradeModule {
                 self.require_privilege(storage, &sender, Privilege::GovProposalExecutor)?;
                 match proposal {
                     GovProposal::PromoteToPrivilegedContract { contract } => {
-                        let contract_addr = api.addr_validate(&contract)?;
-
                         // update contract state
+                        let contract_addr = api.addr_validate(&contract)?;
                         PRIVILEGES.update(storage, &contract_addr, |current|
                             // if nothing is set, make it an empty array
                             Ok(current.unwrap_or_default()))?;
@@ -125,8 +125,8 @@ impl Module for TgradeModule {
                         router.sudo(api, storage, block, sudo.into())
                     }
                     GovProposal::DemotePrivilegedContract { contract } => {
-                        let contract_addr = api.addr_validate(&contract)?;
                         // remove contract privileges
+                        let contract_addr = api.addr_validate(&contract)?;
                         PRIVILEGES.remove(storage, &contract_addr);
 
                         // call into contract
@@ -147,7 +147,6 @@ impl Module for TgradeModule {
                     // most are ignored
                     _ => Ok(AppResponse::default()),
                 }
-                bail!("ExecuteGovProposal not implemented")
             }
             TgradeMsg::MintTokens {
                 denom,
@@ -156,7 +155,7 @@ impl Module for TgradeModule {
             } => {
                 self.require_privilege(storage, &sender, Privilege::TokenMinter)?;
                 let mint = BankSudo::Mint {
-                    to_address: api.addr_validate(&recipient)?,
+                    to_address: recipient,
                     amount: vec![Coin { denom, amount }],
                 };
                 router.sudo(api, storage, block, mint.into())
@@ -192,8 +191,8 @@ impl Module for TgradeModule {
                 // TODO: secondary index to make this more efficient
                 let privileged = PRIVILEGES
                     .range(storage, None, None, Order::Ascending)
-                    .map_filter(|r| {
-                        r.map(|(k, privs)| match privs.iter().any(|p| p == check) {
+                    .filter_map(|r| {
+                        r.map(|(k, privs)| match privs.iter().any(|p| *p == check) {
                             true => {
                                 Some(Addr::unchecked(unsafe { String::from_utf8_unchecked(k) }))
                             }

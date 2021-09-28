@@ -178,8 +178,8 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "069ac536c06d967c11e5c38b2250405062445ac851fc7f93f4af140796037d88"
 dependencies = [
  "cosmwasm-std",
- "cw-storage-plus",
- "cw0",
+ "cw-storage-plus 0.10.0-soon2 (registry+https://github.com/rust-lang/crates.io-index)",
+ "cw0 0.10.0-soon2 (registry+https://github.com/rust-lang/crates.io-index)",
  "schemars",
  "serde",
  "thiserror",
@@ -194,8 +194,26 @@ dependencies = [
  "anyhow",
  "cosmwasm-std",
  "cosmwasm-storage",
- "cw-storage-plus",
- "cw0",
+ "cw-storage-plus 0.10.0-soon2 (registry+https://github.com/rust-lang/crates.io-index)",
+ "cw0 0.10.0-soon2 (registry+https://github.com/rust-lang/crates.io-index)",
+ "derivative",
+ "itertools",
+ "prost",
+ "schemars",
+ "serde",
+ "thiserror",
+]
+
+[[package]]
+name = "cw-multi-test"
+version = "0.10.0-soon2"
+source = "git+https://github.com/CosmWasm/cw-plus.git?branch=multitest-fixes#0bc6af26e3263ec1e17ba10a4c3aa6b9c2d7999e"
+dependencies = [
+ "anyhow",
+ "cosmwasm-std",
+ "cosmwasm-storage",
+ "cw-storage-plus 0.10.0-soon2 (git+https://github.com/CosmWasm/cw-plus.git?branch=multitest-fixes)",
+ "cw0 0.10.0-soon2 (git+https://github.com/CosmWasm/cw-plus.git?branch=multitest-fixes)",
  "derivative",
  "itertools",
  "prost",
@@ -216,10 +234,31 @@ dependencies = [
 ]
 
 [[package]]
+name = "cw-storage-plus"
+version = "0.10.0-soon2"
+source = "git+https://github.com/CosmWasm/cw-plus.git?branch=multitest-fixes#0bc6af26e3263ec1e17ba10a4c3aa6b9c2d7999e"
+dependencies = [
+ "cosmwasm-std",
+ "schemars",
+ "serde",
+]
+
+[[package]]
 name = "cw0"
 version = "0.10.0-soon2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "5bbd1302baf71cb31ee9e4570f1d4d8fcd76bd2cac38150163f8b40f7ab7d534"
+dependencies = [
+ "cosmwasm-std",
+ "schemars",
+ "serde",
+ "thiserror",
+]
+
+[[package]]
+name = "cw0"
+version = "0.10.0-soon2"
+source = "git+https://github.com/CosmWasm/cw-plus.git?branch=multitest-fixes#0bc6af26e3263ec1e17ba10a4c3aa6b9c2d7999e"
 dependencies = [
  "cosmwasm-std",
  "schemars",
@@ -234,7 +273,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "7d55b71184d1789512cddc7689e812a8030eabcb2411ab8cfc72b6f20a2bc1c0"
 dependencies = [
  "cosmwasm-std",
- "cw-storage-plus",
+ "cw-storage-plus 0.10.0-soon2 (registry+https://github.com/rust-lang/crates.io-index)",
  "schemars",
  "serde",
 ]
@@ -246,7 +285,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "6d780434753e14b83f3183defa7bc688a5c9c3ba3934546482c0ee3cc5db6841"
 dependencies = [
  "cosmwasm-std",
- "cw0",
+ "cw0 0.10.0-soon2 (registry+https://github.com/rust-lang/crates.io-index)",
  "schemars",
  "serde",
 ]
@@ -258,7 +297,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "93e789b504a349406eb75560c8062e789391d8410ab2e8bcced5efebf96f70dc"
 dependencies = [
  "cosmwasm-std",
- "cw0",
+ "cw0 0.10.0-soon2 (registry+https://github.com/rust-lang/crates.io-index)",
  "schemars",
  "serde",
 ]
@@ -691,8 +730,8 @@ dependencies = [
  "base64",
  "cosmwasm-schema 1.0.0-soon",
  "cosmwasm-std",
- "cw-multi-test",
- "cw-storage-plus",
+ "cw-multi-test 0.10.0-soon2 (git+https://github.com/CosmWasm/cw-plus.git?branch=multitest-fixes)",
+ "cw-storage-plus 0.10.0-soon2 (git+https://github.com/CosmWasm/cw-plus.git?branch=multitest-fixes)",
  "hex-literal",
  "schemars",
  "serde",
@@ -706,8 +745,8 @@ version = "0.4.0"
 dependencies = [
  "cosmwasm-std",
  "cw-controllers",
- "cw-storage-plus",
- "cw0",
+ "cw-storage-plus 0.10.0-soon2 (registry+https://github.com/rust-lang/crates.io-index)",
+ "cw0 0.10.0-soon2 (registry+https://github.com/rust-lang/crates.io-index)",
  "schemars",
  "serde",
  "tg-bindings",
@@ -734,9 +773,9 @@ dependencies = [
  "cosmwasm-schema 0.16.2",
  "cosmwasm-std",
  "cw-controllers",
- "cw-multi-test",
- "cw-storage-plus",
- "cw0",
+ "cw-multi-test 0.10.0-soon2 (registry+https://github.com/rust-lang/crates.io-index)",
+ "cw-storage-plus 0.10.0-soon2 (registry+https://github.com/rust-lang/crates.io-index)",
+ "cw0 0.10.0-soon2 (registry+https://github.com/rust-lang/crates.io-index)",
  "cw2",
  "derivative",
  "schemars",
@@ -753,9 +792,9 @@ version = "0.4.0"
 dependencies = [
  "cosmwasm-schema 1.0.0-soon",
  "cosmwasm-std",
- "cw-multi-test",
- "cw-storage-plus",
- "cw0",
+ "cw-multi-test 0.10.0-soon2 (registry+https://github.com/rust-lang/crates.io-index)",
+ "cw-storage-plus 0.10.0-soon2 (registry+https://github.com/rust-lang/crates.io-index)",
+ "cw0 0.10.0-soon2 (registry+https://github.com/rust-lang/crates.io-index)",
  "cw2",
  "cw20",
  "integer-sqrt",
@@ -776,8 +815,8 @@ dependencies = [
  "cosmwasm-schema 1.0.0-soon",
  "cosmwasm-std",
  "cw-controllers",
- "cw-storage-plus",
- "cw0",
+ "cw-storage-plus 0.10.0-soon2 (registry+https://github.com/rust-lang/crates.io-index)",
+ "cw0 0.10.0-soon2 (registry+https://github.com/rust-lang/crates.io-index)",
  "cw2",
  "itertools",
  "schemars",
@@ -795,8 +834,8 @@ dependencies = [
  "cosmwasm-schema 1.0.0-soon",
  "cosmwasm-std",
  "cw-controllers",
- "cw-storage-plus",
- "cw0",
+ "cw-storage-plus 0.10.0-soon2 (registry+https://github.com/rust-lang/crates.io-index)",
+ "cw0 0.10.0-soon2 (registry+https://github.com/rust-lang/crates.io-index)",
  "cw2",
  "cw3",
  "schemars",
@@ -813,7 +852,7 @@ version = "0.4.0"
 dependencies = [
  "cosmwasm-schema 1.0.0-soon",
  "cosmwasm-std",
- "cw-storage-plus",
+ "cw-storage-plus 0.10.0-soon2 (registry+https://github.com/rust-lang/crates.io-index)",
  "schemars",
  "serde",
  "tg-bindings",
@@ -828,9 +867,9 @@ dependencies = [
  "cosmwasm-schema 1.0.0-soon",
  "cosmwasm-std",
  "cw-controllers",
- "cw-multi-test",
- "cw-storage-plus",
- "cw0",
+ "cw-multi-test 0.10.0-soon2 (registry+https://github.com/rust-lang/crates.io-index)",
+ "cw-storage-plus 0.10.0-soon2 (registry+https://github.com/rust-lang/crates.io-index)",
+ "cw0 0.10.0-soon2 (registry+https://github.com/rust-lang/crates.io-index)",
  "cw2",
  "derivative",
  "schemars",
@@ -849,7 +888,7 @@ version = "0.4.0"
 dependencies = [
  "cosmwasm-schema 1.0.0-soon",
  "cosmwasm-std",
- "cw-storage-plus",
+ "cw-storage-plus 0.10.0-soon2 (registry+https://github.com/rust-lang/crates.io-index)",
  "cw2",
  "schemars",
  "serde",

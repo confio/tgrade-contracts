@@ -20,8 +20,11 @@ sha2 = "0.9"
 serde = { version = "1.0.103", default-features = false, features = ["derive"] }
 
 # these are needed only for multitest support
-cw-multi-test = { version = "0.10.0-soon2", optional = true }
-cw-storage-plus = { version = "0.10.0-soon2", optional = true }
+#cw-multi-test = { version = "0.10.0-soon2", optional = true }
+#cw-storage-plus = { version = "0.10.0-soon2", optional = true }
+cw-multi-test = { git = "https://github.com/CosmWasm/cw-plus.git", branch = "multitest-fixes", optional = true }
+cw-storage-plus = { git = "https://github.com/CosmWasm/cw-plus.git", branch = "multitest-fixes", optional = true }
+
 anyhow = { version = "1", optional = true }
 thiserror = { version = "1.0.21", optional = true }
 
