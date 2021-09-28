@@ -16,8 +16,8 @@ use crate::error::ContractError;
 use crate::i128::Int128;
 use crate::msg::{ExecuteMsg, FundsResponse, InstantiateMsg, PreauthResponse, QueryMsg, SudoMsg};
 use crate::state::{
-    Halflife, DISTRIBUTED_TOTAL, HALFLIFE, POINTS_CORRECTION, POINTS_LEFTOVER, POINTS_MULTIPLIER,
-    POINTS_PER_WEIGHT, TOKEN, WITHDRAWABLE_TOTAL, WITHDRAWN_FUNDS,
+    Halflife, DISTRIBUTED_TOTAL, HALFLIFE, POINTS_CORRECTION, POINTS_LEFTOVER, POINTS_PER_WEIGHT,
+    POINTS_SHIFT, TOKEN, WITHDRAWABLE_TOTAL, WITHDRAWN_FUNDS,
 };
 use tg_bindings::{request_privileges, Privilege, PrivilegeChangeMsg, TgradeMsg};
 use tg_utils::{members, Duration, ADMIN, HOOKS, PREAUTH, TOTAL};
@@ -230,8 +230,8 @@ pub fn execute_distribute_tokens(
     }
 
     let leftover: u128 = POINTS_LEFTOVER.load(deps.storage)?.into();
-    let points = amount * POINTS_MULTIPLIER;
-    let points_per_share = points / total + leftover;
+    let points = (amount << POINTS_SHIFT) + leftover;
+    let points_per_share = points / total;
     let leftover = points % total;
     POINTS_LEFTOVER.save(deps.storage, &leftover.into())?;
 
@@ -297,7 +297,7 @@ pub fn execute_withdraw_tokens(
     Ok(resp)
 }
 
-/// Retruns funds withdrawable by given owner paired with total sum of withdrawn funds so far, to
+/// Returns funds withdrawable by given owner paired with total sum of withdrawn funds so far, to
 /// avoid querying it extra time (in case if update is needed)
 pub fn withdrawable_funds(deps: Deps, owner: &Addr) -> StdResult<(Coin, u128)> {
     let denom = TOKEN.load(deps.storage)?;
@@ -309,7 +309,10 @@ pub fn withdrawable_funds(deps: Deps, owner: &Addr) -> StdResult<(Coin, u128)> {
     let ppw: u128 = POINTS_PER_WEIGHT.load(deps.storage)?.into();
     let correction: i128 = POINTS_CORRECTION.load(deps.storage, owner)?.into();
     let withdrawn: u128 = WITHDRAWN_FUNDS.load(deps.storage, owner)?.into();
-    let amount = ((ppw * weight) as i128 + correction) as u128 / POINTS_MULTIPLIER - withdrawn;
+    let points = (ppw * weight) as i128;
+    let points = points + correction;
+    let amount = points as u128 >> POINTS_SHIFT;
+    let amount = amount - withdrawn;
 
     Ok((coin(amount, &denom), withdrawn))
 }
@@ -341,7 +344,6 @@ pub fn update_members(
     to_remove: Vec<String>,
 ) -> Result<MemberChangedHookMsg, ContractError> {
     let mut total = TOTAL.load(deps.storage)?;
-    let prev_total = total;
     let mut diffs: Vec<MemberDiff> = vec![];
 
     let ppw: u128 = POINTS_PER_WEIGHT.load(deps.storage)?.into();
@@ -376,8 +378,6 @@ pub fn update_members(
         }
     }
 
-    align_points_leftover(deps.branch(), prev_total, total)?;
-
     TOTAL.save(deps.storage, &total)?;
     Ok(MemberChangedHookMsg { diffs })
 }
@@ -395,19 +395,6 @@ pub fn apply_points_correction(
     POINTS_CORRECTION.update(deps.storage, addr, |old| -> StdResult<_> {
         let old: i128 = old.unwrap_or_default().into();
         Ok((old - (points_per_weight as i128 * diff) as i128).into())
-    })?;
-    Ok(())
-}
-
-/// Points correction represents not properly distributed value, where one point represents
-/// `total_weights / POINTS_PER_SHARE` of single token. When total amount of weights changes
-/// it has to be properly aligned, so the leftover value doesn't grow (as it very long run it
-/// may cause paying out more tokens that they are in the contract). Loosing points caused by
-/// integral division rounding is way less dangerous - it would lead to innoticeable deflation
-/// (as after very long time single tokens might be left on the engagement account).
-pub fn align_points_leftover(deps: DepsMut, prev_total: u64, new_total: u64) -> StdResult<()> {
-    POINTS_LEFTOVER.update(deps.storage, move |leftover| -> StdResult<_> {
-        Ok((u128::from(leftover) * (new_total as u128) / (prev_total as u128)).into())
     })?;
     Ok(())
 }
@@ -488,7 +475,6 @@ fn end_block(mut deps: DepsMut, env: Env) -> Result<Response, ContractError> {
     })?;
 
     let mut total = TOTAL.load(deps.storage)?;
-    align_points_leftover(deps.branch(), total, total - reduction)?;
     total -= reduction;
     TOTAL.save(deps.storage, &total)?;
 
