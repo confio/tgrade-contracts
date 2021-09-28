@@ -207,7 +207,7 @@ dependencies = [
 [[package]]
 name = "cw-multi-test"
 version = "0.10.0-soon2"
-source = "git+https://github.com/CosmWasm/cw-plus.git?branch=multitest-fixes#0bc6af26e3263ec1e17ba10a4c3aa6b9c2d7999e"
+source = "git+https://github.com/CosmWasm/cw-plus.git?branch=multitest-fixes#07c587a049f06390a003d36ee0ef37ec9113c603"
 dependencies = [
  "anyhow",
  "cosmwasm-std",
@@ -236,7 +236,7 @@ dependencies = [
 [[package]]
 name = "cw-storage-plus"
 version = "0.10.0-soon2"
-source = "git+https://github.com/CosmWasm/cw-plus.git?branch=multitest-fixes#0bc6af26e3263ec1e17ba10a4c3aa6b9c2d7999e"
+source = "git+https://github.com/CosmWasm/cw-plus.git?branch=multitest-fixes#07c587a049f06390a003d36ee0ef37ec9113c603"
 dependencies = [
  "cosmwasm-std",
  "schemars",
@@ -258,7 +258,7 @@ dependencies = [
 [[package]]
 name = "cw0"
 version = "0.10.0-soon2"
-source = "git+https://github.com/CosmWasm/cw-plus.git?branch=multitest-fixes#0bc6af26e3263ec1e17ba10a4c3aa6b9c2d7999e"
+source = "git+https://github.com/CosmWasm/cw-plus.git?branch=multitest-fixes#07c587a049f06390a003d36ee0ef37ec9113c603"
 dependencies = [
  "cosmwasm-std",
  "schemars",

@@ -83,10 +83,10 @@ impl Module for TgradeModule {
                             .may_load(storage, &sender)?
                             .ok_or(TgradeError::Unauthorized {})?;
                         powers.push(add);
-                        PRIVILEGES.save(storage, &sender, &powers);
+                        PRIVILEGES.save(storage, &sender, &powers)?;
                         Ok(AppResponse::default())
                     }
-                    PrivilegeMsg::Release(p) => {
+                    PrivilegeMsg::Release(_) => {
                         // TODO: add later, not critical path
                         Ok(AppResponse::default())
                     }
@@ -98,14 +98,14 @@ impl Module for TgradeModule {
                 let sudo = WasmSudo { contract_addr, msg };
                 router.sudo(api, storage, block, sudo.into())
             }
-            TgradeMsg::ConsensusParams(consensus) => {
+            TgradeMsg::ConsensusParams(_) => {
                 // We don't do anything here
                 self.require_privilege(storage, &sender, Privilege::ConsensusParamChanger)?;
                 Ok(AppResponse::default())
             }
             TgradeMsg::ExecuteGovProposal {
-                title,
-                description,
+                title: _,
+                description: _,
                 proposal,
             } => {
                 self.require_privilege(storage, &sender, Privilege::GovProposalExecutor)?;
@@ -113,9 +113,10 @@ impl Module for TgradeModule {
                     GovProposal::PromoteToPrivilegedContract { contract } => {
                         // update contract state
                         let contract_addr = api.addr_validate(&contract)?;
-                        PRIVILEGES.update(storage, &contract_addr, |current|
+                        PRIVILEGES.update(storage, &contract_addr, |current| -> StdResult<_> {
                             // if nothing is set, make it an empty array
-                            Ok(current.unwrap_or_default()))?;
+                            Ok(current.unwrap_or_default())
+                        })?;
 
                         // call into contract
                         let msg = to_binary(&TgradeSudoMsg::PrivilegeChange(
@@ -165,11 +166,11 @@ impl Module for TgradeModule {
 
     fn sudo<ExecC, QueryC>(
         &self,
-        api: &dyn Api,
-        storage: &mut dyn Storage,
-        router: &dyn CosmosRouter<ExecC = ExecC, QueryC = QueryC>,
-        block: &BlockInfo,
-        msg: Self::SudoT,
+        _api: &dyn Api,
+        _storage: &mut dyn Storage,
+        _router: &dyn CosmosRouter<ExecC = ExecC, QueryC = QueryC>,
+        _block: &BlockInfo,
+        _msg: Self::SudoT,
     ) -> AnyResult<AppResponse>
     where
         ExecC: Debug + Clone + PartialEq + JsonSchema + DeserializeOwned + 'static,
