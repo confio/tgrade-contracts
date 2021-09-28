@@ -299,6 +299,12 @@ jobs:
           name: Run unit tests
           command: cargo test --locked
       - run:
+          name: Build library (multitest enabled)
+          command: cargo build --locked --features multitest
+      - run:
+          name: Run unit tests (multitest enabled)
+          command: cargo test --locked --features multitest
+      - run:
           name: Build and run schema generator
           command: cargo schema --locked
       - run:
