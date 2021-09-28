@@ -299,7 +299,7 @@ impl Suite {
     }
 
     pub fn end_block(&mut self) -> AnyResult<AppResponse> {
-        self.app.sudo(
+        self.app.wasm_sudo(
             self.valset.clone(),
             &TgradeSudoMsg::EndWithValidatorUpdate {},
         )

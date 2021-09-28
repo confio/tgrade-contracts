@@ -1,7 +1,7 @@
 {
   "$schema": "http://json-schema.org/draft-07/schema#",
   "title": "Tg4QueryMsg",
-  "anyOf": [
+  "oneOf": [
     {
       "description": "Return AdminResponse",
       "type": "object",

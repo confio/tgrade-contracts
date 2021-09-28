@@ -56,7 +56,7 @@
       }
     },
     "MemberStatus": {
-      "anyOf": [
+      "oneOf": [
         {
           "description": "Normal member, not allowed to vote",
           "type": "object",
