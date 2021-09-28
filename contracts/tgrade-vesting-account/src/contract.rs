@@ -1,6 +1,8 @@
 #[cfg(not(feature = "library"))]
 use cosmwasm_std::entry_point;
-use cosmwasm_std::{to_binary, Binary, Deps, DepsMut, Env, Event, MessageInfo, StdResult, Uint128};
+use cosmwasm_std::{
+    to_binary, Addr, Binary, Deps, DepsMut, Env, Event, MessageInfo, StdResult, Uint128,
+};
 use cw2::set_contract_version; // TODO: Does such functionality should be in contract instead of utils?
 
 use crate::error::ContractError;
@@ -52,33 +54,52 @@ fn create_vesting_account(
 
 fn execute(
     deps: DepsMut,
-    env: Env,
+    _env: Env,
     info: MessageInfo,
     msg: ExecuteMsg,
 ) -> Result<Response, ContractError> {
     match msg {
-        ExecuteMsg::ReleaseTokens { amount } => release_tokens(deps, env, info, amount),
+        ExecuteMsg::ReleaseTokens { amount } => release_tokens(deps, info, amount),
         ExecuteMsg::FreezeTokens { amount } => freeze_tokens(deps, info, amount),
         ExecuteMsg::UnfreezeTokens { amount } => unfreeze_tokens(deps, info, amount),
+        ExecuteMsg::ChangeOperator { address } => change_operator(deps, info, address),
         _ => unimplemented!(),
     }
 }
 
+fn can_release_tokens(deps: Deps, amount_to_release: Uint128) -> Result<bool, ContractError> {
+    let token_info = query_token_info(deps)?;
+    let available_tokens = token_info.initial - token_info.released - token_info.frozen;
+
+    // this check will probably become redundant further into implementation - allowed_release
+    // should include this information
+    Ok(available_tokens >= amount_to_release && token_info.allowed_release >= available_tokens)
+}
+
 fn release_tokens(
     deps: DepsMut,
-    _env: Env,
-    _info: MessageInfo,
+    info: MessageInfo,
     amount: Uint128,
 ) -> Result<Response, ContractError> {
     let mut account = VESTING_ACCOUNT.load(deps.storage)?;
 
+    if info.sender != account.operator {
+        return Err(ContractError::Unauthorized(
+            "to release tokens sender must be set as an operator of this account!".to_string(),
+        ));
+    }
+
     match account.vesting_plan {
         VestingPlan::Discrete { release_at: _ } => {
-            let token_info = query_token_info(deps.as_ref())?;
-            if token_info.allowed_release > Uint128::zero() {
+            if can_release_tokens(deps.as_ref(), amount)? {
                 account.paid_tokens += amount;
+
                 // TODO: send amount to recipient
+
                 VESTING_ACCOUNT.save(deps.storage, &account)?;
+
+                let evt = Event::new("tokens").add_attribute("released", amount.to_string());
+                Response::new().add_event(evt);
             }
             Ok(Response::new())
         }
@@ -96,17 +117,17 @@ fn freeze_tokens(
 ) -> Result<Response, ContractError> {
     let mut account = VESTING_ACCOUNT.load(deps.storage)?;
 
-    if info.sender == account.operator {
-        account.frozen_tokens += amount;
-        VESTING_ACCOUNT.save(deps.storage, &account)?;
-
-        let evt = Event::new("tokens").add_attribute("frozen", amount.to_string());
-        Ok(Response::new().add_event(evt))
-    } else {
-        Err(ContractError::Unauthorized(
+    if info.sender != account.operator {
+        return Err(ContractError::Unauthorized(
             "to freeze tokens sender must be set as an operator of this account!".to_string(),
-        ))
+        ));
     }
+
+    account.frozen_tokens += amount;
+    VESTING_ACCOUNT.save(deps.storage, &account)?;
+
+    let evt = Event::new("tokens").add_attribute("add_frozen", amount.to_string());
+    Ok(Response::new().add_event(evt))
 }
 
 fn unfreeze_tokens(
@@ -116,24 +137,45 @@ fn unfreeze_tokens(
 ) -> Result<Response, ContractError> {
     let mut account = VESTING_ACCOUNT.load(deps.storage)?;
 
-    if info.sender == account.operator {
-        // Don't subtract with overflow
-        let final_amount = if account.frozen_tokens < amount {
-            account.frozen_tokens
-        } else {
-            amount
-        };
-        account.frozen_tokens -= final_amount;
-
-        VESTING_ACCOUNT.save(deps.storage, &account)?;
-
-        let evt = Event::new("tokens").add_attribute("frozen", final_amount.to_string());
-        Ok(Response::new().add_event(evt))
-    } else {
-        Err(ContractError::Unauthorized(
+    if info.sender != account.operator {
+        return Err(ContractError::Unauthorized(
             "to unfreeze tokens sender must be set as an operator of this account!".to_string(),
-        ))
+        ));
     }
+
+    // Don't subtract with overflow
+    let final_amount = if account.frozen_tokens < amount {
+        account.frozen_tokens
+    } else {
+        amount
+    };
+    account.frozen_tokens -= final_amount;
+
+    VESTING_ACCOUNT.save(deps.storage, &account)?;
+
+    let evt = Event::new("tokens").add_attribute("subtract_frozen", final_amount.to_string());
+    Ok(Response::new().add_event(evt))
+}
+
+fn change_operator(
+    deps: DepsMut,
+    info: MessageInfo,
+    new_operator: Addr,
+) -> Result<Response, ContractError> {
+    let mut account = VESTING_ACCOUNT.load(deps.storage)?;
+
+    if info.sender != account.oversight {
+        return Err(ContractError::Unauthorized(
+            "to change operator sender must be set as an oversight of this account!".to_string(),
+        ));
+    }
+
+    let evt = Event::new("vesting_account").add_attribute("new_operator", new_operator.to_string());
+
+    account.operator = new_operator;
+    VESTING_ACCOUNT.save(deps.storage, &account)?;
+
+    Ok(Response::new().add_event(evt))
 }
 
 fn query(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
