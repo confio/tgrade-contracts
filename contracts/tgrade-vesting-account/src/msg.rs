@@ -73,7 +73,7 @@ where
     /// as well as vesting plan for this account
     AccountInfo {},
     /// Shows current data about tokens from this vesting account.
-    TokensInfo {},
+    TokenInfo {},
     /// After HandOff has been sucesfully finished, account will be set
     /// as liberated.
     IsLiberated {},
@@ -89,9 +89,9 @@ pub struct AccountInfoResponse {
     pub vesting_plan: VestingPlan,
 }
 
-/// Response for TokensInfo query
+/// Response for TokenInfo query
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
-pub struct TokensInfoResponse {
+pub struct TokenInfoResponse {
     /// Initial amount of vested tokens
     pub initial: Uint128,
     /// Amount of currently frozen tokens

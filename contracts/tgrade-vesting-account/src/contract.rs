@@ -1,10 +1,10 @@
 #[cfg(not(feature = "library"))]
 use cosmwasm_std::entry_point;
-use cosmwasm_std::{DepsMut, Env, MessageInfo, Uint128};
+use cosmwasm_std::{to_binary, Binary, Deps, DepsMut, Env, MessageInfo, StdResult, Uint128};
 use cw2::set_contract_version; // TODO: Does such functionality should be in contract instead of utils?
 
 use crate::error::ContractError;
-use crate::msg::InstantiateMsg;
+use crate::msg::{AccountInfoResponse, ExecuteMsg, InstantiateMsg, QueryMsg, TokenInfoResponse};
 use crate::state::{VestingAccount, VESTING_ACCOUNT};
 use tg_bindings::TgradeMsg;
 
@@ -35,7 +35,7 @@ fn create_vesting_account(
         .funds
         .iter()
         .find(|v| v.denom == "vesting") // TODO: How to take tokens from Vec<Coin>?
-        .ok_or_else(|| ContractError::NoTokensFound)?;
+        .ok_or(ContractError::NoTokensFound)?;
     let account = VestingAccount {
         recipient: msg.recipient,
         operator: msg.operator,
@@ -48,4 +48,41 @@ fn create_vesting_account(
     VESTING_ACCOUNT.save(deps.storage, &account)?;
 
     Ok(())
+}
+
+fn execute(
+    deps: DepsMut,
+    env: Env,
+    info: MessageInfo,
+    msg: ExecuteMsg,
+) -> Result<Response, ContractError> {
+    match msg {
+        ExecuteMsg::ReleaseTokens { amount } => release_tokens(deps, env, info, amount),
+        _ => unimplemented!(),
+    }
+}
+
+fn release_tokens(
+    _deps: DepsMut,
+    _env: Env,
+    _info: MessageInfo,
+    _amount: Uint128,
+) -> Result<Response, ContractError> {
+    unimplemented!()
+}
+
+fn query(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
+    match msg {
+        QueryMsg::AccountInfo {} => to_binary(&query_account_info(deps)?),
+        QueryMsg::TokenInfo {} => to_binary(&query_token_info(deps)?),
+        _ => unimplemented!(),
+    }
+}
+
+fn query_account_info(_deps: Deps) -> StdResult<AccountInfoResponse> {
+    unimplemented!()
+}
+
+fn query_token_info(_deps: Deps) -> StdResult<TokenInfoResponse> {
+    unimplemented!()
 }
