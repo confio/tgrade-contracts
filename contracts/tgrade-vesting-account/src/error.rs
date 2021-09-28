@@ -11,5 +11,5 @@ pub enum ContractError {
     NoTokensFound,
 
     #[error("Unauthorized operation: {0}")]
-    Unauthorized(String)
+    Unauthorized(String),
 }

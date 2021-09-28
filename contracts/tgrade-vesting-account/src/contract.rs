@@ -1,6 +1,6 @@
 #[cfg(not(feature = "library"))]
 use cosmwasm_std::entry_point;
-use cosmwasm_std::{to_binary, Binary, Deps, DepsMut, Env, MessageInfo, StdResult, Uint128};
+use cosmwasm_std::{to_binary, Binary, Deps, DepsMut, Env, Event, MessageInfo, StdResult, Uint128};
 use cw2::set_contract_version; // TODO: Does such functionality should be in contract instead of utils?
 
 use crate::error::ContractError;
@@ -58,6 +58,8 @@ fn execute(
 ) -> Result<Response, ContractError> {
     match msg {
         ExecuteMsg::ReleaseTokens { amount } => release_tokens(deps, env, info, amount),
+        ExecuteMsg::FreezeTokens { amount } => freeze_tokens(deps, info, amount),
+        ExecuteMsg::UnfreezeTokens { amount } => unfreeze_tokens(deps, info, amount),
         _ => unimplemented!(),
     }
 }
@@ -89,7 +91,6 @@ fn release_tokens(
 
 fn freeze_tokens(
     deps: DepsMut,
-    _env: Env,
     info: MessageInfo,
     amount: Uint128,
 ) -> Result<Response, ContractError> {
@@ -98,9 +99,40 @@ fn freeze_tokens(
     if info.sender == account.operator {
         account.frozen_tokens += amount;
         VESTING_ACCOUNT.save(deps.storage, &account)?;
-        Ok(Response::new())
+
+        let evt = Event::new("tokens").add_attribute("frozen", amount.to_string());
+        Ok(Response::new().add_event(evt))
     } else {
-        Err(ContractError::Unauthorized("to freeze tokens sender must be an operator of this account!".to_string()))
+        Err(ContractError::Unauthorized(
+            "to freeze tokens sender must be set as an operator of this account!".to_string(),
+        ))
+    }
+}
+
+fn unfreeze_tokens(
+    deps: DepsMut,
+    info: MessageInfo,
+    amount: Uint128,
+) -> Result<Response, ContractError> {
+    let mut account = VESTING_ACCOUNT.load(deps.storage)?;
+
+    if info.sender == account.operator {
+        // Don't subtract with overflow
+        let final_amount = if account.frozen_tokens < amount {
+            account.frozen_tokens
+        } else {
+            amount
+        };
+        account.frozen_tokens -= final_amount;
+
+        VESTING_ACCOUNT.save(deps.storage, &account)?;
+
+        let evt = Event::new("tokens").add_attribute("frozen", final_amount.to_string());
+        Ok(Response::new().add_event(evt))
+    } else {
+        Err(ContractError::Unauthorized(
+            "to unfreeze tokens sender must be set as an operator of this account!".to_string(),
+        ))
     }
 }
 
