@@ -1,11 +1,12 @@
-use crate::{Privilege, TgradeMsg, TgradeQuery};
+use crate::{ListPrivilegedResponse, Privilege, TgradeMsg, TgradeQuery, ValidatorVoteResponse};
 use anyhow::{bail, Result as AnyResult};
-use cosmwasm_std::{Addr, Api, Binary, BlockInfo, CustomQuery, Empty, Querier, StdResult, Storage};
+use cosmwasm_std::{
+    to_binary, Addr, Api, Binary, BlockInfo, CustomQuery, Empty, Order, Querier, StdResult, Storage,
+};
 use cw_multi_test::{app::CosmosRouter, AppResponse, Module};
 use cw_storage_plus::{Item, Map};
 use schemars::JsonSchema;
 use serde::de::DeserializeOwned;
-use serde::{Deserialize, Serialize};
 use std::fmt::Debug;
 
 pub struct TgradeModule {}
@@ -58,23 +59,45 @@ impl Module for TgradeModule {
         storage: &mut dyn Storage,
         router: &dyn CosmosRouter<ExecC = ExecC, QueryC = QueryC>,
         block: &BlockInfo,
-        msg: TgradeQuery,
+        msg: Self::SudoT,
     ) -> AnyResult<AppResponse>
     where
         ExecC: Debug + Clone + PartialEq + JsonSchema + DeserializeOwned + 'static,
         QueryC: CustomQuery + DeserializeOwned + 'static,
     {
-        todo!()
+        bail!("sudo not implemented for TgradeModule")
     }
 
     fn query(
         &self,
-        api: &dyn Api,
+        _api: &dyn Api,
         storage: &dyn Storage,
-        querier: &dyn Querier,
-        block: &BlockInfo,
-        request: Self::QueryT,
+        _querier: &dyn Querier,
+        _block: &BlockInfo,
+        request: TgradeQuery,
     ) -> anyhow::Result<Binary> {
-        todo!()
+        match request {
+            TgradeQuery::ListPrivileged(check) => {
+                // TODO: secondary index to make this more efficient
+                let privileged = PRIVILEGES
+                    .range(storage, None, None, Order::Ascending)
+                    .map_filter(|r| {
+                        r.map(|(k, privs)| match privs.iter().any(|p| p == check) {
+                            true => {
+                                Some(Addr::unchecked(unsafe { String::from_utf8_unchecked(k) }))
+                            }
+                            false => None,
+                        })
+                        .transpose()
+                    })
+                    .collect::<StdResult<Vec<_>>>()?;
+                Ok(to_binary(&ListPrivilegedResponse { privileged })?)
+            }
+            TgradeQuery::ValidatorVotes {} => {
+                // TODO: what mock should we place here?
+                let res = ValidatorVoteResponse { votes: vec![] };
+                Ok(to_binary(&res)?)
+            }
+        }
     }
 }
