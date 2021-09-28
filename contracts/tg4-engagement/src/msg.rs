@@ -34,7 +34,7 @@ pub enum ExecuteMsg {
     AddHook { addr: String },
     /// Remove a hook. Must be called by Admin
     RemoveHook { addr: String },
-    /// Distributes funds send with this message, and all funds transferred since last call of this
+    /// Distributes funds sent with this message, and all funds transferred since last call of this
     /// to members, proportionally to their weights. Funds are not immediately send to members, but
     /// assigned to them for later withdrawal (see: `ExecuteMsg::WithdrawFunds`)
     DistributeFunds {

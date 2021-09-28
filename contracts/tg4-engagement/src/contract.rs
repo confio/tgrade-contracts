@@ -344,8 +344,10 @@ pub fn update_members(
     for add in to_add.into_iter() {
         let add_addr = deps.api.addr_validate(&add.addr)?;
         let mut diff = 0;
+        let mut insert_funds = false;
         members().update(deps.storage, &add_addr, height, |old| -> StdResult<_> {
             diffs.push(MemberDiff::new(add.addr, old, Some(add.weight)));
+            insert_funds = old.is_none();
             let old = old.unwrap_or_default();
             total -= old;
             total += add.weight;
@@ -353,9 +355,11 @@ pub fn update_members(
             Ok(add.weight)
         })?;
         apply_points_correction(deps.branch(), &add_addr, ppw, diff)?;
-        WITHDRAWN_FUNDS.update(deps.storage, &add_addr, |old| -> StdResult<_> {
-            Ok(old.unwrap_or_default())
-        })?;
+        if insert_funds {
+            WITHDRAWN_FUNDS.update(deps.storage, &add_addr, |old| -> StdResult<_> {
+                Ok(old.unwrap_or_default())
+            })?;
+        }
     }
 
     for remove in to_remove.into_iter() {

@@ -12,7 +12,7 @@ for client API) can do the same, and also query the admin address as well as
 paginate over all members.
 
 Also this contract provides api for behavior similar to EIP2222 standard, which
-allows for automatic split tokens send to this contract proportionally to
+allows for automatic split tokens sent to this contract proportionally to
 members weights.
 
 ## Init
@@ -57,10 +57,10 @@ members, as well as removing any provided addresses. If an address is on both
 lists, it will be removed. If it appears multiple times in `add`, only the
 last occurrence will be used.
 
-`DistributeFunds{sender}` - distributes funds send with this message, and send with
+`DistributeFunds{sender}` - distributes funds sent with this message, and sent with
 regular bank message since last `DistributeFunds`. `sender` is optional info
 overwriting `sender` field on generated event. Funds are distributed to members,
-proportionally to their weights. Funds are not send to members directly, instead
+proportionally to their weights. Funds are not sent to members directly, instead
 they are assigned for future withdrawal.
 
 `WithdrawFunds{receiver}` - withdraws funds previously assigned to sender of the
