@@ -362,4 +362,36 @@ mod funds_distribution {
         assert_eq!(suite.token_balance(&members[1]).unwrap(), 1100);
         assert_eq!(suite.token_balance(&members[2]).unwrap(), 1300);
     }
+
+    #[test]
+    fn redirecting_withdrawn_funds() {
+        let members = vec![
+            "member1".to_owned(),
+            "member2".to_owned(),
+            "member3".to_owned(),
+            "member4".to_owned(),
+        ];
+
+        let mut suite = SuiteBuilder::new()
+            .with_member(&members[0], 4)
+            .with_member(&members[1], 6)
+            .with_funds(&members[3], 100)
+            .build();
+
+        let token = suite.token.clone();
+
+        suite
+            .distribute_funds(&members[3], None, &coins(100, &token))
+            .unwrap();
+
+        suite
+            .withdraw_funds(&members[0], members[2].as_str())
+            .unwrap();
+        suite.withdraw_funds(&members[1], None).unwrap();
+
+        assert_eq!(suite.token_balance(suite.contract.as_str()).unwrap(), 0);
+        assert_eq!(suite.token_balance(&members[0]).unwrap(), 0);
+        assert_eq!(suite.token_balance(&members[1]).unwrap(), 60);
+        assert_eq!(suite.token_balance(&members[2]).unwrap(), 40);
+    }
 }
