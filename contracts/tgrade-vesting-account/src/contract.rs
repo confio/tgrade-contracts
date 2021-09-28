@@ -5,7 +5,7 @@ use cw2::set_contract_version; // TODO: Does such functionality should be in con
 
 use crate::error::ContractError;
 use crate::msg::{AccountInfoResponse, ExecuteMsg, InstantiateMsg, QueryMsg, TokenInfoResponse};
-use crate::state::{VestingAccount, VESTING_ACCOUNT};
+use crate::state::{VestingAccount, VestingPlan, VESTING_ACCOUNT};
 use tg_bindings::TgradeMsg;
 
 pub type Response = cosmwasm_std::Response<TgradeMsg>;
@@ -63,12 +63,28 @@ fn execute(
 }
 
 fn release_tokens(
-    _deps: DepsMut,
+    deps: DepsMut,
     _env: Env,
     _info: MessageInfo,
-    _amount: Uint128,
+    amount: Uint128,
 ) -> Result<Response, ContractError> {
-    unimplemented!()
+    let mut account = VESTING_ACCOUNT.load(deps.storage)?;
+
+    match account.vesting_plan {
+        VestingPlan::Discrete { release_at: _ } => {
+            let token_info = query_token_info(deps.as_ref())?;
+            if token_info.allowed_release > Uint128::zero() {
+                account.paid_tokens += amount;
+                // TODO: send amount to recipient
+                VESTING_ACCOUNT.save(deps.storage, &account)?;
+            }
+            Ok(Response::new())
+        }
+        VestingPlan::Continuous {
+            start_at: _,
+            end_at: _,
+        } => unimplemented!(),
+    }
 }
 
 fn query(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
@@ -79,10 +95,29 @@ fn query(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
     }
 }
 
-fn query_account_info(_deps: Deps) -> StdResult<AccountInfoResponse> {
-    unimplemented!()
+fn query_account_info(deps: Deps) -> StdResult<AccountInfoResponse> {
+    let account = VESTING_ACCOUNT.load(deps.storage)?;
+
+    let info = AccountInfoResponse {
+        recipient: account.recipient,
+        operator: account.operator,
+        oversight: account.oversight,
+        vesting_plan: account.vesting_plan,
+    };
+    Ok(info)
 }
 
-fn query_token_info(_deps: Deps) -> StdResult<TokenInfoResponse> {
-    unimplemented!()
+fn query_token_info(deps: Deps) -> StdResult<TokenInfoResponse> {
+    let account = VESTING_ACCOUNT.load(deps.storage)?;
+
+    // add heavy allowed_release math here
+    let allowed_release = Uint128::zero();
+
+    let info = TokenInfoResponse {
+        initial: account.initial_tokens,
+        frozen: account.frozen_tokens,
+        released: account.paid_tokens,
+        allowed_release,
+    };
+    Ok(info)
 }
