@@ -8,13 +8,17 @@ use cosmwasm_std::{
     to_binary, Addr, Api, Binary, BlockInfo, Coin, CustomQuery, Empty, Order, Querier, StdError,
     StdResult, Storage,
 };
-use cw_multi_test::{AppResponse, BankSudo, CosmosRouter, Module, WasmSudo};
+use cw_multi_test::{
+    App, AppResponse, BankKeeper, BankSudo, BasicAppBuilder, CosmosRouter, Module, WasmKeeper,
+    WasmSudo,
+};
 use cw_storage_plus::{Item, Map};
 
 use crate::{
     GovProposal, ListPrivilegedResponse, Privilege, PrivilegeChangeMsg, PrivilegeMsg, TgradeMsg,
     TgradeQuery, TgradeSudoMsg, ValidatorVoteResponse,
 };
+use cosmwasm_std::testing::{MockApi, MockStorage};
 
 pub struct TgradeModule {}
 
@@ -222,22 +226,30 @@ pub enum TgradeError {
     Unauthorized {},
 }
 
+pub type TgradeApp =
+    App<BankKeeper, MockApi, MockStorage, TgradeModule, WasmKeeper<TgradeMsg, TgradeQuery>>;
+
+pub fn tgrade_app(owner: &str) -> TgradeApp {
+    let owner = Addr::unchecked(owner);
+    BasicAppBuilder::<TgradeMsg, TgradeQuery>::new_custom()
+        .with_custom(TgradeModule {})
+        .build(|router, _, storage| {
+            router.custom.set_owner(storage, &owner).unwrap();
+        })
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
     use cosmwasm_std::coin;
-    use cw_multi_test::{BasicAppBuilder, Executor};
+    use cw_multi_test::Executor;
 
     #[test]
     fn init_and_owner_mints_tokens() {
         let owner = Addr::unchecked("govner");
         let rcpt = Addr::unchecked("townies");
 
-        let mut app = BasicAppBuilder::<TgradeMsg, TgradeQuery>::new_custom()
-            .with_custom(TgradeModule {})
-            .build(|router, _, storage| {
-                router.custom.set_owner(storage, &owner).unwrap();
-            });
+        let mut app = tgrade_app(owner.as_str());
 
         // no tokens
         let start = app.wrap().query_all_balances(rcpt.as_str()).unwrap();
