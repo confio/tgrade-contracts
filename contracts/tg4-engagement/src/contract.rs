@@ -270,11 +270,7 @@ pub fn execute_withdraw_tokens(
         return Ok(Response::new());
     }
 
-    WITHDRAWN_FUNDS.save(
-        deps.storage,
-        &info.sender,
-        &(Uint128::from(withdrawn) + token.amount),
-    )?;
+    WITHDRAWN_FUNDS.save(deps.storage, &info.sender, &(withdrawn + token.amount))?;
     WITHDRAWABLE_TOTAL.update(deps.storage, |total| -> StdResult<_> {
         Ok(total - token.amount)
     })?;
@@ -295,7 +291,7 @@ pub fn execute_withdraw_tokens(
 
 /// Returns funds withdrawable by given owner paired with total sum of withdrawn funds so far, to
 /// avoid querying it extra time (in case if update is needed)
-pub fn withdrawable_funds(deps: Deps, owner: &Addr) -> StdResult<(Coin, u128)> {
+pub fn withdrawable_funds(deps: Deps, owner: &Addr) -> StdResult<(Coin, Uint128)> {
     let denom = TOKEN.load(deps.storage)?;
 
     let ppw: u128 = DISTRIBUTION.load(deps.storage)?.points_per_weight.into();
@@ -310,7 +306,7 @@ pub fn withdrawable_funds(deps: Deps, owner: &Addr) -> StdResult<(Coin, u128)> {
     let amount = points as u128 >> POINTS_SHIFT;
     let amount = amount - withdrawn;
 
-    Ok((coin(amount, &denom), withdrawn))
+    Ok((coin(amount, &denom), withdrawn.into()))
 }
 
 pub fn sudo_add_member(
