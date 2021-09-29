@@ -52,6 +52,28 @@ The default value of `fee_percentage` is `0` (so when it is not specified in mes
 the reward reduction is disabled). At the genesis of Tgrade `fee_percentage` is meant
 to be set to `0.5`.
 
+## Jailing
+
+Jailing is a mechanism for temporarily disallowing operators to validate block.
+
+Only one contract is allowed for jailing members, and it is configured in
+`InstantiateMsg` as an `admin`. The idea is, that an admin is some voting contract,
+which would decide about banning by some voting consensus.
+
+Jailing member disallows him to be a validator for incomming epochs unless he is
+unjailed. There are three ways to unjail a member:
+
+* Admin can always unjail jailed member (so unjailing via voting)
+* Any member can unjail himself if jailing period expired
+* Members can be unjailed automatically after jailing period expired (this may be
+  enabled by `InstantiateMsg::auto_unjail` flag
+
+The status of jailing can be queried by normal validators queries - if validator
+is jailed, response would contain `jailed_until` object field with either single
+empty `forever` member (if this member would never be allowed to unjail himself),
+or an `until` member containing one field - timestamp, since when user can be
+unjailed.
+
 ## Init
 
 ```rust
@@ -90,6 +112,12 @@ pub struct InstantiateMsg {
     /// doesn't affect the per epoch reward).
     #[serde(default = "default_fee_percentage")]
     pub fee_percentage: Decimal,
+
+    /// Flag determining if validators should be automatically unjailed after jailing period, false
+    /// by default.
+    #[serde(default)]
+    pub auto_unjail: bool,
+
 }
 ```
 
@@ -100,8 +128,45 @@ pub enum ExecuteMsg {
     /// Links info.sender (operator) to this Tendermint consensus key.
     /// The operator cannot re-register another key.
     /// No two operators may have the same consensus_key.
-    RegisterValidatorKey { pubkey: Binary },
+    RegisterValidatorKey {
+        pubkey: Binary,
+        /// Additional metadata assigned to this validator
+        metadata: ValidatorMetadata,
+    },
+    /// Updates metadata assigned to message sender
     UpdateMetadata(ValidatorMetadata),
+    /// Jails validator. Can be executed only by the admin.
+    Jail {
+        /// Operator which should be jailed
+        operator: String,
+        /// Duration for how long validator is jailed, `None` for jailing forever
+        duration: Option<Duration>,
+    },
+    /// Unjails validator. Admin can unjail anyone anytime, others can unjail
+    /// only themselves and only if jail duration passed
+    Unjail {
+        /// Address to unjail. Optional, as if not provided it is assumed to be
+        /// sender of the message (for convenience when unjailing self after
+        /// jail period).
+        operator: Option<String>,
+    },
+}
+
+pub struct ValidatorMetadata {
+    /// The validator's name (required)
+    pub moniker: String,
+
+    /// The optional identity signature (ex. UPort or Keybase)
+    pub identity: Option<String>,
+
+    /// The validator's (optional) website
+    pub website: Option<String>,
+
+    /// The validator's (optional) security contact email
+    pub security_contact: Option<String>,
+
+    /// The validator's (optional) details
+    pub details: Option<String>,
 }
 ```
 
