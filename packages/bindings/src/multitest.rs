@@ -19,6 +19,7 @@ use crate::{
     TgradeQuery, TgradeSudoMsg, ValidatorVoteResponse,
 };
 use cosmwasm_std::testing::{MockApi, MockStorage};
+use std::ops::{Deref, DerefMut};
 
 pub struct TgradeModule {}
 
@@ -226,16 +227,36 @@ pub enum TgradeError {
     Unauthorized {},
 }
 
-pub type TgradeApp =
+pub type TgradeAppWrapped =
     App<BankKeeper, MockApi, MockStorage, TgradeModule, WasmKeeper<TgradeMsg, TgradeQuery>>;
 
-pub fn tgrade_app(owner: &str) -> TgradeApp {
-    let owner = Addr::unchecked(owner);
-    BasicAppBuilder::<TgradeMsg, TgradeQuery>::new_custom()
-        .with_custom(TgradeModule {})
-        .build(|router, _, storage| {
-            router.custom.set_owner(storage, &owner).unwrap();
-        })
+pub struct TgradeApp(TgradeAppWrapped);
+
+impl TgradeApp {
+    pub fn new(owner: &str) -> Self {
+        let owner = Addr::unchecked(owner);
+        TgradeApp(
+            BasicAppBuilder::<TgradeMsg, TgradeQuery>::new_custom()
+                .with_custom(TgradeModule {})
+                .build(|router, _, storage| {
+                    router.custom.set_owner(storage, &owner).unwrap();
+                }),
+        )
+    }
+}
+
+impl Deref for TgradeApp {
+    type Target = TgradeAppWrapped;
+
+    fn deref(&self) -> &Self::Target {
+        &self.0
+    }
+}
+
+impl DerefMut for TgradeApp {
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        &mut self.0
+    }
 }
 
 #[cfg(test)]
@@ -249,7 +270,7 @@ mod tests {
         let owner = Addr::unchecked("govner");
         let rcpt = Addr::unchecked("townies");
 
-        let mut app = tgrade_app(owner.as_str());
+        let mut app = TgradeApp::new(owner.as_str());
 
         // no tokens
         let start = app.wrap().query_all_balances(rcpt.as_str()).unwrap();
