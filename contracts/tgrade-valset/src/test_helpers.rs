@@ -1,6 +1,6 @@
 #![cfg(test)]
 use anyhow::Result as AnyResult;
-use cosmwasm_std::{coin, Addr, Binary, BlockInfo, Coin, Decimal, StdResult};
+use cosmwasm_std::{coin, Addr, Binary, Coin, Decimal, StdResult};
 use cw_multi_test::{AppResponse, Contract, ContractWrapper, Executor};
 use derivative::Derivative;
 
@@ -260,16 +260,8 @@ impl SuiteBuilder {
             .unwrap();
 
         // start from genesis
-        let mut previous = app.block_info();
-        previous.height -= 1;
-        previous.time = previous.time.minus_seconds(5);
-
-        let genesis = BlockInfo {
-            height: 0,
-            time: previous.time.minus_seconds(5 * previous.height),
-            chain_id: previous.chain_id.clone(),
-        };
-        app.set_block(genesis);
+        let current = app.block_info();
+        app.back_to_genesis();
 
         // promote the valset contract
         app.promote(admin.as_str(), valset.as_str()).unwrap();
@@ -279,8 +271,8 @@ impl SuiteBuilder {
         let diff = diff.unwrap();
         assert_eq!(diff.diffs.len(), members.len());
 
-        // process the block before our current one
-        app.set_block(previous);
+        // jump back to the present and step forward one block, so we are in a normal state
+        app.set_block(current);
         app.next_block().unwrap();
 
         Suite {

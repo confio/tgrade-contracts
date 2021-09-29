@@ -1524,10 +1524,7 @@ mod test {
 
             // Move forward a little, but not enough for jailing to expire,
             // but at least 100s for the default epoch size to re-calculate
-            suite.app().update_block(|block| {
-                block.height += 20;
-                block.time = block.time.plus_seconds(100);
-            });
+            suite.app().advance_seconds(100);
 
             // Endblock triggered - only unjailed validators are active
             suite.end_block().unwrap();
