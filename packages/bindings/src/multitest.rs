@@ -16,7 +16,7 @@ use cw_storage_plus::{Item, Map};
 
 use crate::{
     Evidence, GovProposal, ListPrivilegedResponse, Privilege, PrivilegeChangeMsg, PrivilegeMsg,
-    TgradeMsg, TgradeQuery, TgradeSudoMsg, ValidatorDiff, ValidatorVoteResponse,
+    TgradeMsg, TgradeQuery, TgradeSudoMsg, ValidatorDiff, ValidatorVote, ValidatorVoteResponse,
 };
 use cosmwasm_std::testing::{MockApi, MockStorage};
 use std::ops::{Deref, DerefMut};
@@ -26,7 +26,7 @@ pub struct TgradeModule {}
 pub type Privileges = Vec<Privilege>;
 
 const PRIVILEGES: Map<&Addr, Privileges> = Map::new("privileges");
-const ADMIN: Item<Addr> = Item::new("admin");
+const VOTES: Item<ValidatorVoteResponse> = Item::new("votes");
 
 const ADMIN_PRIVILEGES: &[Privilege] = &[
     Privilege::GovProposalExecutor,
@@ -36,11 +36,16 @@ const ADMIN_PRIVILEGES: &[Privilege] = &[
 ];
 
 impl TgradeModule {
-    /// Intended for init_modules to set someone who can grant privileges
+    /// Intended for init_modules to set someone who can grant privileges or call arbitrary
+    /// TgradeMsg externally
     pub fn set_owner(&self, storage: &mut dyn Storage, owner: &Addr) -> StdResult<()> {
-        ADMIN.save(storage, owner)?;
         PRIVILEGES.save(storage, owner, &ADMIN_PRIVILEGES.to_vec())?;
         Ok(())
+    }
+
+    /// Used to mock out the response for TgradeQuery::ValidatorVotes
+    pub fn set_votes(&self, storage: &mut dyn Storage, votes: Vec<ValidatorVote>) -> StdResult<()> {
+        VOTES.save(storage, &ValidatorVoteResponse { votes })
     }
 
     fn require_privilege(
@@ -55,7 +60,7 @@ impl TgradeModule {
             .into_iter()
             .any(|p| p == required);
         if !allowed {
-            Err(TgradeError::Unauthorized {})?;
+            return Err(TgradeError::Unauthorized {}.into());
         }
         Ok(())
     }
@@ -227,8 +232,7 @@ impl Module for TgradeModule {
                 Ok(to_binary(&ListPrivilegedResponse { privileged })?)
             }
             TgradeQuery::ValidatorVotes {} => {
-                // TODO: what mock should we place here?
-                let res = ValidatorVoteResponse { votes: vec![] };
+                let res = VOTES.may_load(storage)?.unwrap_or_default();
                 Ok(to_binary(&res)?)
             }
         }
@@ -366,7 +370,7 @@ mod tests {
         let mintable = coin(123456, "shilling");
         let msg = TgradeMsg::MintTokens {
             denom: mintable.denom.clone(),
-            amount: mintable.amount.clone(),
+            amount: mintable.amount,
             recipient: rcpt.to_string(),
         };
 
@@ -374,7 +378,7 @@ mod tests {
         let _ = app.execute(rcpt.clone(), msg.clone().into()).unwrap_err();
 
         // Gov'ner can
-        app.execute(owner.clone(), msg.into()).unwrap();
+        app.execute(owner, msg.into()).unwrap();
 
         // we got tokens!
         let end = app

@@ -23,6 +23,12 @@ pub struct ValidatorVoteResponse {
     pub votes: Vec<ValidatorVote>,
 }
 
+impl Default for ValidatorVoteResponse {
+    fn default() -> Self {
+        ValidatorVoteResponse { votes: vec![] }
+    }
+}
+
 #[derive(Serialize, Deserialize, Clone, PartialEq, JsonSchema, Debug)]
 pub struct ListPrivilegedResponse {
     // we can guarantee correctly formatted addresses from the Go runtime, use Addr here
