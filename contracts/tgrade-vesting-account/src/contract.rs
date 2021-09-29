@@ -219,8 +219,10 @@ fn query_token_info(deps: Deps) -> StdResult<TokenInfoResponse> {
 mod tests {
     use super::*;
 
-    use cosmwasm_std::testing::{mock_dependencies, mock_env, mock_info, MockStorage, MockApi, MockQuerier};
-    use cosmwasm_std::{OwnedDeps, Coin, Timestamp};
+    use cosmwasm_std::testing::{
+        mock_dependencies, mock_env, mock_info, MockApi, MockQuerier, MockStorage,
+    };
+    use cosmwasm_std::{Coin, OwnedDeps, Timestamp};
 
     const OWNER: &str = "owner";
     const OPERATOR: &str = "operator";
@@ -233,23 +235,25 @@ mod tests {
         operator: Addr,
         oversight: Addr,
         vesting_plan: VestingPlan,
+        coins: Vec<Coin>,
     }
 
     impl Default for SuiteConfig {
         fn default() -> Self {
-            Self{
-            recipient: Addr::unchecked(OWNER),
-            operator: Addr::unchecked(OPERATOR),
-            oversight: Addr::unchecked(OVERSIGHT),
-            vesting_plan: VestingPlan::Discrete {
-                release_at: DEFAULT_RELEASE,
-            },
+            Self {
+                recipient: Addr::unchecked(OWNER),
+                operator: Addr::unchecked(OPERATOR),
+                oversight: Addr::unchecked(OVERSIGHT),
+                vesting_plan: VestingPlan::Discrete {
+                    release_at: DEFAULT_RELEASE,
+                },
+                coins: vec![Coin::new(100, VESTING_DENOM)],
             }
         }
     }
 
     struct Suite {
-        deps: OwnedDeps<MockStorage, MockApi, MockQuerier>
+        deps: OwnedDeps<MockStorage, MockApi, MockQuerier>,
     }
 
     impl Suite {
@@ -259,7 +263,7 @@ mod tests {
 
         fn init_with_config(config: SuiteConfig) -> Self {
             let mut deps = mock_dependencies(&[]);
-            let owner = mock_info(OWNER, &[Coin::new(100, VESTING_DENOM)]);
+            let owner = mock_info(config.recipient.as_str(), &config.coins);
 
             let instantiate_message = InstantiateMsg {
                 recipient: config.recipient,
@@ -278,7 +282,7 @@ mod tests {
     #[test]
     fn get_account_info() {
         let suite = Suite::init();
-                let query_result = query_account_info(suite.deps.as_ref()).unwrap();
+        let query_result = query_account_info(suite.deps.as_ref()).unwrap();
 
         assert_eq!(
             query_result,
