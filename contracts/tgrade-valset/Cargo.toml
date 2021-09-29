@@ -42,6 +42,6 @@ cw-multi-test = { version = "=0.10.0-soon3" }
 tg4-engagement = { path = "../tg4-engagement", version = "0.4.0" }
 tg4-stake = { path = "../tg4-stake", version = "0.4.0" }
 # we enable multitest feature only for tests
-tg-bindings = { path = "../../packages/bindings", version = "0.4.0", features = ["multitest"] }
+tg-bindings-test = { path = "../../packages/bindings-test", version = "0.4.0" }
 derivative = "2"
 anyhow = "1"

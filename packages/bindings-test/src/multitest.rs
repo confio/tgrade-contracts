@@ -2,8 +2,10 @@ use anyhow::{bail, Result as AnyResult};
 use schemars::JsonSchema;
 use serde::de::DeserializeOwned;
 use std::fmt::Debug;
+use std::ops::{Deref, DerefMut};
 use thiserror::Error;
 
+use cosmwasm_std::testing::{MockApi, MockStorage};
 use cosmwasm_std::{
     from_slice, to_binary, Addr, Api, Binary, BlockInfo, Coin, CustomQuery, Empty, Order, Querier,
     StdError, StdResult, Storage,
@@ -14,12 +16,10 @@ use cw_multi_test::{
 };
 use cw_storage_plus::{Item, Map};
 
-use crate::{
+use tg_bindings::{
     Evidence, GovProposal, ListPrivilegedResponse, Privilege, PrivilegeChangeMsg, PrivilegeMsg,
     TgradeMsg, TgradeQuery, TgradeSudoMsg, ValidatorDiff, ValidatorVote, ValidatorVoteResponse,
 };
-use cosmwasm_std::testing::{MockApi, MockStorage};
-use std::ops::{Deref, DerefMut};
 
 pub struct TgradeModule {}
 

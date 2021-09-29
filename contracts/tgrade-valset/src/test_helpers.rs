@@ -5,7 +5,8 @@ use cw_multi_test::{AppResponse, Contract, ContractWrapper, Executor};
 use derivative::Derivative;
 
 use tg4::Member;
-use tg_bindings::{Pubkey, TgradeApp, TgradeMsg, ValidatorDiff};
+use tg_bindings::{Pubkey, TgradeMsg, ValidatorDiff};
+use tg_bindings_test::TgradeApp;
 use tg_utils::Duration;
 
 use crate::msg::{

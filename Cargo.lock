@@ -687,16 +687,26 @@ dependencies = [
 name = "tg-bindings"
 version = "0.4.0"
 dependencies = [
- "anyhow",
  "base64",
  "cosmwasm-schema 1.0.0-soon",
  "cosmwasm-std",
- "cw-multi-test",
- "cw-storage-plus",
  "hex-literal",
  "schemars",
  "serde",
  "sha2",
+]
+
+[[package]]
+name = "tg-bindings-test"
+version = "0.4.0"
+dependencies = [
+ "anyhow",
+ "cosmwasm-std",
+ "cw-multi-test",
+ "cw-storage-plus",
+ "schemars",
+ "serde",
+ "tg-bindings",
  "thiserror",
 ]
 
@@ -836,6 +846,7 @@ dependencies = [
  "schemars",
  "serde",
  "tg-bindings",
+ "tg-bindings-test",
  "tg-utils",
  "tg4",
  "tg4-engagement",
