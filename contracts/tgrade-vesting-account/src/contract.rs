@@ -1,7 +1,8 @@
 #[cfg(not(feature = "library"))]
 use cosmwasm_std::entry_point;
 use cosmwasm_std::{
-    to_binary, Addr, Binary, Deps, DepsMut, Env, Event, MessageInfo, StdResult, Uint128,
+    coins, to_binary, Addr, BankMsg, Binary, Deps, DepsMut, Env, Event, MessageInfo, StdResult,
+    Uint128,
 };
 use cw2::set_contract_version;
 
@@ -11,6 +12,7 @@ use crate::state::{VestingAccount, VestingPlan, VESTING_ACCOUNT};
 use tg_bindings::TgradeMsg;
 
 pub type Response = cosmwasm_std::Response<TgradeMsg>;
+pub type SubMsg = cosmwasm_std::SubMsg<TgradeMsg>;
 
 // version info for migration info
 const CONTRACT_NAME: &str = "crates.io:vesting-contract";
@@ -101,13 +103,17 @@ fn release_tokens(
     };
 
     let tokens_to_release = allowed_release(deps.as_ref(), env, account.vesting_plan.clone())?;
-    let response = if tokens_to_release > Uint128::zero() {
-        // TODO: send amount to recipient
-        account.paid_tokens += tokens_to_release;
+    let response = if tokens_to_release >= amount {
+        let msg = BankMsg::Send {
+            to_address: account.recipient.to_string(),
+            amount: coins(amount.u128(), VESTING_DENOM),
+        };
+
+        account.paid_tokens += amount;
         VESTING_ACCOUNT.save(deps.storage, &account)?;
 
         let evt = Event::new("tokens").add_attribute("released", amount.to_string());
-        Response::new().add_event(evt)
+        Response::new().add_event(evt).add_message(msg)
     } else {
         Response::new()
     };
@@ -178,7 +184,6 @@ fn change_operator(
     }
 
     let evt = Event::new("vesting_account").add_attribute("new_operator", new_operator.to_string());
-
     account.operator = new_operator;
     VESTING_ACCOUNT.save(deps.storage, &account)?;
 
