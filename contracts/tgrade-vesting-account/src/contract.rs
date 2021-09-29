@@ -533,4 +533,72 @@ mod tests {
             Ok(Uint128::new(100))
         );
     }
+
+    #[test]
+    fn release_tokens_unauthorized() {
+        let mut suite = Suite::init();
+
+        assert_matches!(
+            release_tokens(
+                suite.deps.as_mut(),
+                mock_env(),
+                Addr::unchecked(RECIPIENT),
+                Uint128::new(50)
+            ),
+            Err(ContractError::Unauthorized(_))
+        );
+    }
+
+    #[test]
+    fn release_tokens_success() {
+        let mut suite = Suite::init();
+
+        let mut env = mock_env();
+        env.block.time = env.block.time.plus_seconds(150);
+
+        let amount_to_send = Uint128::new(25);
+        assert_eq!(
+            release_tokens(
+                suite.deps.as_mut(),
+                env,
+                Addr::unchecked(OPERATOR),
+                amount_to_send
+            ),
+            Ok(Response::new()
+                .add_event(Event::new("tokens").add_attribute("released", "25".to_string()))
+                .add_message(BankMsg::Send {
+                    to_address: RECIPIENT.to_string(),
+                    amount: coins(amount_to_send.u128(), VESTING_DENOM)
+                }))
+        );
+        assert_matches!(
+            query_token_info(suite.deps.as_ref()),
+            Ok(TokenInfoResponse {
+                released,
+                ..
+            }) => released == amount_to_send
+        );
+    }
+
+    #[test]
+    fn release_tokens_before_expiration() {
+        let mut suite = Suite::init();
+
+        assert_eq!(
+            release_tokens(
+                suite.deps.as_mut(),
+                mock_env(),
+                Addr::unchecked(OPERATOR),
+                Uint128::new(25),
+            ),
+            Ok(Response::new())
+        );
+        assert_matches!(
+            query_token_info(suite.deps.as_ref()),
+            Ok(TokenInfoResponse {
+                released,
+                ..
+            }) => released == Uint128::zero()
+        );
+    }
 }
