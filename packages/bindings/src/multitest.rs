@@ -5,8 +5,8 @@ use std::fmt::Debug;
 use thiserror::Error;
 
 use cosmwasm_std::{
-    to_binary, Addr, Api, Binary, BlockInfo, Coin, CustomQuery, Empty, Order, Querier, StdError,
-    StdResult, Storage,
+    from_slice, to_binary, Addr, Api, Binary, BlockInfo, Coin, CustomQuery, Empty, Order, Querier,
+    StdError, StdResult, Storage,
 };
 use cw_multi_test::{
     App, AppResponse, BankKeeper, BankSudo, BasicAppBuilder, CosmosRouter, Module, WasmKeeper,
@@ -15,8 +15,8 @@ use cw_multi_test::{
 use cw_storage_plus::{Item, Map};
 
 use crate::{
-    GovProposal, ListPrivilegedResponse, Privilege, PrivilegeChangeMsg, PrivilegeMsg, TgradeMsg,
-    TgradeQuery, TgradeSudoMsg, ValidatorVoteResponse,
+    Evidence, GovProposal, ListPrivilegedResponse, Privilege, PrivilegeChangeMsg, PrivilegeMsg,
+    TgradeMsg, TgradeQuery, TgradeSudoMsg, ValidatorDiff, ValidatorVoteResponse,
 };
 use cosmwasm_std::testing::{MockApi, MockStorage};
 use std::ops::{Deref, DerefMut};
@@ -232,19 +232,6 @@ pub type TgradeAppWrapped =
 
 pub struct TgradeApp(TgradeAppWrapped);
 
-impl TgradeApp {
-    pub fn new(owner: &str) -> Self {
-        let owner = Addr::unchecked(owner);
-        TgradeApp(
-            BasicAppBuilder::<TgradeMsg, TgradeQuery>::new_custom()
-                .with_custom(TgradeModule {})
-                .build(|router, _, storage| {
-                    router.custom.set_owner(storage, &owner).unwrap();
-                }),
-        )
-    }
-}
-
 impl Deref for TgradeApp {
     type Target = TgradeAppWrapped;
 
@@ -256,6 +243,69 @@ impl Deref for TgradeApp {
 impl DerefMut for TgradeApp {
     fn deref_mut(&mut self) -> &mut Self::Target {
         &mut self.0
+    }
+}
+
+impl TgradeApp {
+    pub fn new(owner: &str) -> Self {
+        let owner = Addr::unchecked(owner);
+        TgradeApp(
+            BasicAppBuilder::<TgradeMsg, TgradeQuery>::new_custom()
+                .with_custom(TgradeModule {})
+                .build(|router, _, storage| {
+                    router.custom.set_owner(storage, &owner).unwrap();
+                }),
+        )
+    }
+
+    pub fn with_privilege(&self, requested: Privilege) -> AnyResult<Vec<Addr>> {
+        let ListPrivilegedResponse { privileged } = self
+            .wrap()
+            .query(&TgradeQuery::ListPrivileged(requested).into())?;
+        Ok(privileged)
+    }
+
+    fn valset_updater(&self) -> AnyResult<Option<Addr>> {
+        let mut updaters = self.with_privilege(Privilege::ValidatorSetUpdater)?;
+        if updaters.len() > 1 {
+            bail!("Multiple ValidatorSetUpdater registered")
+        } else {
+            Ok(updaters.pop())
+        }
+    }
+
+    pub fn begin_block(&mut self, evidence: Vec<Evidence>) -> AnyResult<Vec<AppResponse>> {
+        let to_call = self.with_privilege(Privilege::BeginBlocker)?;
+        let msg = TgradeSudoMsg::BeginBlock { evidence };
+        let res = to_call
+            .into_iter()
+            .map(|contract| self.wasm_sudo(contract, &msg))
+            .collect::<AnyResult<_>>()?;
+        Ok(res)
+    }
+
+    pub fn end_block(&mut self) -> AnyResult<(Vec<AppResponse>, ValidatorDiff)> {
+        let to_call = self.with_privilege(Privilege::EndBlocker)?;
+        let msg = TgradeSudoMsg::EndBlock {};
+
+        let mut res: Vec<AppResponse> = to_call
+            .into_iter()
+            .map(|contract| self.wasm_sudo(contract, &msg))
+            .collect::<AnyResult<_>>()?;
+
+        let diff = match self.valset_updater()? {
+            Some(contract) => {
+                let mut r = self.wasm_sudo(contract, &TgradeSudoMsg::EndWithValidatorUpdate {})?;
+                let data = r.data.take();
+                res.push(r);
+                match data {
+                    Some(b) if !b.is_empty() => from_slice(&b)?,
+                    _ => ValidatorDiff::default(),
+                }
+            }
+            None => ValidatorDiff::default(),
+        };
+        Ok((res, diff))
     }
 }
 
