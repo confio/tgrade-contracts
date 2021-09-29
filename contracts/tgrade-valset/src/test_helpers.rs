@@ -1,11 +1,11 @@
 #![cfg(test)]
 use anyhow::Result as AnyResult;
-use cosmwasm_std::{coin, Addr, Binary, Coin, Decimal, StdResult};
+use cosmwasm_std::{coin, Addr, Binary, BlockInfo, Coin, Decimal, StdResult};
 use cw_multi_test::{AppResponse, Contract, ContractWrapper, Executor};
 use derivative::Derivative;
 
 use tg4::Member;
-use tg_bindings::{Pubkey, TgradeMsg, TgradeSudoMsg, TgradeApp};
+use tg_bindings::{Pubkey, TgradeApp, TgradeMsg, ValidatorDiff};
 use tg_utils::Duration;
 
 use crate::msg::{
@@ -258,6 +258,30 @@ impl SuiteBuilder {
             )
             .unwrap();
 
+        // start from genesis
+        let mut previous = app.block_info();
+        previous.height -= 1;
+        previous.time = previous.time.minus_seconds(5);
+
+        let genesis = BlockInfo {
+            height: 0,
+            time: previous.time.minus_seconds(5 * previous.height),
+            chain_id: previous.chain_id.clone(),
+        };
+        app.set_block(genesis);
+
+        // promote the valset contract
+        app.promote(admin.as_str(), valset.as_str()).unwrap();
+
+        // process initial genesis block
+        let diff = app.next_block().unwrap();
+        let diff = diff.unwrap();
+        assert_eq!(diff.diffs.len(), members.len());
+
+        // process the block before our current one
+        app.set_block(previous);
+        app.next_block().unwrap();
+
         Suite {
             app,
             valset,
@@ -298,11 +322,8 @@ impl Suite {
         &mut self.app
     }
 
-    pub fn end_block(&mut self) -> AnyResult<AppResponse> {
-        self.app.wasm_sudo(
-            self.valset.clone(),
-            &TgradeSudoMsg::EndWithValidatorUpdate {},
-        )
+    pub fn end_block(&mut self) -> AnyResult<Option<ValidatorDiff>> {
+        self.app.next_block()
     }
 
     pub fn jail(

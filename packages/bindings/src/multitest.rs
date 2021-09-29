@@ -9,8 +9,8 @@ use cosmwasm_std::{
     StdError, StdResult, Storage,
 };
 use cw_multi_test::{
-    next_block, App, AppResponse, BankKeeper, BankSudo, BasicAppBuilder, CosmosRouter, Module,
-    WasmKeeper, WasmSudo,
+    next_block, App, AppResponse, BankKeeper, BankSudo, BasicAppBuilder, CosmosRouter, Executor,
+    Module, WasmKeeper, WasmSudo,
 };
 use cw_storage_plus::{Item, Map};
 
@@ -86,18 +86,22 @@ impl Module for TgradeModule {
     {
         match msg {
             TgradeMsg::Privilege(PrivilegeMsg::Request(add)) => {
-                // there can be only one with ValidatorSetUpdater privilege
-                let validator_registered = PRIVILEGES
-                    .range(storage, None, None, Order::Ascending)
-                    .fold(Ok(false), |val, item| match (val, item) {
-                        (Err(e), _) => Err(e),
-                        (_, Err(e)) => Err(e),
-                        (Ok(found), Ok((_, privs))) => {
-                            Ok(found || privs.iter().any(|p| *p == Privilege::ValidatorSetUpdater))
-                        }
-                    })?;
-                if validator_registered {
-                    bail!("One ValidatorSetUpdater already registered, cannot register a second")
+                if add == Privilege::ValidatorSetUpdater {
+                    // there can be only one with ValidatorSetUpdater privilege
+                    let validator_registered =
+                        PRIVILEGES
+                            .range(storage, None, None, Order::Ascending)
+                            .fold(Ok(false), |val, item| match (val, item) {
+                                (Err(e), _) => Err(e),
+                                (_, Err(e)) => Err(e),
+                                (Ok(found), Ok((_, privs))) => Ok(found
+                                    || privs.iter().any(|p| *p == Privilege::ValidatorSetUpdater)),
+                            })?;
+                    if validator_registered {
+                        bail!(
+                            "One ValidatorSetUpdater already registered, cannot register a second"
+                        );
+                    }
                 }
 
                 // if we are privileged (even an empty array), we can auto-add more
@@ -274,6 +278,17 @@ impl TgradeApp {
                     router.custom.set_owner(storage, &owner).unwrap();
                 }),
         )
+    }
+
+    pub fn promote(&mut self, owner: &str, contract: &str) -> AnyResult<AppResponse> {
+        let msg = TgradeMsg::ExecuteGovProposal {
+            title: "Promote Contract".to_string(),
+            description: "Promote Contract".to_string(),
+            proposal: GovProposal::PromoteToPrivilegedContract {
+                contract: contract.to_string(),
+            },
+        };
+        self.execute(Addr::unchecked(owner), msg.into())
     }
 
     /// next_block will call the end_blocker, increment block info 1 height and 5 seconds,
