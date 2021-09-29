@@ -50,7 +50,7 @@ pub struct Config {
     /// required to handle `distribute {}` message (eg. tg4-engagement contract) which would
     /// distribute funds send with this message.
     /// If no account is provided, `validators_reward_ratio` has to be `1`.
-    pub distribution_contract: Option<String>,
+    pub distribution_contract: Option<Addr>,
 }
 
 #[derive(Serialize, Deserialize, Clone, PartialEq, JsonSchema, Debug)]

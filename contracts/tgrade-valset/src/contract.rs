@@ -63,7 +63,10 @@ pub fn instantiate(
         fee_percentage: msg.fee_percentage,
         auto_unjail: msg.auto_unjail,
         validators_reward_ratio: msg.validators_reward_ratio,
-        distribution_contract: msg.distribution_contract,
+        distribution_contract: msg
+            .distribution_contract
+            .map(|addr| deps.api.addr_validate(&addr))
+            .transpose()?,
     };
     CONFIG.save(deps.storage, &cfg)?;
 
