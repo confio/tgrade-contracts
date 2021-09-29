@@ -16,6 +16,7 @@ library = []
 
 [dependencies]
 cosmwasm-std = { version = "1.0.0-soon" }
+cw0 = "=0.10.0-soon3"
 cw2 = "=0.10.0-soon3"
 cw-storage-plus = "=0.10.0-soon3"
 schemars = "0.8.1"

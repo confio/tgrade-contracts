@@ -868,6 +868,7 @@ dependencies = [
  "cosmwasm-schema 1.0.0-soon",
  "cosmwasm-std",
  "cw-storage-plus",
+ "cw0",
  "cw2",
  "schemars",
  "serde",

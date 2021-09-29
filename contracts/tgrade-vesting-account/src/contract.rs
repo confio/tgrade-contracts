@@ -3,7 +3,7 @@ use cosmwasm_std::entry_point;
 use cosmwasm_std::{
     to_binary, Addr, Binary, Deps, DepsMut, Env, Event, MessageInfo, StdResult, Uint128,
 };
-use cw2::set_contract_version; // TODO: Does such functionality should be in contract instead of utils?
+use cw2::set_contract_version;
 
 use crate::error::ContractError;
 use crate::msg::{AccountInfoResponse, ExecuteMsg, InstantiateMsg, QueryMsg, TokenInfoResponse};
@@ -35,11 +35,7 @@ fn create_vesting_account(
     info: MessageInfo,
     msg: InstantiateMsg,
 ) -> Result<(), ContractError> {
-    let initial_tokens = info
-        .funds
-        .iter()
-        .find(|v| v.denom == VESTING_DENOM) // TODO: How to take tokens from Vec<Coin>?
-        .ok_or(ContractError::NoTokensFound)?;
+    let initial_tokens = cw0::must_pay(&info, VESTING_DENOM)?;
     let account = VestingAccount {
         recipient: msg.recipient,
         operator: msg.operator,
@@ -47,7 +43,7 @@ fn create_vesting_account(
         vesting_plan: msg.vesting_plan,
         frozen_tokens: Uint128::zero(),
         paid_tokens: Uint128::zero(),
-        initial_tokens: initial_tokens.amount,
+        initial_tokens: initial_tokens,
     };
     VESTING_ACCOUNT.save(deps.storage, &account)?;
 
@@ -308,7 +304,7 @@ mod tests {
         let env = mock_env();
         assert_matches!(
             instantiate(deps.as_mut().branch(), env, owner, instantiate_message),
-            Err(ContractError::NoTokensFound)
+            Err(ContractError::PaymentError(_))
         );
     }
 

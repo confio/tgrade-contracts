@@ -7,8 +7,8 @@ pub enum ContractError {
     #[error("{0}")]
     Std(#[from] StdError),
 
-    #[error("No tokens found in vesting account instantiation message")]
-    NoTokensFound,
+    #[error("{0}")]
+    PaymentError(#[from] cw0::PaymentError),
 
     #[error("Unauthorized operation: {0}")]
     Unauthorized(String),
