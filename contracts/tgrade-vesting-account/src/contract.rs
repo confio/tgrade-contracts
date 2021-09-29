@@ -415,4 +415,41 @@ mod tests {
             Err(ContractError::Unauthorized(_))
         );
     }
+
+    #[test]
+    fn unfreeze_tokens_success() {
+        let mut suite = Suite::init();
+
+        freeze_tokens(
+            suite.deps.as_mut(),
+            Addr::unchecked(OPERATOR),
+            Uint128::new(50),
+        )
+        .unwrap();
+        assert_eq!(
+            query_token_info(suite.deps.as_ref()),
+            Ok(TokenInfoResponse {
+                initial: Uint128::new(100),
+                frozen: Uint128::new(50),
+                released: Uint128::zero(),
+            })
+        );
+        assert_eq!(
+            unfreeze_tokens(
+                suite.deps.as_mut(),
+                Addr::unchecked(OPERATOR),
+                Uint128::new(50)
+            ),
+            Ok(Response::new()
+                .add_event(Event::new("tokens").add_attribute("subtract_frozen", "50".to_string())))
+        );
+        assert_eq!(
+            query_token_info(suite.deps.as_ref()),
+            Ok(TokenInfoResponse {
+                initial: Uint128::new(100),
+                frozen: Uint128::zero(),
+                released: Uint128::zero(),
+            })
+        );
+    }
 }
