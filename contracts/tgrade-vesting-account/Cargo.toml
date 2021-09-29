@@ -24,4 +24,5 @@ tg-bindings = { version = "0.4.0", path = "../../packages/bindings" }
 thiserror = { version = "1.0.21" }
 
 [dev-dependencies]
+assert_matches = "1"
 cosmwasm-schema = "1.0.0-soon"

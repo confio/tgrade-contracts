@@ -219,6 +219,8 @@ fn query_token_info(deps: Deps) -> StdResult<TokenInfoResponse> {
 mod tests {
     use super::*;
 
+    use assert_matches::assert_matches;
+
     use cosmwasm_std::testing::{
         mock_dependencies, mock_env, mock_info, MockApi, MockQuerier, MockStorage,
     };
@@ -252,6 +254,15 @@ mod tests {
         }
     }
 
+    impl SuiteConfig {
+        fn new_with_vesting_plan(vesting_plan: VestingPlan) -> Self {
+            Self {
+                vesting_plan,
+                ..Default::default()
+            }
+        }
+    }
+
     struct Suite {
         deps: OwnedDeps<MockStorage, MockApi, MockQuerier>,
     }
@@ -280,6 +291,27 @@ mod tests {
     }
 
     #[test]
+    fn instantiate_without_tokens() {
+        let mut deps = mock_dependencies(&[]);
+        let owner = mock_info(OWNER, &[]);
+
+        let instantiate_message = InstantiateMsg {
+            recipient: Addr::unchecked(OWNER),
+            operator: Addr::unchecked(OPERATOR),
+            oversight: Addr::unchecked(OVERSIGHT),
+            vesting_plan: VestingPlan::Discrete {
+                release_at: DEFAULT_RELEASE,
+            },
+        };
+
+        let env = mock_env();
+        assert_matches!(
+            instantiate(deps.as_mut().branch(), env, owner, instantiate_message),
+            Err(ContractError::NoTokensFound)
+        );
+    }
+
+    #[test]
     fn get_account_info() {
         let suite = Suite::init();
         let query_result = query_account_info(suite.deps.as_ref()).unwrap();
@@ -293,6 +325,22 @@ mod tests {
                 vesting_plan: VestingPlan::Discrete {
                     release_at: DEFAULT_RELEASE
                 }
+            }
+        );
+    }
+
+    #[test]
+    fn get_token_info() {
+        let suite = Suite::init();
+        let query_result = query_token_info(suite.deps.as_ref()).unwrap();
+
+        assert_eq!(
+            query_result,
+            TokenInfoResponse {
+                initial: Uint128::new(100),
+                frozen: Uint128::zero(),
+                released: Uint128::zero(),
+                allowed_release: Uint128::zero()
             }
         );
     }
