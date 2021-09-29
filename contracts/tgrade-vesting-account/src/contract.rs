@@ -52,12 +52,12 @@ fn create_vesting_account(
 
 fn execute(
     deps: DepsMut,
-    _env: Env,
+    env: Env,
     info: MessageInfo,
     msg: ExecuteMsg,
 ) -> Result<Response, ContractError> {
     match msg {
-        ExecuteMsg::ReleaseTokens { amount } => release_tokens(deps, info, amount),
+        ExecuteMsg::ReleaseTokens { amount } => release_tokens(deps, env, info, amount),
         ExecuteMsg::FreezeTokens { amount } => freeze_tokens(deps, info, amount),
         ExecuteMsg::UnfreezeTokens { amount } => unfreeze_tokens(deps, info, amount),
         ExecuteMsg::ChangeOperator { address } => change_operator(deps, info, address),
@@ -65,17 +65,30 @@ fn execute(
     }
 }
 
-fn can_release_tokens(deps: Deps, amount_to_release: Uint128) -> Result<bool, ContractError> {
+/// Returns information about amount of tokens that is allowed to be released
+fn allowed_release(deps: Deps, env: Env, plan: VestingPlan) -> Result<Uint128, ContractError> {
     let token_info = query_token_info(deps)?;
-    let available_tokens = token_info.initial - token_info.released - token_info.frozen;
 
-    // this check will probably become redundant further into implementation - allowed_release
-    // should include this information
-    Ok(available_tokens >= amount_to_release && token_info.allowed_release >= available_tokens)
+    match plan {
+        VestingPlan::Discrete {
+            release_at: release,
+        } => {
+            if release.is_expired(&env.block) {
+                return Ok(token_info.released - token_info.frozen - token_info.released);
+            } else {
+                return Ok(Uint128::zero());
+            }
+        }
+        VestingPlan::Continuous {
+            start_at: _,
+            end_at: _,
+        } => unimplemented!(),
+    }
 }
 
 fn release_tokens(
     deps: DepsMut,
+    env: Env,
     info: MessageInfo,
     amount: Uint128,
 ) -> Result<Response, ContractError> {
@@ -85,27 +98,21 @@ fn release_tokens(
         return Err(ContractError::Unauthorized(
             "to release tokens sender must be set as an operator of this account!".to_string(),
         ));
-    }
+    };
 
-    match account.vesting_plan {
-        VestingPlan::Discrete { release_at: _ } => {
-            if can_release_tokens(deps.as_ref(), amount)? {
-                account.paid_tokens += amount;
+    let tokens_to_release = allowed_release(deps.as_ref(), env, account.vesting_plan.clone())?;
+    let response = if tokens_to_release > Uint128::zero() {
+        // TODO: send amount to recipient
+        account.paid_tokens += tokens_to_release;
+        VESTING_ACCOUNT.save(deps.storage, &account)?;
 
-                // TODO: send amount to recipient
+        let evt = Event::new("tokens").add_attribute("released", amount.to_string());
+        Response::new().add_event(evt)
+    } else {
+        Response::new()
+    };
 
-                VESTING_ACCOUNT.save(deps.storage, &account)?;
-
-                let evt = Event::new("tokens").add_attribute("released", amount.to_string());
-                Response::new().add_event(evt);
-            }
-            Ok(Response::new())
-        }
-        VestingPlan::Continuous {
-            start_at: _,
-            end_at: _,
-        } => unimplemented!(),
-    }
+    Ok(response)
 }
 
 fn freeze_tokens(
@@ -201,14 +208,10 @@ fn query_account_info(deps: Deps) -> StdResult<AccountInfoResponse> {
 fn query_token_info(deps: Deps) -> StdResult<TokenInfoResponse> {
     let account = VESTING_ACCOUNT.load(deps.storage)?;
 
-    // add heavy allowed_release math here
-    let allowed_release = Uint128::zero();
-
     let info = TokenInfoResponse {
         initial: account.initial_tokens,
         frozen: account.frozen_tokens,
         released: account.paid_tokens,
-        allowed_release,
     };
     Ok(info)
 }
@@ -339,7 +342,6 @@ mod tests {
                 initial: Uint128::new(100),
                 frozen: Uint128::zero(),
                 released: Uint128::zero(),
-                allowed_release: Uint128::zero()
             }
         );
     }
