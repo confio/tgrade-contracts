@@ -1,6 +1,8 @@
 mod gov;
 mod hooks;
 mod msg;
+#[cfg(feature = "multitest")]
+mod multitest;
 mod query;
 mod sudo;
 mod validator;
@@ -8,6 +10,8 @@ mod validator;
 pub use gov::{GovProposal, ParamChange, ProtoAny};
 pub use hooks::{request_privileges, Privilege, PrivilegeMsg};
 pub use msg::{BlockParams, ConsensusParams, EvidenceParams, TgradeMsg};
+#[cfg(feature = "multitest")]
+pub use multitest::{Privileges, TgradeApp, TgradeAppWrapped, TgradeError, TgradeModule};
 pub use query::{ListPrivilegedResponse, TgradeQuery, ValidatorVoteResponse};
 pub use sudo::{Evidence, EvidenceType, PrivilegeChangeMsg, TgradeSudoMsg, ValidatorDiff};
 pub use validator::{
