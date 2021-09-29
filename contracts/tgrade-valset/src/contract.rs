@@ -62,6 +62,8 @@ pub fn instantiate(
         epoch_reward: msg.epoch_reward,
         fee_percentage: msg.fee_percentage,
         auto_unjail: msg.auto_unjail,
+        validators_reward_ratio: msg.validators_reward_ratio,
+        distribution_contract: msg.distribution_contract,
     };
     CONFIG.save(deps.storage, &cfg)?;
 
@@ -635,6 +637,8 @@ mod test {
             scaling: None,
             fee_percentage: Decimal::zero(),
             auto_unjail: false,
+            validators_reward_ratio: Decimal::one(),
+            distribution_contract: None,
         }
     }
 
@@ -662,6 +666,8 @@ mod test {
                 scaling: None,
                 fee_percentage: Decimal::zero(),
                 auto_unjail: false,
+                validators_reward_ratio: Decimal::one(),
+                distribution_contract: None,
             }
         );
 

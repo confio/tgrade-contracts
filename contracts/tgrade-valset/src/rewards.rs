@@ -175,6 +175,8 @@ mod test {
             epoch_reward: coin(amount, REWARD_DENOM),
             fee_percentage,
             auto_unjail: false,
+            validators_reward_ratio: Decimal::one(),
+            distribution_contract: None,
         };
         CONFIG.save(deps.storage, &cfg).unwrap();
     }

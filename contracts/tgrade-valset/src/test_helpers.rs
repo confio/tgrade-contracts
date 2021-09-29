@@ -252,6 +252,8 @@ impl SuiteBuilder {
                     scaling: self.scaling,
                     fee_percentage: self.fee_percentage,
                     auto_unjail: self.auto_unjail,
+                    validators_reward_ratio: Decimal::one(),
+                    distribution_contract: None,
                 },
                 &[],
                 "valset",
