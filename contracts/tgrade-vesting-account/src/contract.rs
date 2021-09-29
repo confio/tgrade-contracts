@@ -52,7 +52,8 @@ fn create_vesting_account(
     Ok(())
 }
 
-fn execute(
+#[cfg_attr(not(feature = "library"), entry_point)]
+pub fn execute(
     deps: DepsMut,
     env: Env,
     info: MessageInfo,
@@ -190,7 +191,8 @@ fn change_operator(
     Ok(Response::new().add_event(evt))
 }
 
-fn query(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
+#[cfg_attr(not(feature = "library"), entry_point)]
+pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
     match msg {
         QueryMsg::AccountInfo {} => to_binary(&query_account_info(deps)?),
         QueryMsg::TokenInfo {} => to_binary(&query_token_info(deps)?),
