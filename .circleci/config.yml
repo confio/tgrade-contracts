@@ -11,6 +11,7 @@ workflows:
       - contract_tgrade_valset
       - contract_tgrade_vesting_account
       - package_bindings
+      - package_bindings_test
       - package_utils
       - package_tg4
   build:
@@ -299,12 +300,6 @@ jobs:
           name: Run unit tests
           command: cargo test --locked
       - run:
-          name: Build library (multitest enabled)
-          command: cargo build --locked --features multitest
-      - run:
-          name: Run unit tests (multitest enabled)
-          command: cargo test --locked --features multitest
-      - run:
           name: Build and run schema generator
           command: cargo schema --locked
       - run:
@@ -321,6 +316,31 @@ jobs:
             - /usr/local/cargo/registry
             - target
           key: cargocache-v2-bindings:1.53.0-{{ checksum "~/project/Cargo.lock" }}
+
+  package_bindings_test:
+    docker:
+      - image: rust:1.53.0
+    working_directory: ~/project/packages/bindings-test
+    steps:
+      - checkout:
+          path: ~/project
+      - run:
+          name: Version information
+          command: rustc --version; cargo --version; rustup --version; rustup target list --installed
+      - restore_cache:
+          keys:
+            - cargocache-v2-bindings-test:1.53.0-{{ checksum "~/project/Cargo.lock" }}
+      - run:
+          name: Build library for native target
+          command: cargo build --locked
+      - run:
+          name: Run unit tests
+          command: cargo test --locked
+      - save_cache:
+          paths:
+            - /usr/local/cargo/registry
+            - target
+          key: cargocache-v2-bindings-test:1.53.0-{{ checksum "~/project/Cargo.lock" }}
 
   package_utils:
     docker:
