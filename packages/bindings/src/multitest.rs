@@ -85,39 +85,36 @@ impl Module for TgradeModule {
         QueryC: CustomQuery + DeserializeOwned + 'static,
     {
         match msg {
-            TgradeMsg::Privilege(msg) => {
-                match msg {
-                    PrivilegeMsg::Request(add) => {
-                        // there can be only one with ValidatorSetUpdater privilege
-                        let validator_registered = PRIVILEGES
-                            .range(storage, None, None, Order::Ascending)
-                            .fold(Ok(false), |val, item| match (val, item) {
-                                (Err(e), _) => Err(e),
-                                (_, Err(e)) => Err(e),
-                                (Ok(found), Ok((_, privs))) => Ok(found
-                                    || privs.iter().any(|p| *p == Privilege::ValidatorSetUpdater)),
-                            })?;
-                        if validator_registered {
-                            bail!("One ValidatorSetUpdater already registered, cannot register a second")
+            TgradeMsg::Privilege(PrivilegeMsg::Request(add)) => {
+                // there can be only one with ValidatorSetUpdater privilege
+                let validator_registered = PRIVILEGES
+                    .range(storage, None, None, Order::Ascending)
+                    .fold(Ok(false), |val, item| match (val, item) {
+                        (Err(e), _) => Err(e),
+                        (_, Err(e)) => Err(e),
+                        (Ok(found), Ok((_, privs))) => {
+                            Ok(found || privs.iter().any(|p| *p == Privilege::ValidatorSetUpdater))
                         }
-
-                        // if we are privileged (even an empty array), we can auto-add more
-                        let mut powers = PRIVILEGES
-                            .may_load(storage, &sender)?
-                            .ok_or(TgradeError::Unauthorized {})?;
-                        powers.push(add);
-                        PRIVILEGES.save(storage, &sender, &powers)?;
-                        Ok(AppResponse::default())
-                    }
-                    PrivilegeMsg::Release(remove) => {
-                        let powers = PRIVILEGES.may_load(storage, &sender)?;
-                        if let Some(powers) = powers {
-                            let updated = powers.into_iter().filter(|p| *p != remove).collect();
-                            PRIVILEGES.save(storage, &sender, &updated)?;
-                        }
-                        Ok(AppResponse::default())
-                    }
+                    })?;
+                if validator_registered {
+                    bail!("One ValidatorSetUpdater already registered, cannot register a second")
                 }
+
+                // if we are privileged (even an empty array), we can auto-add more
+                let mut powers = PRIVILEGES
+                    .may_load(storage, &sender)?
+                    .ok_or(TgradeError::Unauthorized {})?;
+                powers.push(add);
+                PRIVILEGES.save(storage, &sender, &powers)?;
+                Ok(AppResponse::default())
+            }
+            TgradeMsg::Privilege(PrivilegeMsg::Release(remove)) => {
+                let powers = PRIVILEGES.may_load(storage, &sender)?;
+                if let Some(powers) = powers {
+                    let updated = powers.into_iter().filter(|p| *p != remove).collect();
+                    PRIVILEGES.save(storage, &sender, &updated)?;
+                }
+                Ok(AppResponse::default())
             }
             TgradeMsg::WasmSudo { contract_addr, msg } => {
                 self.require_privilege(storage, &sender, Privilege::Sudoer)?;
