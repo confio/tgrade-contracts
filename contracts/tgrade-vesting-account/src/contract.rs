@@ -212,3 +212,49 @@ fn query_token_info(deps: Deps) -> StdResult<TokenInfoResponse> {
     };
     Ok(info)
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    use cosmwasm_std::testing::{mock_dependencies, mock_env, mock_info, MockStorage};
+    use cosmwasm_std::Coin;
+
+    const OWNER: &str = "owner";
+    const OPERATOR: &str = "operator";
+    const OVERSIGHT: &str = "oversight";
+
+    #[test]
+    fn get_account_info() {
+        let mut deps = mock_dependencies(&[]);
+        let owner = mock_info(OWNER, &[Coin::new(100, "vesting")]);
+
+        let env = mock_env();
+        let time = env.block.time;
+
+        let instantiate_message = InstantiateMsg {
+            recipient: Addr::unchecked(OWNER),
+            operator: Addr::unchecked(OPERATOR),
+            oversight: Addr::unchecked(OVERSIGHT),
+            vesting_plan: VestingPlan::Discrete {
+                release_at: time.plus_seconds(100000).clone(),
+            },
+        };
+
+        instantiate(deps.as_mut().branch(), env, owner, instantiate_message).unwrap();
+
+        let query_result = query_account_info(deps.as_ref()).unwrap();
+
+        assert_eq!(
+            query_result,
+            AccountInfoResponse {
+                recipient: Addr::unchecked(OWNER),
+                operator: Addr::unchecked(OPERATOR),
+                oversight: Addr::unchecked(OVERSIGHT),
+                vesting_plan: VestingPlan::Discrete {
+                    release_at: time.plus_seconds(100000)
+                }
+            }
+        );
+    }
+}
