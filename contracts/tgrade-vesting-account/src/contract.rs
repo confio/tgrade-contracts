@@ -225,12 +225,13 @@ mod tests {
         mock_dependencies, mock_env, mock_info, MockApi, MockQuerier, MockStorage,
     };
     use cosmwasm_std::{Coin, OwnedDeps, Timestamp};
+    use tg_utils::Expiration;
 
     const OWNER: &str = "owner";
     const OPERATOR: &str = "operator";
     const OVERSIGHT: &str = "oversight";
 
-    const DEFAULT_RELEASE: Timestamp = Timestamp::from_seconds(10000);
+    const DEFAULT_RELEASE: u64 = 10000;
 
     struct SuiteConfig {
         recipient: Addr,
@@ -247,7 +248,7 @@ mod tests {
                 operator: Addr::unchecked(OPERATOR),
                 oversight: Addr::unchecked(OVERSIGHT),
                 vesting_plan: VestingPlan::Discrete {
-                    release_at: DEFAULT_RELEASE,
+                    release_at: Expiration::at_timestamp(Timestamp::from_seconds(DEFAULT_RELEASE)),
                 },
                 coins: vec![Coin::new(100, VESTING_DENOM)],
             }
@@ -300,7 +301,7 @@ mod tests {
             operator: Addr::unchecked(OPERATOR),
             oversight: Addr::unchecked(OVERSIGHT),
             vesting_plan: VestingPlan::Discrete {
-                release_at: DEFAULT_RELEASE,
+                release_at: Expiration::at_timestamp(Timestamp::from_seconds(DEFAULT_RELEASE)),
             },
         };
 
@@ -323,7 +324,7 @@ mod tests {
                 operator: Addr::unchecked(OPERATOR),
                 oversight: Addr::unchecked(OVERSIGHT),
                 vesting_plan: VestingPlan::Discrete {
-                    release_at: DEFAULT_RELEASE
+                    release_at: Expiration::at_timestamp(Timestamp::from_seconds(DEFAULT_RELEASE)),
                 }
             }
         );

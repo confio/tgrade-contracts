@@ -3,6 +3,7 @@ use serde::{Deserialize, Serialize};
 
 use cosmwasm_std::{Addr, Timestamp, Uint128};
 use cw_storage_plus::Item;
+use tg_utils::Expiration;
 
 /// If vesting account is discrete, tokens can't be transferred
 /// until given point of time.
@@ -11,12 +12,12 @@ use cw_storage_plus::Item;
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub enum VestingPlan {
     Discrete {
-        release_at: Timestamp,
+        release_at: Expiration,
     },
     Continuous {
         start_at: Timestamp,
         /// end_at allows linear interpolation between these points.
-        end_at: Timestamp,
+        end_at: Expiration,
     },
 }
 
