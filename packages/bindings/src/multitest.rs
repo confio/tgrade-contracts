@@ -9,8 +9,8 @@ use cosmwasm_std::{
     StdError, StdResult, Storage,
 };
 use cw_multi_test::{
-    App, AppResponse, BankKeeper, BankSudo, BasicAppBuilder, CosmosRouter, Module, WasmKeeper,
-    WasmSudo,
+    next_block, App, AppResponse, BankKeeper, BankSudo, BasicAppBuilder, CosmosRouter, Module,
+    WasmKeeper, WasmSudo,
 };
 use cw_storage_plus::{Item, Map};
 
@@ -83,6 +83,19 @@ impl Module for TgradeModule {
             TgradeMsg::Privilege(msg) => {
                 match msg {
                     PrivilegeMsg::Request(add) => {
+                        // there can be only one with ValidatorSetUpdater privilege
+                        let validator_registered = PRIVILEGES
+                            .range(storage, None, None, Order::Ascending)
+                            .fold(Ok(false), |val, item| match (val, item) {
+                                (Err(e), _) => Err(e),
+                                (_, Err(e)) => Err(e),
+                                (Ok(found), Ok((_, privs))) => Ok(found
+                                    || privs.iter().any(|p| *p == Privilege::ValidatorSetUpdater)),
+                            })?;
+                        if validator_registered {
+                            bail!("One ValidatorSetUpdater already registered, cannot register a second")
+                        }
+
                         // if we are privileged (even an empty array), we can auto-add more
                         let mut powers = PRIVILEGES
                             .may_load(storage, &sender)?
@@ -91,8 +104,12 @@ impl Module for TgradeModule {
                         PRIVILEGES.save(storage, &sender, &powers)?;
                         Ok(AppResponse::default())
                     }
-                    PrivilegeMsg::Release(_) => {
-                        // FIXME: add later, not critical path
+                    PrivilegeMsg::Release(remove) => {
+                        let powers = PRIVILEGES.may_load(storage, &sender)?;
+                        if let Some(powers) = powers {
+                            let updated = powers.into_iter().filter(|p| *p != remove).collect();
+                            PRIVILEGES.save(storage, &sender, &updated)?;
+                        }
                         Ok(AppResponse::default())
                     }
                 }
@@ -258,6 +275,20 @@ impl TgradeApp {
         )
     }
 
+    /// next_block will call the end_blocker, increment block info 1 height and 5 seconds,
+    /// and then call the begin_blocker (with no evidence) in the next block.
+    /// It returns the validator diff if any.
+    ///
+    /// Simple iterator when you don't care too much about the details and just want to
+    /// simulate forward motion.
+    pub fn next_block(&mut self) -> AnyResult<Option<ValidatorDiff>> {
+        let (_, diff) = self.end_block()?;
+        self.update_block(next_block);
+        self.begin_block(vec![])?;
+        Ok(diff)
+    }
+
+    /// Returns a list of all contracts that have the requested privilege
     pub fn with_privilege(&self, requested: Privilege) -> AnyResult<Vec<Addr>> {
         let ListPrivilegedResponse { privileged } = self
             .wrap()
@@ -274,6 +305,8 @@ impl TgradeApp {
         }
     }
 
+    /// Make the BeginBlock sudo callback on all contracts that have registered
+    /// with the BeginBlocker Privilege
     pub fn begin_block(&mut self, evidence: Vec<Evidence>) -> AnyResult<Vec<AppResponse>> {
         let to_call = self.with_privilege(Privilege::BeginBlocker)?;
         let msg = TgradeSudoMsg::BeginBlock { evidence };
@@ -284,7 +317,10 @@ impl TgradeApp {
         Ok(res)
     }
 
-    pub fn end_block(&mut self) -> AnyResult<(Vec<AppResponse>, ValidatorDiff)> {
+    /// Make the EndBlock sudo callback on all contracts that have registered
+    /// with the EndBlocker Privilege. Then makes the EndWithValidatorUpdate callback
+    /// on any registered valset_updater.
+    pub fn end_block(&mut self) -> AnyResult<(Vec<AppResponse>, Option<ValidatorDiff>)> {
         let to_call = self.with_privilege(Privilege::EndBlocker)?;
         let msg = TgradeSudoMsg::EndBlock {};
 
@@ -299,11 +335,11 @@ impl TgradeApp {
                 let data = r.data.take();
                 res.push(r);
                 match data {
-                    Some(b) if !b.is_empty() => from_slice(&b)?,
-                    _ => ValidatorDiff::default(),
+                    Some(b) if !b.is_empty() => Some(from_slice(&b)?),
+                    _ => None,
                 }
             }
-            None => ValidatorDiff::default(),
+            None => None,
         };
         Ok((res, diff))
     }
