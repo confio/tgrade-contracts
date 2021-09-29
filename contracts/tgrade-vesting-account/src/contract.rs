@@ -16,6 +16,8 @@ pub type Response = cosmwasm_std::Response<TgradeMsg>;
 const CONTRACT_NAME: &str = "crates.io:vesting-contract";
 const CONTRACT_VERSION: &str = env!("CARGO_PKG_VERSION");
 
+const VESTING_DENOM: &str = "vesting";
+
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn instantiate(
     deps: DepsMut,
@@ -36,7 +38,7 @@ fn create_vesting_account(
     let initial_tokens = info
         .funds
         .iter()
-        .find(|v| v.denom == "vesting") // TODO: How to take tokens from Vec<Coin>?
+        .find(|v| v.denom == VESTING_DENOM) // TODO: How to take tokens from Vec<Coin>?
         .ok_or(ContractError::NoTokensFound)?;
     let account = VestingAccount {
         recipient: msg.recipient,
@@ -217,33 +219,66 @@ fn query_token_info(deps: Deps) -> StdResult<TokenInfoResponse> {
 mod tests {
     use super::*;
 
-    use cosmwasm_std::testing::{mock_dependencies, mock_env, mock_info, MockStorage};
-    use cosmwasm_std::Coin;
+    use cosmwasm_std::testing::{mock_dependencies, mock_env, mock_info, MockStorage, MockApi, MockQuerier};
+    use cosmwasm_std::{OwnedDeps, Coin, Timestamp};
 
     const OWNER: &str = "owner";
     const OPERATOR: &str = "operator";
     const OVERSIGHT: &str = "oversight";
 
-    #[test]
-    fn get_account_info() {
-        let mut deps = mock_dependencies(&[]);
-        let owner = mock_info(OWNER, &[Coin::new(100, "vesting")]);
+    const DEFAULT_RELEASE: Timestamp = Timestamp::from_seconds(10000);
 
-        let env = mock_env();
-        let time = env.block.time;
+    struct SuiteConfig {
+        recipient: Addr,
+        operator: Addr,
+        oversight: Addr,
+        vesting_plan: VestingPlan,
+    }
 
-        let instantiate_message = InstantiateMsg {
+    impl Default for SuiteConfig {
+        fn default() -> Self {
+            Self{
             recipient: Addr::unchecked(OWNER),
             operator: Addr::unchecked(OPERATOR),
             oversight: Addr::unchecked(OVERSIGHT),
             vesting_plan: VestingPlan::Discrete {
-                release_at: time.plus_seconds(100000).clone(),
+                release_at: DEFAULT_RELEASE,
             },
-        };
+            }
+        }
+    }
 
-        instantiate(deps.as_mut().branch(), env, owner, instantiate_message).unwrap();
+    struct Suite {
+        deps: OwnedDeps<MockStorage, MockApi, MockQuerier>
+    }
 
-        let query_result = query_account_info(deps.as_ref()).unwrap();
+    impl Suite {
+        fn init() -> Self {
+            Self::init_with_config(SuiteConfig::default())
+        }
+
+        fn init_with_config(config: SuiteConfig) -> Self {
+            let mut deps = mock_dependencies(&[]);
+            let owner = mock_info(OWNER, &[Coin::new(100, VESTING_DENOM)]);
+
+            let instantiate_message = InstantiateMsg {
+                recipient: config.recipient,
+                operator: config.operator,
+                oversight: config.oversight,
+                vesting_plan: config.vesting_plan,
+            };
+
+            let env = mock_env();
+            instantiate(deps.as_mut().branch(), env, owner, instantiate_message).unwrap();
+
+            Suite { deps }
+        }
+    }
+
+    #[test]
+    fn get_account_info() {
+        let suite = Suite::init();
+                let query_result = query_account_info(suite.deps.as_ref()).unwrap();
 
         assert_eq!(
             query_result,
@@ -252,7 +287,7 @@ mod tests {
                 operator: Addr::unchecked(OPERATOR),
                 oversight: Addr::unchecked(OVERSIGHT),
                 vesting_plan: VestingPlan::Discrete {
-                    release_at: time.plus_seconds(100000)
+                    release_at: DEFAULT_RELEASE
                 }
             }
         );
