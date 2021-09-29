@@ -43,7 +43,7 @@ fn create_vesting_account(
         vesting_plan: msg.vesting_plan,
         frozen_tokens: Uint128::zero(),
         paid_tokens: Uint128::zero(),
-        initial_tokens: initial_tokens,
+        initial_tokens,
     };
     VESTING_ACCOUNT.save(deps.storage, &account)?;
 
@@ -141,17 +141,19 @@ fn unfreeze_tokens(
         ));
     }
 
+    let initial_frozen = account.frozen_tokens;
     // Don't subtract with overflow
-    let final_amount = if account.frozen_tokens < amount {
-        account.frozen_tokens
-    } else {
-        amount
+    match account.frozen_tokens.checked_sub(amount) {
+        Ok(subbed) => account.frozen_tokens = subbed,
+        Err(_) => account.frozen_tokens = Uint128::zero(),
     };
-    account.frozen_tokens -= final_amount;
 
     VESTING_ACCOUNT.save(deps.storage, &account)?;
 
-    let evt = Event::new("tokens").add_attribute("subtract_frozen", final_amount.to_string());
+    let evt = Event::new("tokens").add_attribute(
+        "subtract_frozen",
+        (initial_frozen - account.frozen_tokens).to_string(),
+    );
     Ok(Response::new().add_event(evt))
 }
 
