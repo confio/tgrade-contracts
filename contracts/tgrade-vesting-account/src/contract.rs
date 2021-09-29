@@ -77,7 +77,7 @@ fn allowed_release(deps: Deps, env: Env, plan: VestingPlan) -> Result<Uint128, C
             release_at: release,
         } => {
             if release.is_expired(&env.block) {
-                Ok(token_info.released - token_info.frozen - token_info.released)
+                Ok(token_info.initial - token_info.frozen - token_info.released)
             } else {
                 Ok(Uint128::zero())
             }
@@ -243,7 +243,8 @@ mod tests {
     const OPERATOR: &str = "operator";
     const OVERSIGHT: &str = "oversight";
 
-    const DEFAULT_RELEASE: u64 = 10000;
+    /// Default timestamp from mock_env() in seconds with 100 seconds added
+    const DEFAULT_RELEASE: u64 = 1571797419 + 100;
 
     struct SuiteConfig {
         recipient: Addr,
@@ -380,7 +381,7 @@ mod tests {
     }
 
     #[test]
-    fn freeze_too_much_tokens() {
+    fn freeze_too_many_tokens() {
         let mut suite = Suite::init();
 
         assert_eq!(
@@ -403,7 +404,7 @@ mod tests {
     }
 
     #[test]
-    fn freeze_not_operator() {
+    fn freeze_unauthorized() {
         let mut suite = Suite::init();
 
         assert_matches!(
@@ -455,7 +456,7 @@ mod tests {
     }
 
     #[test]
-    fn unfreeze_not_operator() {
+    fn unfreeze_unauthorized() {
         let mut suite = Suite::init();
 
         assert_matches!(
@@ -502,6 +503,34 @@ mod tests {
                 Addr::unchecked(RECIPIENT)
             ),
             Err(ContractError::Unauthorized(_))
+        );
+    }
+
+    #[test]
+    fn allowed_release_discrete_before_expiration() {
+        let suite = Suite::init();
+
+        let account = query_account_info(suite.deps.as_ref()).unwrap();
+        let env = mock_env();
+        assert_eq!(
+            allowed_release(suite.deps.as_ref(), env, account.vesting_plan),
+            Ok(Uint128::zero())
+        );
+    }
+
+    #[test]
+    fn allowed_release_discrete_after_expiration() {
+        let suite = Suite::init();
+
+        let account = query_account_info(suite.deps.as_ref()).unwrap();
+
+        let mut env = mock_env();
+        // 1 second after release_at expire
+        env.block.time = env.block.time.plus_seconds(101);
+
+        assert_eq!(
+            allowed_release(suite.deps.as_ref(), env, account.vesting_plan),
+            Ok(Uint128::new(100))
         );
     }
 }
