@@ -60,10 +60,10 @@ pub fn execute(
     msg: ExecuteMsg,
 ) -> Result<Response, ContractError> {
     match msg {
-        ExecuteMsg::ReleaseTokens { amount } => release_tokens(deps, env, info, amount),
-        ExecuteMsg::FreezeTokens { amount } => freeze_tokens(deps, info, amount),
-        ExecuteMsg::UnfreezeTokens { amount } => unfreeze_tokens(deps, info, amount),
-        ExecuteMsg::ChangeOperator { address } => change_operator(deps, info, address),
+        ExecuteMsg::ReleaseTokens { amount } => release_tokens(deps, env, info.sender, amount),
+        ExecuteMsg::FreezeTokens { amount } => freeze_tokens(deps, info.sender, amount),
+        ExecuteMsg::UnfreezeTokens { amount } => unfreeze_tokens(deps, info.sender, amount),
+        ExecuteMsg::ChangeOperator { address } => change_operator(deps, info.sender, address),
         _ => unimplemented!(),
     }
 }
@@ -77,9 +77,9 @@ fn allowed_release(deps: Deps, env: Env, plan: VestingPlan) -> Result<Uint128, C
             release_at: release,
         } => {
             if release.is_expired(&env.block) {
-                return Ok(token_info.released - token_info.frozen - token_info.released);
+                Ok(token_info.released - token_info.frozen - token_info.released)
             } else {
-                return Ok(Uint128::zero());
+                Ok(Uint128::zero())
             }
         }
         VestingPlan::Continuous {
@@ -92,12 +92,12 @@ fn allowed_release(deps: Deps, env: Env, plan: VestingPlan) -> Result<Uint128, C
 fn release_tokens(
     deps: DepsMut,
     env: Env,
-    info: MessageInfo,
+    sender: Addr,
     amount: Uint128,
 ) -> Result<Response, ContractError> {
     let mut account = VESTING_ACCOUNT.load(deps.storage)?;
 
-    if info.sender != account.operator {
+    if sender != account.operator {
         return Err(ContractError::Unauthorized(
             "to release tokens sender must be set as an operator of this account!".to_string(),
         ));
@@ -122,34 +122,37 @@ fn release_tokens(
     Ok(response)
 }
 
-fn freeze_tokens(
-    deps: DepsMut,
-    info: MessageInfo,
-    amount: Uint128,
-) -> Result<Response, ContractError> {
+fn freeze_tokens(deps: DepsMut, sender: Addr, amount: Uint128) -> Result<Response, ContractError> {
     let mut account = VESTING_ACCOUNT.load(deps.storage)?;
 
-    if info.sender != account.operator {
+    if sender != account.operator {
         return Err(ContractError::Unauthorized(
             "to freeze tokens sender must be set as an operator of this account!".to_string(),
         ));
     }
 
-    account.frozen_tokens += amount;
+    let available_to_freeze = account.initial_tokens - account.frozen_tokens - account.paid_tokens;
+    let final_frozen = if amount > available_to_freeze {
+        available_to_freeze
+    } else {
+        amount
+    };
+    account.frozen_tokens += final_frozen;
+
     VESTING_ACCOUNT.save(deps.storage, &account)?;
 
-    let evt = Event::new("tokens").add_attribute("add_frozen", amount.to_string());
+    let evt = Event::new("tokens").add_attribute("add_frozen", final_frozen.to_string());
     Ok(Response::new().add_event(evt))
 }
 
 fn unfreeze_tokens(
     deps: DepsMut,
-    info: MessageInfo,
+    sender: Addr,
     amount: Uint128,
 ) -> Result<Response, ContractError> {
     let mut account = VESTING_ACCOUNT.load(deps.storage)?;
 
-    if info.sender != account.operator {
+    if sender != account.operator {
         return Err(ContractError::Unauthorized(
             "to unfreeze tokens sender must be set as an operator of this account!".to_string(),
         ));
@@ -173,12 +176,12 @@ fn unfreeze_tokens(
 
 fn change_operator(
     deps: DepsMut,
-    info: MessageInfo,
+    sender: Addr,
     new_operator: Addr,
 ) -> Result<Response, ContractError> {
     let mut account = VESTING_ACCOUNT.load(deps.storage)?;
 
-    if info.sender != account.oversight {
+    if sender != account.oversight {
         return Err(ContractError::Unauthorized(
             "to change operator sender must be set as an oversight of this account!".to_string(),
         ));
@@ -263,14 +266,15 @@ mod tests {
         }
     }
 
-    impl SuiteConfig {
-        fn new_with_vesting_plan(vesting_plan: VestingPlan) -> Self {
-            Self {
-                vesting_plan,
-                ..Default::default()
-            }
-        }
-    }
+    // TODO: I'm sure it'll be useful later
+    // impl SuiteConfig {
+    //     fn new_with_vesting_plan(vesting_plan: VestingPlan) -> Self {
+    //         Self {
+    //             vesting_plan,
+    //             ..Default::default()
+    //         }
+    //     }
+    // }
 
     struct Suite {
         deps: OwnedDeps<MockStorage, MockApi, MockQuerier>,
@@ -341,15 +345,74 @@ mod tests {
     #[test]
     fn get_token_info() {
         let suite = Suite::init();
-        let query_result = query_token_info(suite.deps.as_ref()).unwrap();
 
         assert_eq!(
-            query_result,
-            TokenInfoResponse {
+            query_token_info(suite.deps.as_ref()),
+            Ok(TokenInfoResponse {
                 initial: Uint128::new(100),
                 frozen: Uint128::zero(),
                 released: Uint128::zero(),
-            }
+            })
+        );
+    }
+
+    #[test]
+    fn freeze_tokens_success() {
+        let mut suite = Suite::init();
+
+        assert_eq!(
+            freeze_tokens(
+                suite.deps.as_mut(),
+                Addr::unchecked(OPERATOR),
+                Uint128::new(50)
+            ),
+            Ok(Response::new()
+                .add_event(Event::new("tokens").add_attribute("add_frozen", "50".to_string())))
+        );
+        assert_eq!(
+            query_token_info(suite.deps.as_ref()),
+            Ok(TokenInfoResponse {
+                initial: Uint128::new(100),
+                frozen: Uint128::new(50),
+                released: Uint128::zero(),
+            })
+        );
+    }
+
+    #[test]
+    fn freeze_too_much_tokens() {
+        let mut suite = Suite::init();
+
+        assert_eq!(
+            freeze_tokens(
+                suite.deps.as_mut(),
+                Addr::unchecked(OPERATOR),
+                Uint128::new(110)
+            ),
+            Ok(Response::new()
+                .add_event(Event::new("tokens").add_attribute("add_frozen", "100".to_string())))
+        );
+        assert_eq!(
+            query_token_info(suite.deps.as_ref()),
+            Ok(TokenInfoResponse {
+                initial: Uint128::new(100),
+                frozen: Uint128::new(100),
+                released: Uint128::zero(),
+            })
+        );
+    }
+
+    #[test]
+    fn freeze_not_operator() {
+        let mut suite = Suite::init();
+
+        assert_matches!(
+            freeze_tokens(
+                suite.deps.as_mut(),
+                Addr::unchecked(OWNER),
+                Uint128::new(100)
+            ),
+            Err(ContractError::Unauthorized(_))
         );
     }
 }
