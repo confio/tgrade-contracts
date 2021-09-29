@@ -1,29 +1,34 @@
 use anyhow::{bail, Result as AnyResult};
 use schemars::JsonSchema;
 use serde::de::DeserializeOwned;
+use std::cmp::max;
 use std::fmt::Debug;
+use std::ops::{Deref, DerefMut};
 use thiserror::Error;
 
+use cosmwasm_std::testing::{MockApi, MockStorage};
 use cosmwasm_std::{
     from_slice, to_binary, Addr, Api, Binary, BlockInfo, Coin, CustomQuery, Empty, Order, Querier,
     StdError, StdResult, Storage,
 };
 use cw_multi_test::{
-    next_block, App, AppResponse, BankKeeper, BankSudo, BasicAppBuilder, CosmosRouter, Module,
+    App, AppResponse, BankKeeper, BankSudo, BasicAppBuilder, CosmosRouter, Executor, Module,
     WasmKeeper, WasmSudo,
 };
 use cw_storage_plus::{Item, Map};
 
-use crate::{
+use tg_bindings::{
     Evidence, GovProposal, ListPrivilegedResponse, Privilege, PrivilegeChangeMsg, PrivilegeMsg,
     TgradeMsg, TgradeQuery, TgradeSudoMsg, ValidatorDiff, ValidatorVote, ValidatorVoteResponse,
 };
-use cosmwasm_std::testing::{MockApi, MockStorage};
-use std::ops::{Deref, DerefMut};
 
 pub struct TgradeModule {}
 
 pub type Privileges = Vec<Privilege>;
+
+/// How many seconds per block
+/// (when we increment block.height, use this multiplier for block.time)
+pub const BLOCK_TIME: u64 = 5;
 
 const PRIVILEGES: Map<&Addr, Privileges> = Map::new("privileges");
 const VOTES: Item<ValidatorVoteResponse> = Item::new("votes");
@@ -86,18 +91,22 @@ impl Module for TgradeModule {
     {
         match msg {
             TgradeMsg::Privilege(PrivilegeMsg::Request(add)) => {
-                // there can be only one with ValidatorSetUpdater privilege
-                let validator_registered = PRIVILEGES
-                    .range(storage, None, None, Order::Ascending)
-                    .fold(Ok(false), |val, item| match (val, item) {
-                        (Err(e), _) => Err(e),
-                        (_, Err(e)) => Err(e),
-                        (Ok(found), Ok((_, privs))) => {
-                            Ok(found || privs.iter().any(|p| *p == Privilege::ValidatorSetUpdater))
-                        }
-                    })?;
-                if validator_registered {
-                    bail!("One ValidatorSetUpdater already registered, cannot register a second")
+                if add == Privilege::ValidatorSetUpdater {
+                    // there can be only one with ValidatorSetUpdater privilege
+                    let validator_registered =
+                        PRIVILEGES
+                            .range(storage, None, None, Order::Ascending)
+                            .fold(Ok(false), |val, item| match (val, item) {
+                                (Err(e), _) => Err(e),
+                                (_, Err(e)) => Err(e),
+                                (Ok(found), Ok((_, privs))) => Ok(found
+                                    || privs.iter().any(|p| *p == Privilege::ValidatorSetUpdater)),
+                            })?;
+                    if validator_registered {
+                        bail!(
+                            "One ValidatorSetUpdater already registered, cannot register a second"
+                        );
+                    }
                 }
 
                 // if we are privileged (even an empty array), we can auto-add more
@@ -276,6 +285,43 @@ impl TgradeApp {
         )
     }
 
+    pub fn promote(&mut self, owner: &str, contract: &str) -> AnyResult<AppResponse> {
+        let msg = TgradeMsg::ExecuteGovProposal {
+            title: "Promote Contract".to_string(),
+            description: "Promote Contract".to_string(),
+            proposal: GovProposal::PromoteToPrivilegedContract {
+                contract: contract.to_string(),
+            },
+        };
+        self.execute(Addr::unchecked(owner), msg.into())
+    }
+
+    /// This reverses to genesis (based on current time/height)
+    pub fn back_to_genesis(&mut self) {
+        self.update_block(|block| {
+            block.time = block.time.minus_seconds(BLOCK_TIME * block.height);
+            block.height = 0;
+        });
+    }
+
+    /// This advances BlockInfo by given number of blocks.
+    /// It does not do any callbacks, but keeps the ratio of seconds/blokc
+    pub fn advance_blocks(&mut self, blocks: u64) {
+        self.update_block(|block| {
+            block.time = block.time.plus_seconds(BLOCK_TIME * blocks);
+            block.height += blocks;
+        });
+    }
+
+    /// This advances BlockInfo by given number of seconds.
+    /// It does not do any callbacks, but keeps the ratio of seconds/blokc
+    pub fn advance_seconds(&mut self, seconds: u64) {
+        self.update_block(|block| {
+            block.time = block.time.plus_seconds(seconds);
+            block.height += max(1, seconds / BLOCK_TIME);
+        });
+    }
+
     /// next_block will call the end_blocker, increment block info 1 height and 5 seconds,
     /// and then call the begin_blocker (with no evidence) in the next block.
     /// It returns the validator diff if any.
@@ -284,7 +330,10 @@ impl TgradeApp {
     /// simulate forward motion.
     pub fn next_block(&mut self) -> AnyResult<Option<ValidatorDiff>> {
         let (_, diff) = self.end_block()?;
-        self.update_block(next_block);
+        self.update_block(|block| {
+            block.time = block.time.plus_seconds(BLOCK_TIME);
+            block.height += 1;
+        });
         self.begin_block(vec![])?;
         Ok(diff)
     }

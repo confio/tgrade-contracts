@@ -1,11 +1,12 @@
 #![cfg(test)]
 use anyhow::Result as AnyResult;
 use cosmwasm_std::{coin, Addr, Binary, Coin, Decimal, StdResult};
-use cw_multi_test::{AppBuilder, AppResponse, BasicApp, Contract, ContractWrapper, Executor};
+use cw_multi_test::{AppResponse, Contract, ContractWrapper, Executor};
 use derivative::Derivative;
 
 use tg4::Member;
-use tg_bindings::{Pubkey, TgradeMsg, TgradeSudoMsg};
+use tg_bindings::{Pubkey, TgradeMsg, ValidatorDiff};
+use tg_bindings_test::TgradeApp;
 use tg_utils::Duration;
 
 use crate::msg::{
@@ -215,7 +216,7 @@ impl SuiteBuilder {
 
         let admin = Addr::unchecked("admin");
 
-        let mut app = AppBuilder::new_custom().build(|_, _, _| ());
+        let mut app = TgradeApp::new(admin.as_str());
 
         let group_id = app.store_code(contract_engagement());
         let group = app
@@ -258,6 +259,22 @@ impl SuiteBuilder {
             )
             .unwrap();
 
+        // start from genesis
+        let current = app.block_info();
+        app.back_to_genesis();
+
+        // promote the valset contract
+        app.promote(admin.as_str(), valset.as_str()).unwrap();
+
+        // process initial genesis block
+        let diff = app.next_block().unwrap();
+        let diff = diff.unwrap();
+        assert_eq!(diff.diffs.len(), members.len());
+
+        // jump back to the present and step forward one block, so we are in a normal state
+        app.set_block(current);
+        app.next_block().unwrap();
+
         Suite {
             app,
             valset,
@@ -273,7 +290,7 @@ impl SuiteBuilder {
 pub struct Suite {
     /// Multitest app
     #[derivative(Debug = "ignore")]
-    app: BasicApp<TgradeMsg>,
+    app: TgradeApp,
     /// tgrade-valset contract address
     valset: Addr,
     /// Admin used for any administrative messages, but also admin of tgrade-valset contract
@@ -294,15 +311,12 @@ impl Suite {
         &self.member_operators
     }
 
-    pub fn app(&mut self) -> &mut BasicApp<TgradeMsg> {
+    pub fn app(&mut self) -> &mut TgradeApp {
         &mut self.app
     }
 
-    pub fn end_block(&mut self) -> AnyResult<AppResponse> {
-        self.app.wasm_sudo(
-            self.valset.clone(),
-            &TgradeSudoMsg::EndWithValidatorUpdate {},
-        )
+    pub fn end_block(&mut self) -> AnyResult<Option<ValidatorDiff>> {
+        self.app.next_block()
     }
 
     pub fn jail(

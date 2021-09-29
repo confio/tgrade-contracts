@@ -1522,8 +1522,9 @@ mod test {
                 .unwrap();
             suite.jail(&admin, &operators[1].addr, None).unwrap();
 
-            // Move forward a little, but not enough for jailing to expire
-            suite.app().update_block(next_block);
+            // Move forward a little, but not enough for jailing to expire,
+            // but at least 100s for the default epoch size to re-calculate
+            suite.app().advance_seconds(100);
 
             // Endblock triggered - only unjailed validators are active
             suite.end_block().unwrap();

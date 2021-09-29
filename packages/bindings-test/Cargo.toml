@@ -1,19 +1,18 @@
 [package]
-name = "tg-bindings"
+name = "tg-bindings-test"
 version = "0.4.0"
 authors = ["Ethan Frey <ethanfrey@users.noreply.github.com>"]
 edition = "2018"
-description = "Bindings for CustomMsg and CustomQuery for the Tgrade blockchain"
+description = "Multitest (and other test helpers) support for Tgrade-specific contracts"
 repository = "https://github.com/confio/tgrade-contracts"
 homepage = "https://tgrade.finance"
 
 [dependencies]
-base64 = "0.13"
+tg-bindings = { version = "0.4.0", path = "../bindings" }
 cosmwasm-std = { version = "1.0.0-soon" }
 schemars = "0.8"
-sha2 = "0.9"
 serde = { version = "1.0.103", default-features = false, features = ["derive"] }
-
-[dev-dependencies]
-cosmwasm-schema = { version = "1.0.0-soon" }
-hex-literal = "0.3.1"
+cw-multi-test = { version = "=0.10.0-soon3" }
+cw-storage-plus = { version = "=0.10.0-soon3" }
+anyhow = { version = "1" }
+thiserror = { version = "1.0.21" }
