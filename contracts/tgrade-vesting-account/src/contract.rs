@@ -305,6 +305,67 @@ mod tests {
         }
     }
 
+    mod unauthorized {
+        use super::*;
+
+        #[test]
+        fn freeze() {
+            let mut suite = Suite::init();
+
+            assert_matches!(
+                freeze_tokens(
+                    suite.deps.as_mut(),
+                    Addr::unchecked(RECIPIENT),
+                    Uint128::new(100)
+                ),
+                Err(ContractError::Unauthorized(_))
+            );
+        }
+
+        #[test]
+        fn unfreeze() {
+            let mut suite = Suite::init();
+
+            assert_matches!(
+                unfreeze_tokens(
+                    suite.deps.as_mut(),
+                    Addr::unchecked(RECIPIENT),
+                    Uint128::new(50)
+                ),
+                Err(ContractError::Unauthorized(_))
+            );
+        }
+
+        #[test]
+        fn change_account_operator() {
+            let mut suite = Suite::init();
+
+            assert_matches!(
+                change_operator(
+                    suite.deps.as_mut(),
+                    Addr::unchecked(RECIPIENT),
+                    Addr::unchecked(RECIPIENT)
+                ),
+                Err(ContractError::Unauthorized(_))
+            );
+        }
+
+        #[test]
+        fn release() {
+            let mut suite = Suite::init();
+
+            assert_matches!(
+                release_tokens(
+                    suite.deps.as_mut(),
+                    mock_env(),
+                    Addr::unchecked(RECIPIENT),
+                    Uint128::new(50)
+                ),
+                Err(ContractError::Unauthorized(_))
+            );
+        }
+    }
+
     #[test]
     fn instantiate_without_tokens() {
         let mut deps = mock_dependencies(&[]);
@@ -404,20 +465,6 @@ mod tests {
     }
 
     #[test]
-    fn freeze_unauthorized() {
-        let mut suite = Suite::init();
-
-        assert_matches!(
-            freeze_tokens(
-                suite.deps.as_mut(),
-                Addr::unchecked(RECIPIENT),
-                Uint128::new(100)
-            ),
-            Err(ContractError::Unauthorized(_))
-        );
-    }
-
-    #[test]
     fn unfreeze_tokens_success() {
         let mut suite = Suite::init();
 
@@ -456,21 +503,7 @@ mod tests {
     }
 
     #[test]
-    fn unfreeze_unauthorized() {
-        let mut suite = Suite::init();
-
-        assert_matches!(
-            unfreeze_tokens(
-                suite.deps.as_mut(),
-                Addr::unchecked(RECIPIENT),
-                Uint128::new(50)
-            ),
-            Err(ContractError::Unauthorized(_))
-        );
-    }
-
-    #[test]
-    fn change_operator_success() {
+    fn change_account_operator_success() {
         let mut suite = Suite::init();
 
         assert_eq!(
@@ -489,20 +522,6 @@ mod tests {
                 operator,
                 ..
             }) => operator == Addr::unchecked(RECIPIENT)
-        );
-    }
-
-    #[test]
-    fn change_operator_unauthorized() {
-        let mut suite = Suite::init();
-
-        assert_matches!(
-            change_operator(
-                suite.deps.as_mut(),
-                Addr::unchecked(RECIPIENT),
-                Addr::unchecked(RECIPIENT)
-            ),
-            Err(ContractError::Unauthorized(_))
         );
     }
 
@@ -531,21 +550,6 @@ mod tests {
         assert_eq!(
             allowed_release(suite.deps.as_ref(), env, account.vesting_plan),
             Ok(Uint128::new(100))
-        );
-    }
-
-    #[test]
-    fn release_tokens_unauthorized() {
-        let mut suite = Suite::init();
-
-        assert_matches!(
-            release_tokens(
-                suite.deps.as_mut(),
-                mock_env(),
-                Addr::unchecked(RECIPIENT),
-                Uint128::new(50)
-            ),
-            Err(ContractError::Unauthorized(_))
         );
     }
 
