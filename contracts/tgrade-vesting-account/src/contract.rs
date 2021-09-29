@@ -239,6 +239,7 @@ mod tests {
     use tg_utils::Expiration;
 
     const OWNER: &str = "owner";
+    const RECIPIENT: &str = "recipient";
     const OPERATOR: &str = "operator";
     const OVERSIGHT: &str = "oversight";
 
@@ -255,7 +256,7 @@ mod tests {
     impl Default for SuiteConfig {
         fn default() -> Self {
             Self {
-                recipient: Addr::unchecked(OWNER),
+                recipient: Addr::unchecked(RECIPIENT),
                 operator: Addr::unchecked(OPERATOR),
                 oversight: Addr::unchecked(OVERSIGHT),
                 vesting_plan: VestingPlan::Discrete {
@@ -309,7 +310,7 @@ mod tests {
         let owner = mock_info(OWNER, &[]);
 
         let instantiate_message = InstantiateMsg {
-            recipient: Addr::unchecked(OWNER),
+            recipient: Addr::unchecked(RECIPIENT),
             operator: Addr::unchecked(OPERATOR),
             oversight: Addr::unchecked(OVERSIGHT),
             vesting_plan: VestingPlan::Discrete {
@@ -327,18 +328,17 @@ mod tests {
     #[test]
     fn get_account_info() {
         let suite = Suite::init();
-        let query_result = query_account_info(suite.deps.as_ref()).unwrap();
 
         assert_eq!(
-            query_result,
-            AccountInfoResponse {
-                recipient: Addr::unchecked(OWNER),
+            query_account_info(suite.deps.as_ref()),
+            Ok(AccountInfoResponse {
+                recipient: Addr::unchecked(RECIPIENT),
                 operator: Addr::unchecked(OPERATOR),
                 oversight: Addr::unchecked(OVERSIGHT),
                 vesting_plan: VestingPlan::Discrete {
                     release_at: Expiration::at_timestamp(Timestamp::from_seconds(DEFAULT_RELEASE)),
                 }
-            }
+            })
         );
     }
 
@@ -409,7 +409,7 @@ mod tests {
         assert_matches!(
             freeze_tokens(
                 suite.deps.as_mut(),
-                Addr::unchecked(OWNER),
+                Addr::unchecked(RECIPIENT),
                 Uint128::new(100)
             ),
             Err(ContractError::Unauthorized(_))
@@ -440,8 +440,9 @@ mod tests {
                 Addr::unchecked(OPERATOR),
                 Uint128::new(50)
             ),
-            Ok(Response::new()
-                .add_event(Event::new("tokens").add_attribute("subtract_frozen", "50".to_string())))
+            Ok(Response::new().add_event(
+                Event::new("tokens").add_attribute("subtract_frozen", "50".to_string())
+            ))
         );
         assert_eq!(
             query_token_info(suite.deps.as_ref()),
@@ -450,6 +451,57 @@ mod tests {
                 frozen: Uint128::zero(),
                 released: Uint128::zero(),
             })
+        );
+    }
+
+    #[test]
+    fn unfreeze_not_operator() {
+        let mut suite = Suite::init();
+
+        assert_matches!(
+            unfreeze_tokens(
+                suite.deps.as_mut(),
+                Addr::unchecked(RECIPIENT),
+                Uint128::new(50)
+            ),
+            Err(ContractError::Unauthorized(_))
+        );
+    }
+
+    #[test]
+    fn change_operator_success() {
+        let mut suite = Suite::init();
+
+        assert_eq!(
+            change_operator(
+                suite.deps.as_mut(),
+                Addr::unchecked(OVERSIGHT),
+                Addr::unchecked(RECIPIENT)
+            ),
+            Ok(Response::new().add_event(
+                Event::new("vesting_account").add_attribute("new_operator", RECIPIENT.to_string())
+            ))
+        );
+        assert_matches!(
+            query_account_info(suite.deps.as_ref()),
+            Ok(AccountInfoResponse {
+                operator,
+                ..
+            }) => operator == Addr::unchecked(RECIPIENT)
+        );
+    }
+
+    #[test]
+    fn change_operator_unauthorized() {
+        let mut suite = Suite::init();
+
+        assert_matches!(
+            change_operator(
+                suite.deps.as_mut(),
+                Addr::unchecked(RECIPIENT),
+                Addr::unchecked(RECIPIENT)
+            ),
+            Err(ContractError::Unauthorized(_))
         );
     }
 }
