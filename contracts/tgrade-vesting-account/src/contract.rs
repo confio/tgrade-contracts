@@ -1,8 +1,7 @@
 #[cfg(not(feature = "library"))]
 use cosmwasm_std::entry_point;
 use cosmwasm_std::{
-    coins, to_binary, Addr, BankMsg, Binary, Deps, DepsMut, Env, Event, MessageInfo, StdResult,
-    Uint128,
+    coins, to_binary, Addr, BankMsg, Binary, Deps, DepsMut, Env, MessageInfo, StdResult, Uint128,
 };
 use cw2::set_contract_version;
 
@@ -113,8 +112,11 @@ fn release_tokens(
         account.paid_tokens += amount;
         VESTING_ACCOUNT.save(deps.storage, &account)?;
 
-        let evt = Event::new("tokens").add_attribute("released", amount.to_string());
-        Response::new().add_event(evt).add_message(msg)
+        Response::new()
+            .add_attribute("action", "release_tokens")
+            .add_attribute("tokens", amount.to_string())
+            .add_attribute("sender", sender)
+            .add_message(msg)
     } else {
         Response::new()
     };
@@ -141,8 +143,10 @@ fn freeze_tokens(deps: DepsMut, sender: Addr, amount: Uint128) -> Result<Respons
 
     VESTING_ACCOUNT.save(deps.storage, &account)?;
 
-    let evt = Event::new("tokens").add_attribute("add_frozen", final_frozen.to_string());
-    Ok(Response::new().add_event(evt))
+    Ok(Response::new()
+        .add_attribute("action", "freeze_tokens")
+        .add_attribute("tokens", final_frozen.to_string())
+        .add_attribute("sender", sender))
 }
 
 fn unfreeze_tokens(
@@ -167,11 +171,13 @@ fn unfreeze_tokens(
 
     VESTING_ACCOUNT.save(deps.storage, &account)?;
 
-    let evt = Event::new("tokens").add_attribute(
-        "subtract_frozen",
-        (initial_frozen - account.frozen_tokens).to_string(),
-    );
-    Ok(Response::new().add_event(evt))
+    Ok(Response::new()
+        .add_attribute("action", "unfreeze_tokens")
+        .add_attribute(
+            "tokens",
+            (initial_frozen - account.frozen_tokens).to_string(),
+        )
+        .add_attribute("sender", sender))
 }
 
 fn change_operator(
@@ -187,11 +193,13 @@ fn change_operator(
         ));
     }
 
-    let evt = Event::new("vesting_account").add_attribute("new_operator", new_operator.to_string());
-    account.operator = new_operator;
+    account.operator = new_operator.clone();
     VESTING_ACCOUNT.save(deps.storage, &account)?;
 
-    Ok(Response::new().add_event(evt))
+    Ok(Response::new()
+        .add_attribute("action", "change_operator")
+        .add_attribute("operator", new_operator.to_string())
+        .add_attribute("sender", sender))
 }
 
 #[cfg_attr(not(feature = "library"), entry_point)]
@@ -438,7 +446,9 @@ mod tests {
                 Uint128::new(50)
             ),
             Ok(Response::new()
-                .add_event(Event::new("tokens").add_attribute("add_frozen", "50".to_string())))
+                .add_attribute("action", "freeze_tokens")
+                .add_attribute("tokens", "50".to_string())
+                .add_attribute("sender", Addr::unchecked(OPERATOR)))
         );
         assert_eq!(
             query_token_info(suite.deps.as_ref()),
@@ -462,7 +472,9 @@ mod tests {
                 Uint128::new(110)
             ),
             Ok(Response::new()
-                .add_event(Event::new("tokens").add_attribute("add_frozen", "100".to_string())))
+                .add_attribute("action", "freeze_tokens")
+                .add_attribute("tokens", "100".to_string())
+                .add_attribute("sender", Addr::unchecked(OPERATOR)))
         );
         assert_eq!(
             query_token_info(suite.deps.as_ref()),
@@ -498,9 +510,10 @@ mod tests {
                 Addr::unchecked(OPERATOR),
                 Uint128::new(50)
             ),
-            Ok(Response::new().add_event(
-                Event::new("tokens").add_attribute("subtract_frozen", "50".to_string())
-            ))
+            Ok(Response::new()
+                .add_attribute("action", "unfreeze_tokens")
+                .add_attribute("tokens", "50".to_string())
+                .add_attribute("sender", Addr::unchecked(OPERATOR)))
         );
         assert_eq!(
             query_token_info(suite.deps.as_ref()),
@@ -522,9 +535,10 @@ mod tests {
                 Addr::unchecked(OVERSIGHT),
                 Addr::unchecked(RECIPIENT)
             ),
-            Ok(Response::new().add_event(
-                Event::new("vesting_account").add_attribute("new_operator", RECIPIENT.to_string())
-            ))
+            Ok(Response::new()
+                .add_attribute("action", "change_operator")
+                .add_attribute("operator", RECIPIENT.to_string())
+                .add_attribute("sender", OVERSIGHT.to_string()))
         );
         assert_matches!(
             query_account_info(suite.deps.as_ref()),
@@ -578,7 +592,9 @@ mod tests {
                 amount_to_send
             ),
             Ok(Response::new()
-                .add_event(Event::new("tokens").add_attribute("released", "25".to_string()))
+                .add_attribute("action", "release_tokens")
+                .add_attribute("tokens", amount_to_send.to_string())
+                .add_attribute("sender", OPERATOR.to_string())
                 .add_message(BankMsg::Send {
                     to_address: RECIPIENT.to_string(),
                     amount: coins(amount_to_send.u128(), VESTING_DENOM)
