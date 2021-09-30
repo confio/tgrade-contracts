@@ -187,7 +187,7 @@ impl SuiteBuilder {
         self
     }
 
-    pub fn with_operators<'m>(mut self, members: &[(&str, u64)], non_members: &[&str]) -> Self {
+    pub fn with_operators(mut self, members: &[(&str, u64)], non_members: &[&str]) -> Self {
         let members = members
             .iter()
             .map(|(addr, weight)| ((*addr).to_owned(), *weight));
@@ -209,10 +209,10 @@ impl SuiteBuilder {
         self
     }
 
-    pub fn with_distribution<'m>(
+    pub fn with_distribution(
         mut self,
         validators_reward_ratio: Decimal,
-        members: &[(&'m str, u64)],
+        members: &[(&str, u64)],
         halflife: impl Into<Option<Duration>>,
     ) -> Self {
         let config = DistributionConfig {
