@@ -41,7 +41,7 @@ cumulative reward grow is reduced - basically up to the time when `fees` reaches
 (they are scalded).
 
 Next step is splitting `cumulative_reward` in two parts.
-`validators_reward_ratio * cumulative_reward` is send ad `validators_reward` to validators
+`validators_reward_ratio * cumulative_reward` is send as `validators_reward` to validators
 of last epoch. Rest is send to `distribution_contract`, which intention is to split
 this part of reward between non-validators, basing on their engagement. Both
 `validators_reward_ratio` and `distribution_contract` may be configured in

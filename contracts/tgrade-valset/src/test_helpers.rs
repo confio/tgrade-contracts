@@ -1,5 +1,5 @@
 #![cfg(test)]
-use anyhow::Result as AnyResult;
+use anyhow::{bail, Result as AnyResult};
 use cosmwasm_std::{coin, Addr, Binary, Coin, Decimal, StdResult};
 use cw_multi_test::{AppResponse, Contract, ContractWrapper, Executor};
 use derivative::Derivative;
@@ -135,6 +135,12 @@ pub fn assert_active_validators(received: Vec<ValidatorInfo>, mut expected: Vec<
     assert_eq!(received, expected);
 }
 
+#[derive(Debug, Clone)]
+struct DistributionConfig {
+    members: Vec<Member>,
+    halflife: Option<Duration>,
+}
+
 #[derive(Derivative, Debug, Clone)]
 #[derivative(Default = "new")]
 pub struct SuiteBuilder {
@@ -161,6 +167,11 @@ pub struct SuiteBuilder {
     fee_percentage: Decimal,
     /// Flag determining if jailed operators should be automatically unjailed
     auto_unjail: bool,
+    /// How much reward is going to validators, and how much to non-validators engaged operators
+    #[derivative(Default(value = "Decimal::one()"))]
+    validators_reward_ratio: Decimal,
+    /// Configuration of `distribution_contract` if any
+    distribution_config: Option<DistributionConfig>,
 }
 
 impl SuiteBuilder {
@@ -176,8 +187,46 @@ impl SuiteBuilder {
         self
     }
 
+    pub fn with_operators<'m>(mut self, members: &[(&str, u64)], non_members: &[&str]) -> Self {
+        let members = members
+            .iter()
+            .map(|(addr, weight)| ((*addr).to_owned(), *weight));
+        self.member_operators.extend(members);
+
+        let non_members = non_members.iter().copied().map(str::to_owned);
+        self.non_member_operators.extend(non_members);
+
+        self
+    }
+
     pub fn with_auto_unjail(mut self) -> Self {
         self.auto_unjail = true;
+        self
+    }
+
+    pub fn with_epoch_reward(mut self, epoch_reward: Coin) -> Self {
+        self.epoch_reward = epoch_reward;
+        self
+    }
+
+    pub fn with_distribution<'m>(
+        mut self,
+        validators_reward_ratio: Decimal,
+        members: &[(&'m str, u64)],
+        halflife: impl Into<Option<Duration>>,
+    ) -> Self {
+        let config = DistributionConfig {
+            members: members
+                .iter()
+                .map(|(addr, weight)| Member {
+                    addr: (*addr).to_owned(),
+                    weight: *weight,
+                })
+                .collect(),
+            halflife: halflife.into(),
+        };
+        self.validators_reward_ratio = validators_reward_ratio;
+        self.distribution_config = Some(config);
         self
     }
 
@@ -215,26 +264,46 @@ impl SuiteBuilder {
         };
 
         let admin = Addr::unchecked("admin");
+        let token = self.epoch_reward.denom.clone();
 
         let mut app = TgradeApp::new(admin.as_str());
 
-        let group_id = app.store_code(contract_engagement());
+        let engagement_id = app.store_code(contract_engagement());
         let group = app
             .instantiate_contract(
-                group_id,
+                engagement_id,
                 admin.clone(),
                 &tg4_engagement::msg::InstantiateMsg {
                     admin: Some(admin.to_string()),
                     members: members.clone(),
                     preauths: None,
                     halflife: None,
-                    token: "usdc".to_owned(),
+                    token: token.clone(),
                 },
                 &[],
                 "group",
                 Some(admin.to_string()),
             )
             .unwrap();
+
+        let distribution_config = self.distribution_config;
+        let distribution_contract = distribution_config.map(|config| {
+            app.instantiate_contract(
+                engagement_id,
+                admin.clone(),
+                &tg4_engagement::msg::InstantiateMsg {
+                    admin: Some(admin.to_string()),
+                    members: config.members,
+                    preauths: None,
+                    halflife: config.halflife,
+                    token: token.clone(),
+                },
+                &[],
+                "distribution",
+                Some(admin.to_string()),
+            )
+            .unwrap()
+        });
 
         let valset_id = app.store_code(contract_valset());
         let valset = app
@@ -252,8 +321,10 @@ impl SuiteBuilder {
                     scaling: self.scaling,
                     fee_percentage: self.fee_percentage,
                     auto_unjail: self.auto_unjail,
-                    validators_reward_ratio: Decimal::one(),
-                    distribution_contract: None,
+                    validators_reward_ratio: self.validators_reward_ratio,
+                    distribution_contract: distribution_contract
+                        .as_ref()
+                        .map(|addr| addr.to_string()),
                 },
                 &[],
                 "valset",
@@ -262,7 +333,6 @@ impl SuiteBuilder {
             .unwrap();
 
         // start from genesis
-        let current = app.block_info();
         app.back_to_genesis();
 
         // promote the valset contract
@@ -273,16 +343,15 @@ impl SuiteBuilder {
         let diff = diff.unwrap();
         assert_eq!(diff.diffs.len(), members.len());
 
-        // jump back to the present and step forward one block, so we are in a normal state
-        app.set_block(current);
-        app.next_block().unwrap();
-
         Suite {
             app,
             valset,
+            distribution_contract,
             admin: admin.to_string(),
             member_operators: members,
             non_member_operators: self.non_member_operators,
+            epoch_length: self.epoch_length,
+            token,
         }
     }
 }
@@ -295,6 +364,8 @@ pub struct Suite {
     app: TgradeApp,
     /// tgrade-valset contract address
     valset: Addr,
+    /// tg4-engagement contract for engagement distribution
+    distribution_contract: Option<Addr>,
     /// Admin used for any administrative messages, but also admin of tgrade-valset contract
     admin: String,
     /// Valset operators pairs, members of cw4 group
@@ -302,6 +373,10 @@ pub struct Suite {
     /// Valset operators included in `initial_keys`, but not members of cw4 group (addresses only,
     /// no weights)
     non_member_operators: Vec<String>,
+    /// Length of an epoch
+    epoch_length: u64,
+    /// Reward token
+    token: String,
 }
 
 impl Suite {
@@ -319,6 +394,11 @@ impl Suite {
 
     pub fn end_block(&mut self) -> AnyResult<Option<ValidatorDiff>> {
         self.app.next_block()
+    }
+
+    pub fn advance_epoch(&mut self) -> AnyResult<Option<ValidatorDiff>> {
+        self.app.advance_seconds(self.epoch_length);
+        self.end_block()
     }
 
     pub fn jail(
@@ -353,6 +433,19 @@ impl Suite {
         )
     }
 
+    pub fn withdraw_engagement_reward(&mut self, executor: &str) -> AnyResult<AppResponse> {
+        if let Some(contract) = &self.distribution_contract {
+            self.app.execute_contract(
+                Addr::unchecked(executor),
+                contract.clone(),
+                &tg4_engagement::msg::ExecuteMsg::WithdrawFunds { receiver: None },
+                &[],
+            )
+        } else {
+            bail!("No distribution contract configured")
+        }
+    }
+
     pub fn list_validators(
         &self,
         start_after: impl Into<Option<String>>,
@@ -377,5 +470,15 @@ impl Suite {
         self.app
             .wrap()
             .query_wasm_smart(self.valset.clone(), &QueryMsg::SimulateActiveValidators {})
+    }
+
+    /// Shortcut for querying reward token balance of contract
+    pub fn token_balance(&self, owner: &str) -> StdResult<u128> {
+        let amount = self
+            .app
+            .wrap()
+            .query_balance(&Addr::unchecked(owner), &self.token)?
+            .amount;
+        Ok(amount.into())
     }
 }

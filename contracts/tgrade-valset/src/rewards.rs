@@ -1,5 +1,8 @@
+use crate::msg::HookMsg;
 use crate::state::{ValidatorInfo, CONFIG};
-use cosmwasm_std::{coin, coins, Addr, BankMsg, Coin, DepsMut, Env, StdResult, SubMsg, Uint128};
+use cosmwasm_std::{
+    coin, coins, to_binary, Addr, BankMsg, Coin, DepsMut, Env, StdResult, SubMsg, Uint128, WasmMsg,
+};
 use tg_bindings::TgradeMsg;
 
 #[derive(Clone)]
@@ -49,7 +52,7 @@ pub fn pay_block_rewards(
     let non_validators_reward = block_reward.amount - validators_reward.amount;
 
     // create the distribution messages
-    let mut messages = distribute_tokens(validators_reward, balances, pay_validators);
+    let mut messages = distribute_tokens(dbg!(validators_reward), balances, pay_validators);
 
     // create a minting action if needed (and do this first)
     if amount > Uint128::zero() {
@@ -63,9 +66,10 @@ pub fn pay_block_rewards(
 
     if non_validators_reward > Uint128::zero() {
         if let Some(contract) = config.distribution_contract {
-            messages.push(SubMsg::new(BankMsg::Send {
-                to_address: contract.to_string(),
-                amount: coins(non_validators_reward.into(), &block_reward.denom),
+            messages.push(SubMsg::new(WasmMsg::Execute {
+                contract_addr: contract.to_string(),
+                msg: to_binary(&HookMsg::DistributeFunds {})?,
+                funds: dbg!(coins(non_validators_reward.into(), &block_reward.denom)),
             }));
         }
     }
