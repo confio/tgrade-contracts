@@ -60,7 +60,7 @@ pub struct InstantiateMsg {
     /// `distribution_contract` with `Distribute` message, which should perform distribution of
     /// send funds between non-validator basing on their engagement.
     /// This value is in range of `[0-1]`, `1` (or `100%`) by default.
-    #[serde(default)]
+    #[serde(default = "default_validators_reward_ratio")]
     pub validators_reward_ratio: Decimal,
 
     /// Address where part of reward for non-validators is send for further distribution. It is
@@ -74,7 +74,7 @@ pub fn default_fee_percentage() -> Decimal {
     Decimal::zero()
 }
 
-pub fn default_valildators_reward_ratio() -> Decimal {
+pub fn default_validators_reward_ratio() -> Decimal {
     Decimal::one()
 }
 
