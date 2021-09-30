@@ -298,8 +298,13 @@ mod tests {
                 vesting_plan: config.vesting_plan,
             };
 
-            let env = mock_env();
-            instantiate(deps.as_mut().branch(), env, owner, instantiate_message).unwrap();
+            instantiate(
+                deps.as_mut().branch(),
+                mock_env(),
+                owner,
+                instantiate_message,
+            )
+            .unwrap();
 
             Suite { deps }
         }
@@ -380,9 +385,13 @@ mod tests {
             },
         };
 
-        let env = mock_env();
         assert_matches!(
-            instantiate(deps.as_mut().branch(), env, owner, instantiate_message),
+            instantiate(
+                deps.as_mut().branch(),
+                mock_env(),
+                owner,
+                instantiate_message
+            ),
             Err(ContractError::PaymentError(_))
         );
     }
@@ -449,6 +458,7 @@ mod tests {
             freeze_tokens(
                 suite.deps.as_mut(),
                 Addr::unchecked(OPERATOR),
+                // 10 tokens more then instantiated by default
                 Uint128::new(110)
             ),
             Ok(Response::new()
@@ -530,9 +540,8 @@ mod tests {
         let suite = Suite::init();
 
         let account = query_account_info(suite.deps.as_ref()).unwrap();
-        let env = mock_env();
         assert_eq!(
-            allowed_release(suite.deps.as_ref(), env, account.vesting_plan),
+            allowed_release(suite.deps.as_ref(), mock_env(), account.vesting_plan),
             Ok(Uint128::zero())
         );
     }
