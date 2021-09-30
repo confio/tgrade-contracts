@@ -1,7 +1,7 @@
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
-use cosmwasm_std::{Addr, Timestamp, Uint128};
+use cosmwasm_std::{Addr, Uint128};
 use cw_storage_plus::Item;
 use tg_utils::Expiration;
 
@@ -15,7 +15,7 @@ pub enum VestingPlan {
         release_at: Expiration,
     },
     Continuous {
-        start_at: Timestamp,
+        start_at: Expiration,
         /// end_at allows linear interpolation between these points.
         end_at: Expiration,
     },

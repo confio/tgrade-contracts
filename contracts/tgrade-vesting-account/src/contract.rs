@@ -81,10 +81,20 @@ fn allowed_release(deps: Deps, env: Env, plan: &VestingPlan) -> Result<Uint128, 
                 Ok(Uint128::zero())
             }
         }
-        VestingPlan::Continuous {
-            start_at: _,
-            end_at: _,
-        } => Err(ContractError::NotImplemented),
+        VestingPlan::Continuous { start_at, end_at } => {
+            if !start_at.is_expired(&env.block) {
+                Ok(Uint128::zero())
+            } else if end_at.is_expired(&env.block) {
+                Ok(token_info.initial - token_info.frozen - token_info.released)
+            } else {
+                Ok(token_info.initial
+                    * Uint128::new(
+                        ((env.block.time.seconds() - start_at.time().seconds())
+                            / (end_at.time().seconds() - env.block.time.seconds()))
+                            as u128,
+                    ))
+            }
+        }
     }
 }
 
@@ -270,6 +280,15 @@ mod tests {
                     release_at: Expiration::at_timestamp(Timestamp::from_seconds(DEFAULT_RELEASE)),
                 },
                 coins: vec![Coin::new(100, VESTING_DENOM)],
+            }
+        }
+    }
+
+    impl SuiteConfig {
+        fn new_with_vesting_plan(vesting_plan: VestingPlan) -> Self {
+            Self {
+                vesting_plan,
+                ..Default::default()
             }
         }
     }
@@ -565,7 +584,67 @@ mod tests {
     }
 
     #[test]
-    fn release_tokens_success() {
+    fn allowed_release_continuous_before_expiration() {
+        let suite = Suite::init_with_config(SuiteConfig::new_with_vesting_plan(
+            VestingPlan::Continuous {
+                start_at: Expiration::at_timestamp(Timestamp::from_seconds(DEFAULT_RELEASE)),
+                end_at: Expiration::at_timestamp(Timestamp::from_seconds(DEFAULT_RELEASE + 200)),
+            },
+        ));
+
+        let account = query_account_info(suite.deps.as_ref()).unwrap();
+        let env = mock_env();
+
+        assert_eq!(
+            allowed_release(suite.deps.as_ref(), env, &account.vesting_plan),
+            Ok(Uint128::zero())
+        );
+    }
+
+    #[test]
+    fn allowed_release_continuous_after_expiration() {
+        let suite = Suite::init_with_config(SuiteConfig::new_with_vesting_plan(
+            VestingPlan::Continuous {
+                start_at: Expiration::at_timestamp(Timestamp::from_seconds(DEFAULT_RELEASE)),
+                end_at: Expiration::at_timestamp(Timestamp::from_seconds(DEFAULT_RELEASE + 200)),
+            },
+        ));
+
+        let account = query_account_info(suite.deps.as_ref()).unwrap();
+
+        let mut env = mock_env();
+        // 1 second after release_at expire
+        env.block.time = env.block.time.plus_seconds(301);
+
+        assert_eq!(
+            allowed_release(suite.deps.as_ref(), env, &account.vesting_plan),
+            Ok(Uint128::new(100))
+        );
+    }
+
+    #[test]
+    fn allowed_release_continuous_in_the_middle() {
+        let suite = Suite::init_with_config(SuiteConfig::new_with_vesting_plan(
+            VestingPlan::Continuous {
+                start_at: Expiration::at_timestamp(Timestamp::from_seconds(DEFAULT_RELEASE)),
+                end_at: Expiration::at_timestamp(Timestamp::from_seconds(DEFAULT_RELEASE + 200)),
+            },
+        ));
+
+        let account = query_account_info(suite.deps.as_ref()).unwrap();
+
+        let mut env = mock_env();
+        // 100 seconds after start, 100 seconds before end
+        env.block.time = env.block.time.plus_seconds(150);
+
+        assert_eq!(
+            allowed_release(suite.deps.as_ref(), env, &account.vesting_plan),
+            Ok(Uint128::new(100))
+        );
+    }
+
+    #[test]
+    fn release_tokens_discrete_success() {
         let mut suite = Suite::init();
 
         let mut env = mock_env();
