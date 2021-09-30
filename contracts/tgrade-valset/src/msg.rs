@@ -56,7 +56,7 @@ pub struct InstantiateMsg {
     #[serde(default)]
     pub auto_unjail: bool,
 
-    /// Fraction of how much reward is distributed between validators. Rest all send to the
+    /// Fraction of how much reward is distributed between validators. Remainder is send to the
     /// `distribution_contract` with `Distribute` message, which should perform distribution of
     /// send funds between non-validator basing on their engagement.
     /// This value is in range of `[0-1]`, `1` (or `100%`) by default.
@@ -96,14 +96,14 @@ impl InstantiateMsg {
         if self.epoch_reward.denom.len() < 2 || self.epoch_reward.denom.len() > 127 {
             return Err(ContractError::InvalidRewardDenom {});
         }
-        for op in self.initial_keys.iter() {
-            op.validate()?
-        }
         if self.validators_reward_ratio > Decimal::one() {
             return Err(ContractError::InvalidRewardsRatio {});
         }
         if self.validators_reward_ratio < Decimal::one() && self.distribution_contract.is_none() {
             return Err(ContractError::NoDistributionContract {});
+        }
+        for op in self.initial_keys.iter() {
+            op.validate()?
         }
         Ok(())
     }

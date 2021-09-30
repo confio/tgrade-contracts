@@ -52,7 +52,7 @@ pub fn pay_block_rewards(
     let non_validators_reward = block_reward.amount - validators_reward.amount;
 
     // create the distribution messages
-    let mut messages = distribute_tokens(dbg!(validators_reward), balances, pay_validators);
+    let mut messages = distribute_tokens(validators_reward, balances, pay_validators);
 
     // create a minting action if needed (and do this first)
     if amount > Uint128::zero() {
@@ -69,7 +69,7 @@ pub fn pay_block_rewards(
             messages.push(SubMsg::new(WasmMsg::Execute {
                 contract_addr: contract.to_string(),
                 msg: to_binary(&HookMsg::DistributeFunds {})?,
-                funds: dbg!(coins(non_validators_reward.into(), &block_reward.denom)),
+                funds: coins(non_validators_reward.into(), &block_reward.denom),
             }));
         }
     }

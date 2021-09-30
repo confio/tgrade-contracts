@@ -40,7 +40,7 @@ pub struct Config {
     #[serde(default)]
     pub auto_unjail: bool,
 
-    /// Fraction of how much reward is distributed between validators. Rest all send to the
+    /// Fraction of how much reward is distributed between validators. Remainder is send to the
     /// `distribution_contract` with `Distribute` message, which should perform distribution of
     /// send funds between non-validator basing on their engagement.
     /// This value is in range of `[0-1]`, `1` (or `100%`) by default.
