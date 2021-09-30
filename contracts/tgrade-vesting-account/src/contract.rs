@@ -63,12 +63,12 @@ pub fn execute(
         ExecuteMsg::FreezeTokens { amount } => freeze_tokens(deps, info.sender, amount),
         ExecuteMsg::UnfreezeTokens { amount } => unfreeze_tokens(deps, info.sender, amount),
         ExecuteMsg::ChangeOperator { address } => change_operator(deps, info.sender, address),
-        _ => unimplemented!(),
+        _ => Err(ContractError::NotImplemented),
     }
 }
 
 /// Returns information about amount of tokens that is allowed to be released
-fn allowed_release(deps: Deps, env: Env, plan: VestingPlan) -> Result<Uint128, ContractError> {
+fn allowed_release(deps: Deps, env: Env, plan: &VestingPlan) -> Result<Uint128, ContractError> {
     let token_info = query_token_info(deps)?;
 
     match plan {
@@ -84,7 +84,7 @@ fn allowed_release(deps: Deps, env: Env, plan: VestingPlan) -> Result<Uint128, C
         VestingPlan::Continuous {
             start_at: _,
             end_at: _,
-        } => unimplemented!(),
+        } => Err(ContractError::NotImplemented),
     }
 }
 
@@ -102,7 +102,7 @@ fn release_tokens(
         ));
     };
 
-    let tokens_to_release = allowed_release(deps.as_ref(), env, account.vesting_plan.clone())?;
+    let tokens_to_release = allowed_release(deps.as_ref(), env, &account.vesting_plan)?;
     let response = if tokens_to_release >= amount {
         let msg = BankMsg::Send {
             to_address: account.recipient.to_string(),
@@ -134,11 +134,7 @@ fn freeze_tokens(deps: DepsMut, sender: Addr, amount: Uint128) -> Result<Respons
     }
 
     let available_to_freeze = account.initial_tokens - account.frozen_tokens - account.paid_tokens;
-    let final_frozen = if amount > available_to_freeze {
-        available_to_freeze
-    } else {
-        amount
-    };
+    let final_frozen = std::cmp::min(amount, available_to_freeze);
     account.frozen_tokens += final_frozen;
 
     VESTING_ACCOUNT.save(deps.storage, &account)?;
@@ -207,7 +203,9 @@ pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
     match msg {
         QueryMsg::AccountInfo {} => to_binary(&query_account_info(deps)?),
         QueryMsg::TokenInfo {} => to_binary(&query_token_info(deps)?),
-        _ => unimplemented!(),
+        _ => Err(cosmwasm_std::StdError::GenericErr {
+            msg: "Querry not yet implemented".to_string(),
+        }),
     }
 }
 
@@ -275,16 +273,6 @@ mod tests {
             }
         }
     }
-
-    // TODO: I'm sure it'll be useful later
-    // impl SuiteConfig {
-    //     fn new_with_vesting_plan(vesting_plan: VestingPlan) -> Self {
-    //         Self {
-    //             vesting_plan,
-    //             ..Default::default()
-    //         }
-    //     }
-    // }
 
     struct Suite {
         deps: OwnedDeps<MockStorage, MockApi, MockQuerier>,
@@ -555,7 +543,7 @@ mod tests {
 
         let account = query_account_info(suite.deps.as_ref()).unwrap();
         assert_eq!(
-            allowed_release(suite.deps.as_ref(), mock_env(), account.vesting_plan),
+            allowed_release(suite.deps.as_ref(), mock_env(), &account.vesting_plan),
             Ok(Uint128::zero())
         );
     }
@@ -571,7 +559,7 @@ mod tests {
         env.block.time = env.block.time.plus_seconds(101);
 
         assert_eq!(
-            allowed_release(suite.deps.as_ref(), env, account.vesting_plan),
+            allowed_release(suite.deps.as_ref(), env, &account.vesting_plan),
             Ok(Uint128::new(100))
         );
     }

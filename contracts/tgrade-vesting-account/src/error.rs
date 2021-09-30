@@ -12,4 +12,8 @@ pub enum ContractError {
 
     #[error("Unauthorized operation: {0}")]
     Unauthorized(String),
+
+    // TODO: Temporary error to not panic at unimplemented parts - remove when done
+    #[error("Not available - implementation is not finished")]
+    NotImplemented,
 }
