@@ -10,15 +10,15 @@ use crate::state::VestingPlan;
 #[serde(rename_all = "snake_case")]
 pub struct InstantiateMsg {
     /// Account that receives the tokens once they have been vested and released.
-    recipient: Addr,
+    pub recipient: Addr,
     /// Secure multi-sig from SOB, which can be used to change the Operator
     /// or to hald the release of future tokens in the case of misbehavior.
-    operator: Addr,
+    pub operator: Addr,
     /// Validator or an optional delegation to an "operational" employee from
     /// SOB, which can approve the payout of fully vested tokens to the final
     /// recipient.
-    oversight: Addr,
-    vesting_plan: VestingPlan,
+    pub oversight: Addr,
+    pub vesting_plan: VestingPlan,
 }
 
 #[derive(Serialize, Deserialize, Clone, PartialEq, JsonSchema, Debug)]
@@ -73,7 +73,7 @@ where
     /// as well as vesting plan for this account
     AccountInfo {},
     /// Shows current data about tokens from this vesting account.
-    TokensInfo {},
+    TokenInfo {},
     /// After HandOff has been sucesfully finished, account will be set
     /// as liberated.
     IsLiberated {},
@@ -89,17 +89,15 @@ pub struct AccountInfoResponse {
     pub vesting_plan: VestingPlan,
 }
 
-/// Response for TokensInfo query
+/// Response for TokenInfo query
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
-pub struct TokensInfoResponse {
+pub struct TokenInfoResponse {
     /// Initial amount of vested tokens
     pub initial: Uint128,
     /// Amount of currently frozen tokens
     pub frozen: Uint128,
     /// Amount of tokens that has been paid so far
     pub released: Uint128,
-    /// Amount of tokens that is allowed to release at that point
-    pub allowed_release: Uint128,
 }
 
 /// Response for IsLiberated query
