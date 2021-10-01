@@ -4,7 +4,7 @@ use std::fs::create_dir_all;
 use cosmwasm_schema::{export_schema, export_schema_with_title, remove_schemas, schema_for};
 
 pub use tgrade_valset::msg::{
-    ConfigResponse, EpochResponse, ExecuteMsg, HookMsg, InstantiateMsg,
+    ConfigResponse, DistributionMsg, EpochResponse, ExecuteMsg, InstantiateMsg,
     ListActiveValidatorsResponse, ListValidatorResponse, QueryMsg, ValidatorResponse,
 };
 
@@ -24,5 +24,5 @@ fn main() {
     export_schema(&schema_for!(ValidatorResponse), &out_dir);
     export_schema(&schema_for!(ListActiveValidatorsResponse), &out_dir);
 
-    export_schema(&schema_for!(HookMsg), &out_dir);
+    export_schema(&schema_for!(DistributionMsg), &out_dir);
 }

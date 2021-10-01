@@ -1,4 +1,4 @@
-use crate::msg::HookMsg;
+use crate::msg::DistributionMsg;
 use crate::state::{ValidatorInfo, CONFIG};
 use cosmwasm_std::{
     coin, coins, to_binary, Addr, BankMsg, Coin, DepsMut, Env, StdResult, SubMsg, Uint128, WasmMsg,
@@ -68,7 +68,7 @@ pub fn pay_block_rewards(
         if let Some(contract) = config.distribution_contract {
             messages.push(SubMsg::new(WasmMsg::Execute {
                 contract_addr: contract.to_string(),
-                msg: to_binary(&HookMsg::DistributeFunds {})?,
+                msg: to_binary(&DistributionMsg::DistributeFunds {})?,
                 funds: coins(non_validators_reward.into(), &block_reward.denom),
             }));
         }

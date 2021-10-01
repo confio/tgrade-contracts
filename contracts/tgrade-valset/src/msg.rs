@@ -281,7 +281,7 @@ pub struct ListActiveValidatorsResponse {
 /// Messages send by this contract to external contract
 #[derive(Serialize, Deserialize, Clone, PartialEq, JsonSchema, Debug)]
 #[serde(rename_all = "snake_case")]
-pub enum HookMsg {
+pub enum DistributionMsg {
     /// Message send to `distribution_contract` with funds which are part of reward to be splitted
     /// between engaged operators
     DistributeFunds {},
