@@ -21,9 +21,11 @@ To create it, you must pass in a list of members, as well as an optional
 `admin`, if you wish it to be mutable.
 
 ```rust
-pub struct InitMsg {
+pub struct InstantiateMsg {
     pub admin: Option<HumanAddr>,
     pub members: Vec<Member>,
+    pub preauths: Option<u64>,
+    pub halflife: Option<Duration>,
     pub token: Option<String>,
 }
 
@@ -52,18 +54,23 @@ Basic update messages, queries, and hooks are defined by the
 
 `tg4-engagement` adds one message to control the group membership:
 
-`UpdateMembers{add, remove}` - takes a membership diff and adds/updates the
+`UpdateMembers {add, remove}` - takes a membership diff and adds/updates the
 members, as well as removing any provided addresses. If an address is on both
 lists, it will be removed. If it appears multiple times in `add`, only the
 last occurrence will be used.
 
-`DistributeFunds{sender}` - distributes funds sent with this message, and sent with
+`AddHook {addr}` - adds a new hook to be informed of all membership changes.
+Must be called by an Admin.
+
+`RemoveHook {addr}` - removes a hook. Must be called by an Admin.
+
+`DistributeFunds {sender}` - distributes funds sent with this message, and sent with
 regular bank message since last `DistributeFunds`. `sender` is optional info
 overwriting `sender` field on generated event. Funds are distributed to members,
 proportionally to their weights. Funds are not sent to members directly, instead
 they are assigned for future withdrawal.
 
-`WithdrawFunds{receiver}` - withdraws funds previously assigned to sender of the
+`WithdrawFunds {receiver}` - withdraws funds previously assigned to sender of the
 message while funds distribution. Optional `receiver` field is an address where
 funds should be send, message sender by default.
 
@@ -75,14 +82,18 @@ to `sender`.
 
 ## Queries
 
-`WithdrawableFunds{owner}` - returns how much funds is assigned for withdrawal by
+`Hooks {}` - returns all registered hooks.
+
+`Preauths {}` - returns the current number of preauths.
+
+`WithdrawableFunds {owner}` - returns how much funds is assigned for withdrawal by
 owner.
 
-`DistributedFunds{}` - returns how much funds were distributed by this contract in
+`DistributedFunds {}` - returns how much funds were distributed by this contract in
 its lifetime.
 
-`UndistributedFunds{}` - returns how much funds is waiting for distribution on this
+`UndistributedFunds {}` - returns how much funds is waiting for distribution on this
 contract.
 
-`Delegated{owner}` - returns address allowed to withdraw funds assigned to given
+`Delegated {owner}` - returns address allowed to withdraw funds assigned to given
 `owner`. If none is set, `owner` would be returned.
