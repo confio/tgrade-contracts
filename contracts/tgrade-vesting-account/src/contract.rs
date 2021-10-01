@@ -1,7 +1,8 @@
 #[cfg(not(feature = "library"))]
 use cosmwasm_std::entry_point;
 use cosmwasm_std::{
-    coins, to_binary, Addr, BankMsg, Binary, Deps, DepsMut, Env, MessageInfo, StdResult, Uint128,
+    coins, to_binary, Addr, BankMsg, Binary, Decimal, Deps, DepsMut, Env, MessageInfo, StdResult,
+    Uint128,
 };
 use cw2::set_contract_version;
 
@@ -68,7 +69,7 @@ pub fn execute(
 }
 
 /// Returns information about amount of tokens that is allowed to be released
-fn allowed_release(deps: Deps, env: Env, plan: &VestingPlan) -> Result<Uint128, ContractError> {
+fn allowed_release(deps: Deps, env: &Env, plan: &VestingPlan) -> Result<Uint128, ContractError> {
     let token_info = query_token_info(deps)?;
 
     match plan {
@@ -88,10 +89,9 @@ fn allowed_release(deps: Deps, env: Env, plan: &VestingPlan) -> Result<Uint128, 
                 Ok(token_info.initial - token_info.frozen - token_info.released)
             } else {
                 Ok(token_info.initial
-                    * Uint128::new(
-                        ((env.block.time.seconds() - start_at.time().seconds())
-                            / (end_at.time().seconds() - env.block.time.seconds()))
-                            as u128,
+                    * Decimal::from_ratio(
+                        env.block.time.seconds() - start_at.time().seconds(),
+                        end_at.time().seconds() - start_at.time().seconds(),
                     ))
             }
         }
@@ -112,7 +112,7 @@ fn release_tokens(
         ));
     };
 
-    let tokens_to_release = allowed_release(deps.as_ref(), env, &account.vesting_plan)?;
+    let tokens_to_release = allowed_release(deps.as_ref(), &env, &account.vesting_plan)?;
     let response = if tokens_to_release >= amount {
         let msg = BankMsg::Send {
             to_address: account.recipient.to_string(),
@@ -562,7 +562,7 @@ mod tests {
 
         let account = query_account_info(suite.deps.as_ref()).unwrap();
         assert_eq!(
-            allowed_release(suite.deps.as_ref(), mock_env(), &account.vesting_plan),
+            allowed_release(suite.deps.as_ref(), &mock_env(), &account.vesting_plan),
             Ok(Uint128::zero())
         );
     }
@@ -578,7 +578,7 @@ mod tests {
         env.block.time = env.block.time.plus_seconds(101);
 
         assert_eq!(
-            allowed_release(suite.deps.as_ref(), env, &account.vesting_plan),
+            allowed_release(suite.deps.as_ref(), &env, &account.vesting_plan),
             Ok(Uint128::new(100))
         );
     }
@@ -596,7 +596,7 @@ mod tests {
         let env = mock_env();
 
         assert_eq!(
-            allowed_release(suite.deps.as_ref(), env, &account.vesting_plan),
+            allowed_release(suite.deps.as_ref(), &env, &account.vesting_plan),
             Ok(Uint128::zero())
         );
     }
@@ -617,7 +617,7 @@ mod tests {
         env.block.time = env.block.time.plus_seconds(301);
 
         assert_eq!(
-            allowed_release(suite.deps.as_ref(), env, &account.vesting_plan),
+            allowed_release(suite.deps.as_ref(), &env, &account.vesting_plan),
             Ok(Uint128::new(100))
         );
     }
@@ -626,6 +626,7 @@ mod tests {
     fn allowed_release_continuous_in_the_middle() {
         let suite = Suite::init_with_config(SuiteConfig::new_with_vesting_plan(
             VestingPlan::Continuous {
+                // Plan starts 100s from mock_env() default timestamp and ends after 300s
                 start_at: Expiration::at_timestamp(Timestamp::from_seconds(DEFAULT_RELEASE)),
                 end_at: Expiration::at_timestamp(Timestamp::from_seconds(DEFAULT_RELEASE + 200)),
             },
@@ -634,11 +635,43 @@ mod tests {
         let account = query_account_info(suite.deps.as_ref()).unwrap();
 
         let mut env = mock_env();
-        // 100 seconds after start, 100 seconds before end
-        env.block.time = env.block.time.plus_seconds(150);
 
+        // 50 seconds after start, another 150 towards end
+        env.block.time = Timestamp::from_seconds(DEFAULT_RELEASE).plus_seconds(50);
         assert_eq!(
-            allowed_release(suite.deps.as_ref(), env, &account.vesting_plan),
+            allowed_release(suite.deps.as_ref(), &env, &account.vesting_plan),
+            // 100 * (50 / 200) = 25
+            Ok(Uint128::new(25))
+        );
+
+        // 75 seconds after start, another 125 towards end
+        env.block.time = Timestamp::from_seconds(DEFAULT_RELEASE).plus_seconds(75);
+        assert_eq!(
+            allowed_release(suite.deps.as_ref(), &env, &account.vesting_plan),
+            // 100 * (75 / 200) = 25
+            Ok(Uint128::new(37))
+        );
+
+        // 108 seconds after start, another 92 towards end
+        env.block.time = Timestamp::from_seconds(DEFAULT_RELEASE).plus_seconds(108);
+        assert_eq!(
+            allowed_release(suite.deps.as_ref(), &env, &account.vesting_plan),
+            // 100 * (108 / 200) = 54
+            Ok(Uint128::new(54))
+        );
+
+        // 199 seconds after start, 1 towards end
+        env.block.time = Timestamp::from_seconds(DEFAULT_RELEASE).plus_seconds(199);
+        assert_eq!(
+            allowed_release(suite.deps.as_ref(), &env, &account.vesting_plan),
+            // 100 * (199 / 200) = 99.5
+            Ok(Uint128::new(99))
+        );
+
+        // 200 seconds after start - end_at timestamp is met
+        env.block.time = Timestamp::from_seconds(DEFAULT_RELEASE).plus_seconds(200);
+        assert_eq!(
+            allowed_release(suite.deps.as_ref(), &env, &account.vesting_plan),
             Ok(Uint128::new(100))
         );
     }
