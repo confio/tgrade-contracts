@@ -3,6 +3,7 @@ use serde::{Deserialize, Serialize};
 
 use cosmwasm_std::{Addr, Timestamp, Uint128};
 use cw_storage_plus::Item;
+use tg_utils::Expiration;
 
 /// If vesting account is discrete, tokens can't be transferred
 /// until given point of time.
@@ -11,27 +12,27 @@ use cw_storage_plus::Item;
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub enum VestingPlan {
     Discrete {
-        release_at: Timestamp,
+        release_at: Expiration,
     },
     Continuous {
         start_at: Timestamp,
         /// end_at allows linear interpolation between these points.
-        end_at: Timestamp,
+        end_at: Expiration,
     },
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct VestingAccount {
-    recipient: Addr,
-    operator: Addr,
-    oversight: Addr,
-    vesting_plan: VestingPlan,
+    pub recipient: Addr,
+    pub operator: Addr,
+    pub oversight: Addr,
+    pub vesting_plan: VestingPlan,
     /// Number of currently frozen tokens
-    frozen_tokens: Uint128,
+    pub frozen_tokens: Uint128,
     /// Number of tokens that has been paid so far
-    paid_tokens: Uint128,
+    pub paid_tokens: Uint128,
     /// Number of initial tokens
-    initial_tokens: Uint128,
+    pub initial_tokens: Uint128,
 }
 
-pub const VESTING_ACCOUNT: Item<VestingAccount> = Item::new("vestingaccount");
+pub const VESTING_ACCOUNT: Item<VestingAccount> = Item::new("vesting_account");

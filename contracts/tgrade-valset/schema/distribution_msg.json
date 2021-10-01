@@ -1,6 +1,6 @@
 {
   "$schema": "http://json-schema.org/draft-07/schema#",
-  "title": "HookMsg",
+  "title": "DistributionMsg",
   "description": "Messages send by this contract to external contract",
   "oneOf": [
     {
