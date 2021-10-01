@@ -60,7 +60,7 @@ pub fn execute(
     msg: ExecuteMsg,
 ) -> Result<Response, ContractError> {
     match msg {
-        ExecuteMsg::ReleaseTokens { amount } => release_tokens(deps, &env, info.sender, amount),
+        ExecuteMsg::ReleaseTokens { amount } => release_tokens(deps, env, info.sender, amount),
         ExecuteMsg::FreezeTokens { amount } => freeze_tokens(deps, info.sender, amount),
         ExecuteMsg::UnfreezeTokens { amount } => unfreeze_tokens(deps, info.sender, amount),
         ExecuteMsg::ChangeOperator { address } => change_operator(deps, info.sender, address),
@@ -109,7 +109,7 @@ fn allowed_release(deps: Deps, env: &Env, plan: &VestingPlan) -> Result<Uint128,
 
 fn release_tokens(
     deps: DepsMut,
-    env: &Env,
+    env: Env,
     sender: Addr,
     amount: Uint128,
 ) -> Result<Response, ContractError> {
@@ -386,7 +386,7 @@ mod tests {
             assert_matches!(
                 release_tokens(
                     suite.deps.as_mut(),
-                    &mock_env(),
+                    mock_env(),
                     Addr::unchecked(RECIPIENT),
                     Uint128::new(50)
                 ),
@@ -697,7 +697,7 @@ mod tests {
         assert_eq!(
             release_tokens(
                 suite.deps.as_mut(),
-                &env,
+                env,
                 Addr::unchecked(OPERATOR),
                 amount_to_send
             ),
@@ -726,7 +726,7 @@ mod tests {
         assert_eq!(
             release_tokens(
                 suite.deps.as_mut(),
-                &mock_env(),
+                mock_env(),
                 Addr::unchecked(OPERATOR),
                 Uint128::new(25),
             ),
@@ -760,7 +760,7 @@ mod tests {
         assert_eq!(
             release_tokens(
                 suite.deps.as_mut(),
-                &env,
+                env.clone(),
                 Addr::unchecked(OPERATOR),
                 first_amount_released,
             ),
@@ -787,7 +787,7 @@ mod tests {
         let second_amount_released = Uint128::new(40);
         release_tokens(
             suite.deps.as_mut(),
-            &env,
+            env.clone(),
             Addr::unchecked(OPERATOR),
             second_amount_released,
         )
@@ -806,7 +806,7 @@ mod tests {
         let third_amount_released = Uint128::new(35);
         release_tokens(
             suite.deps.as_mut(),
-            &env,
+            env,
             Addr::unchecked(OPERATOR),
             third_amount_released,
         )
@@ -839,7 +839,7 @@ mod tests {
         assert_eq!(
             release_tokens(
                 suite.deps.as_mut(),
-                &env,
+                env,
                 Addr::unchecked(OPERATOR),
                 first_amount_released,
             ),
@@ -890,7 +890,7 @@ mod tests {
         assert_eq!(
             release_tokens(
                 suite.deps.as_mut(),
-                &env,
+                env.clone(),
                 Addr::unchecked(OPERATOR),
                 amount_to_release,
             ),
@@ -909,7 +909,7 @@ mod tests {
         assert_eq!(
             release_tokens(
                 suite.deps.as_mut(),
-                &env,
+                env,
                 Addr::unchecked(OPERATOR),
                 amount_to_release,
             ),
