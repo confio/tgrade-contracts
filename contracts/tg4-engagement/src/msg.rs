@@ -1,4 +1,4 @@
-use cosmwasm_std::Coin;
+use cosmwasm_std::{Addr, Coin};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
@@ -44,8 +44,20 @@ pub enum ExecuteMsg {
     },
     /// Withdraws funds which were previously distributed and assigned to sender.
     WithdrawFunds {
+        /// Account which funds assigned too should be withdrawn, `sender` by default. `sender` has
+        /// to be eligible for withdrawal from `owner` address to perform this call (`owner` has to
+        /// call `DelegateWithdrawal { delegated: seder }` before)
+        owner: Option<String>,
         /// Address where to transfer funds. If not present, funds would be send to `sender`.
         receiver: Option<String>,
+    },
+    /// Sets given address as allowed for senders funds withdrawal. Funds still can be withdrawn by
+    /// sender himself, but additional account is allowed to perform it as well. There can be only
+    /// one account delegated for withdrawal for any owner at single time.
+    DelegateWithdrawal {
+        /// Account delegated for withdrawal. To disallow current withdrawal, best is to set it to
+        /// own address.
+        delegated: String,
     },
 }
 
@@ -84,6 +96,8 @@ pub enum QueryMsg {
     /// Return how much funds were send to this contract since last `ExecuteMsg::DistribtueFunds`,
     /// and wait for distribution. Returns `FundsResponse`.
     UndistributedFunds {},
+    /// Returns delegate allowed for withdrawal funds assigned to owner. Returns `DelegateResponse`
+    Delegate { owner: String },
 }
 
 #[derive(Serialize, Deserialize, Clone, PartialEq, JsonSchema, Debug)]
@@ -117,6 +131,11 @@ pub struct PreauthResponse {
 #[derive(Serialize, Deserialize, Clone, PartialEq, JsonSchema, Debug)]
 pub struct FundsResponse {
     pub funds: Coin,
+}
+
+#[derive(Serialize, Deserialize, Clone, PartialEq, JsonSchema, Debug)]
+pub struct DelegateResponse {
+    pub delegated: Addr,
 }
 
 #[cfg(test)]

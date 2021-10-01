@@ -191,6 +191,27 @@
         }
       },
       "additionalProperties": false
+    },
+    {
+      "description": "Returns delegate allowed for withdrawal funds assigned to owner. Returns `DelegateResponse`",
+      "type": "object",
+      "required": [
+        "delegate"
+      ],
+      "properties": {
+        "delegate": {
+          "type": "object",
+          "required": [
+            "owner"
+          ],
+          "properties": {
+            "owner": {
+              "type": "string"
+            }
+          }
+        }
+      },
+      "additionalProperties": false
     }
   ],
   "definitions": {

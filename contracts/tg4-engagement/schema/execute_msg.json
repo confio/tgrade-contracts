@@ -128,12 +128,41 @@
         "withdraw_funds": {
           "type": "object",
           "properties": {
+            "owner": {
+              "description": "Account which funds assigned too should be withdrawn, `sender` by default. `sender` has to be eligible for withdrawal from `owner` address to perform this call (`owner` has to call `DelegateWithdrawal { delegated: seder }` before)",
+              "type": [
+                "string",
+                "null"
+              ]
+            },
             "receiver": {
               "description": "Address where to transfer funds. If not present, funds would be send to `sender`.",
               "type": [
                 "string",
                 "null"
               ]
+            }
+          }
+        }
+      },
+      "additionalProperties": false
+    },
+    {
+      "description": "Sets given address as allowed for senders funds withdrawal. Funds still can be withdrawn by sender himself, but additional account is allowed to perform it as well. There can be only one account delegated for withdrawal for any owner at single time.",
+      "type": "object",
+      "required": [
+        "delegate_withdrawal"
+      ],
+      "properties": {
+        "delegate_withdrawal": {
+          "type": "object",
+          "required": [
+            "delegated"
+          ],
+          "properties": {
+            "delegated": {
+              "description": "Account delegated for withdrawal. To disallow current withdrawal, best is to set it to own address.",
+              "type": "string"
             }
           }
         }

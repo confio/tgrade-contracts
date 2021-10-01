@@ -5,7 +5,7 @@ use cosmwasm_schema::{export_schema, export_schema_with_title, remove_schemas, s
 
 pub use tg4::{AdminResponse, MemberListResponse, MemberResponse, TotalWeightResponse};
 pub use tg4_engagement::msg::{
-    ExecuteMsg, FundsResponse, InstantiateMsg, PreauthResponse, QueryMsg, SudoMsg,
+    DelegateResponse, ExecuteMsg, FundsResponse, InstantiateMsg, PreauthResponse, QueryMsg, SudoMsg,
 };
 
 fn main() {
@@ -24,4 +24,5 @@ fn main() {
     export_schema(&schema_for!(PreauthResponse), &out_dir);
     export_schema(&schema_for!(SudoMsg), &out_dir);
     export_schema(&schema_for!(FundsResponse), &out_dir);
+    export_schema(&schema_for!(DelegateResponse), &out_dir);
 }

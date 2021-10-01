@@ -87,15 +87,17 @@ pub fn create(
     DISTRIBUTION.save(deps.storage, &distribution)?;
 
     let mut total = 0u64;
-    let adjustment = WithdrawAdjustment {
-        points_correction: 0i128.into(),
-        withdrawn_funds: Uint128::zero(),
-    };
 
     for member in members_list.into_iter() {
         total += member.weight;
         let member_addr = deps.api.addr_validate(&member.addr)?;
         members().save(deps.storage, &member_addr, &member.weight, height)?;
+
+        let adjustment = WithdrawAdjustment {
+            points_correction: 0i128.into(),
+            withdrawn_funds: Uint128::zero(),
+            delegated: member_addr.clone(),
+        };
 
         WITHDRAW_ADJUSTMENT.save(deps.storage, &member_addr, &adjustment)?;
     }
@@ -127,7 +129,8 @@ pub fn execute(
         ExecuteMsg::DistributeFunds { sender } => {
             execute_distribute_tokens(deps, env, info, sender)
         }
-        ExecuteMsg::WithdrawFunds { receiver } => execute_withdraw_tokens(deps, info, receiver),
+        ExecuteMsg::WithdrawFunds { receiver, .. } => execute_withdraw_tokens(deps, info, receiver),
+        ExecuteMsg::DelegateWithdrawal { .. } => todo!(),
     }
 }
 
@@ -389,7 +392,14 @@ pub fn apply_points_correction(
     diff: i128,
 ) -> StdResult<()> {
     WITHDRAW_ADJUSTMENT.update(deps.storage, addr, |old| -> StdResult<_> {
-        let mut old = old.unwrap_or_default();
+        let mut old = old.unwrap_or_else(|| {
+            // This should never happen, but better this than panic
+            WithdrawAdjustment {
+                points_correction: 0.into(),
+                withdrawn_funds: Uint128::zero(),
+                delegated: addr.clone(),
+            }
+        });
         let points_correction: i128 = old.points_correction.into();
         old.points_correction = (points_correction - points_per_weight as i128 * diff).into();
         Ok(old)
@@ -510,6 +520,7 @@ pub fn query(deps: Deps, env: Env, msg: QueryMsg) -> StdResult<Binary> {
         QueryMsg::WithdrawableFunds { owner } => to_binary(&query_withdrawable_funds(deps, owner)?),
         QueryMsg::DistributedFunds {} => to_binary(&query_distributed_total(deps)?),
         QueryMsg::UndistributedFunds {} => to_binary(&query_undistributed_funds(deps, env)?),
+        QueryMsg::Delegate { .. } => todo!(),
     }
 }
 

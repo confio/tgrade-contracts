@@ -128,6 +128,7 @@ impl Suite {
             Addr::unchecked(executor),
             self.contract.clone(),
             &ExecuteMsg::WithdrawFunds {
+                owner: None,
                 receiver: receiver.into().map(str::to_owned),
             },
             &[],
