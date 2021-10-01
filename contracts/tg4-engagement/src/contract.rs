@@ -2,7 +2,7 @@
 use cosmwasm_std::entry_point;
 use cosmwasm_std::{
     coin, to_binary, Addr, BankMsg, Binary, Coin, Deps, DepsMut, Env, Event, MessageInfo, Order,
-    StdResult, Timestamp, Uint128,
+    StdError, StdResult, Timestamp, Uint128,
 };
 use cw0::maybe_addr;
 use cw2::set_contract_version;
@@ -130,7 +130,9 @@ pub fn execute(
             execute_distribute_tokens(deps, env, info, sender)
         }
         ExecuteMsg::WithdrawFunds { receiver, .. } => execute_withdraw_tokens(deps, info, receiver),
-        ExecuteMsg::DelegateWithdrawal { .. } => todo!(),
+        ExecuteMsg::DelegateWithdrawal { delegated } => {
+            execute_delegate_withdrawal(deps, info, delegated)
+        }
     }
 }
 
@@ -290,6 +292,35 @@ pub fn execute_withdraw_tokens(
             to_address: receiver.to_string(),
             amount: vec![token],
         }));
+
+    Ok(resp)
+}
+
+pub fn execute_delegate_withdrawal(
+    deps: DepsMut,
+    info: MessageInfo,
+    delegated: String,
+) -> Result<Response, ContractError> {
+    let delegated = deps.api.addr_validate(&delegated)?;
+
+    WITHDRAW_ADJUSTMENT.update(deps.storage, &info.sender, |data| -> StdResult<_> {
+        Ok(data.map_or_else(
+            || WithdrawAdjustment {
+                points_correction: 0.into(),
+                withdrawn_funds: Uint128::zero(),
+                delegated: delegated.clone(),
+            },
+            |mut data| {
+                data.delegated = delegated.clone();
+                data
+            },
+        ))
+    })?;
+
+    let resp = Response::new()
+        .add_attribute("action", "delegate_withdrawal")
+        .add_attribute("sender", info.sender.as_str())
+        .add_attribute("delegated", &delegated);
 
     Ok(resp)
 }
