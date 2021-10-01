@@ -25,14 +25,14 @@
       ]
     },
     "initial_members": {
-      "description": "List of non-voting members to be added to the DSO upon creation",
+      "description": "List of non-voting members to be added to the TRUSTED_CIRCLE upon creation",
       "type": "array",
       "items": {
         "type": "string"
       }
     },
     "name": {
-      "description": "DSO Name",
+      "description": "TRUSTED_CIRCLE Name",
       "type": "string"
     },
     "quorum": {

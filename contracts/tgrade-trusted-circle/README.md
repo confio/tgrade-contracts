@@ -1,16 +1,16 @@
-# TGrade DSO
+# TGrade Trusted Circle
 
 This is an implementation of the [tg4 spec](../../packages/tg4/README.md)
-with the aim of implementing a DSO (Decentralized Social Organization).
+with the aim of implementing a Trusted Circle (formerly DSO - Decentralized Social Organization).
 It implements all the elements of the tg4 spec.
 
 Besides tg4-based voting and non-voting participants membership, it also defines and
-implements DSO-related functionality for managing escrow deposits and redemptions,
+implements Trusted Circle-related functionality for managing escrow deposits and redemptions,
 and for proposals voting, based on [CW3](https://github.com/CosmWasm/cosmwasm-plus/tree/master/packages/cw3).
 
 ## Init
 
-To create it, you must pass the DSO name, the escrow denomination,
+To create it, you must pass the Trusted Circle name, the escrow denomination,
 and the default voting quorum and threshold.
 As well as an optional `admin`, if you wish it to be mutable.
 
@@ -19,7 +19,7 @@ pub struct InstantiateMsg {
     /// The admin is the only account that can update the group state.
     /// Omit it to make the group immutable.
     pub admin: Option<String>,
-    /// DSO Name
+    /// Trusted Circle Name
     pub name: String,
     /// The required escrow amount, in the default denom (TGD)
     pub escrow_amount: u128,
@@ -42,21 +42,21 @@ specific permissions, but they cannot participate in decision-making.
 Basic update messages, and queries are defined by the
 [tg4 spec](../../packages/tg4/README.md). Please refer to it for more info.
 
-`tgrade-dso` add messages to:
+`tgrade-trusted-circle` add messages to:
 
 - Deposit and redeem funds in escrow.
 
 - Create proposals, and allow voting them:
 
 This is similar functionality to [CW3](https://github.com/CosmWasm/cosmwasm-plus/tree/master/packages/cw3),
-but specific to DSOs.
+but specific to Trusted Circles.
 All voting and non-voting member updates (additions and removals),
 voting member slashing, as well as permissions assignment and revocation for
 non-voting participants, must be done through voting.
 
-- Edit the DSO:
+- Edit the Trusted Circle:
 
-This allows changing the DSO name, voting period, etc.
+This allows changing the Trusted Circle name, voting period, etc.
 For the special case of changing the escrow amount, see the [Escrow Changed](#escrow-changed) section below.
 
 - Punish voting members:
@@ -66,8 +66,8 @@ and/or expulsion (member kick out).
 The proposal also supports distribution or burning of the slashed funds, as well as recovering or refunding of the
 kicked out member's remaining escrow, after the member's leaving period (two voting periods) has ended.
 
-- Close the DSO.
-This implies redeeming all the funds, and removing / blocking the DSO so that
+- Close the Trusted Circle.
+This implies redeeming all the funds, and removing / blocking the Trusted Circle so that
 it cannot be accessed anymore.
 
 - And more
@@ -76,13 +76,13 @@ it cannot be accessed anymore.
 
 This is becoming complex, and hard to reason about, so we need to discuss the full lifecycle of a member.
 
-- *Non Member* - Everyone starts here and may return here. No special rights in the DSO
+- *Non Member* - Everyone starts here and may return here. No special rights in the Trusted Circle
 
 - *Non Voting Member* - On a successful proposal, an *non-member* may be converted to a non-voting member. Another proposal
   may convert them to a *non-member*, or they may choose such a transition themselves.
 
 - *Pending Voter* - On a successful proposal, a *non-member* or *non-voting member* may be converted to a *pending voter*.
-  They have the same rights as a *non-voting member* (participate in the DSO), but cannot yet vote. A pending voter may
+  They have the same rights as a *non-voting member* (participate in the Trusted Circle), but cannot yet vote. A pending voter may
   *deposit escrow*. Once their escrow deposit is equal or greater than the required escrow, they become
   *pending, paid voter*.
 
@@ -92,7 +92,7 @@ This is becoming complex, and hard to reason about, so we need to discuss the fu
 - *Voter* - All voters are assigned a voting weight of 1 and are able to make proposals and vote on them. They can *deposit escrow*
   to raise it and *return* escrow down to the minimum required escrow, but no lower. There are 3 transitions out:
   - Voluntary leave: transition to *Leaving Voter*
-  - Punishment: transition to a *Non Member* and escrow is distributed to whoever DSO Governance decides
+  - Punishment: transition to a *Non Member* and escrow is distributed to whoever Trusted Circle Governance decides
   - Partial Slashing: transition to a *Pending Voter* and a portion of the escrow is confiscated. They can then deposit
     more escrow to become a *Voter* or remain a *Non Voting Member*
   - By Escrow Increased
@@ -105,12 +105,12 @@ This is becoming complex, and hard to reason about, so we need to discuss the fu
 ### Leaving
 
 *Non Voting Member*, *Pending Voter*, *Pending, Paid Voter*, and *Pending, Paid Voter* may all request to voluntarily
-leave the DSO. *Non Voting Member* as well as *Pending Voter* who have not yet paid any escrow are immediately removed
-from the DSO. All other cases, which have paid in some escrow, are transitioned to *Leaving Voter* and can reclaim
+leave the Trusted Circle. *Non Voting Member* as well as *Pending Voter* who have not yet paid any escrow are immediately removed
+from the Trusted Circle. All other cases, which have paid in some escrow, are transitioned to *Leaving Voter* and can reclaim
 their escrow after the grace period has expired.
 
 Proposals work using a snapshot of the voting members *at the time of creation*. This means a voting member may leave
-the DSO, but still be eligible to vote in some existing proposals. To make this more intuitive, we will say that
+the Trusted Circle, but still be eligible to vote in some existing proposals. To make this more intuitive, we will say that
 any vote cast *before* the voting member left will remain valid, however, they will not be able to vote after this point.
 The way we tally the votes for such proposals is:
 
@@ -144,7 +144,7 @@ meaning they will become a full voter once they have paid all escrow dues.
 
 ### Escrow Changed
 
-If the escrow is *increased*, many *Voting* members may no longer have the minimum escrow. We handle this in a batch for the *EditDso* proposal, with a grace period to allow
+If the escrow is *increased*, many *Voting* members may no longer have the minimum escrow. We handle this in a batch for the *EditTrustedCircle* proposal, with a grace period to allow
 them to top-up before enforcing the new escrow. Rather than add more states to capture *Voting* or *Pending*, or *PendingPaid* Voters
 who have paid the old escrow but not the new one, we will model it by a delay on the escrow.
 

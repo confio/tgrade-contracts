@@ -9,7 +9,7 @@ use cw3::{Status, Vote};
 #[derive(Serialize, Deserialize, Clone, PartialEq, JsonSchema, Debug)]
 #[serde(rename_all = "snake_case")]
 pub struct InstantiateMsg {
-    /// DSO Name
+    /// TRUSTED_CIRCLE Name
     pub name: String,
     /// The required escrow amount, in the default denom (utgd)
     pub escrow_amount: Uint128,
@@ -22,7 +22,7 @@ pub struct InstantiateMsg {
     /// If true, and absolute threshold and quorum are met, we can end before voting period finished.
     /// (Recommended value: true, unless you have special needs)
     pub allow_end_early: bool,
-    /// List of non-voting members to be added to the DSO upon creation
+    /// List of non-voting members to be added to the TRUSTED_CIRCLE upon creation
     pub initial_members: Vec<String>,
 }
 
@@ -48,7 +48,7 @@ pub enum ExecuteMsg {
         proposal_id: u64,
     },
     /// This allows the caller to exit from the group
-    LeaveDso {},
+    LeaveTrustedCircle {},
     /// This checks any batches whose grace period has passed, and who have not all paid escrow.
     /// Run through these groups and promote anyone who has paid escrow.
     /// This also checks if there's a pending escrow that needs to be applied.
@@ -59,8 +59,8 @@ pub enum ExecuteMsg {
 #[derive(Serialize, Deserialize, Clone, PartialEq, JsonSchema, Debug)]
 #[serde(rename_all = "snake_case")]
 pub enum QueryMsg {
-    /// Return DsoResponse
-    Dso {},
+    /// Return TrustedCircleResponse
+    TrustedCircle {},
     /// Return TotalWeightResponse
     TotalWeight {},
     /// Returns MemberListResponse, for all (voting and non-voting) members
@@ -120,8 +120,8 @@ pub enum QueryMsg {
 pub type EscrowResponse = Option<EscrowStatus>;
 
 #[derive(Serialize, Deserialize, Clone, PartialEq, JsonSchema, Debug)]
-pub struct DsoResponse {
-    /// DSO Name
+pub struct TrustedCircleResponse {
+    /// TRUSTED_CIRCLE Name
     pub name: String,
     /// The required escrow amount, in the default denom (utgd)
     pub escrow_amount: Uint128,

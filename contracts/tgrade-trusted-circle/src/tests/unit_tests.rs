@@ -47,9 +47,9 @@ fn instantiation_enough_funds() {
     let total = query_total_weight(deps.as_ref()).unwrap();
     assert_eq!(1, total.weight);
 
-    // ensure dso query works
-    let expected = DsoResponse {
-        name: DSO_NAME.to_string(),
+    // ensure trusted_circle query works
+    let expected = TrustedCircleResponse {
+        name: TRUSTED_CIRCLE_NAME.to_string(),
         escrow_amount: Uint128::new(ESCROW_FUNDS),
         escrow_pending: None,
         rules: VotingRules {
@@ -59,8 +59,8 @@ fn instantiation_enough_funds() {
             allow_end_early: true,
         },
     };
-    let dso = query_dso(deps.as_ref()).unwrap();
-    assert_eq!(dso, expected);
+    let trusted_circle = query_trusted_circle(deps.as_ref()).unwrap();
+    assert_eq!(trusted_circle, expected);
 }
 
 #[test]
@@ -87,8 +87,8 @@ fn test_proposal_validation() {
             ContractError::NoMembers {},
         ),
         (
-            // Invalid EditDso proposal (invalid escrow amount)
-            ProposalContent::EditDso(DsoAdjustments {
+            // Invalid EditTrustedCircle proposal (invalid escrow amount)
+            ProposalContent::EditTrustedCircle(TrustedCircleAdjustments {
                 name: None,
                 escrow_amount: Some(Uint128::zero()),
                 voting_period: None,
@@ -680,7 +680,7 @@ fn propose_new_voting_rules() {
     let info = mock_info(INIT_ADMIN, &escrow_funds());
     do_instantiate(deps.as_mut(), info, vec![]).unwrap();
 
-    let rules = query_dso(deps.as_ref()).unwrap().rules;
+    let rules = query_trusted_circle(deps.as_ref()).unwrap().rules;
     assert_eq!(
         rules,
         VotingRules {
@@ -692,7 +692,7 @@ fn propose_new_voting_rules() {
     );
 
     // make a new proposal
-    let prop = ProposalContent::EditDso(DsoAdjustments {
+    let prop = ProposalContent::EditTrustedCircle(TrustedCircleAdjustments {
         name: Some("New Name!".into()),
         escrow_amount: Some(Uint128::new(ESCROW_FUNDS * 2)),
         voting_period: Some(7),
@@ -733,16 +733,16 @@ fn propose_new_voting_rules() {
     assert_eq!(&res.attributes[2], &attr("voting_period", "7"));
     assert_eq!(&res.attributes[3], &attr("threshold", "0.51"));
     assert_eq!(&res.attributes[4], &attr("allow_end_early", "true"));
-    assert_eq!(&res.attributes[5], &attr("proposal", "edit_dso"));
+    assert_eq!(&res.attributes[5], &attr("proposal", "edit_trusted_circle"));
     assert_eq!(&res.attributes[6], &attr("action", "execute"));
     assert_eq!(&res.attributes[7], &attr("proposal_id", "1"));
     // check the proper events returned
     assert_eq!(res.events.len(), 0);
 
     // check the rules have been updated
-    let dso = query_dso(deps.as_ref()).unwrap();
+    let trusted_circle = query_trusted_circle(deps.as_ref()).unwrap();
     assert_eq!(
-        dso.rules,
+        trusted_circle.rules,
         VotingRules {
             voting_period: 7,
             quorum: Decimal::percent(40),
@@ -750,7 +750,7 @@ fn propose_new_voting_rules() {
             allow_end_early: true,
         }
     );
-    assert_eq!(&dso.name, "New Name!");
+    assert_eq!(&trusted_circle.name, "New Name!");
 }
 
 #[test]
@@ -759,7 +759,7 @@ fn propose_new_voting_rules_validation() {
     let info = mock_info(INIT_ADMIN, &escrow_funds());
     do_instantiate(deps.as_mut(), info, vec![]).unwrap();
 
-    let rules = query_dso(deps.as_ref()).unwrap().rules;
+    let rules = query_trusted_circle(deps.as_ref()).unwrap().rules;
     assert_eq!(
         rules,
         VotingRules {
@@ -771,7 +771,7 @@ fn propose_new_voting_rules_validation() {
     );
 
     // Make an invalid proposal (proposal name is empty)
-    let prop = ProposalContent::EditDso(DsoAdjustments {
+    let prop = ProposalContent::EditTrustedCircle(TrustedCircleAdjustments {
         name: Some("".into()),
         escrow_amount: None,
         voting_period: None,
@@ -847,7 +847,7 @@ fn yes_vote(proposal_id: u64) -> ExecuteMsg {
 // * Require 60% threshold, 50% quorum to pass
 // * Create 3 proposals (1 yes)
 // * Leaving voter votes yes on A (nothing on others)
-// * Voter leaves DSO
+// * Voter leaves TRUSTED_CIRCLE
 //
 // Desired properties:
 // * One more yes on A -> immediately passes (3/5 of absolute 60% threshold)
@@ -930,7 +930,7 @@ fn leaving_voter_cannot_vote_anymore() {
         deps.as_mut(),
         later(&start, 3000),
         mock_info(VOTING4, &[]),
-        ExecuteMsg::LeaveDso {},
+        ExecuteMsg::LeaveTrustedCircle {},
     )
     .unwrap();
 
@@ -1120,14 +1120,14 @@ fn propose_punish_members_distribution() {
         &res.messages[0],
         &SubMsg::new(BankMsg::Send {
             to_address: VOTING2.into(),
-            amount: vec![coin(ESCROW_FUNDS / 4, DSO_DENOM)]
+            amount: vec![coin(ESCROW_FUNDS / 4, TRUSTED_CIRCLE_DENOM)]
         })
     );
     assert_eq!(
         &res.messages[1],
         &SubMsg::new(BankMsg::Send {
             to_address: NONMEMBER.into(),
-            amount: vec![coin(ESCROW_FUNDS / 4, DSO_DENOM)]
+            amount: vec![coin(ESCROW_FUNDS / 4, TRUSTED_CIRCLE_DENOM)]
         })
     );
 }
@@ -1243,7 +1243,7 @@ fn propose_punish_members_burn() {
     assert_eq!(
         &res.messages[0],
         &SubMsg::new(BankMsg::Burn {
-            amount: vec![coin(ESCROW_FUNDS / 4, DSO_DENOM)]
+            amount: vec![coin(ESCROW_FUNDS / 4, TRUSTED_CIRCLE_DENOM)]
         })
     );
 }
@@ -1300,7 +1300,9 @@ fn punish_members_validation() {
                 distribution_list: vec![VOTING2.into()],
                 kick_out: false,
             }]),
-            ContractError::Std(StdError::not_found("tgrade_dso::state::EscrowStatus")),
+            ContractError::Std(StdError::not_found(
+                "tgrade_trusted_circle::state::EscrowStatus",
+            )),
         ),
         (
             // Empty distribution list
@@ -1343,7 +1345,9 @@ fn punish_members_validation() {
                 slashing_percentage: Decimal::percent(10),
                 kick_out: false,
             }]),
-            ContractError::Std(StdError::not_found("tgrade_dso::state::EscrowStatus")),
+            ContractError::Std(StdError::not_found(
+                "tgrade_trusted_circle::state::EscrowStatus",
+            )),
         ),
     ] {
         let msg = ExecuteMsg::Propose {
@@ -1441,7 +1445,7 @@ fn propose_punish_members_kick_out() {
     // check the proper attributes returned
     assert_eq!(res.attributes.len(), 7);
     assert_eq!(&res.attributes[0], &attr("proposal", "punish_members"));
-    assert_eq!(&res.attributes[1], &attr("action", "leave_dso"));
+    assert_eq!(&res.attributes[1], &attr("action", "leave_trusted_circle"));
     assert_eq!(&res.attributes[2], &attr("type", "delayed"));
     assert_eq!(&res.attributes[3], &attr("claim_at", claim_at.to_string()));
     assert_eq!(&res.attributes[4], &attr("leaving", VOTING1));
@@ -1495,7 +1499,7 @@ fn propose_punish_members_kick_out() {
         &res.messages[0],
         &SubMsg::new(BankMsg::Send {
             to_address: VOTING2.into(),
-            amount: vec![coin(ESCROW_FUNDS / 4 * 3, DSO_DENOM)]
+            amount: vec![coin(ESCROW_FUNDS / 4 * 3, TRUSTED_CIRCLE_DENOM)]
         })
     );
 }
@@ -1634,13 +1638,13 @@ fn propose_punish_multiple_members() {
         &res.messages[0],
         &SubMsg::new(BankMsg::Send {
             to_address: VOTING2.into(),
-            amount: vec![coin(ESCROW_FUNDS, DSO_DENOM)]
+            amount: vec![coin(ESCROW_FUNDS, TRUSTED_CIRCLE_DENOM)]
         })
     );
     assert_eq!(
         &res.messages[1],
         &SubMsg::new(BankMsg::Burn {
-            amount: vec![coin(ESCROW_FUNDS / 2, DSO_DENOM)]
+            amount: vec![coin(ESCROW_FUNDS / 2, TRUSTED_CIRCLE_DENOM)]
         })
     );
 }
