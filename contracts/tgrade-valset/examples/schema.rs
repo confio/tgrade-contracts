@@ -5,7 +5,8 @@ use cosmwasm_schema::{export_schema, export_schema_with_title, remove_schemas, s
 
 pub use tgrade_valset::msg::{
     ConfigResponse, DistributionMsg, EpochResponse, ExecuteMsg, InstantiateMsg,
-    ListActiveValidatorsResponse, ListValidatorResponse, QueryMsg, ValidatorResponse,
+    ListActiveValidatorsResponse, ListValidatorResponse, QueryMsg, RewardsDistribution,
+    RewardsInstantiateMsg, ValidatorResponse,
 };
 
 fn main() {
@@ -25,4 +26,6 @@ fn main() {
     export_schema(&schema_for!(ListActiveValidatorsResponse), &out_dir);
 
     export_schema(&schema_for!(DistributionMsg), &out_dir);
+    export_schema(&schema_for!(RewardsInstantiateMsg), &out_dir);
+    export_schema(&schema_for!(RewardsInstantiateMsg), &out_dir);
 }

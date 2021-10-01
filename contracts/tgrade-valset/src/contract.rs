@@ -254,6 +254,7 @@ pub fn query(deps: Deps, env: Env, msg: QueryMsg) -> Result<Binary, ContractErro
         QueryMsg::SimulateActiveValidators {} => {
             Ok(to_binary(&simulate_active_validators(deps, env)?)?)
         }
+        QueryMsg::RewardsDistributionContract {} => todo!(),
     }
 }
 
@@ -642,6 +643,7 @@ mod test {
             auto_unjail: false,
             validators_reward_ratio: Decimal::one(),
             distribution_contract: None,
+            rewards_code_id: 0,
         }
     }
 

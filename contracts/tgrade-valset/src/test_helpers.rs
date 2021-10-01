@@ -325,6 +325,7 @@ impl SuiteBuilder {
                     distribution_contract: distribution_contract
                         .as_ref()
                         .map(|addr| addr.to_string()),
+                    rewards_code_id: 0,
                 },
                 &[],
                 "valset",

@@ -8,7 +8,8 @@
     "initial_keys",
     "max_validators",
     "membership",
-    "min_weight"
+    "min_weight",
+    "rewards_code_id"
   ],
   "properties": {
     "admin": {
@@ -72,6 +73,12 @@
     },
     "min_weight": {
       "description": "minimum weight needed by an address in `membership` to be considered for the validator set. 0-weight members are always filtered out. TODO: if we allow sub-1 scaling factors, determine if this is pre-/post- scaling (use weight for cw4, power for tendermint)",
+      "type": "integer",
+      "format": "uint64",
+      "minimum": 0.0
+    },
+    "rewards_code_id": {
+      "description": "Code id of contract which would be used to distribute rewards of this token, assuming `tg4-engagement`. Contract will be initialized with message: ```json { \"admin\": \"self_addr\", \"token\": \"reward_denom\", } ```\n\nThis contract has to support all `RewardsDistribution` messages",
       "type": "integer",
       "format": "uint64",
       "minimum": 0.0

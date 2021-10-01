@@ -109,6 +109,7 @@ fn init_msg(stake_addr: &str, max_validators: u32, min_weight: u64) -> Instantia
         auto_unjail: false,
         validators_reward_ratio: Decimal::one(),
         distribution_contract: None,
+        rewards_code_id: 0,
     }
 }
 
