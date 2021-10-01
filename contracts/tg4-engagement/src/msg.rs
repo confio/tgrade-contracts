@@ -96,8 +96,8 @@ pub enum QueryMsg {
     /// Return how much funds were send to this contract since last `ExecuteMsg::DistribtueFunds`,
     /// and wait for distribution. Returns `FundsResponse`.
     UndistributedFunds {},
-    /// Returns delegate allowed for withdrawal funds assigned to owner. Returns `DelegateResponse`
-    Delegate { owner: String },
+    /// Returns address allowed for withdrawal funds assigned to owner. Returns `DelegateResponse`
+    Delegated { owner: String },
 }
 
 #[derive(Serialize, Deserialize, Clone, PartialEq, JsonSchema, Debug)]
