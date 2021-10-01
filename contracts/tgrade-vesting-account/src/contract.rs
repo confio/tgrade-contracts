@@ -326,6 +326,20 @@ mod tests {
         deps: OwnedDeps<MockStorage, MockApi, MockQuerier>,
     }
 
+    impl Suite {
+        fn freeze_tokens(
+            &mut self,
+            operator: &str,
+            amount: u128,
+        ) -> Result<Response, ContractError> {
+            freeze_tokens(
+                self.deps.as_mut(),
+                Addr::unchecked(operator),
+                Uint128::new(amount),
+            )
+        }
+    }
+
     mod unauthorized {
         use super::*;
 
@@ -334,11 +348,7 @@ mod tests {
             let mut suite = SuiteBuilder::default().build();
 
             assert_matches!(
-                freeze_tokens(
-                    suite.deps.as_mut(),
-                    Addr::unchecked(RECIPIENT),
-                    Uint128::new(100)
-                ),
+                suite.freeze_tokens(RECIPIENT, 100),
                 Err(ContractError::RequireOversight)
             );
         }
@@ -554,11 +564,7 @@ mod tests {
         let mut suite = SuiteBuilder::default().build();
 
         assert_eq!(
-            freeze_tokens(
-                suite.deps.as_mut(),
-                Addr::unchecked(OVERSIGHT),
-                Uint128::new(50)
-            ),
+            suite.freeze_tokens(OVERSIGHT, 50),
             Ok(Response::new()
                 .add_attribute("action", "freeze_tokens")
                 .add_attribute("tokens", "50".to_string())
@@ -579,12 +585,8 @@ mod tests {
         let mut suite = SuiteBuilder::default().build();
 
         assert_eq!(
-            freeze_tokens(
-                suite.deps.as_mut(),
-                Addr::unchecked(OVERSIGHT),
-                // 10 tokens more then instantiated by default
-                Uint128::new(110)
-            ),
+            // 10 tokens more then instantiated by default
+            suite.freeze_tokens(OVERSIGHT, 110),
             Ok(Response::new()
                 .add_attribute("action", "freeze_tokens")
                 .add_attribute("tokens", "100".to_string())
@@ -604,12 +606,7 @@ mod tests {
     fn unfreeze_tokens_success() {
         let mut suite = SuiteBuilder::default().build();
 
-        freeze_tokens(
-            suite.deps.as_mut(),
-            Addr::unchecked(OVERSIGHT),
-            Uint128::new(50),
-        )
-        .unwrap();
+        suite.freeze_tokens(OVERSIGHT, 50).unwrap();
         assert_eq!(
             query_token_info(suite.deps.as_ref()),
             Ok(TokenInfoResponse {
@@ -827,12 +824,7 @@ mod tests {
             .build();
         let mut env = mock_env();
 
-        freeze_tokens(
-            suite.deps.as_mut(),
-            Addr::unchecked(OVERSIGHT),
-            Uint128::new(10),
-        )
-        .unwrap();
+        suite.freeze_tokens(OVERSIGHT, 10).unwrap();
         assert_eq!(
             query_token_info(suite.deps.as_ref()),
             Ok(TokenInfoResponse {
