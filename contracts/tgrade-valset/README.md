@@ -40,7 +40,19 @@ cumulative reward grow is reduced - basically up to the time when `fees` reaches
 `epoch_reward / fee_percentage`, all fees are worth `(1 - fee_percentage) * fees`
 (they are scalded).
 
-When `cumulative_reward` is calculated, it is split between active validators.
+Next step is splitting `cumulative_reward` in two parts.
+`validators_reward_ratio * cumulative_reward` is send as `validators_reward` to validators
+of last epoch. Rest is send to `distribution_contract` using `distribute_funds`
+message, which intention is to split this part of reward between non-validators,
+basing on their engagement. Both `validators_reward_ratio` and
+`distribution_contract` may be configured in `InstantiateMsg`.
+`validators_reward_ratio` is required to fit in `[0; 1]` range.
+`distribution_contract` is optional, but it has to be set if
+`validators_reward_ratio` is below `1` (so if not whole reward goes to
+validator) it has to be set. In case if `validators_reward_ratio = 1`,
+`distribution_contract` is just ignored.
+
+When `validators_reward` is calculated, it is split between active validators.
 Active validators are up to `max_validators` validators with the highest weight,
 but with at least `min_weight`. `scaling` is optional field which allows to scale
 weight for Tendermint purposes (it should not affect reward split). When validators

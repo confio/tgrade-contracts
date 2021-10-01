@@ -107,6 +107,8 @@ fn init_msg(stake_addr: &str, max_validators: u32, min_weight: u64) -> Instantia
         scaling: None,
         fee_percentage: Decimal::zero(),
         auto_unjail: false,
+        validators_reward_ratio: Decimal::one(),
+        distribution_contract: None,
     }
 }
 
@@ -158,6 +160,8 @@ fn init_and_query_state() {
             epoch_reward: epoch_reward(),
             fee_percentage: Decimal::zero(),
             auto_unjail: false,
+            validators_reward_ratio: Decimal::one(),
+            distribution_contract: None,
         }
     );
 

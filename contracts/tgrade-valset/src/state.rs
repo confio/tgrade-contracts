@@ -39,6 +39,18 @@ pub struct Config {
     /// by default.
     #[serde(default)]
     pub auto_unjail: bool,
+
+    /// Fraction of how much reward is distributed between validators. Remainder is send to the
+    /// `distribution_contract` with `Distribute` message, which should perform distribution of
+    /// send funds between non-validator basing on their engagement.
+    /// This value is in range of `[0-1]`, `1` (or `100%`) by default.
+    pub validators_reward_ratio: Decimal,
+
+    /// Address where part of reward for non-validators is send for further distribution. It is
+    /// required to handle `distribute {}` message (eg. tg4-engagement contract) which would
+    /// distribute funds send with this message.
+    /// If no account is provided, `validators_reward_ratio` has to be `1`.
+    pub distribution_contract: Option<Addr>,
 }
 
 #[derive(Serialize, Deserialize, Clone, PartialEq, JsonSchema, Debug)]

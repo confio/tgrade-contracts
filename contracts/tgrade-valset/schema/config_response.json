@@ -6,13 +6,25 @@
     "epoch_reward",
     "max_validators",
     "membership",
-    "min_weight"
+    "min_weight",
+    "validators_reward_ratio"
   ],
   "properties": {
     "auto_unjail": {
       "description": "Flag determining if validators should be automatically unjailed after jailing period, false by default.",
       "default": false,
       "type": "boolean"
+    },
+    "distribution_contract": {
+      "description": "Address where part of reward for non-validators is send for further distribution. It is required to handle `distribute {}` message (eg. tg4-engagement contract) which would distribute funds send with this message. If no account is provided, `validators_reward_ratio` has to be `1`.",
+      "anyOf": [
+        {
+          "$ref": "#/definitions/Addr"
+        },
+        {
+          "type": "null"
+        }
+      ]
     },
     "epoch_reward": {
       "description": "Total reward paid out each epoch. This will be split among all validators during the last epoch. (epoch_reward.amount * 86_400 * 30 / epoch_length) is reward tokens to mint each month. Ensure this is sensible in relation to the total token supply.",
@@ -59,6 +71,14 @@
       ],
       "format": "uint32",
       "minimum": 0.0
+    },
+    "validators_reward_ratio": {
+      "description": "Fraction of how much reward is distributed between validators. Remainder is send to the `distribution_contract` with `Distribute` message, which should perform distribution of send funds between non-validator basing on their engagement. This value is in range of `[0-1]`, `1` (or `100%`) by default.",
+      "allOf": [
+        {
+          "$ref": "#/definitions/Decimal"
+        }
+      ]
     }
   },
   "definitions": {

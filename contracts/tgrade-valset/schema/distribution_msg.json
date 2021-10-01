@@ -1,0 +1,20 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "DistributionMsg",
+  "description": "Messages send by this contract to external contract",
+  "oneOf": [
+    {
+      "description": "Message send to `distribution_contract` with funds which are part of reward to be splitted between engaged operators",
+      "type": "object",
+      "required": [
+        "distribute_funds"
+      ],
+      "properties": {
+        "distribute_funds": {
+          "type": "object"
+        }
+      },
+      "additionalProperties": false
+    }
+  ]
+}

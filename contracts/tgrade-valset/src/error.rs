@@ -47,6 +47,12 @@ pub enum ContractError {
 
     #[error("No validators")]
     NoValidators {},
+
+    #[error("Validators reward ratio out of range")]
+    InvalidRewardsRatio {},
+
+    #[error("No distribution contract")]
+    NoDistributionContract {},
 }
 
 impl From<Ed25519PubkeyConversionError> for ContractError {

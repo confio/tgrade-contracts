@@ -55,10 +55,27 @@ pub struct InstantiateMsg {
     /// by default.
     #[serde(default)]
     pub auto_unjail: bool,
+
+    /// Fraction of how much reward is distributed between validators. Remainder is send to the
+    /// `distribution_contract` with `Distribute` message, which should perform distribution of
+    /// send funds between non-validator basing on their engagement.
+    /// This value is in range of `[0-1]`, `1` (or `100%`) by default.
+    #[serde(default = "default_validators_reward_ratio")]
+    pub validators_reward_ratio: Decimal,
+
+    /// Address where part of reward for non-validators is send for further distribution. It is
+    /// required to handle `distribute {}` message (eg. tg4-engagement contract) which would
+    /// distribute funds send with this message.
+    /// If no account is provided, `validators_reward_ratio` has to be `1`.
+    pub distribution_contract: Option<String>,
 }
 
 pub fn default_fee_percentage() -> Decimal {
     Decimal::zero()
+}
+
+pub fn default_validators_reward_ratio() -> Decimal {
+    Decimal::one()
 }
 
 impl InstantiateMsg {
@@ -78,6 +95,12 @@ impl InstantiateMsg {
         // Current denom regexp in the SDK is [a-zA-Z][a-zA-Z0-9/]{2,127}
         if self.epoch_reward.denom.len() < 2 || self.epoch_reward.denom.len() > 127 {
             return Err(ContractError::InvalidRewardDenom {});
+        }
+        if self.validators_reward_ratio > Decimal::one() {
+            return Err(ContractError::InvalidRewardsRatio {});
+        }
+        if self.validators_reward_ratio < Decimal::one() && self.distribution_contract.is_none() {
+            return Err(ContractError::NoDistributionContract {});
         }
         for op in self.initial_keys.iter() {
             op.validate()?
@@ -255,6 +278,15 @@ pub struct ListActiveValidatorsResponse {
     pub validators: Vec<ValidatorInfo>,
 }
 
+/// Messages send by this contract to external contract
+#[derive(Serialize, Deserialize, Clone, PartialEq, JsonSchema, Debug)]
+#[serde(rename_all = "snake_case")]
+pub enum DistributionMsg {
+    /// Message send to `distribution_contract` with funds which are part of reward to be splitted
+    /// between engaged operators
+    DistributeFunds {},
+}
+
 #[cfg(test)]
 mod test {
     use super::*;
@@ -282,6 +314,8 @@ mod test {
             scaling: None,
             fee_percentage: Decimal::zero(),
             auto_unjail: false,
+            validators_reward_ratio: Decimal::one(),
+            distribution_contract: None,
         };
         proper.validate().unwrap();
 

@@ -62,6 +62,11 @@ pub fn instantiate(
         epoch_reward: msg.epoch_reward,
         fee_percentage: msg.fee_percentage,
         auto_unjail: msg.auto_unjail,
+        validators_reward_ratio: msg.validators_reward_ratio,
+        distribution_contract: msg
+            .distribution_contract
+            .map(|addr| deps.api.addr_validate(&addr))
+            .transpose()?,
     };
     CONFIG.save(deps.storage, &cfg)?;
 
@@ -635,6 +640,8 @@ mod test {
             scaling: None,
             fee_percentage: Decimal::zero(),
             auto_unjail: false,
+            validators_reward_ratio: Decimal::one(),
+            distribution_contract: None,
         }
     }
 
@@ -662,6 +669,8 @@ mod test {
                 scaling: None,
                 fee_percentage: Decimal::zero(),
                 auto_unjail: false,
+                validators_reward_ratio: Decimal::one(),
+                distribution_contract: None,
             }
         );
 
@@ -1522,12 +1531,7 @@ mod test {
                 .unwrap();
             suite.jail(&admin, &operators[1].addr, None).unwrap();
 
-            // Move forward a little, but not enough for jailing to expire,
-            // but at least 100s for the default epoch size to re-calculate
-            suite.app().advance_seconds(100);
-
-            // Endblock triggered - only unjailed validators are active
-            suite.end_block().unwrap();
+            suite.advance_epoch().unwrap();
 
             let resp = suite.list_active_validators().unwrap();
             assert_active_validators(
@@ -1537,6 +1541,68 @@ mod test {
                     (operators[3].addr.clone(), operators[3].weight),
                 ],
             );
+        }
+
+        #[test]
+        fn rewards_are_properly_split_on_epoch_end() {
+            let engagement = vec!["dist1", "dist2"];
+            let members = vec!["member1", "member2"];
+            let mut suite = SuiteBuilder::new()
+                .with_operators(&[(members[0], 2), (members[1], 3)], &[])
+                .with_epoch_reward(coin(1000, "usdc"))
+                .with_distribution(
+                    Decimal::percent(60),
+                    &[(engagement[0], 3), (engagement[1], 7)],
+                    None,
+                )
+                .build();
+
+            suite.advance_epoch().unwrap();
+
+            suite.withdraw_engagement_reward(engagement[0]).unwrap();
+            suite.withdraw_engagement_reward(engagement[1]).unwrap();
+
+            // Single epoch reward, no fees.
+            // 60% goes to validators:
+            // * member1: 0.6 * 2/5 * 1000 = 0.6 * 0.4 * 1000 = 0.24 * 1000 = 240
+            // * member2: 0.6 * 3/5 * 1000 = 0.6 * 0.6 * 1000 = 0.36 * 1000 = 360
+            // * dist1: 0.4 * 0.3 = 0.12 * 1000 = 120
+            // * dist2: 0.4 * 0.7 = 0.28 * 1000 = 280
+            assert_eq!(suite.token_balance(members[0]).unwrap(), 240);
+            assert_eq!(suite.token_balance(members[1]).unwrap(), 360);
+            assert_eq!(suite.token_balance(engagement[0]).unwrap(), 120);
+            assert_eq!(suite.token_balance(engagement[1]).unwrap(), 280);
+        }
+
+        #[test]
+        fn non_divisible_rewards_are_properly_split_on_epoch_end() {
+            let engagement = vec!["dist1", "dist2"];
+            let members = vec!["member1", "member2"];
+            let mut suite = SuiteBuilder::new()
+                .with_operators(&[(members[0], 2), (members[1], 3)], &[])
+                .with_epoch_reward(coin(1009, "usdc"))
+                .with_distribution(
+                    Decimal::percent(60),
+                    &[(engagement[0], 3), (engagement[1], 7)],
+                    None,
+                )
+                .build();
+
+            suite.advance_epoch().unwrap();
+
+            suite.withdraw_engagement_reward(engagement[0]).unwrap();
+            suite.withdraw_engagement_reward(engagement[1]).unwrap();
+
+            // Single epoch reward, no fees.
+            // 60% goes to validators:
+            // * member1: 0.6 * 2/5 * 1000 = 0.6 * 0.4 * 1009 = 0.24 * 1009 = 242
+            // * member2: 0.6 * 3/5 * 1000 = 0.6 * 0.6 * 1009 = 0.36 * 1009 = 363
+            // * dist1: 0.4 * 0.3 = 0.12 * 1009 = 121
+            // * dist2: 0.4 * 0.7 = 0.28 * 1009 = 282
+            assert_eq!(suite.token_balance(members[0]).unwrap(), 242);
+            assert_eq!(suite.token_balance(members[1]).unwrap(), 363);
+            assert_eq!(suite.token_balance(engagement[0]).unwrap(), 121);
+            assert_eq!(suite.token_balance(engagement[1]).unwrap(), 282);
         }
     }
 }
