@@ -350,6 +350,20 @@ mod tests {
                 Uint128::new(amount),
             )
         }
+
+        fn release_tokens(
+            &mut self,
+            env: Env,
+            operator: &str,
+            amount: u128,
+        ) -> Result<Response, ContractError> {
+            release_tokens(
+                self.deps.as_mut(),
+                env,
+                Addr::unchecked(operator),
+                Uint128::new(amount),
+            )
+        }
     }
 
     mod unauthorized {
@@ -394,12 +408,7 @@ mod tests {
             let mut suite = SuiteBuilder::default().build();
 
             assert_matches!(
-                release_tokens(
-                    suite.deps.as_mut(),
-                    mock_env(),
-                    Addr::unchecked(RECIPIENT),
-                    Uint128::new(50)
-                ),
+                suite.release_tokens(mock_env(), RECIPIENT, 50),
                 Err(ContractError::RequireOperator)
             );
         }
@@ -670,21 +679,16 @@ mod tests {
 
         env.block.time = env.block.time.plus_seconds(150);
 
-        let amount_to_send = Uint128::new(25);
+        let amount_to_send = 25;
         assert_eq!(
-            release_tokens(
-                suite.deps.as_mut(),
-                env,
-                Addr::unchecked(OPERATOR),
-                amount_to_send
-            ),
+            suite.release_tokens(env, OPERATOR, amount_to_send),
             Ok(Response::new()
                 .add_attribute("action", "release_tokens")
                 .add_attribute("tokens", amount_to_send.to_string())
                 .add_attribute("sender", OPERATOR.to_string())
                 .add_message(BankMsg::Send {
                     to_address: RECIPIENT.to_string(),
-                    amount: coins(amount_to_send.u128(), VESTING_DENOM)
+                    amount: coins(amount_to_send, VESTING_DENOM)
                 }))
         );
         assert_matches!(
@@ -692,7 +696,7 @@ mod tests {
             Ok(TokenInfoResponse {
                 released,
                 ..
-            }) if released == amount_to_send
+            }) if released == amount_to_send.into()
         );
     }
 
@@ -701,12 +705,7 @@ mod tests {
         let mut suite = SuiteBuilder::default().build();
 
         assert_eq!(
-            release_tokens(
-                suite.deps.as_mut(),
-                mock_env(),
-                Addr::unchecked(OPERATOR),
-                Uint128::new(25),
-            ),
+            suite.release_tokens(mock_env(), OPERATOR, 25),
             Ok(Response::new())
         );
         assert_matches!(
@@ -728,21 +727,16 @@ mod tests {
         // 50 seconds after start, another 150 towards end
         // 25 tokens are allowed to release
         env.block.time = Timestamp::from_seconds(DEFAULT_RELEASE).plus_seconds(50);
-        let first_amount_released = Uint128::new(25);
+        let first_amount_released = 25;
         assert_eq!(
-            release_tokens(
-                suite.deps.as_mut(),
-                env.clone(),
-                Addr::unchecked(OVERSIGHT),
-                first_amount_released,
-            ),
+            suite.release_tokens(env.clone(), OVERSIGHT, first_amount_released),
             Ok(Response::new()
                 .add_attribute("action", "release_tokens")
                 .add_attribute("tokens", first_amount_released.to_string())
                 .add_attribute("sender", OVERSIGHT.to_string())
                 .add_message(BankMsg::Send {
                     to_address: RECIPIENT.to_string(),
-                    amount: coins(first_amount_released.u128(), VESTING_DENOM),
+                    amount: coins(first_amount_released, VESTING_DENOM),
                 }))
         );
         assert_matches!(
@@ -750,45 +744,37 @@ mod tests {
             Ok(TokenInfoResponse {
                 released,
                 ..
-            }) if released == first_amount_released
+            }) if released == first_amount_released.into()
         );
 
         // 130 seconds after start, another 70 towards end
         // 65 tokens are allowed to release, 25 were already released previously
         env.block.time = Timestamp::from_seconds(DEFAULT_RELEASE).plus_seconds(130);
-        let second_amount_released = Uint128::new(40);
-        release_tokens(
-            suite.deps.as_mut(),
-            env.clone(),
-            Addr::unchecked(OPERATOR),
-            second_amount_released,
-        )
-        .unwrap();
+        let second_amount_released = 40;
+        suite
+            .release_tokens(env.clone(), OPERATOR, second_amount_released)
+            .unwrap();
         assert_matches!(
             query_token_info(suite.deps.as_ref()),
             Ok(TokenInfoResponse {
                 released,
                 ..
-            }) if released == first_amount_released + second_amount_released
+            }) if released == (first_amount_released + second_amount_released).into()
         );
 
         // 200 seconds after start
         // 100 tokens are allowed to release, 65 were already released previously
         env.block.time = Timestamp::from_seconds(DEFAULT_RELEASE).plus_seconds(200);
-        let third_amount_released = Uint128::new(35);
-        release_tokens(
-            suite.deps.as_mut(),
-            env,
-            Addr::unchecked(OPERATOR),
-            third_amount_released,
-        )
-        .unwrap();
+        let third_amount_released = 35;
+        suite
+            .release_tokens(env, OPERATOR, third_amount_released)
+            .unwrap();
         assert_matches!(
             query_token_info(suite.deps.as_ref()),
             Ok(TokenInfoResponse {
                 released,
                 ..
-            }) if released == first_amount_released + second_amount_released + third_amount_released
+            }) if released == (first_amount_released + second_amount_released + third_amount_released).into()
         );
     }
 
@@ -802,14 +788,9 @@ mod tests {
         // 50 seconds after start, another 150 towards end
         // 25 tokens are allowed to release, but we try to get 30 tokens
         env.block.time = Timestamp::from_seconds(DEFAULT_RELEASE).plus_seconds(50);
-        let first_amount_released = Uint128::new(30);
+        let amount_to_release = 30;
         assert_eq!(
-            release_tokens(
-                suite.deps.as_mut(),
-                env,
-                Addr::unchecked(OPERATOR),
-                first_amount_released,
-            ),
+            suite.release_tokens(env, OPERATOR, amount_to_release),
             Ok(Response::new())
         );
         assert_matches!(
@@ -843,14 +824,9 @@ mod tests {
         // so available are only 15 tokens
         // taking 20 results in nothing
         env.block.time = Timestamp::from_seconds(DEFAULT_RELEASE).plus_seconds(50);
-        let amount_to_release = Uint128::new(20);
+        let amount_to_release = 20;
         assert_eq!(
-            release_tokens(
-                suite.deps.as_mut(),
-                env.clone(),
-                Addr::unchecked(OPERATOR),
-                amount_to_release,
-            ),
+            suite.release_tokens(env.clone(), OPERATOR, amount_to_release),
             Ok(Response::new())
         );
         assert_matches!(
@@ -862,21 +838,16 @@ mod tests {
         );
 
         // taking 15 tokens is okay though
-        let amount_to_release = Uint128::new(15);
+        let amount_to_release = 15;
         assert_eq!(
-            release_tokens(
-                suite.deps.as_mut(),
-                env,
-                Addr::unchecked(OPERATOR),
-                amount_to_release,
-            ),
+            suite.release_tokens(env, OPERATOR, amount_to_release),
             Ok(Response::new()
                 .add_attribute("action", "release_tokens")
                 .add_attribute("tokens", amount_to_release.to_string())
                 .add_attribute("sender", OPERATOR.to_string())
                 .add_message(BankMsg::Send {
                     to_address: RECIPIENT.to_string(),
-                    amount: coins(amount_to_release.u128(), VESTING_DENOM),
+                    amount: coins(amount_to_release, VESTING_DENOM),
                 }))
         );
         assert_matches!(
@@ -885,7 +856,7 @@ mod tests {
                 released,
                 frozen,
                 ..
-            }) if released == amount_to_release && frozen == Uint128::new(10)
+            }) if released == amount_to_release.into() && frozen == Uint128::new(10)
         );
     }
 }
