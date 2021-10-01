@@ -13,7 +13,10 @@ use tg4::{
 };
 
 use crate::error::ContractError;
-use crate::msg::{ExecuteMsg, FundsResponse, InstantiateMsg, PreauthResponse, QueryMsg, SudoMsg};
+use crate::msg::{
+    DelegatedResponse, ExecuteMsg, FundsResponse, InstantiateMsg, PreauthResponse, QueryMsg,
+    SudoMsg,
+};
 use crate::state::{
     Distribution, Halflife, WithdrawAdjustment, DISTRIBUTION, HALFLIFE, POINTS_SHIFT,
     WITHDRAW_ADJUSTMENT,
@@ -565,7 +568,7 @@ pub fn query(deps: Deps, env: Env, msg: QueryMsg) -> StdResult<Binary> {
         QueryMsg::WithdrawableFunds { owner } => to_binary(&query_withdrawable_funds(deps, owner)?),
         QueryMsg::DistributedFunds {} => to_binary(&query_distributed_total(deps)?),
         QueryMsg::UndistributedFunds {} => to_binary(&query_undistributed_funds(deps, env)?),
-        QueryMsg::Delegated { .. } => todo!(),
+        QueryMsg::Delegated { owner } => to_binary(&query_delegated(deps, owner)?),
     }
 }
 
@@ -613,6 +616,16 @@ pub fn query_distributed_total(deps: Deps) -> StdResult<FundsResponse> {
     Ok(FundsResponse {
         funds: coin(distribution.distributed_total.into(), &distribution.token),
     })
+}
+
+pub fn query_delegated(deps: Deps, owner: String) -> StdResult<DelegatedResponse> {
+    let owner = deps.api.addr_validate(&owner)?;
+
+    let delegated = WITHDRAW_ADJUSTMENT
+        .may_load(deps.storage, &owner)?
+        .map_or(owner, |data| data.delegated);
+
+    Ok(DelegatedResponse { delegated })
 }
 
 // settings for pagination

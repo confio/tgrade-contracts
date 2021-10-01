@@ -134,7 +134,7 @@ pub struct FundsResponse {
 }
 
 #[derive(Serialize, Deserialize, Clone, PartialEq, JsonSchema, Debug)]
-pub struct DelegateResponse {
+pub struct DelegatedResponse {
     pub delegated: Addr,
 }
 
