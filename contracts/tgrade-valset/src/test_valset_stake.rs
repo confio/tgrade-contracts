@@ -118,7 +118,7 @@ fn bond(app: &mut BasicApp<TgradeMsg>, addr: &Addr, stake_addr: &Addr, stake: &[
             addr.clone(),
             stake_addr.clone(),
             &ExecuteMsg::Bond {},
-            &stake,
+            stake,
         )
         .unwrap();
 }
@@ -221,7 +221,7 @@ fn simulate_validators() {
         for op_addr in &operators {
             router
                 .bank
-                .init_balance(storage, &op_addr, operator_funds.clone())
+                .init_balance(storage, op_addr, operator_funds.clone())
                 .unwrap();
         }
     });
@@ -244,7 +244,7 @@ fn simulate_validators() {
 
     // First, he does not bond enough tokens
     let stake = cosmwasm_std::coins(TOKENS_PER_WEIGHT * MIN_WEIGHT as u128 - 1u128, BOND_DENOM);
-    bond(&mut app, &op1_addr, &stake_addr, &stake);
+    bond(&mut app, op1_addr, &stake_addr, &stake);
 
     // what do we expect?
     // 1..24 have pubkeys registered, we take the top 10, only one has stake but not enough of it, so zero
@@ -256,7 +256,7 @@ fn simulate_validators() {
 
     // Now, he bonds just enough tokens of the right denom
     let stake = cosmwasm_std::coins(1, BOND_DENOM);
-    bond(&mut app, &op1_addr, &stake_addr, &stake);
+    bond(&mut app, op1_addr, &stake_addr, &stake);
 
     // what do we expect?
     // only one have enough stake now, so one
@@ -277,7 +277,7 @@ fn simulate_validators() {
     let op2_addr = &operators[1];
 
     let stake = cosmwasm_std::coins(TOKENS_PER_WEIGHT * MIN_WEIGHT as u128 * 2u128, BOND_DENOM);
-    bond(&mut app, &op2_addr, &stake_addr, &stake);
+    bond(&mut app, op2_addr, &stake_addr, &stake);
 
     // what do we expect?
     // two have stake, so two
@@ -309,7 +309,7 @@ fn simulate_validators() {
         TOKENS_PER_WEIGHT * MIN_WEIGHT as u128 * 3u128 - 1u128,
         BOND_DENOM,
     );
-    bond(&mut app, &op3_addr, &stake_addr, &stake);
+    bond(&mut app, op3_addr, &stake_addr, &stake);
 
     // what do we expect?
     // three have stake, so three
@@ -341,7 +341,7 @@ fn simulate_validators() {
 
     // Now, op1 unbonds some tokens
     let tokens = 1;
-    unbond(&mut app, &op1_addr, &stake_addr, tokens);
+    unbond(&mut app, op1_addr, &stake_addr, tokens);
 
     // what do we expect?
     // only two have enough stake, so two
