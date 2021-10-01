@@ -338,6 +338,18 @@ mod tests {
                 Uint128::new(amount),
             )
         }
+
+        fn unfreeze_tokens(
+            &mut self,
+            operator: &str,
+            amount: u128,
+        ) -> Result<Response, ContractError> {
+            unfreeze_tokens(
+                self.deps.as_mut(),
+                Addr::unchecked(operator),
+                Uint128::new(amount),
+            )
+        }
     }
 
     mod unauthorized {
@@ -358,11 +370,7 @@ mod tests {
             let mut suite = SuiteBuilder::default().build();
 
             assert_matches!(
-                unfreeze_tokens(
-                    suite.deps.as_mut(),
-                    Addr::unchecked(RECIPIENT),
-                    Uint128::new(50)
-                ),
+                suite.unfreeze_tokens(RECIPIENT, 50),
                 Err(ContractError::RequireOversight)
             );
         }
@@ -616,11 +624,7 @@ mod tests {
             })
         );
         assert_eq!(
-            unfreeze_tokens(
-                suite.deps.as_mut(),
-                Addr::unchecked(OVERSIGHT),
-                Uint128::new(50)
-            ),
+            suite.unfreeze_tokens(OVERSIGHT, 50),
             Ok(Response::new()
                 .add_attribute("action", "unfreeze_tokens")
                 .add_attribute("tokens", "50".to_string())
