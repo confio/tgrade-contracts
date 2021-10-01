@@ -3,13 +3,13 @@
   "title": "QueryMsg",
   "oneOf": [
     {
-      "description": "Return DsoResponse",
+      "description": "Return TrustedCircleResponse",
       "type": "object",
       "required": [
-        "dso"
+        "trusted_circle"
       ],
       "properties": {
-        "dso": {
+        "trusted_circle": {
           "type": "object"
         }
       },

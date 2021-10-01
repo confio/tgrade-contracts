@@ -1,6 +1,6 @@
 {
   "$schema": "http://json-schema.org/draft-07/schema#",
-  "title": "DsoResponse",
+  "title": "TrustedCircleResponse",
   "type": "object",
   "required": [
     "escrow_amount",
@@ -28,7 +28,7 @@
       ]
     },
     "name": {
-      "description": "DSO Name",
+      "description": "TRUSTED_CIRCLE Name",
       "type": "string"
     },
     "rules": {

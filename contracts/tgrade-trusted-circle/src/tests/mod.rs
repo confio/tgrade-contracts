@@ -19,13 +19,13 @@ use tg4::{member_key, TOTAL_KEY};
 use crate::contract::*;
 use crate::error::ContractError;
 use crate::msg::{
-    DsoResponse, Escrow, ExecuteMsg, InstantiateMsg, ProposalResponse, QueryMsg, VoteInfo,
+    Escrow, ExecuteMsg, InstantiateMsg, ProposalResponse, QueryMsg, TrustedCircleResponse, VoteInfo,
 };
-use crate::state::{DsoAdjustments, MemberStatus, ProposalContent, VotingRules};
+use crate::state::{MemberStatus, ProposalContent, TrustedCircleAdjustments, VotingRules};
 
 const INIT_ADMIN: &str = "juan";
 
-const DSO_NAME: &str = "test_dso";
+const TRUSTED_CIRCLE_NAME: &str = "test_trusted_circle";
 const ESCROW_FUNDS: u128 = 2_000_000;
 const DENOM: &str = "utgd";
 const VOTING_PERIOD: u32 = 14; // [days]
@@ -72,7 +72,7 @@ fn do_instantiate(
     initial_members: Vec<String>,
 ) -> Result<Response, ContractError> {
     let msg = InstantiateMsg {
-        name: DSO_NAME.to_string(),
+        name: TRUSTED_CIRCLE_NAME.to_string(),
         escrow_amount: Uint128::new(ESCROW_FUNDS),
         voting_period: 14,
         quorum: Decimal::percent(40),

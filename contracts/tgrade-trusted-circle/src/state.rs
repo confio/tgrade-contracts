@@ -17,7 +17,7 @@ use std::convert::TryInto;
 const ONE_TGD: u128 = 1_000_000; // One million µTGD
 
 #[derive(Serialize, Deserialize, Clone, PartialEq, Debug)]
-pub struct Dso {
+pub struct TrustedCircle {
     pub name: String,
     pub escrow_amount: Uint128,
     pub escrow_pending: Option<PendingEscrow>,
@@ -73,7 +73,7 @@ impl VotingRules {
 }
 
 #[derive(Serialize, Deserialize, Clone, PartialEq, Debug, JsonSchema)]
-pub struct DsoAdjustments {
+pub struct TrustedCircleAdjustments {
     /// Escrow name
     pub name: Option<String>,
     /// Escrow amount to apply after grace period (computed using voting_period)
@@ -88,7 +88,7 @@ pub struct DsoAdjustments {
     pub allow_end_early: Option<bool>,
 }
 
-impl Dso {
+impl TrustedCircle {
     pub fn validate(&self) -> Result<(), ContractError> {
         self.rules.validate()?;
 
@@ -114,7 +114,7 @@ impl Dso {
         &mut self,
         env: Env,
         proposal_id: u64,
-        adjustments: DsoAdjustments,
+        adjustments: TrustedCircleAdjustments,
     ) -> Result<(), ContractError> {
         if let Some(name) = adjustments.name {
             self.name = name;
@@ -161,7 +161,7 @@ impl Dso {
     }
 }
 
-impl DsoAdjustments {
+impl TrustedCircleAdjustments {
     pub fn as_attributes(&self) -> Vec<Attribute> {
         let mut res = vec![];
         if let Some(name) = &self.name {
@@ -312,7 +312,7 @@ impl Punishment {
     }
 }
 
-pub const DSO: Item<Dso> = Item::new("dso");
+pub const TRUSTED_CIRCLE: Item<TrustedCircle> = Item::new("trusted_circle");
 
 /// We store escrow and status together for all members.
 /// This is set for any address where weight is not None.
@@ -464,7 +464,7 @@ pub enum ProposalContent {
         remove: Vec<String>,
         add: Vec<String>,
     },
-    EditDso(DsoAdjustments),
+    EditTrustedCircle(TrustedCircleAdjustments),
     AddVotingMembers {
         voters: Vec<String>,
     },

@@ -14,21 +14,22 @@ use tg_utils::{members, TOTAL};
 
 use crate::error::ContractError;
 use crate::msg::{
-    DsoResponse, Escrow, EscrowListResponse, EscrowResponse, ExecuteMsg, InstantiateMsg,
-    ProposalListResponse, ProposalResponse, QueryMsg, VoteInfo, VoteListResponse, VoteResponse,
+    Escrow, EscrowListResponse, EscrowResponse, ExecuteMsg, InstantiateMsg, ProposalListResponse,
+    ProposalResponse, QueryMsg, TrustedCircleResponse, VoteInfo, VoteListResponse, VoteResponse,
 };
 use crate::state::MemberStatus::NonVoting;
 use crate::state::{
-    batches, create_batch, create_proposal, parse_id, save_ballot, Ballot, Batch, Dso,
-    DsoAdjustments, EscrowStatus, MemberStatus, Proposal, ProposalContent, Punishment, Votes,
-    VotingRules, BALLOTS, BALLOTS_BY_VOTER, DSO, ESCROWS, PROPOSALS, PROPOSAL_BY_EXPIRY,
+    batches, create_batch, create_proposal, parse_id, save_ballot, Ballot, Batch, EscrowStatus,
+    MemberStatus, Proposal, ProposalContent, Punishment, TrustedCircle, TrustedCircleAdjustments,
+    Votes, VotingRules, BALLOTS, BALLOTS_BY_VOTER, ESCROWS, PROPOSALS, PROPOSAL_BY_EXPIRY,
+    TRUSTED_CIRCLE,
 };
 
 // version info for migration info
-const CONTRACT_NAME: &str = "crates.io:tgrade-dso";
+const CONTRACT_NAME: &str = "crates.io:tgrade-trusted_circle";
 const CONTRACT_VERSION: &str = env!("CARGO_PKG_VERSION");
 
-pub const DSO_DENOM: &str = "utgd";
+pub const TRUSTED_CIRCLE_DENOM: &str = "utgd";
 pub const VOTING_WEIGHT: u64 = 1;
 
 pub type Response = cosmwasm_std::Response<TgradeMsg>;
@@ -45,7 +46,7 @@ pub fn instantiate(
 ) -> Result<Response, ContractError> {
     set_contract_version(deps.storage, CONTRACT_NAME, CONTRACT_VERSION)?;
 
-    let dso = Dso {
+    let trusted_circle = TrustedCircle {
         name: msg.name,
         escrow_amount: msg.escrow_amount,
         escrow_pending: None,
@@ -56,17 +57,17 @@ pub fn instantiate(
             allow_end_early: msg.allow_end_early,
         },
     };
-    dso.validate()?;
+    trusted_circle.validate()?;
 
     // Store sender as initial member, and define its weight / state
     // based on init_funds
-    let amount = cw0::must_pay(&info, DSO_DENOM)?;
-    if amount < dso.get_escrow() {
+    let amount = cw0::must_pay(&info, TRUSTED_CIRCLE_DENOM)?;
+    if amount < trusted_circle.get_escrow() {
         return Err(ContractError::InsufficientFunds(amount));
     }
 
-    // Create the DSO
-    DSO.save(deps.storage, &dso)?;
+    // Create the TRUSTED_CIRCLE
+    TRUSTED_CIRCLE.save(deps.storage, &trusted_circle)?;
 
     // Put sender funds in escrow
     let escrow = EscrowStatus {
@@ -102,7 +103,7 @@ pub fn execute(
         ExecuteMsg::Vote { proposal_id, vote } => execute_vote(deps, env, info, proposal_id, vote),
         ExecuteMsg::Execute { proposal_id } => execute_execute(deps, env, info, proposal_id),
         ExecuteMsg::Close { proposal_id } => execute_close(deps, env, info, proposal_id),
-        ExecuteMsg::LeaveDso {} => execute_leave_dso(deps, env, info),
+        ExecuteMsg::LeaveTrustedCircle {} => execute_leave_trusted_circle(deps, env, info),
         ExecuteMsg::CheckPending {} => execute_check_pending(deps, env, info),
     }
 }
@@ -118,7 +119,7 @@ pub fn execute_deposit_escrow(
         .ok_or(ContractError::NotAMember {})?;
 
     // update the amount
-    let amount = cw0::must_pay(&info, DSO_DENOM)?;
+    let amount = cw0::must_pay(&info, TRUSTED_CIRCLE_DENOM)?;
     escrow.paid += amount;
 
     let mut res = Response::new()
@@ -129,7 +130,7 @@ pub fn execute_deposit_escrow(
     // check to see if we update the pending status
     match escrow.status {
         MemberStatus::Pending { proposal_id: batch } => {
-            let required_escrow = DSO.load(deps.storage)?.get_escrow();
+            let required_escrow = TRUSTED_CIRCLE.load(deps.storage)?.get_escrow();
             if escrow.paid >= required_escrow {
                 // If we paid enough, we can move into Paid, Pending Voter
                 escrow.status = MemberStatus::PendingPaid { proposal_id: batch };
@@ -274,7 +275,7 @@ pub fn execute_return_escrow(
     let refund = match escrow.status {
         // voters can deduct as long as they maintain the required escrow
         MemberStatus::Voting {} => {
-            let min = DSO.load(deps.storage)?.get_escrow();
+            let min = TRUSTED_CIRCLE.load(deps.storage)?.get_escrow();
             escrow.paid.checked_sub(min)?
         }
         // leaving voters can claim as long as claim_at has passed
@@ -311,7 +312,7 @@ pub fn execute_return_escrow(
     if !refund.is_zero() {
         res = res.add_message(BankMsg::Send {
             to_address: info.sender.into(),
-            amount: vec![coin(refund.u128(), DSO_DENOM)],
+            amount: vec![coin(refund.u128(), TRUSTED_CIRCLE_DENOM)],
         });
     }
     Ok(res)
@@ -345,17 +346,21 @@ pub fn execute_propose(
     validate_proposal(deps.as_ref(), env.clone(), &proposal)?;
 
     // create a proposal
-    let dso = DSO.load(deps.storage)?;
+    let trusted_circle = TRUSTED_CIRCLE.load(deps.storage)?;
     let mut prop = Proposal {
         title,
         description,
         start_height: env.block.height,
-        expires: Expiration::AtTime(env.block.time.plus_seconds(dso.rules.voting_period_secs())),
+        expires: Expiration::AtTime(
+            env.block
+                .time
+                .plus_seconds(trusted_circle.rules.voting_period_secs()),
+        ),
         proposal,
         status: Status::Open,
         votes: Votes::yes(vote_power),
         total_weight: TOTAL.load(deps.storage)?,
-        rules: dso.rules,
+        rules: trusted_circle.rules,
     };
     prop.update_status(&env.block);
     let id = create_proposal(deps.storage, &prop)?;
@@ -381,14 +386,14 @@ pub fn validate_proposal(
     proposal: &ProposalContent,
 ) -> Result<(), ContractError> {
     match proposal {
-        ProposalContent::EditDso(dso_adjustments) => {
-            let mut dso = DSO.load(deps.storage)?;
-            dso.apply_adjustments(
+        ProposalContent::EditTrustedCircle(trusted_circle_adjustments) => {
+            let mut trusted_circle = TRUSTED_CIRCLE.load(deps.storage)?;
+            trusted_circle.apply_adjustments(
                 env,
                 u64::MAX, // Dummy proposal id
-                dso_adjustments.clone(),
+                trusted_circle_adjustments.clone(),
             )?;
-            dso.validate()
+            trusted_circle.validate()
         }
         ProposalContent::AddRemoveNonVotingMembers { add, remove } => {
             if add.is_empty() && remove.is_empty() {
@@ -448,7 +453,7 @@ pub fn execute_vote(
         return Err(ContractError::Unauthorized {});
     }
 
-    // ensure the voter is not currently leaving the dso (must be currently a voter)
+    // ensure the voter is not currently leaving the trusted_circle (must be currently a voter)
     let escrow = ESCROWS.load(deps.storage, &info.sender)?;
     if !escrow.status.is_voting() {
         return Err(ContractError::InvalidStatus(escrow.status));
@@ -541,7 +546,7 @@ pub fn execute_close(
     Ok(res)
 }
 
-pub fn execute_leave_dso(
+pub fn execute_leave_trusted_circle(
     deps: DepsMut,
     env: Env,
     info: MessageInfo,
@@ -568,7 +573,7 @@ fn leave_immediately(deps: DepsMut, env: Env, leaver: Addr) -> Result<Response, 
     ESCROWS.remove(deps.storage, &leaver);
 
     let res = Response::new()
-        .add_attribute("action", "leave_dso")
+        .add_attribute("action", "leave_trusted_circle")
         .add_attribute("type", "immediately")
         .add_attribute("sender", leaver);
     Ok(res)
@@ -593,13 +598,13 @@ fn trigger_long_leave(
     }
 
     // in all case, we become a leaving member and set the claim on our escrow
-    let dso = DSO.load(deps.storage)?;
-    let claim_at = env.block.time.seconds() + dso.rules.voting_period_secs() * 2;
+    let trusted_circle = TRUSTED_CIRCLE.load(deps.storage)?;
+    let claim_at = env.block.time.seconds() + trusted_circle.rules.voting_period_secs() * 2;
     escrow.status = MemberStatus::Leaving { claim_at };
     ESCROWS.save(deps.storage, &leaver, &escrow)?;
 
     let res = Response::new()
-        .add_attribute("action", "leave_dso")
+        .add_attribute("action", "leave_trusted_circle")
         .add_attribute("type", "delayed")
         .add_attribute("claim_at", claim_at.to_string())
         .add_attribute("leaving", leaver);
@@ -659,8 +664,8 @@ fn check_pending(storage: &mut dyn Storage, env: &Env) -> Result<Vec<Event>, Con
 }
 
 fn check_pending_escrow(storage: &mut dyn Storage, env: &Env) -> Result<Vec<Event>, ContractError> {
-    let mut dso = DSO.load(storage)?;
-    if let Some(pending_escrow) = dso.escrow_pending {
+    let mut trusted_circle = TRUSTED_CIRCLE.load(storage)?;
+    if let Some(pending_escrow) = trusted_circle.escrow_pending {
         if env.block.time.seconds() >= pending_escrow.grace_ends_at {
             // Demote all Voting without enough escrow to Pending (pending_escrow > escrow_amount)
             // Promote all Pending with enough escrow to PendingPaid (pending_escrow < escrow_amount)
@@ -668,15 +673,15 @@ fn check_pending_escrow(storage: &mut dyn Storage, env: &Env) -> Result<Vec<Even
                 storage,
                 env,
                 pending_escrow.proposal_id,
-                dso.escrow_amount,
+                trusted_circle.escrow_amount,
                 pending_escrow.amount,
                 env.block.height,
             )?;
 
             // Enforce new escrow from now on
-            dso.escrow_amount = pending_escrow.amount;
-            dso.escrow_pending = None;
-            DSO.save(storage, &dso)?;
+            trusted_circle.escrow_amount = pending_escrow.amount;
+            trusted_circle.escrow_pending = None;
+            TRUSTED_CIRCLE.save(storage, &trusted_circle)?;
 
             if let Some(evt) = evt {
                 return Ok(vec![evt]);
@@ -797,8 +802,8 @@ pub fn proposal_execute(
         ProposalContent::AddRemoveNonVotingMembers { add, remove } => {
             proposal_add_remove_non_voting_members(deps, env, add, remove)
         }
-        ProposalContent::EditDso(adjustments) => {
-            proposal_edit_dso(deps, env, proposal_id, adjustments)
+        ProposalContent::EditTrustedCircle(adjustments) => {
+            proposal_edit_trusted_circle(deps, env, proposal_id, adjustments)
         }
         ProposalContent::AddVotingMembers { voters } => {
             proposal_add_voting_members(deps, env, proposal_id, voters)
@@ -825,19 +830,19 @@ pub fn proposal_add_remove_non_voting_members(
     Ok(res)
 }
 
-pub fn proposal_edit_dso(
+pub fn proposal_edit_trusted_circle(
     deps: DepsMut,
     env: Env,
     proposal_id: u64,
-    adjustments: DsoAdjustments,
+    adjustments: TrustedCircleAdjustments,
 ) -> Result<Response, ContractError> {
     let res = Response::new()
         .add_attributes(adjustments.as_attributes())
-        .add_attribute("proposal", "edit_dso");
+        .add_attribute("proposal", "edit_trusted_circle");
 
-    DSO.update::<_, ContractError>(deps.storage, |mut dso| {
-        dso.apply_adjustments(env, proposal_id, adjustments)?;
-        Ok(dso)
+    TRUSTED_CIRCLE.update::<_, ContractError>(deps.storage, |mut trusted_circle| {
+        trusted_circle.apply_adjustments(env, proposal_id, adjustments)?;
+        Ok(trusted_circle)
     })?;
 
     Ok(res)
@@ -851,7 +856,10 @@ pub fn proposal_add_voting_members(
 ) -> Result<Response, ContractError> {
     let height = env.block.height;
     // grace period is defined as the voting period
-    let grace_period = DSO.load(deps.storage)?.rules.voting_period_secs();
+    let grace_period = TRUSTED_CIRCLE
+        .load(deps.storage)?
+        .rules
+        .voting_period_secs();
 
     let addrs = to_add
         .iter()
@@ -973,7 +981,7 @@ pub fn proposal_punish_members(
                     // Generate Bank message with distribution payment
                     res = res.add_message(BankMsg::Send {
                         to_address: distr_addr.clone(),
-                        amount: vec![coin(escrow_each, DSO_DENOM)],
+                        amount: vec![coin(escrow_each, TRUSTED_CIRCLE_DENOM)],
                     });
                 }
                 // Keep remainder escrow in member account
@@ -981,14 +989,14 @@ pub fn proposal_punish_members(
             }
             Punishment::BurnEscrow { .. } => {
                 res = res.add_message(BankMsg::Burn {
-                    amount: vec![coin(escrow_slashed, DSO_DENOM)],
+                    amount: vec![coin(escrow_slashed, TRUSTED_CIRCLE_DENOM)],
                 });
             }
         }
 
         // Adjust remaining escrow / status
         escrow_status.paid = escrow_remaining.into();
-        let required_escrow = DSO.load(deps.storage)?.get_escrow();
+        let required_escrow = TRUSTED_CIRCLE.load(deps.storage)?.get_escrow();
         if kick_out {
             let attrs =
                 trigger_long_leave(deps.branch(), env.clone(), addr, escrow_status)?.attributes;
@@ -1042,7 +1050,7 @@ pub fn query(deps: Deps, env: Env, msg: QueryMsg) -> StdResult<Binary> {
             to_binary(&list_non_voting_members(deps, start_after, limit)?)
         }
         QueryMsg::TotalWeight {} => to_binary(&query_total_weight(deps)?),
-        QueryMsg::Dso {} => to_binary(&query_dso(deps)?),
+        QueryMsg::TrustedCircle {} => to_binary(&query_trusted_circle(deps)?),
         QueryMsg::Proposal { proposal_id } => to_binary(&query_proposal(deps, env, proposal_id)?),
         QueryMsg::Vote { proposal_id, voter } => to_binary(&query_vote(deps, proposal_id, voter)?),
         QueryMsg::ListProposals {
@@ -1082,14 +1090,14 @@ pub(crate) fn query_total_weight(deps: Deps) -> StdResult<TotalWeightResponse> {
     Ok(TotalWeightResponse { weight })
 }
 
-pub(crate) fn query_dso(deps: Deps) -> StdResult<DsoResponse> {
-    let Dso {
+pub(crate) fn query_trusted_circle(deps: Deps) -> StdResult<TrustedCircleResponse> {
+    let TrustedCircle {
         name,
         escrow_amount,
         escrow_pending,
         rules,
-    } = DSO.load(deps.storage)?;
-    Ok(DsoResponse {
+    } = TRUSTED_CIRCLE.load(deps.storage)?;
+    Ok(TrustedCircleResponse {
         name,
         escrow_amount,
         escrow_pending,

@@ -6,7 +6,7 @@ use crate::state::{EscrowStatus, Punishment};
 use super::*;
 use crate::error::ContractError::Unauthorized;
 
-const BDD_NAME: &str = "bddso";
+const BDD_NAME: &str = "bdtrusted_circle";
 
 const NON_MEMBER: &str = "no one";
 const NON_VOTING: &str = "juanito";
@@ -148,7 +148,7 @@ fn setup_bdd(mut deps: DepsMut) {
         deps.branch(),
         later(&start, LEAVING_STARTS),
         mock_info(LEAVING, &[]),
-        ExecuteMsg::LeaveDso {},
+        ExecuteMsg::LeaveTrustedCircle {},
     )
     .unwrap();
 
@@ -185,8 +185,8 @@ fn demo_proposal() -> ExecuteMsg {
     }
 }
 
-fn edit_dso_proposal(escrow_funds: u128) -> ExecuteMsg {
-    let proposal = ProposalContent::EditDso(DsoAdjustments {
+fn edit_trusted_circle_proposal(escrow_funds: u128) -> ExecuteMsg {
+    let proposal = ProposalContent::EditTrustedCircle(TrustedCircleAdjustments {
         name: None,
         escrow_amount: Some(Uint128::new(escrow_funds)),
         voting_period: Some(1),
@@ -231,7 +231,7 @@ fn propose(deps: DepsMut, addr: &str) -> Result<Response, ContractError> {
     execute(deps, now(), mock_info(addr, &[]), demo_proposal())
 }
 
-fn propose_edit_dso(
+fn propose_edit_trusted_circle(
     deps: DepsMut,
     addr: &str,
     escrow_amount: u128,
@@ -240,7 +240,7 @@ fn propose_edit_dso(
         deps,
         now(),
         mock_info(addr, &[]),
-        edit_dso_proposal(escrow_amount),
+        edit_trusted_circle_proposal(escrow_amount),
     )
 }
 
@@ -287,7 +287,12 @@ pub(crate) fn propose_add_voting_members_and_execute(
 }
 
 fn leave(deps: DepsMut, addr: &str) -> Result<Response, ContractError> {
-    execute(deps, now(), mock_info(addr, &[]), ExecuteMsg::LeaveDso {})
+    execute(
+        deps,
+        now(),
+        mock_info(addr, &[]),
+        ExecuteMsg::LeaveTrustedCircle {},
+    )
 }
 
 fn assert_payment(messages: Vec<SubMsg>, to_addr: &str, amount: u128) {
@@ -471,7 +476,7 @@ fn voting_deposit_return_propose_leave() {
     // can leave, but long_leave
     leave(deps.as_mut(), VOTING).unwrap();
 
-    // TODO: we need to handle close DSO here (last voter leaving)
+    // TODO: we need to handle close TRUSTED_CIRCLE here (last voter leaving)
     // check no longer voting
     assert_membership(deps.as_ref(), VOTING, Some(0));
     assert_eq!(query_total_weight(deps.as_ref()).unwrap().weight, 0);
@@ -638,7 +643,7 @@ fn remove_existing_members() {
 }
 
 #[test]
-fn edit_dso_increase_escrow_voting_demoted_after_grace_period() {
+fn edit_trusted_circle_increase_escrow_voting_demoted_after_grace_period() {
     let mut deps = mock_dependencies(&[]);
     let env = mock_env();
     setup_bdd(deps.as_mut());
@@ -646,8 +651,8 @@ fn edit_dso_increase_escrow_voting_demoted_after_grace_period() {
     // assert voting member
     assert_membership(deps.as_ref(), VOTING, Some(1));
 
-    // creates edit dso proposal (tripling escrow amount)
-    let res = propose_edit_dso(deps.as_mut(), VOTING, ESCROW_FUNDS * 3).unwrap();
+    // creates edit trusted_circle proposal (tripling escrow amount)
+    let res = propose_edit_trusted_circle(deps.as_mut(), VOTING, ESCROW_FUNDS * 3).unwrap();
     let proposal_id = parse_prop_id(&res.attributes);
 
     execute_passed_proposal(deps.as_mut(), env, proposal_id).unwrap();
@@ -705,7 +710,7 @@ fn edit_dso_increase_escrow_voting_demoted_after_grace_period() {
 }
 
 #[test]
-fn edit_dso_decrease_escrow_pending_promoted_after_grace_period() {
+fn edit_trusted_circle_decrease_escrow_pending_promoted_after_grace_period() {
     let mut deps = mock_dependencies(&[]);
     let env = mock_env();
     setup_bdd(deps.as_mut());
@@ -713,8 +718,8 @@ fn edit_dso_decrease_escrow_pending_promoted_after_grace_period() {
     // assert voting member
     assert_membership(deps.as_ref(), VOTING, Some(1));
 
-    // creates edit dso proposal (half escrow amount)
-    let res = propose_edit_dso(deps.as_mut(), VOTING, ESCROW_FUNDS / 2).unwrap();
+    // creates edit trusted_circle proposal (half escrow amount)
+    let res = propose_edit_trusted_circle(deps.as_mut(), VOTING, ESCROW_FUNDS / 2).unwrap();
 
     execute_passed_proposal(deps.as_mut(), env, parse_prop_id(&res.attributes)).unwrap();
 
@@ -791,7 +796,7 @@ fn edit_dso_decrease_escrow_pending_promoted_after_grace_period() {
 }
 
 #[test]
-fn edit_dso_increase_escrow_enforced_before_new_proposal() {
+fn edit_trusted_circle_increase_escrow_enforced_before_new_proposal() {
     let mut deps = mock_dependencies(&[]);
     let env = mock_env();
     setup_bdd(deps.as_mut());
@@ -799,8 +804,8 @@ fn edit_dso_increase_escrow_enforced_before_new_proposal() {
     // assert voting member
     assert_membership(deps.as_ref(), VOTING, Some(1));
 
-    // creates edit dso proposal (tripling escrow amount)
-    let res = propose_edit_dso(deps.as_mut(), VOTING, ESCROW_FUNDS * 3).unwrap();
+    // creates edit trusted_circle proposal (tripling escrow amount)
+    let res = propose_edit_trusted_circle(deps.as_mut(), VOTING, ESCROW_FUNDS * 3).unwrap();
 
     execute_passed_proposal(deps.as_mut(), env, parse_prop_id(&res.attributes)).unwrap();
 
