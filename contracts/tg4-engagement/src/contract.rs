@@ -13,7 +13,10 @@ use tg4::{
 };
 
 use crate::error::ContractError;
-use crate::msg::{ExecuteMsg, FundsResponse, InstantiateMsg, PreauthResponse, QueryMsg, SudoMsg};
+use crate::msg::{
+    DelegatedResponse, ExecuteMsg, FundsResponse, InstantiateMsg, PreauthResponse, QueryMsg,
+    SudoMsg,
+};
 use crate::state::{
     Distribution, Halflife, WithdrawAdjustment, DISTRIBUTION, HALFLIFE, POINTS_SHIFT,
     WITHDRAW_ADJUSTMENT,
@@ -87,15 +90,17 @@ pub fn create(
     DISTRIBUTION.save(deps.storage, &distribution)?;
 
     let mut total = 0u64;
-    let adjustment = WithdrawAdjustment {
-        points_correction: 0i128.into(),
-        withdrawn_funds: Uint128::zero(),
-    };
 
     for member in members_list.into_iter() {
         total += member.weight;
         let member_addr = deps.api.addr_validate(&member.addr)?;
         members().save(deps.storage, &member_addr, &member.weight, height)?;
+
+        let adjustment = WithdrawAdjustment {
+            points_correction: 0i128.into(),
+            withdrawn_funds: Uint128::zero(),
+            delegated: member_addr.clone(),
+        };
 
         WITHDRAW_ADJUSTMENT.save(deps.storage, &member_addr, &adjustment)?;
     }
@@ -127,7 +132,12 @@ pub fn execute(
         ExecuteMsg::DistributeFunds { sender } => {
             execute_distribute_tokens(deps, env, info, sender)
         }
-        ExecuteMsg::WithdrawFunds { receiver } => execute_withdraw_tokens(deps, info, receiver),
+        ExecuteMsg::WithdrawFunds { owner, receiver } => {
+            execute_withdraw_tokens(deps, info, owner, receiver)
+        }
+        ExecuteMsg::DelegateWithdrawal { delegated } => {
+            execute_delegate_withdrawal(deps, info, delegated)
+        }
     }
 }
 
@@ -257,11 +267,22 @@ pub fn execute_distribute_tokens(
 pub fn execute_withdraw_tokens(
     deps: DepsMut,
     info: MessageInfo,
+    owner: Option<String>,
     receiver: Option<String>,
 ) -> Result<Response, ContractError> {
+    let owner = owner.map_or_else(
+        || Ok(info.sender.clone()),
+        |owner| deps.api.addr_validate(&owner),
+    )?;
+
     let mut distribution = DISTRIBUTION.load(deps.storage)?;
-    let mut adjustment = WITHDRAW_ADJUSTMENT.load(deps.storage, &info.sender)?;
-    let token = withdrawable_funds(deps.as_ref(), &info.sender, &distribution, &adjustment)?;
+    let mut adjustment = WITHDRAW_ADJUSTMENT.load(deps.storage, &owner)?;
+
+    if ![&owner, &adjustment.delegated].contains(&&info.sender) {
+        return Err(ContractError::Unauthorized {});
+    }
+
+    let token = withdrawable_funds(deps.as_ref(), &owner, &distribution, &adjustment)?;
     let receiver = receiver
         .map(|receiver| deps.api.addr_validate(&receiver))
         .transpose()?
@@ -273,13 +294,14 @@ pub fn execute_withdraw_tokens(
     }
 
     adjustment.withdrawn_funds += token.amount;
-    WITHDRAW_ADJUSTMENT.save(deps.storage, &info.sender, &adjustment)?;
+    WITHDRAW_ADJUSTMENT.save(deps.storage, &owner, &adjustment)?;
     distribution.withdrawable_total -= token.amount;
     DISTRIBUTION.save(deps.storage, &distribution)?;
 
     let resp = Response::new()
         .add_attribute("action", "withdraw_tokens")
-        .add_attribute("owner", info.sender.as_str())
+        .add_attribute("sender", info.sender.as_str())
+        .add_attribute("owner", owner.as_str())
         .add_attribute("receiver", receiver.as_str())
         .add_attribute("token", &token.denom)
         .add_attribute("amount", &token.amount.to_string())
@@ -287,6 +309,35 @@ pub fn execute_withdraw_tokens(
             to_address: receiver.to_string(),
             amount: vec![token],
         }));
+
+    Ok(resp)
+}
+
+pub fn execute_delegate_withdrawal(
+    deps: DepsMut,
+    info: MessageInfo,
+    delegated: String,
+) -> Result<Response, ContractError> {
+    let delegated = deps.api.addr_validate(&delegated)?;
+
+    WITHDRAW_ADJUSTMENT.update(deps.storage, &info.sender, |data| -> StdResult<_> {
+        Ok(data.map_or_else(
+            || WithdrawAdjustment {
+                points_correction: 0.into(),
+                withdrawn_funds: Uint128::zero(),
+                delegated: delegated.clone(),
+            },
+            |mut data| {
+                data.delegated = delegated.clone();
+                data
+            },
+        ))
+    })?;
+
+    let resp = Response::new()
+        .add_attribute("action", "delegate_withdrawal")
+        .add_attribute("sender", info.sender.as_str())
+        .add_attribute("delegated", &delegated);
 
     Ok(resp)
 }
@@ -389,7 +440,14 @@ pub fn apply_points_correction(
     diff: i128,
 ) -> StdResult<()> {
     WITHDRAW_ADJUSTMENT.update(deps.storage, addr, |old| -> StdResult<_> {
-        let mut old = old.unwrap_or_default();
+        let mut old = old.unwrap_or_else(|| {
+            // This should never happen, but better this than panic
+            WithdrawAdjustment {
+                points_correction: 0.into(),
+                withdrawn_funds: Uint128::zero(),
+                delegated: addr.clone(),
+            }
+        });
         let points_correction: i128 = old.points_correction.into();
         old.points_correction = (points_correction - points_per_weight as i128 * diff).into();
         Ok(old)
@@ -510,6 +568,7 @@ pub fn query(deps: Deps, env: Env, msg: QueryMsg) -> StdResult<Binary> {
         QueryMsg::WithdrawableFunds { owner } => to_binary(&query_withdrawable_funds(deps, owner)?),
         QueryMsg::DistributedFunds {} => to_binary(&query_distributed_total(deps)?),
         QueryMsg::UndistributedFunds {} => to_binary(&query_undistributed_funds(deps, env)?),
+        QueryMsg::Delegated { owner } => to_binary(&query_delegated(deps, owner)?),
     }
 }
 
@@ -557,6 +616,16 @@ pub fn query_distributed_total(deps: Deps) -> StdResult<FundsResponse> {
     Ok(FundsResponse {
         funds: coin(distribution.distributed_total.into(), &distribution.token),
     })
+}
+
+pub fn query_delegated(deps: Deps, owner: String) -> StdResult<DelegatedResponse> {
+    let owner = deps.api.addr_validate(&owner)?;
+
+    let delegated = WITHDRAW_ADJUSTMENT
+        .may_load(deps.storage, &owner)?
+        .map_or(owner, |data| data.delegated);
+
+    Ok(DelegatedResponse { delegated })
 }
 
 // settings for pagination

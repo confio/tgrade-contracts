@@ -4,6 +4,8 @@ use cosmwasm_std::{coin, coins, Event};
 use suite::SuiteBuilder;
 
 mod funds_distribution {
+    use crate::error::ContractError;
+
     use super::*;
 
     fn distribution_event(sender: &str, token: &str, amount: u128) -> Event {
@@ -59,9 +61,9 @@ mod funds_distribution {
         assert_eq!(suite.distributed_funds().unwrap(), coin(400, &token));
         assert_eq!(suite.undistributed_funds().unwrap(), coin(0, &token));
 
-        suite.withdraw_funds(&members[0], None).unwrap();
-        suite.withdraw_funds(&members[1], None).unwrap();
-        suite.withdraw_funds(&members[2], None).unwrap();
+        suite.withdraw_funds(&members[0], None, None).unwrap();
+        suite.withdraw_funds(&members[1], None, None).unwrap();
+        suite.withdraw_funds(&members[2], None, None).unwrap();
 
         assert_eq!(suite.token_balance(suite.contract.as_str()).unwrap(), 0);
         assert_eq!(suite.token_balance(&members[0]).unwrap(), 50);
@@ -95,9 +97,9 @@ mod funds_distribution {
         assert_eq!(suite.distributed_funds().unwrap(), coin(400, &token));
         assert_eq!(suite.undistributed_funds().unwrap(), coin(0, &token));
 
-        suite.withdraw_funds(&members[0], None).unwrap();
-        suite.withdraw_funds(&members[1], None).unwrap();
-        suite.withdraw_funds(&members[2], None).unwrap();
+        suite.withdraw_funds(&members[0], None, None).unwrap();
+        suite.withdraw_funds(&members[1], None, None).unwrap();
+        suite.withdraw_funds(&members[2], None, None).unwrap();
 
         assert_eq!(suite.token_balance(suite.contract.as_str()).unwrap(), 0);
         assert_eq!(suite.token_balance(&members[0]).unwrap(), 50);
@@ -112,9 +114,9 @@ mod funds_distribution {
         assert_eq!(suite.distributed_funds().unwrap(), coin(1000, &token));
         assert_eq!(suite.undistributed_funds().unwrap(), coin(0, &token));
 
-        suite.withdraw_funds(&members[0], None).unwrap();
-        suite.withdraw_funds(&members[1], None).unwrap();
-        suite.withdraw_funds(&members[2], None).unwrap();
+        suite.withdraw_funds(&members[0], None, None).unwrap();
+        suite.withdraw_funds(&members[1], None, None).unwrap();
+        suite.withdraw_funds(&members[2], None, None).unwrap();
 
         assert_eq!(suite.token_balance(suite.contract.as_str()).unwrap(), 0);
         assert_eq!(suite.token_balance(&members[0]).unwrap(), 125);
@@ -155,9 +157,9 @@ mod funds_distribution {
         assert_eq!(suite.distributed_funds().unwrap(), coin(1000, &token));
         assert_eq!(suite.undistributed_funds().unwrap(), coin(0, &token));
 
-        suite.withdraw_funds(&members[0], None).unwrap();
-        suite.withdraw_funds(&members[1], None).unwrap();
-        suite.withdraw_funds(&members[2], None).unwrap();
+        suite.withdraw_funds(&members[0], None, None).unwrap();
+        suite.withdraw_funds(&members[1], None, None).unwrap();
+        suite.withdraw_funds(&members[2], None, None).unwrap();
 
         assert_eq!(suite.token_balance(suite.contract.as_str()).unwrap(), 0);
         assert_eq!(suite.token_balance(&members[0]).unwrap(), 125);
@@ -199,9 +201,9 @@ mod funds_distribution {
             .unwrap();
 
         // Ensure funds are withdrawn properly, considering old weights
-        suite.withdraw_funds(&members[0], None).unwrap();
-        suite.withdraw_funds(&members[1], None).unwrap();
-        suite.withdraw_funds(&members[2], None).unwrap();
+        suite.withdraw_funds(&members[0], None, None).unwrap();
+        suite.withdraw_funds(&members[1], None, None).unwrap();
+        suite.withdraw_funds(&members[2], None, None).unwrap();
 
         assert_eq!(suite.token_balance(suite.contract.as_str()).unwrap(), 0);
         assert_eq!(suite.token_balance(&members[0]).unwrap(), 50);
@@ -214,9 +216,9 @@ mod funds_distribution {
             .distribute_funds(&members[3], None, &coins(1100, &token))
             .unwrap();
 
-        suite.withdraw_funds(&members[0], None).unwrap();
-        suite.withdraw_funds(&members[1], None).unwrap();
-        suite.withdraw_funds(&members[2], None).unwrap();
+        suite.withdraw_funds(&members[0], None, None).unwrap();
+        suite.withdraw_funds(&members[1], None, None).unwrap();
+        suite.withdraw_funds(&members[2], None, None).unwrap();
 
         assert_eq!(suite.token_balance(suite.contract.as_str()).unwrap(), 0);
         assert_eq!(suite.token_balance(&members[0]).unwrap(), 650);
@@ -263,9 +265,9 @@ mod funds_distribution {
             .unwrap();
 
         // Withdraws sums of both distributions, so it works when they were using different weights
-        suite.withdraw_funds(&members[0], None).unwrap();
-        suite.withdraw_funds(&members[1], None).unwrap();
-        suite.withdraw_funds(&members[2], None).unwrap();
+        suite.withdraw_funds(&members[0], None, None).unwrap();
+        suite.withdraw_funds(&members[1], None, None).unwrap();
+        suite.withdraw_funds(&members[2], None, None).unwrap();
 
         assert_eq!(suite.token_balance(suite.contract.as_str()).unwrap(), 0);
         assert_eq!(suite.token_balance(&members[0]).unwrap(), 650);
@@ -298,9 +300,9 @@ mod funds_distribution {
             .distribute_funds(&members[3], None, &coins(100, &token))
             .unwrap();
 
-        suite.withdraw_funds(&members[0], None).unwrap();
-        suite.withdraw_funds(&members[1], None).unwrap();
-        suite.withdraw_funds(&members[2], None).unwrap();
+        suite.withdraw_funds(&members[0], None, None).unwrap();
+        suite.withdraw_funds(&members[1], None, None).unwrap();
+        suite.withdraw_funds(&members[2], None, None).unwrap();
 
         assert_eq!(suite.token_balance(suite.contract.as_str()).unwrap(), 2);
         assert_eq!(suite.token_balance(&members[0]).unwrap(), 22);
@@ -313,9 +315,9 @@ mod funds_distribution {
             .distribute_funds(&members[3], None, &coins(3000, &token))
             .unwrap();
 
-        suite.withdraw_funds(&members[0], None).unwrap();
-        suite.withdraw_funds(&members[1], None).unwrap();
-        suite.withdraw_funds(&members[2], None).unwrap();
+        suite.withdraw_funds(&members[0], None, None).unwrap();
+        suite.withdraw_funds(&members[1], None, None).unwrap();
+        suite.withdraw_funds(&members[2], None, None).unwrap();
 
         assert_eq!(suite.token_balance(suite.contract.as_str()).unwrap(), 0);
         assert_eq!(suite.token_balance(&members[0]).unwrap(), 700);
@@ -353,9 +355,9 @@ mod funds_distribution {
             .distribute_funds(&members[3], None, &coins(3000, &token))
             .unwrap();
 
-        suite.withdraw_funds(&members[0], None).unwrap();
-        suite.withdraw_funds(&members[1], None).unwrap();
-        suite.withdraw_funds(&members[2], None).unwrap();
+        suite.withdraw_funds(&members[0], None, None).unwrap();
+        suite.withdraw_funds(&members[1], None, None).unwrap();
+        suite.withdraw_funds(&members[2], None, None).unwrap();
 
         assert_eq!(suite.token_balance(suite.contract.as_str()).unwrap(), 0);
         assert_eq!(suite.token_balance(&members[0]).unwrap(), 700);
@@ -385,13 +387,99 @@ mod funds_distribution {
             .unwrap();
 
         suite
-            .withdraw_funds(&members[0], members[2].as_str())
+            .withdraw_funds(&members[0], None, members[2].as_str())
             .unwrap();
-        suite.withdraw_funds(&members[1], None).unwrap();
+        suite.withdraw_funds(&members[1], None, None).unwrap();
 
         assert_eq!(suite.token_balance(suite.contract.as_str()).unwrap(), 0);
         assert_eq!(suite.token_balance(&members[0]).unwrap(), 0);
         assert_eq!(suite.token_balance(&members[1]).unwrap(), 60);
         assert_eq!(suite.token_balance(&members[2]).unwrap(), 40);
+    }
+
+    #[test]
+    fn cannot_withdraw_others_funds() {
+        let members = vec![
+            "member1".to_owned(),
+            "member2".to_owned(),
+            "member3".to_owned(),
+        ];
+
+        let mut suite = SuiteBuilder::new()
+            .with_member(&members[0], 4)
+            .with_member(&members[1], 6)
+            .with_funds(&members[2], 100)
+            .build();
+
+        let token = suite.token.clone();
+
+        suite
+            .distribute_funds(&members[2], None, &coins(100, &token))
+            .unwrap();
+
+        let err = suite
+            .withdraw_funds(&members[0], members[1].as_str(), None)
+            .unwrap_err();
+
+        assert_eq!(ContractError::Unauthorized {}, err.downcast().unwrap());
+
+        suite
+            .withdraw_funds(&members[1], members[1].as_str(), None)
+            .unwrap();
+
+        assert_eq!(suite.token_balance(suite.contract.as_str()).unwrap(), 40);
+        assert_eq!(suite.token_balance(&members[0]).unwrap(), 0);
+        assert_eq!(suite.token_balance(&members[1]).unwrap(), 60);
+        assert_eq!(suite.token_balance(&members[2]).unwrap(), 0);
+    }
+
+    #[test]
+    fn funds_withdrawal_delegation() {
+        let members = vec![
+            "member1".to_owned(),
+            "member2".to_owned(),
+            "member3".to_owned(),
+        ];
+
+        let mut suite = SuiteBuilder::new()
+            .with_member(&members[0], 4)
+            .with_member(&members[1], 6)
+            .with_funds(&members[2], 100)
+            .build();
+
+        let token = suite.token.clone();
+
+        assert_eq!(
+            suite.delegated(&members[0]).unwrap().as_str(),
+            members[0].as_str()
+        );
+        assert_eq!(
+            suite.delegated(&members[1]).unwrap().as_str(),
+            members[1].as_str()
+        );
+
+        suite
+            .distribute_funds(&members[2], None, &coins(100, &token))
+            .unwrap();
+
+        suite.delegate_withdrawal(&members[1], &members[0]).unwrap();
+
+        suite
+            .withdraw_funds(&members[0], members[1].as_str(), None)
+            .unwrap();
+
+        assert_eq!(
+            suite.delegated(&members[0]).unwrap().as_str(),
+            members[0].as_str()
+        );
+        assert_eq!(
+            suite.delegated(&members[1]).unwrap().as_str(),
+            members[0].as_str()
+        );
+
+        assert_eq!(suite.token_balance(suite.contract.as_str()).unwrap(), 40);
+        assert_eq!(suite.token_balance(&members[0]).unwrap(), 60);
+        assert_eq!(suite.token_balance(&members[1]).unwrap(), 0);
+        assert_eq!(suite.token_balance(&members[2]).unwrap(), 0);
     }
 }

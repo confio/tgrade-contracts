@@ -122,13 +122,30 @@ impl Suite {
     pub fn withdraw_funds<'s>(
         &mut self,
         executor: &str,
+        owner: impl Into<Option<&'s str>>,
         receiver: impl Into<Option<&'s str>>,
     ) -> AnyResult<AppResponse> {
         self.app.execute_contract(
             Addr::unchecked(executor),
             self.contract.clone(),
             &ExecuteMsg::WithdrawFunds {
+                owner: owner.into().map(str::to_owned),
                 receiver: receiver.into().map(str::to_owned),
+            },
+            &[],
+        )
+    }
+
+    pub fn delegate_withdrawal(
+        &mut self,
+        executor: &str,
+        delegated: &str,
+    ) -> AnyResult<AppResponse> {
+        self.app.execute_contract(
+            Addr::unchecked(executor),
+            self.contract.clone(),
+            &ExecuteMsg::DelegateWithdrawal {
+                delegated: delegated.to_owned(),
             },
             &[],
         )
@@ -182,6 +199,16 @@ impl Suite {
             .wrap()
             .query_wasm_smart(self.contract.clone(), &QueryMsg::UndistributedFunds {})?;
         Ok(resp.funds)
+    }
+
+    pub fn delegated(&self, owner: &str) -> Result<Addr, ContractError> {
+        let resp: DelegatedResponse = self.app.wrap().query_wasm_smart(
+            self.contract.clone(),
+            &QueryMsg::Delegated {
+                owner: owner.to_owned(),
+            },
+        )?;
+        Ok(resp.delegated)
     }
 
     /// Shortcut for querying distributeable token balance of contract

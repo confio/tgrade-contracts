@@ -67,6 +67,12 @@ they are assigned for future withdrawal.
 message while funds distribution. Optional `receiver` field is an address where
 funds should be send, message sender by default.
 
+`DelegateWithdrawal{delegated}` - set `delegated` address to be allowed to
+withdraw funds assigned to `sender`. Only one address can be delegated for any
+address, so delegating new address overwrites previous one. To disallow any
+address to withdraw funds, send `DelegateWithdrawal` with `delegated` send
+to `sender`.
+
 ## Queries
 
 `WithdrawableFunds{owner}` - returns how much funds is assigned for withdrawal by
@@ -75,5 +81,8 @@ owner.
 `DistributedFunds{}` - returns how much funds were distributed by this contract in
 its lifetime.
 
-`UndistributedFunds{]` - returns how much funds is waiting for distribution on this
+`UndistributedFunds{}` - returns how much funds is waiting for distribution on this
 contract.
+
+`Delegated{owner}` - returns address allowed to withdraw funds assigned to given
+`owner`. If none is set, `owner` would be returned.
