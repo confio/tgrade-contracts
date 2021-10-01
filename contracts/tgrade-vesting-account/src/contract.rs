@@ -364,6 +364,18 @@ mod tests {
                 Uint128::new(amount),
             )
         }
+
+        fn change_operator(
+            &mut self,
+            oversight: &str,
+            new_operator: &str,
+        ) -> Result<Response, ContractError> {
+            change_operator(
+                self.deps.as_mut(),
+                Addr::unchecked(oversight),
+                Addr::unchecked(new_operator),
+            )
+        }
     }
 
     mod unauthorized {
@@ -394,11 +406,7 @@ mod tests {
             let mut suite = SuiteBuilder::default().build();
 
             assert_matches!(
-                change_operator(
-                    suite.deps.as_mut(),
-                    Addr::unchecked(RECIPIENT),
-                    Addr::unchecked(RECIPIENT)
-                ),
+                suite.change_operator(RECIPIENT, RECIPIENT),
                 Err(ContractError::RequireOversight)
             );
         }
@@ -654,11 +662,7 @@ mod tests {
         let mut suite = SuiteBuilder::default().build();
 
         assert_eq!(
-            change_operator(
-                suite.deps.as_mut(),
-                Addr::unchecked(OVERSIGHT),
-                Addr::unchecked(RECIPIENT)
-            ),
+            suite.change_operator(OVERSIGHT, RECIPIENT),
             Ok(Response::new()
                 .add_attribute("action", "change_operator")
                 .add_attribute("operator", RECIPIENT.to_string())
@@ -672,6 +676,7 @@ mod tests {
             }) if operator == Addr::unchecked(RECIPIENT)
         );
     }
+
     #[test]
     fn release_tokens_discrete_success() {
         let mut suite = SuiteBuilder::default().build();
