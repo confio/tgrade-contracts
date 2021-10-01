@@ -2,7 +2,7 @@
 use cosmwasm_std::entry_point;
 use cosmwasm_std::{
     coin, to_binary, Addr, BankMsg, Binary, Coin, Deps, DepsMut, Env, Event, MessageInfo, Order,
-    StdError, StdResult, Timestamp, Uint128,
+    StdResult, Timestamp, Uint128,
 };
 use cw0::maybe_addr;
 use cw2::set_contract_version;
@@ -129,7 +129,9 @@ pub fn execute(
         ExecuteMsg::DistributeFunds { sender } => {
             execute_distribute_tokens(deps, env, info, sender)
         }
-        ExecuteMsg::WithdrawFunds { receiver, .. } => execute_withdraw_tokens(deps, info, receiver),
+        ExecuteMsg::WithdrawFunds { owner, receiver } => {
+            execute_withdraw_tokens(deps, info, owner, receiver)
+        }
         ExecuteMsg::DelegateWithdrawal { delegated } => {
             execute_delegate_withdrawal(deps, info, delegated)
         }
@@ -262,11 +264,22 @@ pub fn execute_distribute_tokens(
 pub fn execute_withdraw_tokens(
     deps: DepsMut,
     info: MessageInfo,
+    owner: Option<String>,
     receiver: Option<String>,
 ) -> Result<Response, ContractError> {
+    let owner = owner.map_or_else(
+        || Ok(info.sender.clone()),
+        |owner| deps.api.addr_validate(&owner),
+    )?;
+
     let mut distribution = DISTRIBUTION.load(deps.storage)?;
-    let mut adjustment = WITHDRAW_ADJUSTMENT.load(deps.storage, &info.sender)?;
-    let token = withdrawable_funds(deps.as_ref(), &info.sender, &distribution, &adjustment)?;
+    let mut adjustment = WITHDRAW_ADJUSTMENT.load(deps.storage, &owner)?;
+
+    if ![&owner, &adjustment.delegated].contains(&&info.sender) {
+        return Err(ContractError::Unauthorized {});
+    }
+
+    let token = withdrawable_funds(deps.as_ref(), &owner, &distribution, &adjustment)?;
     let receiver = receiver
         .map(|receiver| deps.api.addr_validate(&receiver))
         .transpose()?
@@ -278,13 +291,14 @@ pub fn execute_withdraw_tokens(
     }
 
     adjustment.withdrawn_funds += token.amount;
-    WITHDRAW_ADJUSTMENT.save(deps.storage, &info.sender, &adjustment)?;
+    WITHDRAW_ADJUSTMENT.save(deps.storage, &owner, &adjustment)?;
     distribution.withdrawable_total -= token.amount;
     DISTRIBUTION.save(deps.storage, &distribution)?;
 
     let resp = Response::new()
         .add_attribute("action", "withdraw_tokens")
-        .add_attribute("owner", info.sender.as_str())
+        .add_attribute("sender", info.sender.as_str())
+        .add_attribute("owner", owner.as_str())
         .add_attribute("receiver", receiver.as_str())
         .add_attribute("token", &token.denom)
         .add_attribute("amount", &token.amount.to_string())
