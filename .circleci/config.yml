@@ -6,7 +6,7 @@ workflows:
       - contract_tg4_engagement
       - contract_tg4_mixer
       - contract_tg4_stake
-      - contract_tgrade_dso
+      - contract_tgrade_trusted_circle
       - contract_tgrade_gov_reflect
       - contract_tgrade_valset
       - contract_tgrade_vesting_account
@@ -136,10 +136,10 @@ jobs:
             - target
           key: cargocache-tg4-stake-rust:1.53.0-{{ checksum "~/project/Cargo.lock" }}
 
-  contract_tgrade_dso:
+  contract_tgrade_trusted_circle:
     docker:
       - image: rust:1.53.0
-    working_directory: ~/project/contracts/tgrade-dso
+    working_directory: ~/project/contracts/tgrade-trusted-circle
     steps:
       - checkout:
           path: ~/project
@@ -148,7 +148,7 @@ jobs:
           command: rustc --version; cargo --version; rustup --version
       - restore_cache:
           keys:
-            - cargocache-tgrade-dso-rust:1.53.0-{{ checksum "~/project/Cargo.lock" }}
+            - cargocache-tgrade-trusted-circle-rust:1.53.0-{{ checksum "~/project/Cargo.lock" }}
       - run:
           name: Unit Tests
           environment:
@@ -170,7 +170,7 @@ jobs:
           paths:
             - /usr/local/cargo/registry
             - target
-          key: cargocache-tgrade-dso-rust:1.53.0-{{ checksum "~/project/Cargo.lock" }}
+          key: cargocache-tgrade-trusted-circle-rust:1.53.0-{{ checksum "~/project/Cargo.lock" }}
 
   contract_tgrade_gov_reflect:
     docker:

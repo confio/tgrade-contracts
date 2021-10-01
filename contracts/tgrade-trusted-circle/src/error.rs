@@ -12,10 +12,10 @@ pub enum ContractError {
     #[error("Unauthorized")]
     Unauthorized {},
 
-    #[error("Missing dso name")]
+    #[error("Missing trusted_circle name")]
     EmptyName {},
 
-    #[error("DSO name to long, maximum 1024 characters")]
+    #[error("TRUSTED_CIRCLE name to long, maximum 1024 characters")]
     LongName {},
 
     #[error("Invalid voting quorum percentage, must be 0.01-1.0: {0}")]
@@ -48,7 +48,7 @@ pub enum ContractError {
     #[error("Trying to remove a voting member: {0}")]
     VotingMember(String),
 
-    #[error("Caller is not a DSO member")]
+    #[error("Caller is not a TRUSTED_CIRCLE member")]
     NotAMember {},
 
     #[error("No members in proposal")]

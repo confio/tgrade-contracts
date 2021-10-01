@@ -805,7 +805,20 @@ dependencies = [
 ]
 
 [[package]]
-name = "tgrade-dso"
+name = "tgrade-gov-reflect"
+version = "0.4.0"
+dependencies = [
+ "cosmwasm-schema 1.0.0-soon",
+ "cosmwasm-std",
+ "cw-storage-plus",
+ "schemars",
+ "serde",
+ "tg-bindings",
+ "thiserror",
+]
+
+[[package]]
+name = "tgrade-trusted-circle"
 version = "0.4.0"
 dependencies = [
  "cosmwasm-schema 1.0.0-soon",
@@ -820,19 +833,6 @@ dependencies = [
  "tg-bindings",
  "tg-utils",
  "tg4",
- "thiserror",
-]
-
-[[package]]
-name = "tgrade-gov-reflect"
-version = "0.4.0"
-dependencies = [
- "cosmwasm-schema 1.0.0-soon",
- "cosmwasm-std",
- "cw-storage-plus",
- "schemars",
- "serde",
- "tg-bindings",
  "thiserror",
 ]
 
