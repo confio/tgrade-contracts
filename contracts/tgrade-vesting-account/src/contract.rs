@@ -267,7 +267,7 @@ mod tests {
     /// Default timestamp from mock_env() in seconds with 100 seconds added
     const DEFAULT_RELEASE: u64 = 1571797419 + 100;
 
-    struct SuiteConfig {
+    struct SuiteBuilder {
         recipient: Addr,
         operator: Addr,
         oversight: Addr,
@@ -275,7 +275,7 @@ mod tests {
         coins: Vec<Coin>,
     }
 
-    impl Default for SuiteConfig {
+    impl Default for SuiteBuilder {
         fn default() -> Self {
             Self {
                 recipient: Addr::unchecked(RECIPIENT),
@@ -289,33 +289,25 @@ mod tests {
         }
     }
 
-    impl SuiteConfig {
-        fn new_with_vesting_plan(vesting_plan: VestingPlan) -> Self {
-            Self {
-                vesting_plan,
-                ..Default::default()
-            }
-        }
-    }
-
-    struct Suite {
-        deps: OwnedDeps<MockStorage, MockApi, MockQuerier>,
-    }
-
-    impl Suite {
-        fn init() -> Self {
-            Self::init_with_config(SuiteConfig::default())
+    impl SuiteBuilder {
+        fn with_continuous_vesting_plan(mut self, start_at: u64, end_at: u64) -> Self {
+            self.vesting_plan = VestingPlan::Continuous {
+                // Plan starts 100s from mock_env() default timestamp and ends after 300s
+                start_at: Expiration::at_timestamp(Timestamp::from_seconds(start_at)),
+                end_at: Expiration::at_timestamp(Timestamp::from_seconds(end_at)),
+            };
+            self
         }
 
-        fn init_with_config(config: SuiteConfig) -> Self {
+        fn build(self) -> Suite {
             let mut deps = mock_dependencies(&[]);
-            let owner = mock_info(config.recipient.as_str(), &config.coins);
+            let owner = mock_info(self.recipient.as_str(), &self.coins);
 
             let instantiate_message = InstantiateMsg {
-                recipient: config.recipient,
-                operator: config.operator,
-                oversight: config.oversight,
-                vesting_plan: config.vesting_plan,
+                recipient: self.recipient,
+                operator: self.operator,
+                oversight: self.oversight,
+                vesting_plan: self.vesting_plan,
             };
 
             instantiate(
@@ -330,12 +322,16 @@ mod tests {
         }
     }
 
+    struct Suite {
+        deps: OwnedDeps<MockStorage, MockApi, MockQuerier>,
+    }
+
     mod unauthorized {
         use super::*;
 
         #[test]
         fn freeze() {
-            let mut suite = Suite::init();
+            let mut suite = SuiteBuilder::default().build();
 
             assert_matches!(
                 freeze_tokens(
@@ -349,7 +345,7 @@ mod tests {
 
         #[test]
         fn unfreeze() {
-            let mut suite = Suite::init();
+            let mut suite = SuiteBuilder::default().build();
 
             assert_matches!(
                 unfreeze_tokens(
@@ -363,7 +359,7 @@ mod tests {
 
         #[test]
         fn change_account_operator() {
-            let mut suite = Suite::init();
+            let mut suite = SuiteBuilder::default().build();
 
             assert_matches!(
                 change_operator(
@@ -377,7 +373,7 @@ mod tests {
 
         #[test]
         fn release() {
-            let mut suite = Suite::init();
+            let mut suite = SuiteBuilder::default().build();
 
             assert_matches!(
                 release_tokens(
@@ -396,7 +392,7 @@ mod tests {
 
         #[test]
         fn discrete_before_expiration() {
-            let suite = Suite::init();
+            let suite = SuiteBuilder::default().build();
 
             let account = query_account_info(suite.deps.as_ref()).unwrap();
             assert_eq!(
@@ -407,7 +403,7 @@ mod tests {
 
         #[test]
         fn discrete_after_expiration() {
-            let suite = Suite::init();
+            let suite = SuiteBuilder::default().build();
 
             let account = query_account_info(suite.deps.as_ref()).unwrap();
 
@@ -423,14 +419,9 @@ mod tests {
 
         #[test]
         fn continuous_before_expiration() {
-            let suite = Suite::init_with_config(SuiteConfig::new_with_vesting_plan(
-                VestingPlan::Continuous {
-                    start_at: Expiration::at_timestamp(Timestamp::from_seconds(DEFAULT_RELEASE)),
-                    end_at: Expiration::at_timestamp(Timestamp::from_seconds(
-                        DEFAULT_RELEASE + 200,
-                    )),
-                },
-            ));
+            let suite = SuiteBuilder::default()
+                .with_continuous_vesting_plan(DEFAULT_RELEASE, DEFAULT_RELEASE + 200)
+                .build();
 
             let account = query_account_info(suite.deps.as_ref()).unwrap();
             let env = mock_env();
@@ -443,14 +434,9 @@ mod tests {
 
         #[test]
         fn continuous_after_expiration() {
-            let suite = Suite::init_with_config(SuiteConfig::new_with_vesting_plan(
-                VestingPlan::Continuous {
-                    start_at: Expiration::at_timestamp(Timestamp::from_seconds(DEFAULT_RELEASE)),
-                    end_at: Expiration::at_timestamp(Timestamp::from_seconds(
-                        DEFAULT_RELEASE + 200,
-                    )),
-                },
-            ));
+            let suite = SuiteBuilder::default()
+                .with_continuous_vesting_plan(DEFAULT_RELEASE, DEFAULT_RELEASE + 200)
+                .build();
 
             let account = query_account_info(suite.deps.as_ref()).unwrap();
 
@@ -466,15 +452,9 @@ mod tests {
 
         #[test]
         fn continuous_in_between() {
-            let suite = Suite::init_with_config(SuiteConfig::new_with_vesting_plan(
-                VestingPlan::Continuous {
-                    // Plan starts 100s from mock_env() default timestamp and ends after 300s
-                    start_at: Expiration::at_timestamp(Timestamp::from_seconds(DEFAULT_RELEASE)),
-                    end_at: Expiration::at_timestamp(Timestamp::from_seconds(
-                        DEFAULT_RELEASE + 200,
-                    )),
-                },
-            ));
+            let suite = SuiteBuilder::default()
+                .with_continuous_vesting_plan(DEFAULT_RELEASE, DEFAULT_RELEASE + 200)
+                .build();
 
             let account = query_account_info(suite.deps.as_ref()).unwrap();
 
@@ -540,7 +520,7 @@ mod tests {
 
     #[test]
     fn get_account_info() {
-        let suite = Suite::init();
+        let suite = SuiteBuilder::default().build();
 
         assert_eq!(
             query_account_info(suite.deps.as_ref()),
@@ -557,7 +537,7 @@ mod tests {
 
     #[test]
     fn get_token_info() {
-        let suite = Suite::init();
+        let suite = SuiteBuilder::default().build();
 
         assert_eq!(
             query_token_info(suite.deps.as_ref()),
@@ -571,7 +551,7 @@ mod tests {
 
     #[test]
     fn freeze_tokens_success() {
-        let mut suite = Suite::init();
+        let mut suite = SuiteBuilder::default().build();
 
         assert_eq!(
             freeze_tokens(
@@ -596,7 +576,7 @@ mod tests {
 
     #[test]
     fn freeze_too_many_tokens() {
-        let mut suite = Suite::init();
+        let mut suite = SuiteBuilder::default().build();
 
         assert_eq!(
             freeze_tokens(
@@ -622,7 +602,7 @@ mod tests {
 
     #[test]
     fn unfreeze_tokens_success() {
-        let mut suite = Suite::init();
+        let mut suite = SuiteBuilder::default().build();
 
         freeze_tokens(
             suite.deps.as_mut(),
@@ -661,7 +641,7 @@ mod tests {
 
     #[test]
     fn change_account_operator_success() {
-        let mut suite = Suite::init();
+        let mut suite = SuiteBuilder::default().build();
 
         assert_eq!(
             change_operator(
@@ -684,9 +664,9 @@ mod tests {
     }
     #[test]
     fn release_tokens_discrete_success() {
-        let mut suite = Suite::init();
-
+        let mut suite = SuiteBuilder::default().build();
         let mut env = mock_env();
+
         env.block.time = env.block.time.plus_seconds(150);
 
         let amount_to_send = Uint128::new(25);
@@ -717,7 +697,7 @@ mod tests {
 
     #[test]
     fn release_tokens_before_expiration() {
-        let mut suite = Suite::init();
+        let mut suite = SuiteBuilder::default().build();
 
         assert_eq!(
             release_tokens(
@@ -739,14 +719,9 @@ mod tests {
 
     #[test]
     fn release_tokens_continuously() {
-        let mut suite = Suite::init_with_config(SuiteConfig::new_with_vesting_plan(
-            VestingPlan::Continuous {
-                // Plan starts 100s from mock_env() default timestamp and ends after 300s
-                start_at: Expiration::at_timestamp(Timestamp::from_seconds(DEFAULT_RELEASE)),
-                end_at: Expiration::at_timestamp(Timestamp::from_seconds(DEFAULT_RELEASE + 200)),
-            },
-        ));
-
+        let mut suite = SuiteBuilder::default()
+            .with_continuous_vesting_plan(DEFAULT_RELEASE, DEFAULT_RELEASE + 200)
+            .build();
         let mut env = mock_env();
 
         // 50 seconds after start, another 150 towards end
@@ -818,14 +793,9 @@ mod tests {
 
     #[test]
     fn release_tokens_continuously_more_then_allowed() {
-        let mut suite = Suite::init_with_config(SuiteConfig::new_with_vesting_plan(
-            VestingPlan::Continuous {
-                // Plan starts 100s from mock_env() default timestamp and ends after 300s
-                start_at: Expiration::at_timestamp(Timestamp::from_seconds(DEFAULT_RELEASE)),
-                end_at: Expiration::at_timestamp(Timestamp::from_seconds(DEFAULT_RELEASE + 200)),
-            },
-        ));
-
+        let mut suite = SuiteBuilder::default()
+            .with_continuous_vesting_plan(DEFAULT_RELEASE, DEFAULT_RELEASE + 200)
+            .build();
         let mut env = mock_env();
 
         // 50 seconds after start, another 150 towards end
@@ -852,14 +822,9 @@ mod tests {
 
     #[test]
     fn release_tokens_continuously_with_tokens_frozen() {
-        let mut suite = Suite::init_with_config(SuiteConfig::new_with_vesting_plan(
-            VestingPlan::Continuous {
-                // Plan starts 100s from mock_env() default timestamp and ends after 300s
-                start_at: Expiration::at_timestamp(Timestamp::from_seconds(DEFAULT_RELEASE)),
-                end_at: Expiration::at_timestamp(Timestamp::from_seconds(DEFAULT_RELEASE + 200)),
-            },
-        ));
-
+        let mut suite = SuiteBuilder::default()
+            .with_continuous_vesting_plan(DEFAULT_RELEASE, DEFAULT_RELEASE + 200)
+            .build();
         let mut env = mock_env();
 
         freeze_tokens(
