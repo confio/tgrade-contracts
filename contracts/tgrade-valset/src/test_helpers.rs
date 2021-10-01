@@ -438,7 +438,10 @@ impl Suite {
             self.app.execute_contract(
                 Addr::unchecked(executor),
                 contract.clone(),
-                &tg4_engagement::msg::ExecuteMsg::WithdrawFunds { receiver: None },
+                &tg4_engagement::msg::ExecuteMsg::WithdrawFunds {
+                    owner: None,
+                    receiver: None,
+                },
                 &[],
             )
         } else {
