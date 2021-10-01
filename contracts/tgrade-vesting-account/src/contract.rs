@@ -60,7 +60,7 @@ pub fn execute(
     msg: ExecuteMsg,
 ) -> Result<Response, ContractError> {
     match msg {
-        ExecuteMsg::ReleaseTokens { amount } => release_tokens(deps, env, info.sender, amount),
+        ExecuteMsg::ReleaseTokens { amount } => release_tokens(deps, &env, info.sender, amount),
         ExecuteMsg::FreezeTokens { amount } => freeze_tokens(deps, info.sender, amount),
         ExecuteMsg::UnfreezeTokens { amount } => unfreeze_tokens(deps, info.sender, amount),
         ExecuteMsg::ChangeOperator { address } => change_operator(deps, info.sender, address),
@@ -72,13 +72,14 @@ pub fn execute(
 fn allowed_release(deps: Deps, env: &Env, plan: &VestingPlan) -> Result<Uint128, ContractError> {
     let token_info = query_token_info(deps)?;
 
+    let all_available_tokens = token_info.initial - token_info.frozen - token_info.released;
     match plan {
         VestingPlan::Discrete {
             release_at: release,
         } => {
             // If end_at timestamp is already met, release all available tokens
             if release.is_expired(&env.block) {
-                Ok(token_info.initial - token_info.frozen - token_info.released)
+                Ok(all_available_tokens)
             } else {
                 Ok(Uint128::zero())
             }
@@ -89,15 +90,18 @@ fn allowed_release(deps: Deps, env: &Env, plan: &VestingPlan) -> Result<Uint128,
                 Ok(Uint128::zero())
             } else if end_at.is_expired(&env.block) {
                 // If end_at timestamp is already met, release all available tokens
-                Ok(token_info.initial - token_info.frozen - token_info.released)
+                Ok(all_available_tokens)
             } else {
                 // If current timestamp is in between start_at and end_at, relase
                 // tokens by linear ratio: tokens * ((current_time - start_time) / (end_time - start_time))
+                // and subtract already released or frozen tokens
                 Ok(token_info.initial
                     * Decimal::from_ratio(
                         env.block.time.seconds() - start_at.time().seconds(),
                         end_at.time().seconds() - start_at.time().seconds(),
-                    ))
+                    )
+                    - token_info.frozen
+                    - token_info.released)
             }
         }
     }
@@ -105,7 +109,7 @@ fn allowed_release(deps: Deps, env: &Env, plan: &VestingPlan) -> Result<Uint128,
 
 fn release_tokens(
     deps: DepsMut,
-    env: Env,
+    env: &Env,
     sender: Addr,
     amount: Uint128,
 ) -> Result<Response, ContractError> {
@@ -382,7 +386,7 @@ mod tests {
             assert_matches!(
                 release_tokens(
                     suite.deps.as_mut(),
-                    mock_env(),
+                    &mock_env(),
                     Addr::unchecked(RECIPIENT),
                     Uint128::new(50)
                 ),
@@ -679,7 +683,7 @@ mod tests {
             Ok(AccountInfoResponse {
                 operator,
                 ..
-            }) => operator == Addr::unchecked(RECIPIENT)
+            }) if operator == Addr::unchecked(RECIPIENT)
         );
     }
     #[test]
@@ -693,7 +697,7 @@ mod tests {
         assert_eq!(
             release_tokens(
                 suite.deps.as_mut(),
-                env,
+                &env,
                 Addr::unchecked(OPERATOR),
                 amount_to_send
             ),
@@ -711,7 +715,7 @@ mod tests {
             Ok(TokenInfoResponse {
                 released,
                 ..
-            }) => released == amount_to_send
+            }) if released == amount_to_send
         );
     }
 
@@ -722,7 +726,7 @@ mod tests {
         assert_eq!(
             release_tokens(
                 suite.deps.as_mut(),
-                mock_env(),
+                &mock_env(),
                 Addr::unchecked(OPERATOR),
                 Uint128::new(25),
             ),
@@ -733,7 +737,86 @@ mod tests {
             Ok(TokenInfoResponse {
                 released,
                 ..
-            }) => released == Uint128::zero()
+            }) if released == Uint128::zero()
+        );
+    }
+
+    #[test]
+    fn release_tokens_continuously() {
+        let mut suite = Suite::init_with_config(SuiteConfig::new_with_vesting_plan(
+            VestingPlan::Continuous {
+                // Plan starts 100s from mock_env() default timestamp and ends after 300s
+                start_at: Expiration::at_timestamp(Timestamp::from_seconds(DEFAULT_RELEASE)),
+                end_at: Expiration::at_timestamp(Timestamp::from_seconds(DEFAULT_RELEASE + 200)),
+            },
+        ));
+
+        let mut env = mock_env();
+
+        // 50 seconds after start, another 150 towards end
+        // 25 tokens are allowed to release
+        env.block.time = Timestamp::from_seconds(DEFAULT_RELEASE).plus_seconds(50);
+        let first_amount_released = Uint128::new(25);
+        assert_eq!(
+            release_tokens(
+                suite.deps.as_mut(),
+                &env,
+                Addr::unchecked(OPERATOR),
+                first_amount_released,
+            ),
+            Ok(Response::new()
+                .add_attribute("action", "release_tokens")
+                .add_attribute("tokens", first_amount_released.to_string())
+                .add_attribute("sender", OPERATOR.to_string())
+                .add_message(BankMsg::Send {
+                    to_address: RECIPIENT.to_string(),
+                    amount: coins(first_amount_released.u128(), VESTING_DENOM),
+                }))
+        );
+        assert_matches!(
+            query_token_info(suite.deps.as_ref()),
+            Ok(TokenInfoResponse {
+                released,
+                ..
+            }) if released == first_amount_released
+        );
+
+        // 130 seconds after start, another 70 towards end
+        // 65 tokens are allowed to release, 25 were already released previously
+        env.block.time = Timestamp::from_seconds(DEFAULT_RELEASE).plus_seconds(130);
+        let second_amount_released = Uint128::new(40);
+        release_tokens(
+            suite.deps.as_mut(),
+            &env,
+            Addr::unchecked(OPERATOR),
+            second_amount_released,
+        )
+        .unwrap();
+        assert_matches!(
+            query_token_info(suite.deps.as_ref()),
+            Ok(TokenInfoResponse {
+                released,
+                ..
+            }) if released == first_amount_released + second_amount_released
+        );
+
+        // 200 seconds after start
+        // 100 tokens are allowed to release, 65 were already released previously
+        env.block.time = Timestamp::from_seconds(DEFAULT_RELEASE).plus_seconds(200);
+        let third_amount_released = Uint128::new(35);
+        release_tokens(
+            suite.deps.as_mut(),
+            &env,
+            Addr::unchecked(OPERATOR),
+            third_amount_released,
+        )
+        .unwrap();
+        assert_matches!(
+            query_token_info(suite.deps.as_ref()),
+            Ok(TokenInfoResponse {
+                released,
+                ..
+            }) if released == first_amount_released + second_amount_released + third_amount_released
         );
     }
 }
