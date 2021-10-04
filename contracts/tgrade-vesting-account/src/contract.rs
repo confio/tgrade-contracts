@@ -158,7 +158,7 @@ fn release_tokens(
 fn freeze_tokens(deps: DepsMut, sender: Addr, amount: Uint128) -> Result<Response, ContractError> {
     let mut account = VESTING_ACCOUNT.load(deps.storage)?;
 
-    require_operator(&sender, &account)?;
+    require_oversight(&sender, &account)?;
 
     let available_to_freeze = account.initial_tokens - account.frozen_tokens - account.paid_tokens;
     let final_frozen = std::cmp::min(amount, available_to_freeze);
@@ -179,7 +179,7 @@ fn unfreeze_tokens(
 ) -> Result<Response, ContractError> {
     let mut account = VESTING_ACCOUNT.load(deps.storage)?;
 
-    require_operator(&sender, &account)?;
+    require_oversight(&sender, &account)?;
 
     let initial_frozen = account.frozen_tokens;
     // Don't subtract with overflow
@@ -347,7 +347,7 @@ mod tests {
                     Addr::unchecked(RECIPIENT),
                     Uint128::new(100)
                 ),
-                Err(ContractError::RequireOperator)
+                Err(ContractError::RequireOversight)
             );
         }
 
@@ -361,7 +361,7 @@ mod tests {
                     Addr::unchecked(RECIPIENT),
                     Uint128::new(50)
                 ),
-                Err(ContractError::RequireOperator)
+                Err(ContractError::RequireOversight)
             );
         }
 
@@ -580,13 +580,13 @@ mod tests {
         assert_eq!(
             freeze_tokens(
                 suite.deps.as_mut(),
-                Addr::unchecked(OPERATOR),
+                Addr::unchecked(OVERSIGHT),
                 Uint128::new(50)
             ),
             Ok(Response::new()
                 .add_attribute("action", "freeze_tokens")
                 .add_attribute("tokens", "50".to_string())
-                .add_attribute("sender", Addr::unchecked(OPERATOR)))
+                .add_attribute("sender", Addr::unchecked(OVERSIGHT)))
         );
         assert_eq!(
             query_token_info(suite.deps.as_ref()),
@@ -605,14 +605,14 @@ mod tests {
         assert_eq!(
             freeze_tokens(
                 suite.deps.as_mut(),
-                Addr::unchecked(OPERATOR),
+                Addr::unchecked(OVERSIGHT),
                 // 10 tokens more then instantiated by default
                 Uint128::new(110)
             ),
             Ok(Response::new()
                 .add_attribute("action", "freeze_tokens")
                 .add_attribute("tokens", "100".to_string())
-                .add_attribute("sender", Addr::unchecked(OPERATOR)))
+                .add_attribute("sender", Addr::unchecked(OVERSIGHT)))
         );
         assert_eq!(
             query_token_info(suite.deps.as_ref()),
@@ -630,7 +630,7 @@ mod tests {
 
         freeze_tokens(
             suite.deps.as_mut(),
-            Addr::unchecked(OPERATOR),
+            Addr::unchecked(OVERSIGHT),
             Uint128::new(50),
         )
         .unwrap();
@@ -645,13 +645,13 @@ mod tests {
         assert_eq!(
             unfreeze_tokens(
                 suite.deps.as_mut(),
-                Addr::unchecked(OPERATOR),
+                Addr::unchecked(OVERSIGHT),
                 Uint128::new(50)
             ),
             Ok(Response::new()
                 .add_attribute("action", "unfreeze_tokens")
                 .add_attribute("tokens", "50".to_string())
-                .add_attribute("sender", Addr::unchecked(OPERATOR)))
+                .add_attribute("sender", Addr::unchecked(OVERSIGHT)))
         );
         assert_eq!(
             query_token_info(suite.deps.as_ref()),
@@ -868,7 +868,7 @@ mod tests {
 
         freeze_tokens(
             suite.deps.as_mut(),
-            Addr::unchecked(OPERATOR),
+            Addr::unchecked(OVERSIGHT),
             Uint128::new(10),
         )
         .unwrap();
