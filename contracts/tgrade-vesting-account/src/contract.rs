@@ -95,13 +95,13 @@ fn allowed_release(deps: Deps, env: &Env, plan: &VestingPlan) -> Result<Uint128,
                 // If current timestamp is in between start_at and end_at, relase
                 // tokens by linear ratio: tokens * ((current_time - start_time) / (end_time - start_time))
                 // and subtract already released or frozen tokens
-                Ok(token_info.initial
+                Ok((token_info.initial
                     * Decimal::from_ratio(
                         env.block.time.seconds() - start_at.time().seconds(),
                         end_at.time().seconds() - start_at.time().seconds(),
                     )
-                    - token_info.frozen
                     - token_info.released)
+                    .saturating_sub(token_info.frozen))
             }
         }
     }
@@ -183,11 +183,7 @@ fn unfreeze_tokens(
 
     let initial_frozen = account.frozen_tokens;
     // Don't subtract with overflow
-    match account.frozen_tokens.checked_sub(amount) {
-        Ok(subbed) => account.frozen_tokens = subbed,
-        Err(_) => account.frozen_tokens = Uint128::zero(),
-    };
-
+    account.frozen_tokens = account.frozen_tokens.saturating_sub(amount);
     VESTING_ACCOUNT.save(deps.storage, &account)?;
 
     Ok(Response::new()
