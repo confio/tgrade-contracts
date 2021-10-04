@@ -382,11 +382,7 @@ mod tests {
                     funds: vec![],
                 },
                 ExecuteMsg::FreezeTokens {
-                    amount: if let Some(amount) = amount {
-                        Some(Uint128::new(amount))
-                    } else {
-                        None
-                    },
+                    amount: amount.map(|a| Uint128::new(a)),
                 },
             )
         }
@@ -404,11 +400,7 @@ mod tests {
                     funds: vec![],
                 },
                 ExecuteMsg::UnfreezeTokens {
-                    amount: if let Some(amount) = amount {
-                        Some(Uint128::new(amount))
-                    } else {
-                        None
-                    },
+                    amount: amount.map(|a| Uint128::new(a)),
                 },
             )
         }
@@ -426,11 +418,7 @@ mod tests {
                     funds: vec![],
                 },
                 ExecuteMsg::ReleaseTokens {
-                    amount: if let Some(amount) = amount {
-                        Some(Uint128::new(amount))
-                    } else {
-                        None
-                    },
+                    amount: amount.map(|a| Uint128::new(a)),
                 },
             )
         }
