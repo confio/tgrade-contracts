@@ -99,9 +99,9 @@ fn allowed_release(deps: Deps, env: &Env, plan: &VestingPlan) -> Result<Uint128,
                     * Decimal::from_ratio(
                         env.block.time.seconds() - start_at.time().seconds(),
                         end_at.time().seconds() - start_at.time().seconds(),
-                    )
-                    - token_info.released)
-                    .saturating_sub(token_info.frozen))
+                    ))
+                .saturating_sub(token_info.released)
+                .saturating_sub(token_info.frozen))
             }
         }
     }
