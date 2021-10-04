@@ -600,16 +600,17 @@ mod tests {
 
             suite.env.block.time = suite.env.block.time.plus_seconds(150);
 
-            let amount_to_send = 25;
+            let amount_to_release = 100;
             assert_eq!(
-                suite.release_tokens(OPERATOR, Some(amount_to_send)),
+                // passing None will release all available tokens
+                suite.release_tokens(OPERATOR, None),
                 Ok(Response::new()
                     .add_attribute("action", "release_tokens")
-                    .add_attribute("tokens", amount_to_send.to_string())
+                    .add_attribute("tokens", amount_to_release.to_string())
                     .add_attribute("sender", OPERATOR.to_string())
                     .add_message(BankMsg::Send {
                         to_address: RECIPIENT.to_string(),
-                        amount: coins(amount_to_send, VESTING_DENOM)
+                        amount: coins(amount_to_release, VESTING_DENOM)
                     }))
             );
             assert_matches!(
@@ -617,7 +618,7 @@ mod tests {
                 Ok(TokenInfoResponse {
                     released,
                     ..
-                }) if released == amount_to_send.into()
+                }) if released == amount_to_release.into()
             );
         }
 
@@ -875,17 +876,17 @@ mod tests {
         let mut suite = SuiteBuilder::default().build();
 
         assert_eq!(
-            suite.freeze_tokens(OVERSIGHT, Some(50)),
+            suite.freeze_tokens(OVERSIGHT, None),
             Ok(Response::new()
                 .add_attribute("action", "freeze_tokens")
-                .add_attribute("tokens", "50".to_string())
+                .add_attribute("tokens", "100".to_string())
                 .add_attribute("sender", Addr::unchecked(OVERSIGHT)))
         );
         assert_eq!(
             query_token_info(suite.deps.as_ref()),
             Ok(TokenInfoResponse {
                 initial: Uint128::new(100),
-                frozen: Uint128::new(50),
+                frozen: Uint128::new(100),
                 released: Uint128::zero(),
             })
         );
