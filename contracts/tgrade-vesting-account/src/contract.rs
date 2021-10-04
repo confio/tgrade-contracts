@@ -718,6 +718,41 @@ mod tests {
                 }) if released == amount_to_release.into() && frozen == Uint128::new(10)
             );
         }
+
+        #[test]
+        fn continuously_with_negative_amount_results_in_zero_released() {
+            let mut suite = SuiteBuilder::default()
+                .with_continuous_vesting_plan(DEFAULT_RELEASE, DEFAULT_RELEASE + 200)
+                .build();
+            let mut env = mock_env();
+
+            suite.freeze_tokens(OVERSIGHT, 10).unwrap();
+            assert_eq!(
+                query_token_info(suite.deps.as_ref()),
+                Ok(TokenInfoResponse {
+                    initial: Uint128::new(100),
+                    frozen: Uint128::new(10),
+                    released: Uint128::zero(),
+                })
+            );
+
+            // 5 seconds after start
+            // 2 tokens are allowed to release, but we have 10 tokens frozen
+            // without proper protection allowed amount could return negative value (-8)
+            // In that case, zero tokens are released
+            env.block.time = Timestamp::from_seconds(DEFAULT_RELEASE).plus_seconds(5);
+            assert_eq!(
+                suite.release_tokens(env.clone(), OPERATOR, 2),
+                Ok(Response::new())
+            );
+            assert_matches!(
+                query_token_info(suite.deps.as_ref()),
+                Ok(TokenInfoResponse {
+                    released,
+                    ..
+                }) if released == Uint128::zero()
+            );
+        }
     }
 
     #[test]
