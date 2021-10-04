@@ -45,6 +45,10 @@ impl Expiration {
     pub fn is_expired_time(&self, timestamp: Timestamp) -> bool {
         timestamp >= self.0
     }
+
+    pub fn time(&self) -> Timestamp {
+        self.0
+    }
 }
 
 #[derive(Clone, PartialEq, Eq, Debug)]

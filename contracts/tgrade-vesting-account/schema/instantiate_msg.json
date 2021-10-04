@@ -102,7 +102,7 @@
                   ]
                 },
                 "start_at": {
-                  "$ref": "#/definitions/Timestamp"
+                  "$ref": "#/definitions/Expiration"
                 }
               }
             }

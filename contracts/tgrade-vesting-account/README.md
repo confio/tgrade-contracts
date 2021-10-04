@@ -1,7 +1,5 @@
 # Vesting Account as a contract
 
-Readme will be provided...
-
 ## Vesting Accounts
 
 Many stakeholders will receive vesting accounts of tokens that will be released over 1-3 years. There exists an implementation for Cosmos SDK, but it doesn't seem to be a great fit. Some design requirements we have:
@@ -67,7 +65,7 @@ When calculating tokens that can be released, we use the following equations:
 - Available tokens = Vested Tokens - Released Tokens - Frozen Tokens
 - If t >= end_time, Vested Tokens = Balance(contract) + Released Tokens
   - this handles case where more tokens were sent to contract later, and just keeps the frozen tokens frozen
-- If start_time <= t, Vested Tokens = 0
+- If start_time >= t, Vested Tokens = 0
 - If start_time < t < end_time, Vested Tokens = InitialBalance * (t - start_time) / (end_time - start_time)
 
 Example:
