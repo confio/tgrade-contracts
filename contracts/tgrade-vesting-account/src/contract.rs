@@ -115,9 +115,10 @@ fn release_tokens(
 ) -> Result<Response, ContractError> {
     let mut account = VESTING_ACCOUNT.load(deps.storage)?;
 
-    if sender != account.operator {
+    if sender != account.operator && sender != account.oversight {
         return Err(ContractError::Unauthorized(
-            "to release tokens sender must be set as an operator of this account!".to_string(),
+            "to release tokens sender must be set as an Operator or Oversight of this account!"
+                .to_string(),
         ));
     };
 
@@ -148,7 +149,7 @@ fn freeze_tokens(deps: DepsMut, sender: Addr, amount: Uint128) -> Result<Respons
 
     if sender != account.operator {
         return Err(ContractError::Unauthorized(
-            "to freeze tokens sender must be set as an operator of this account!".to_string(),
+            "to freeze tokens sender must be set as an Operator of this account!".to_string(),
         ));
     }
 
@@ -173,7 +174,7 @@ fn unfreeze_tokens(
 
     if sender != account.operator {
         return Err(ContractError::Unauthorized(
-            "to unfreeze tokens sender must be set as an operator of this account!".to_string(),
+            "to unfreeze tokens sender must be set as an Operator of this account!".to_string(),
         ));
     }
 
@@ -204,7 +205,7 @@ fn change_operator(
 
     if sender != account.oversight {
         return Err(ContractError::Unauthorized(
-            "to change operator sender must be set as an oversight of this account!".to_string(),
+            "to change operator sender must be set as an Oversight of this account!".to_string(),
         ));
     }
 
@@ -761,13 +762,13 @@ mod tests {
             release_tokens(
                 suite.deps.as_mut(),
                 env.clone(),
-                Addr::unchecked(OPERATOR),
+                Addr::unchecked(OVERSIGHT),
                 first_amount_released,
             ),
             Ok(Response::new()
                 .add_attribute("action", "release_tokens")
                 .add_attribute("tokens", first_amount_released.to_string())
-                .add_attribute("sender", OPERATOR.to_string())
+                .add_attribute("sender", OVERSIGHT.to_string())
                 .add_message(BankMsg::Send {
                     to_address: RECIPIENT.to_string(),
                     amount: coins(first_amount_released.u128(), VESTING_DENOM),
