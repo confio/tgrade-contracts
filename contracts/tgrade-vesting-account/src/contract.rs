@@ -123,86 +123,6 @@ fn require_oversight(sender: &Addr, account: &VestingAccount) -> Result<(), Cont
     }
 }
 
-mod helpers {
-    use super::*;
-    use cosmwasm_std::Storage;
-
-    pub fn release_tokens(
-        amount: Uint128,
-        sender: Addr,
-        account: &mut VestingAccount,
-        storage: &mut dyn Storage,
-    ) -> Result<Response, ContractError> {
-        let msg = BankMsg::Send {
-            to_address: account.recipient.to_string(),
-            amount: coins(amount.u128(), VESTING_DENOM),
-        };
-
-        account.paid_tokens += amount;
-        VESTING_ACCOUNT.save(storage, account)?;
-
-        Ok(Response::new()
-            .add_attribute("action", "release_tokens")
-            .add_attribute("tokens", amount.to_string())
-            .add_attribute("sender", sender)
-            .add_message(msg))
-    }
-
-    pub fn freeze_tokens(
-        amount: Uint128,
-        sender: Addr,
-        account: &mut VestingAccount,
-        storage: &mut dyn Storage,
-    ) -> Result<Response, ContractError> {
-        account.frozen_tokens += amount;
-
-        VESTING_ACCOUNT.save(storage, account)?;
-
-        Ok(Response::new()
-            .add_attribute("action", "freeze_tokens")
-            .add_attribute("tokens", amount.to_string())
-            .add_attribute("sender", sender))
-    }
-
-    pub fn unfreeze_tokens(
-        amount: Uint128,
-        sender: Addr,
-        account: &mut VestingAccount,
-        storage: &mut dyn Storage,
-    ) -> Result<Response, ContractError> {
-        // Don't subtract with overflow
-        account.frozen_tokens = account.frozen_tokens.saturating_sub(amount);
-        VESTING_ACCOUNT.save(storage, &account)?;
-
-        Ok(Response::new()
-            .add_attribute("action", "unfreeze_tokens")
-            .add_attribute("tokens", amount.to_string())
-            .add_attribute("sender", sender))
-    }
-}
-
-fn release_tokens(
-    deps: DepsMut,
-    env: Env,
-    sender: Addr,
-    requested_amount: Option<Uint128>,
-) -> Result<Response, ContractError> {
-    let mut account = VESTING_ACCOUNT.load(deps.storage)?;
-
-    require_operator(&sender, &account)?;
-
-    let allowed_to_release = allowed_release(deps.as_ref(), &env, &account.vesting_plan)?;
-    if let Some(requested_amount) = requested_amount {
-        if allowed_to_release >= requested_amount {
-            helpers::release_tokens(requested_amount, sender, &mut account, deps.storage)
-        } else {
-            Err(ContractError::NotEnoughTokensAvailable)
-        }
-    } else {
-        helpers::release_tokens(allowed_to_release, sender, &mut account, deps.storage)
-    }
-}
-
 fn freeze_tokens(
     deps: DepsMut,
     sender: Addr,
@@ -253,6 +173,86 @@ fn change_operator(
         .add_attribute("action", "change_operator")
         .add_attribute("operator", new_operator.to_string())
         .add_attribute("sender", sender))
+}
+
+mod helpers {
+    use super::*;
+    use cosmwasm_std::Storage;
+
+    pub fn release_tokens(
+        amount: Uint128,
+        sender: Addr,
+        account: &mut VestingAccount,
+        storage: &mut dyn Storage,
+    ) -> Result<Response, ContractError> {
+        let msg = BankMsg::Send {
+            to_address: account.recipient.to_string(),
+            amount: coins(amount.u128(), VESTING_DENOM),
+        };
+
+        account.paid_tokens += amount;
+        VESTING_ACCOUNT.save(storage, account)?;
+
+        Ok(Response::new()
+            .add_attribute("action", "release_tokens")
+            .add_attribute("tokens", amount.to_string())
+            .add_attribute("sender", sender)
+            .add_message(msg))
+    }
+
+    pub fn freeze_tokens(
+        amount: Uint128,
+        sender: Addr,
+        account: &mut VestingAccount,
+        storage: &mut dyn Storage,
+    ) -> Result<Response, ContractError> {
+        account.frozen_tokens += amount;
+
+        VESTING_ACCOUNT.save(storage, account)?;
+
+        Ok(Response::new()
+            .add_attribute("action", "freeze_tokens")
+            .add_attribute("tokens", amount.to_string())
+            .add_attribute("sender", sender))
+    }
+
+    pub fn unfreeze_tokens(
+        amount: Uint128,
+        sender: Addr,
+        account: &mut VestingAccount,
+        storage: &mut dyn Storage,
+    ) -> Result<Response, ContractError> {
+        // Don't subtract with overflow
+        account.frozen_tokens = account.frozen_tokens.saturating_sub(amount);
+        VESTING_ACCOUNT.save(storage, account)?;
+
+        Ok(Response::new()
+            .add_attribute("action", "unfreeze_tokens")
+            .add_attribute("tokens", amount.to_string())
+            .add_attribute("sender", sender))
+    }
+}
+
+fn release_tokens(
+    deps: DepsMut,
+    env: Env,
+    sender: Addr,
+    requested_amount: Option<Uint128>,
+) -> Result<Response, ContractError> {
+    let mut account = VESTING_ACCOUNT.load(deps.storage)?;
+
+    require_operator(&sender, &account)?;
+
+    let allowed_to_release = allowed_release(deps.as_ref(), &env, &account.vesting_plan)?;
+    if let Some(requested_amount) = requested_amount {
+        if allowed_to_release >= requested_amount {
+            helpers::release_tokens(requested_amount, sender, &mut account, deps.storage)
+        } else {
+            Err(ContractError::NotEnoughTokensAvailable)
+        }
+    } else {
+        helpers::release_tokens(allowed_to_release, sender, &mut account, deps.storage)
+    }
 }
 
 #[cfg_attr(not(feature = "library"), entry_point)]
@@ -385,7 +385,7 @@ mod tests {
                     funds: vec![],
                 },
                 ExecuteMsg::FreezeTokens {
-                    amount: amount.map(|a| Uint128::new(a)),
+                    amount: amount.map(Uint128::new),
                 },
             )
         }
@@ -403,7 +403,7 @@ mod tests {
                     funds: vec![],
                 },
                 ExecuteMsg::UnfreezeTokens {
-                    amount: amount.map(|a| Uint128::new(a)),
+                    amount: amount.map(Uint128::new),
                 },
             )
         }
@@ -421,7 +421,7 @@ mod tests {
                     funds: vec![],
                 },
                 ExecuteMsg::ReleaseTokens {
-                    amount: amount.map(|a| Uint128::new(a)),
+                    amount: amount.map(Uint128::new),
                 },
             )
         }
