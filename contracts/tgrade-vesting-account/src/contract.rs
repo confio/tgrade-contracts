@@ -123,6 +123,64 @@ fn require_oversight(sender: &Addr, account: &VestingAccount) -> Result<(), Cont
     }
 }
 
+mod helpers {
+    use super::*;
+    use cosmwasm_std::Storage;
+
+    pub fn release_tokens(
+        amount: Uint128,
+        sender: Addr,
+        account: &mut VestingAccount,
+        storage: &mut dyn Storage,
+    ) -> Result<Response, ContractError> {
+        let msg = BankMsg::Send {
+            to_address: account.recipient.to_string(),
+            amount: coins(amount.u128(), VESTING_DENOM),
+        };
+
+        account.paid_tokens += amount;
+        VESTING_ACCOUNT.save(storage, account)?;
+
+        Ok(Response::new()
+            .add_attribute("action", "release_tokens")
+            .add_attribute("tokens", amount.to_string())
+            .add_attribute("sender", sender)
+            .add_message(msg))
+    }
+
+    pub fn freeze_tokens(
+        amount: Uint128,
+        sender: Addr,
+        account: &mut VestingAccount,
+        storage: &mut dyn Storage,
+    ) -> Result<Response, ContractError> {
+        account.frozen_tokens += amount;
+
+        VESTING_ACCOUNT.save(storage, account)?;
+
+        Ok(Response::new()
+            .add_attribute("action", "freeze_tokens")
+            .add_attribute("tokens", amount.to_string())
+            .add_attribute("sender", sender))
+    }
+
+    pub fn unfreeze_tokens(
+        amount: Uint128,
+        sender: Addr,
+        account: &mut VestingAccount,
+        storage: &mut dyn Storage,
+    ) -> Result<Response, ContractError> {
+        // Don't subtract with overflow
+        account.frozen_tokens = account.frozen_tokens.saturating_sub(amount);
+        VESTING_ACCOUNT.save(storage, &account)?;
+
+        Ok(Response::new()
+            .add_attribute("action", "unfreeze_tokens")
+            .add_attribute("tokens", amount.to_string())
+            .add_attribute("sender", sender))
+    }
+}
+
 fn release_tokens(
     deps: DepsMut,
     env: Env,
@@ -136,36 +194,12 @@ fn release_tokens(
     let allowed_to_release = allowed_release(deps.as_ref(), &env, &account.vesting_plan)?;
     if let Some(amount) = amount {
         if allowed_to_release >= amount {
-            let msg = BankMsg::Send {
-                to_address: account.recipient.to_string(),
-                amount: coins(amount.u128(), VESTING_DENOM),
-            };
-
-            account.paid_tokens += amount;
-            VESTING_ACCOUNT.save(deps.storage, &account)?;
-
-            Ok(Response::new()
-                .add_attribute("action", "release_tokens")
-                .add_attribute("tokens", amount.to_string())
-                .add_attribute("sender", sender)
-                .add_message(msg))
+            helpers::release_tokens(amount, sender, &mut account, deps.storage)
         } else {
             Err(ContractError::NotEnoughTokensAvailable)
         }
     } else {
-        let msg = BankMsg::Send {
-            to_address: account.recipient.to_string(),
-            amount: coins(allowed_to_release.u128(), VESTING_DENOM),
-        };
-
-        account.paid_tokens += allowed_to_release;
-        VESTING_ACCOUNT.save(deps.storage, &account)?;
-
-        Ok(Response::new()
-            .add_attribute("action", "release_tokens")
-            .add_attribute("tokens", allowed_to_release.to_string())
-            .add_attribute("sender", sender)
-            .add_message(msg))
+        helpers::release_tokens(allowed_to_release, sender, &mut account, deps.storage)
     }
 }
 
@@ -181,23 +215,9 @@ fn freeze_tokens(
     let available_to_freeze = account.initial_tokens - account.frozen_tokens - account.paid_tokens;
     if let Some(amount) = amount {
         let final_frozen = std::cmp::min(amount, available_to_freeze);
-        account.frozen_tokens += final_frozen;
-
-        VESTING_ACCOUNT.save(deps.storage, &account)?;
-
-        Ok(Response::new()
-            .add_attribute("action", "freeze_tokens")
-            .add_attribute("tokens", final_frozen.to_string())
-            .add_attribute("sender", sender))
+        helpers::freeze_tokens(final_frozen, sender, &mut account, deps.storage)
     } else {
-        account.frozen_tokens += available_to_freeze;
-
-        VESTING_ACCOUNT.save(deps.storage, &account)?;
-
-        Ok(Response::new()
-            .add_attribute("action", "freeze_tokens")
-            .add_attribute("tokens", available_to_freeze.to_string())
-            .add_attribute("sender", sender))
+        helpers::freeze_tokens(available_to_freeze, sender, &mut account, deps.storage)
     }
 }
 
@@ -210,27 +230,10 @@ fn unfreeze_tokens(
 
     require_oversight(&sender, &account)?;
 
-    let initial_frozen = account.frozen_tokens;
     if let Some(amount) = amount {
-        // Don't subtract with overflow
-        account.frozen_tokens = account.frozen_tokens.saturating_sub(amount);
-        VESTING_ACCOUNT.save(deps.storage, &account)?;
-
-        Ok(Response::new()
-            .add_attribute("action", "unfreeze_tokens")
-            .add_attribute(
-                "tokens",
-                (initial_frozen - account.frozen_tokens).to_string(),
-            )
-            .add_attribute("sender", sender))
+        helpers::unfreeze_tokens(amount, sender, &mut account, deps.storage)
     } else {
-        account.frozen_tokens = Uint128::zero();
-        VESTING_ACCOUNT.save(deps.storage, &account)?;
-
-        Ok(Response::new()
-            .add_attribute("action", "unfreeze_tokens")
-            .add_attribute("tokens", initial_frozen.to_string())
-            .add_attribute("sender", sender))
+        helpers::unfreeze_tokens(account.frozen_tokens, sender, &mut account, deps.storage)
     }
 }
 
