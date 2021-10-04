@@ -107,6 +107,22 @@ fn allowed_release(deps: Deps, env: &Env, plan: &VestingPlan) -> Result<Uint128,
     }
 }
 
+fn require_operator(sender: &Addr, account: &VestingAccount) -> Result<(), ContractError> {
+    if *sender != account.operator && *sender != account.oversight {
+        Err(ContractError::RequireOperator)
+    } else {
+        Ok(())
+    }
+}
+
+fn require_oversight(sender: &Addr, account: &VestingAccount) -> Result<(), ContractError> {
+    if *sender != account.oversight {
+        Err(ContractError::RequireOversight)
+    } else {
+        Ok(())
+    }
+}
+
 fn release_tokens(
     deps: DepsMut,
     env: Env,
@@ -115,12 +131,7 @@ fn release_tokens(
 ) -> Result<Response, ContractError> {
     let mut account = VESTING_ACCOUNT.load(deps.storage)?;
 
-    if sender != account.operator && sender != account.oversight {
-        return Err(ContractError::Unauthorized(
-            "to release tokens sender must be set as an Operator or Oversight of this account!"
-                .to_string(),
-        ));
-    };
+    require_operator(&sender, &account)?;
 
     let tokens_to_release = allowed_release(deps.as_ref(), &env, &account.vesting_plan)?;
     let response = if tokens_to_release >= amount {
@@ -147,11 +158,7 @@ fn release_tokens(
 fn freeze_tokens(deps: DepsMut, sender: Addr, amount: Uint128) -> Result<Response, ContractError> {
     let mut account = VESTING_ACCOUNT.load(deps.storage)?;
 
-    if sender != account.operator {
-        return Err(ContractError::Unauthorized(
-            "to freeze tokens sender must be set as an Operator of this account!".to_string(),
-        ));
-    }
+    require_operator(&sender, &account)?;
 
     let available_to_freeze = account.initial_tokens - account.frozen_tokens - account.paid_tokens;
     let final_frozen = std::cmp::min(amount, available_to_freeze);
@@ -172,11 +179,7 @@ fn unfreeze_tokens(
 ) -> Result<Response, ContractError> {
     let mut account = VESTING_ACCOUNT.load(deps.storage)?;
 
-    if sender != account.operator {
-        return Err(ContractError::Unauthorized(
-            "to unfreeze tokens sender must be set as an Operator of this account!".to_string(),
-        ));
-    }
+    require_operator(&sender, &account)?;
 
     let initial_frozen = account.frozen_tokens;
     // Don't subtract with overflow
@@ -203,11 +206,7 @@ fn change_operator(
 ) -> Result<Response, ContractError> {
     let mut account = VESTING_ACCOUNT.load(deps.storage)?;
 
-    if sender != account.oversight {
-        return Err(ContractError::Unauthorized(
-            "to change operator sender must be set as an Oversight of this account!".to_string(),
-        ));
-    }
+    require_oversight(&sender, &account)?;
 
     account.operator = new_operator.clone();
     VESTING_ACCOUNT.save(deps.storage, &account)?;
@@ -348,7 +347,7 @@ mod tests {
                     Addr::unchecked(RECIPIENT),
                     Uint128::new(100)
                 ),
-                Err(ContractError::Unauthorized(_))
+                Err(ContractError::RequireOperator)
             );
         }
 
@@ -362,7 +361,7 @@ mod tests {
                     Addr::unchecked(RECIPIENT),
                     Uint128::new(50)
                 ),
-                Err(ContractError::Unauthorized(_))
+                Err(ContractError::RequireOperator)
             );
         }
 
@@ -376,7 +375,7 @@ mod tests {
                     Addr::unchecked(RECIPIENT),
                     Addr::unchecked(RECIPIENT)
                 ),
-                Err(ContractError::Unauthorized(_))
+                Err(ContractError::RequireOversight)
             );
         }
 
@@ -391,7 +390,7 @@ mod tests {
                     Addr::unchecked(RECIPIENT),
                     Uint128::new(50)
                 ),
-                Err(ContractError::Unauthorized(_))
+                Err(ContractError::RequireOperator)
             );
         }
     }
