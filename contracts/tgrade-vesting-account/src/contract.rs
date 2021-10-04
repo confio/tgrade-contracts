@@ -369,7 +369,11 @@ mod tests {
     }
 
     impl Suite {
-        fn freeze_tokens(&mut self, sender: &str, amount: u128) -> Result<Response, ContractError> {
+        fn freeze_tokens(
+            &mut self,
+            sender: &str,
+            amount: Option<u128>,
+        ) -> Result<Response, ContractError> {
             execute(
                 self.deps.as_mut(),
                 self.env.clone(),
@@ -378,7 +382,11 @@ mod tests {
                     funds: vec![],
                 },
                 ExecuteMsg::FreezeTokens {
-                    amount: Uint128::new(amount),
+                    amount: if let Some(amount) = amount {
+                        Some(Uint128::new(amount))
+                    } else {
+                        None
+                    },
                 },
             )
         }
@@ -386,7 +394,7 @@ mod tests {
         fn unfreeze_tokens(
             &mut self,
             sender: &str,
-            amount: u128,
+            amount: Option<u128>,
         ) -> Result<Response, ContractError> {
             execute(
                 self.deps.as_mut(),
@@ -396,7 +404,11 @@ mod tests {
                     funds: vec![],
                 },
                 ExecuteMsg::UnfreezeTokens {
-                    amount: Uint128::new(amount),
+                    amount: if let Some(amount) = amount {
+                        Some(Uint128::new(amount))
+                    } else {
+                        None
+                    },
                 },
             )
         }
@@ -404,7 +416,7 @@ mod tests {
         fn release_tokens(
             &mut self,
             sender: &str,
-            amount: u128,
+            amount: Option<u128>,
         ) -> Result<Response, ContractError> {
             execute(
                 self.deps.as_mut(),
@@ -414,7 +426,11 @@ mod tests {
                     funds: vec![],
                 },
                 ExecuteMsg::ReleaseTokens {
-                    amount: Uint128::new(amount),
+                    amount: if let Some(amount) = amount {
+                        Some(Uint128::new(amount))
+                    } else {
+                        None
+                    },
                 },
             )
         }
@@ -446,7 +462,7 @@ mod tests {
             let mut suite = SuiteBuilder::default().build();
 
             assert_matches!(
-                suite.freeze_tokens(RECIPIENT, 100),
+                suite.freeze_tokens(RECIPIENT, None),
                 Err(ContractError::RequireOversight)
             );
         }
@@ -456,7 +472,7 @@ mod tests {
             let mut suite = SuiteBuilder::default().build();
 
             assert_matches!(
-                suite.unfreeze_tokens(RECIPIENT, 50),
+                suite.unfreeze_tokens(RECIPIENT, Some(50)),
                 Err(ContractError::RequireOversight)
             );
         }
@@ -476,7 +492,7 @@ mod tests {
             let mut suite = SuiteBuilder::default().build();
 
             assert_matches!(
-                suite.release_tokens(RECIPIENT, 50),
+                suite.release_tokens(RECIPIENT, Some(50)),
                 Err(ContractError::RequireOperator)
             );
         }
@@ -595,7 +611,7 @@ mod tests {
 
             let amount_to_send = 25;
             assert_eq!(
-                suite.release_tokens(OPERATOR, amount_to_send),
+                suite.release_tokens(OPERATOR, Some(amount_to_send)),
                 Ok(Response::new()
                     .add_attribute("action", "release_tokens")
                     .add_attribute("tokens", amount_to_send.to_string())
@@ -618,7 +634,10 @@ mod tests {
         fn discrete_before_expiration() {
             let mut suite = SuiteBuilder::default().build();
 
-            assert_eq!(suite.release_tokens(OPERATOR, 25), Ok(Response::new()));
+            assert_eq!(
+                suite.release_tokens(OPERATOR, Some(25)),
+                Err(ContractError::NotEnoughTokensAvailable)
+            );
             assert_matches!(
                 query_token_info(suite.deps.as_ref()),
                 Ok(TokenInfoResponse {
@@ -639,7 +658,7 @@ mod tests {
             suite.env.block.time = Timestamp::from_seconds(DEFAULT_RELEASE).plus_seconds(50);
             let first_amount_released = 25;
             assert_eq!(
-                suite.release_tokens(OPERATOR, first_amount_released),
+                suite.release_tokens(OPERATOR, Some(first_amount_released)),
                 Ok(Response::new()
                     .add_attribute("action", "release_tokens")
                     .add_attribute("tokens", first_amount_released.to_string())
@@ -662,7 +681,7 @@ mod tests {
             suite.env.block.time = Timestamp::from_seconds(DEFAULT_RELEASE).plus_seconds(130);
             let second_amount_released = 40;
             suite
-                .release_tokens(OPERATOR, second_amount_released)
+                .release_tokens(OPERATOR, Some(second_amount_released))
                 .unwrap();
             assert_matches!(
                 query_token_info(suite.deps.as_ref()),
@@ -677,7 +696,7 @@ mod tests {
             suite.env.block.time = Timestamp::from_seconds(DEFAULT_RELEASE).plus_seconds(200);
             let third_amount_released = 35;
             suite
-                .release_tokens(OPERATOR, third_amount_released)
+                .release_tokens(OPERATOR, Some(third_amount_released))
                 .unwrap();
             assert_matches!(
                 query_token_info(suite.deps.as_ref()),
@@ -699,8 +718,8 @@ mod tests {
             suite.env.block.time = Timestamp::from_seconds(DEFAULT_RELEASE).plus_seconds(50);
             let amount_to_release = 30;
             assert_eq!(
-                suite.release_tokens(OPERATOR, amount_to_release),
-                Ok(Response::new())
+                suite.release_tokens(OPERATOR, Some(amount_to_release)),
+                Err(ContractError::NotEnoughTokensAvailable)
             );
             assert_matches!(
                 query_token_info(suite.deps.as_ref()),
@@ -717,7 +736,7 @@ mod tests {
                 .with_continuous_vesting_plan(DEFAULT_RELEASE, DEFAULT_RELEASE + 200)
                 .build();
 
-            suite.freeze_tokens(OVERSIGHT, 10).unwrap();
+            suite.freeze_tokens(OVERSIGHT, Some(10)).unwrap();
             assert_eq!(
                 query_token_info(suite.deps.as_ref()),
                 Ok(TokenInfoResponse {
@@ -734,8 +753,8 @@ mod tests {
             suite.env.block.time = Timestamp::from_seconds(DEFAULT_RELEASE).plus_seconds(50);
             let amount_to_release = 20;
             assert_eq!(
-                suite.release_tokens(OPERATOR, amount_to_release),
-                Ok(Response::new())
+                suite.release_tokens(OPERATOR, Some(amount_to_release)),
+                Err(ContractError::NotEnoughTokensAvailable)
             );
             assert_matches!(
                 query_token_info(suite.deps.as_ref()),
@@ -748,7 +767,8 @@ mod tests {
             // taking 15 tokens is okay though
             let amount_to_release = 15;
             assert_eq!(
-                suite.release_tokens(OPERATOR, amount_to_release),
+                // passing None will release all available
+                suite.release_tokens(OPERATOR, None),
                 Ok(Response::new()
                     .add_attribute("action", "release_tokens")
                     .add_attribute("tokens", amount_to_release.to_string())
@@ -774,7 +794,7 @@ mod tests {
                 .with_continuous_vesting_plan(DEFAULT_RELEASE, DEFAULT_RELEASE + 200)
                 .build();
 
-            suite.freeze_tokens(OVERSIGHT, 10).unwrap();
+            suite.freeze_tokens(OVERSIGHT, Some(10)).unwrap();
             assert_eq!(
                 query_token_info(suite.deps.as_ref()),
                 Ok(TokenInfoResponse {
@@ -789,7 +809,10 @@ mod tests {
             // without proper protection allowed amount could return negative value (-8)
             // In that case, zero tokens are released
             suite.env.block.time = Timestamp::from_seconds(DEFAULT_RELEASE).plus_seconds(5);
-            assert_eq!(suite.release_tokens(OPERATOR, 2), Ok(Response::new()));
+            assert_eq!(
+                suite.release_tokens(OPERATOR, Some(2)),
+                Err(ContractError::NotEnoughTokensAvailable)
+            );
             assert_matches!(
                 query_token_info(suite.deps.as_ref()),
                 Ok(TokenInfoResponse {
@@ -861,7 +884,7 @@ mod tests {
         let mut suite = SuiteBuilder::default().build();
 
         assert_eq!(
-            suite.freeze_tokens(OVERSIGHT, 50),
+            suite.freeze_tokens(OVERSIGHT, Some(50)),
             Ok(Response::new()
                 .add_attribute("action", "freeze_tokens")
                 .add_attribute("tokens", "50".to_string())
@@ -883,7 +906,7 @@ mod tests {
 
         assert_eq!(
             // 10 tokens more then instantiated by default
-            suite.freeze_tokens(OVERSIGHT, 110),
+            suite.freeze_tokens(OVERSIGHT, Some(110)),
             Ok(Response::new()
                 .add_attribute("action", "freeze_tokens")
                 .add_attribute("tokens", "100".to_string())
@@ -903,7 +926,7 @@ mod tests {
     fn unfreeze_tokens_success() {
         let mut suite = SuiteBuilder::default().build();
 
-        suite.freeze_tokens(OVERSIGHT, 50).unwrap();
+        suite.freeze_tokens(OVERSIGHT, Some(50)).unwrap();
         assert_eq!(
             query_token_info(suite.deps.as_ref()),
             Ok(TokenInfoResponse {
@@ -913,7 +936,8 @@ mod tests {
             })
         );
         assert_eq!(
-            suite.unfreeze_tokens(OVERSIGHT, 50),
+            // passing None will unfreeze all available previously frozen tokens
+            suite.unfreeze_tokens(OVERSIGHT, None),
             Ok(Response::new()
                 .add_attribute("action", "unfreeze_tokens")
                 .add_attribute("tokens", "50".to_string())
