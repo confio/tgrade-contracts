@@ -256,7 +256,7 @@ mod tests {
     use cosmwasm_std::testing::{
         mock_dependencies, mock_env, mock_info, MockApi, MockQuerier, MockStorage,
     };
-    use cosmwasm_std::{Coin, OwnedDeps, Timestamp};
+    use cosmwasm_std::{Coin, MessageInfo, OwnedDeps, Timestamp};
     use tg_utils::Expiration;
 
     const OWNER: &str = "owner";
@@ -317,62 +317,84 @@ mod tests {
             )
             .unwrap();
 
-            Suite { deps }
+            Suite {
+                deps,
+                env: mock_env(),
+            }
         }
     }
 
     struct Suite {
         deps: OwnedDeps<MockStorage, MockApi, MockQuerier>,
+        env: Env,
     }
 
     impl Suite {
-        fn freeze_tokens(
-            &mut self,
-            operator: &str,
-            amount: u128,
-        ) -> Result<Response, ContractError> {
-            freeze_tokens(
+        fn freeze_tokens(&mut self, sender: &str, amount: u128) -> Result<Response, ContractError> {
+            execute(
                 self.deps.as_mut(),
-                Addr::unchecked(operator),
-                Uint128::new(amount),
+                self.env.clone(),
+                MessageInfo {
+                    sender: Addr::unchecked(sender),
+                    funds: vec![],
+                },
+                ExecuteMsg::FreezeTokens {
+                    amount: Uint128::new(amount),
+                },
             )
         }
 
         fn unfreeze_tokens(
             &mut self,
-            operator: &str,
+            sender: &str,
             amount: u128,
         ) -> Result<Response, ContractError> {
-            unfreeze_tokens(
+            execute(
                 self.deps.as_mut(),
-                Addr::unchecked(operator),
-                Uint128::new(amount),
+                self.env.clone(),
+                MessageInfo {
+                    sender: Addr::unchecked(sender),
+                    funds: vec![],
+                },
+                ExecuteMsg::UnfreezeTokens {
+                    amount: Uint128::new(amount),
+                },
             )
         }
 
         fn release_tokens(
             &mut self,
-            env: Env,
-            operator: &str,
+            sender: &str,
             amount: u128,
         ) -> Result<Response, ContractError> {
-            release_tokens(
+            execute(
                 self.deps.as_mut(),
-                env,
-                Addr::unchecked(operator),
-                Uint128::new(amount),
+                self.env.clone(),
+                MessageInfo {
+                    sender: Addr::unchecked(sender),
+                    funds: vec![],
+                },
+                ExecuteMsg::ReleaseTokens {
+                    amount: Uint128::new(amount),
+                },
             )
         }
 
         fn change_operator(
             &mut self,
-            oversight: &str,
+            sender: &str,
             new_operator: &str,
         ) -> Result<Response, ContractError> {
-            change_operator(
+            execute(
                 self.deps.as_mut(),
-                Addr::unchecked(oversight),
-                Addr::unchecked(new_operator),
+                self.env.clone(),
+                MessageInfo {
+                    sender: Addr::unchecked(sender),
+                    funds: vec![],
+                },
+                ExecuteMsg::ChangeOperator {
+                    address: Addr::unchecked(new_operator),
+                },
             )
         }
     }
@@ -415,7 +437,7 @@ mod tests {
             let mut suite = SuiteBuilder::default().build();
 
             assert_matches!(
-                suite.release_tokens(mock_env(), RECIPIENT, 50),
+                suite.release_tokens(RECIPIENT, 50),
                 Err(ContractError::RequireOperator)
             );
         }
@@ -437,16 +459,15 @@ mod tests {
 
         #[test]
         fn discrete_after_expiration() {
-            let suite = SuiteBuilder::default().build();
+            let mut suite = SuiteBuilder::default().build();
 
             let account = query_account_info(suite.deps.as_ref()).unwrap();
 
-            let mut env = mock_env();
             // 1 second after release_at expire
-            env.block.time = env.block.time.plus_seconds(101);
+            suite.env.block.time = suite.env.block.time.plus_seconds(101);
 
             assert_eq!(
-                allowed_release(suite.deps.as_ref(), &env, &account.vesting_plan),
+                allowed_release(suite.deps.as_ref(), &suite.env, &account.vesting_plan),
                 Ok(Uint128::new(100))
             );
         }
@@ -458,71 +479,67 @@ mod tests {
                 .build();
 
             let account = query_account_info(suite.deps.as_ref()).unwrap();
-            let env = mock_env();
 
             assert_eq!(
-                allowed_release(suite.deps.as_ref(), &env, &account.vesting_plan),
+                allowed_release(suite.deps.as_ref(), &suite.env, &account.vesting_plan),
                 Ok(Uint128::zero())
             );
         }
 
         #[test]
         fn continuous_after_expiration() {
-            let suite = SuiteBuilder::default()
+            let mut suite = SuiteBuilder::default()
                 // Plan starts 100s from mock_env() default timestamp and ends after 300s
                 .with_continuous_vesting_plan(DEFAULT_RELEASE, DEFAULT_RELEASE + 200)
                 .build();
 
             let account = query_account_info(suite.deps.as_ref()).unwrap();
 
-            let mut env = mock_env();
             // 1 second after release_at expire
-            env.block.time = env.block.time.plus_seconds(301);
+            suite.env.block.time = suite.env.block.time.plus_seconds(301);
 
             assert_eq!(
-                allowed_release(suite.deps.as_ref(), &env, &account.vesting_plan),
+                allowed_release(suite.deps.as_ref(), &suite.env, &account.vesting_plan),
                 Ok(Uint128::new(100))
             );
         }
 
         #[test]
         fn continuous_in_between() {
-            let suite = SuiteBuilder::default()
+            let mut suite = SuiteBuilder::default()
                 .with_continuous_vesting_plan(DEFAULT_RELEASE, DEFAULT_RELEASE + 200)
                 .build();
 
             let account = query_account_info(suite.deps.as_ref()).unwrap();
 
-            let mut env = mock_env();
-
             // 50 seconds after start, another 150 towards end
-            env.block.time = Timestamp::from_seconds(DEFAULT_RELEASE).plus_seconds(50);
+            suite.env.block.time = Timestamp::from_seconds(DEFAULT_RELEASE).plus_seconds(50);
             assert_eq!(
-                allowed_release(suite.deps.as_ref(), &env, &account.vesting_plan),
+                allowed_release(suite.deps.as_ref(), &suite.env, &account.vesting_plan),
                 // 100 * (50 / 200) = 25
                 Ok(Uint128::new(25))
             );
 
             // 108 seconds after start, another 92 towards end
-            env.block.time = Timestamp::from_seconds(DEFAULT_RELEASE).plus_seconds(108);
+            suite.env.block.time = Timestamp::from_seconds(DEFAULT_RELEASE).plus_seconds(108);
             assert_eq!(
-                allowed_release(suite.deps.as_ref(), &env, &account.vesting_plan),
+                allowed_release(suite.deps.as_ref(), &suite.env, &account.vesting_plan),
                 // 100 * (108 / 200) = 54
                 Ok(Uint128::new(54))
             );
 
             // 199 seconds after start, 1 towards end
-            env.block.time = Timestamp::from_seconds(DEFAULT_RELEASE).plus_seconds(199);
+            suite.env.block.time = Timestamp::from_seconds(DEFAULT_RELEASE).plus_seconds(199);
             assert_eq!(
-                allowed_release(suite.deps.as_ref(), &env, &account.vesting_plan),
+                allowed_release(suite.deps.as_ref(), &suite.env, &account.vesting_plan),
                 // 100 * (199 / 200) = 99.5
                 Ok(Uint128::new(99))
             );
 
             // 200 seconds after start - end_at timestamp is met
-            env.block.time = Timestamp::from_seconds(DEFAULT_RELEASE).plus_seconds(200);
+            suite.env.block.time = Timestamp::from_seconds(DEFAULT_RELEASE).plus_seconds(200);
             assert_eq!(
-                allowed_release(suite.deps.as_ref(), &env, &account.vesting_plan),
+                allowed_release(suite.deps.as_ref(), &suite.env, &account.vesting_plan),
                 Ok(Uint128::new(100))
             );
         }
@@ -534,13 +551,12 @@ mod tests {
         #[test]
         fn discrete() {
             let mut suite = SuiteBuilder::default().build();
-            let mut env = mock_env();
 
-            env.block.time = env.block.time.plus_seconds(150);
+            suite.env.block.time = suite.env.block.time.plus_seconds(150);
 
             let amount_to_send = 25;
             assert_eq!(
-                suite.release_tokens(env, OPERATOR, amount_to_send),
+                suite.release_tokens(OPERATOR, amount_to_send),
                 Ok(Response::new()
                     .add_attribute("action", "release_tokens")
                     .add_attribute("tokens", amount_to_send.to_string())
@@ -563,10 +579,7 @@ mod tests {
         fn discrete_before_expiration() {
             let mut suite = SuiteBuilder::default().build();
 
-            assert_eq!(
-                suite.release_tokens(mock_env(), OPERATOR, 25),
-                Ok(Response::new())
-            );
+            assert_eq!(suite.release_tokens(OPERATOR, 25), Ok(Response::new()));
             assert_matches!(
                 query_token_info(suite.deps.as_ref()),
                 Ok(TokenInfoResponse {
@@ -581,14 +594,13 @@ mod tests {
             let mut suite = SuiteBuilder::default()
                 .with_continuous_vesting_plan(DEFAULT_RELEASE, DEFAULT_RELEASE + 200)
                 .build();
-            let mut env = mock_env();
 
             // 50 seconds after start, another 150 towards end
             // 25 tokens are allowed to release
-            env.block.time = Timestamp::from_seconds(DEFAULT_RELEASE).plus_seconds(50);
+            suite.env.block.time = Timestamp::from_seconds(DEFAULT_RELEASE).plus_seconds(50);
             let first_amount_released = 25;
             assert_eq!(
-                suite.release_tokens(env.clone(), OPERATOR, first_amount_released),
+                suite.release_tokens(OPERATOR, first_amount_released),
                 Ok(Response::new()
                     .add_attribute("action", "release_tokens")
                     .add_attribute("tokens", first_amount_released.to_string())
@@ -608,10 +620,10 @@ mod tests {
 
             // 130 seconds after start, another 70 towards end
             // 65 tokens are allowed to release, 25 were already released previously
-            env.block.time = Timestamp::from_seconds(DEFAULT_RELEASE).plus_seconds(130);
+            suite.env.block.time = Timestamp::from_seconds(DEFAULT_RELEASE).plus_seconds(130);
             let second_amount_released = 40;
             suite
-                .release_tokens(env.clone(), OPERATOR, second_amount_released)
+                .release_tokens(OPERATOR, second_amount_released)
                 .unwrap();
             assert_matches!(
                 query_token_info(suite.deps.as_ref()),
@@ -623,10 +635,10 @@ mod tests {
 
             // 200 seconds after start
             // 100 tokens are allowed to release, 65 were already released previously
-            env.block.time = Timestamp::from_seconds(DEFAULT_RELEASE).plus_seconds(200);
+            suite.env.block.time = Timestamp::from_seconds(DEFAULT_RELEASE).plus_seconds(200);
             let third_amount_released = 35;
             suite
-                .release_tokens(env, OPERATOR, third_amount_released)
+                .release_tokens(OPERATOR, third_amount_released)
                 .unwrap();
             assert_matches!(
                 query_token_info(suite.deps.as_ref()),
@@ -642,14 +654,13 @@ mod tests {
             let mut suite = SuiteBuilder::default()
                 .with_continuous_vesting_plan(DEFAULT_RELEASE, DEFAULT_RELEASE + 200)
                 .build();
-            let mut env = mock_env();
 
             // 50 seconds after start, another 150 towards end
             // 25 tokens are allowed to release, but we try to get 30 tokens
-            env.block.time = Timestamp::from_seconds(DEFAULT_RELEASE).plus_seconds(50);
+            suite.env.block.time = Timestamp::from_seconds(DEFAULT_RELEASE).plus_seconds(50);
             let amount_to_release = 30;
             assert_eq!(
-                suite.release_tokens(env, OPERATOR, amount_to_release),
+                suite.release_tokens(OPERATOR, amount_to_release),
                 Ok(Response::new())
             );
             assert_matches!(
@@ -666,7 +677,6 @@ mod tests {
             let mut suite = SuiteBuilder::default()
                 .with_continuous_vesting_plan(DEFAULT_RELEASE, DEFAULT_RELEASE + 200)
                 .build();
-            let mut env = mock_env();
 
             suite.freeze_tokens(OVERSIGHT, 10).unwrap();
             assert_eq!(
@@ -682,10 +692,10 @@ mod tests {
             // 25 tokens are allowed to release, but we have 10 tokens frozen
             // so available are only 15 tokens
             // taking 20 results in nothing
-            env.block.time = Timestamp::from_seconds(DEFAULT_RELEASE).plus_seconds(50);
+            suite.env.block.time = Timestamp::from_seconds(DEFAULT_RELEASE).plus_seconds(50);
             let amount_to_release = 20;
             assert_eq!(
-                suite.release_tokens(env.clone(), OPERATOR, amount_to_release),
+                suite.release_tokens(OPERATOR, amount_to_release),
                 Ok(Response::new())
             );
             assert_matches!(
@@ -699,7 +709,7 @@ mod tests {
             // taking 15 tokens is okay though
             let amount_to_release = 15;
             assert_eq!(
-                suite.release_tokens(env, OPERATOR, amount_to_release),
+                suite.release_tokens(OPERATOR, amount_to_release),
                 Ok(Response::new()
                     .add_attribute("action", "release_tokens")
                     .add_attribute("tokens", amount_to_release.to_string())
@@ -724,7 +734,6 @@ mod tests {
             let mut suite = SuiteBuilder::default()
                 .with_continuous_vesting_plan(DEFAULT_RELEASE, DEFAULT_RELEASE + 200)
                 .build();
-            let mut env = mock_env();
 
             suite.freeze_tokens(OVERSIGHT, 10).unwrap();
             assert_eq!(
@@ -740,11 +749,8 @@ mod tests {
             // 2 tokens are allowed to release, but we have 10 tokens frozen
             // without proper protection allowed amount could return negative value (-8)
             // In that case, zero tokens are released
-            env.block.time = Timestamp::from_seconds(DEFAULT_RELEASE).plus_seconds(5);
-            assert_eq!(
-                suite.release_tokens(env.clone(), OPERATOR, 2),
-                Ok(Response::new())
-            );
+            suite.env.block.time = Timestamp::from_seconds(DEFAULT_RELEASE).plus_seconds(5);
+            assert_eq!(suite.release_tokens(OPERATOR, 2), Ok(Response::new()));
             assert_matches!(
                 query_token_info(suite.deps.as_ref()),
                 Ok(TokenInfoResponse {
