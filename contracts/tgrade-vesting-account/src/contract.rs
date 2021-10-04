@@ -185,16 +185,16 @@ fn release_tokens(
     deps: DepsMut,
     env: Env,
     sender: Addr,
-    amount: Option<Uint128>,
+    requested_amount: Option<Uint128>,
 ) -> Result<Response, ContractError> {
     let mut account = VESTING_ACCOUNT.load(deps.storage)?;
 
     require_operator(&sender, &account)?;
 
     let allowed_to_release = allowed_release(deps.as_ref(), &env, &account.vesting_plan)?;
-    if let Some(amount) = amount {
-        if allowed_to_release >= amount {
-            helpers::release_tokens(amount, sender, &mut account, deps.storage)
+    if let Some(requested_amount) = requested_amount {
+        if allowed_to_release >= requested_amount {
+            helpers::release_tokens(requested_amount, sender, &mut account, deps.storage)
         } else {
             Err(ContractError::NotEnoughTokensAvailable)
         }
@@ -206,15 +206,15 @@ fn release_tokens(
 fn freeze_tokens(
     deps: DepsMut,
     sender: Addr,
-    amount: Option<Uint128>,
+    requested_amount: Option<Uint128>,
 ) -> Result<Response, ContractError> {
     let mut account = VESTING_ACCOUNT.load(deps.storage)?;
 
     require_oversight(&sender, &account)?;
 
     let available_to_freeze = account.initial_tokens - account.frozen_tokens - account.paid_tokens;
-    if let Some(amount) = amount {
-        let final_frozen = std::cmp::min(amount, available_to_freeze);
+    if let Some(requested_amount) = requested_amount {
+        let final_frozen = std::cmp::min(requested_amount, available_to_freeze);
         helpers::freeze_tokens(final_frozen, sender, &mut account, deps.storage)
     } else {
         helpers::freeze_tokens(available_to_freeze, sender, &mut account, deps.storage)
@@ -224,14 +224,14 @@ fn freeze_tokens(
 fn unfreeze_tokens(
     deps: DepsMut,
     sender: Addr,
-    amount: Option<Uint128>,
+    requested_amount: Option<Uint128>,
 ) -> Result<Response, ContractError> {
     let mut account = VESTING_ACCOUNT.load(deps.storage)?;
 
     require_oversight(&sender, &account)?;
 
-    if let Some(amount) = amount {
-        helpers::unfreeze_tokens(amount, sender, &mut account, deps.storage)
+    if let Some(requested_amount) = requested_amount {
+        helpers::unfreeze_tokens(requested_amount, sender, &mut account, deps.storage)
     } else {
         helpers::unfreeze_tokens(account.frozen_tokens, sender, &mut account, deps.storage)
     }
