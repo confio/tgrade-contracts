@@ -197,6 +197,7 @@ mod test {
             auto_unjail: false,
             validators_reward_ratio: Decimal::one(),
             distribution_contract: None,
+            rewards_contract: Addr::unchecked(""),
         };
         CONFIG.save(deps.storage, &cfg).unwrap();
     }

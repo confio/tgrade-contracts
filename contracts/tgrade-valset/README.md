@@ -78,7 +78,8 @@ the message:
 ```json
 {
   "admin": "tgrade_valset_addr",
-  "token": "epoch_reward_denom"
+  "token": "epoch_reward_denom",
+  "members": []
 }
 ```
 
@@ -94,7 +95,7 @@ emitted with `wasm` event:
 }
 ```
 
-Additionaly the rewards contract address can be queried at any time using
+Additionally the rewards contract address can be queried at any time using
 `rewards_distribution_contract {}` query.
 
 At every epoch end, rewards would be send to rewards distribution contract
@@ -266,10 +267,6 @@ pub enum QueryMsg {
     /// we recalculated endblock right now.
     /// Also returns ListActiveValidatorsResponse
     SimulateActiveValidators {},
-
-    /// Returns address of rewards distribution contract. Returns
-    /// `ContractResp`
-    RewardsDistributionContract {},
 }
 ```
 

@@ -51,6 +51,9 @@ pub struct Config {
     /// distribute funds send with this message.
     /// If no account is provided, `validators_reward_ratio` has to be `1`.
     pub distribution_contract: Option<Addr>,
+
+    /// Address of contract for rewards distribution.
+    pub rewards_contract: Addr,
 }
 
 #[derive(Serialize, Deserialize, Clone, PartialEq, JsonSchema, Debug)]

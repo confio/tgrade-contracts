@@ -32,7 +32,9 @@ pub fn contract_valset() -> Box<dyn Contract<TgradeMsg>> {
         crate::contract::instantiate,
         crate::contract::query,
     )
-    .with_sudo(crate::contract::sudo);
+    .with_sudo(crate::contract::sudo)
+    .with_reply(crate::contract::reply);
+
     Box::new(contract)
 }
 
@@ -325,7 +327,7 @@ impl SuiteBuilder {
                     distribution_contract: distribution_contract
                         .as_ref()
                         .map(|addr| addr.to_string()),
-                    rewards_code_id: 0,
+                    rewards_code_id: engagement_id,
                 },
                 &[],
                 "valset",

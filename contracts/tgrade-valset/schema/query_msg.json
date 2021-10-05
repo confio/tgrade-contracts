@@ -103,19 +103,6 @@
         }
       },
       "additionalProperties": false
-    },
-    {
-      "description": "Returns address of rewards distribution contract. Returns `ContractResp`",
-      "type": "object",
-      "required": [
-        "rewards_distribution_contract"
-      ],
-      "properties": {
-        "rewards_distribution_contract": {
-          "type": "object"
-        }
-      },
-      "additionalProperties": false
     }
   ]
 }

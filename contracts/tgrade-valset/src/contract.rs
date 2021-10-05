@@ -3,8 +3,8 @@ use std::collections::BTreeSet;
 use std::convert::TryInto;
 
 use cosmwasm_std::{
-    entry_point, to_binary, Addr, Binary, BlockInfo, Deps, DepsMut, Env, Event, MessageInfo, Order,
-    Reply, StdError, StdResult, SubMsg, Timestamp, WasmMsg,
+    entry_point, to_binary, Addr, Binary, BlockInfo, Deps, DepsMut, Env, MessageInfo, Order, Reply,
+    StdError, StdResult, SubMsg, Timestamp, WasmMsg,
 };
 
 use cw0::maybe_addr;
@@ -73,6 +73,8 @@ pub fn instantiate(
             .distribution_contract
             .map(|addr| deps.api.addr_validate(&addr))
             .transpose()?,
+        // Will be overwritten in reply for rewards contract instantiation
+        rewards_contract: Addr::unchecked(""),
     };
     CONFIG.save(deps.storage, &cfg)?;
 
@@ -104,6 +106,7 @@ pub fn instantiate(
     let rewards_init = RewardsInstantiateMsg {
         admin: env.contract.address.clone(),
         token,
+        members: vec![],
     };
 
     let resp = Response::new().add_submessage(SubMsg::reply_on_success(
@@ -276,7 +279,6 @@ pub fn query(deps: Deps, env: Env, msg: QueryMsg) -> Result<Binary, ContractErro
         QueryMsg::SimulateActiveValidators {} => {
             Ok(to_binary(&simulate_active_validators(deps, env)?)?)
         }
-        QueryMsg::RewardsDistributionContract {} => todo!(),
     }
 }
 
@@ -574,20 +576,27 @@ pub fn reply(deps: DepsMut, _env: Env, msg: Reply) -> Result<Response, ContractE
 }
 
 pub fn rewards_instantiate_reply(deps: DepsMut, msg: Reply) -> Result<Response, ContractError> {
+    let id = msg.id;
     let res: MsgInstantiateContractResponse = Message::parse_from_bytes(
         msg.result
             .into_result()
             .map_err(ContractError::SubmsgFailure)?
             .data
             .ok_or_else(|| ContractError::ReplyParseFailure {
-                id: msg.id,
+                id,
                 err: "Missing reply data".to_owned(),
             })?
             .as_slice(),
     )
     .map_err(|err| ContractError::ReplyParseFailure {
-        id: msg.id,
+        id,
         err: err.to_string(),
+    })?;
+
+    let addr = deps.api.addr_validate(res.get_contract_address())?;
+    CONFIG.update(deps.storage, |mut config| -> StdResult<_> {
+        config.rewards_contract = addr;
+        Ok(config)
     })?;
 
     let resp = Response::new()
@@ -645,9 +654,10 @@ mod test {
         stake: Addr,
         max_validators: u32,
         min_weight: u64,
+        rewards_code_id: u64,
     ) -> Addr {
         let valset_id = app.store_code(contract_valset());
-        let msg = init_msg(stake, max_validators, min_weight);
+        let msg = init_msg(stake, max_validators, min_weight, rewards_code_id);
         app.instantiate_contract(
             valset_id,
             Addr::unchecked(GROUP_OWNER),
@@ -676,7 +686,12 @@ mod test {
     }
 
     // registers first PREREGISTER_MEMBERS members and PREREGISTER_NONMEMBERS non-members with pubkeys
-    fn init_msg(group_addr: Addr, max_validators: u32, min_weight: u64) -> InstantiateMsg {
+    fn init_msg(
+        group_addr: Addr,
+        max_validators: u32,
+        min_weight: u64,
+        rewards_code_id: u64,
+    ) -> InstantiateMsg {
         let members = addrs(PREREGISTER_MEMBERS)
             .into_iter()
             .map(|s| valid_operator(&s));
@@ -697,7 +712,7 @@ mod test {
             auto_unjail: false,
             validators_reward_ratio: Decimal::one(),
             distribution_contract: None,
-            rewards_code_id: 0,
+            rewards_code_id,
         }
     }
 
@@ -705,10 +720,11 @@ mod test {
     fn init_and_query_state() {
         let mut app = AppBuilder::new_custom().build(|_, _, _| ());
 
+        let engagement_id = app.store_code(contract_engagement());
         // make a simple group
         let group_addr = instantiate_group(&mut app, 36);
         // make a valset that references it (this does init)
-        let valset_addr = instantiate_valset(&mut app, group_addr.clone(), 10, 5);
+        let valset_addr = instantiate_valset(&mut app, group_addr.clone(), 10, 5, engagement_id);
 
         // check config
         let cfg: ConfigResponse = app
@@ -727,6 +743,7 @@ mod test {
                 auto_unjail: false,
                 validators_reward_ratio: Decimal::one(),
                 distribution_contract: None,
+                rewards_contract: cfg.rewards_contract.clone(),
             }
         );
 
@@ -779,10 +796,11 @@ mod test {
     fn simulate_validators() {
         let mut app = AppBuilder::new_custom().build(|_, _, _| ());
 
+        let engagement_id = app.store_code(contract_engagement());
         // make a simple group
         let group_addr = instantiate_group(&mut app, 36);
         // make a valset that references it (this does init)
-        let valset_addr = instantiate_valset(&mut app, group_addr, 10, 5);
+        let valset_addr = instantiate_valset(&mut app, group_addr, 10, 5, engagement_id);
 
         // what do we expect?
         // 1..24 have pubkeys registered, we take the top 10 (14..24)
@@ -814,10 +832,11 @@ mod test {
     fn update_metadata_works() {
         let mut app = AppBuilder::new_custom().build(|_, _, _| ());
 
+        let engagement_id = app.store_code(contract_engagement());
         // make a simple group
         let group_addr = instantiate_group(&mut app, 36);
         // make a valset that references it (this does init)
-        let valset_addr = instantiate_valset(&mut app, group_addr, 10, 5);
+        let valset_addr = instantiate_valset(&mut app, group_addr, 10, 5, engagement_id);
 
         // get my initial metadata
         let operator = addrs(3).pop().unwrap();
@@ -873,10 +892,11 @@ mod test {
     fn validator_list() {
         let mut app = AppBuilder::new_custom().build(|_, _, _| ());
 
+        let engagement_id = app.store_code(contract_engagement());
         // make a simple group
         let group_addr = instantiate_group(&mut app, 36);
         // make a valset that references it (this does init)
-        let valset_addr = instantiate_valset(&mut app, group_addr, 10, 5);
+        let valset_addr = instantiate_valset(&mut app, group_addr, 10, 5, engagement_id);
 
         // List validator keys
         // First come the non-members
@@ -994,10 +1014,11 @@ mod test {
     fn end_block_run() {
         let mut app = AppBuilder::new_custom().build(|_, _, _| ());
 
+        let engagement_id = app.store_code(contract_engagement());
         // make a simple group
         let group_addr = instantiate_group(&mut app, 36);
         // make a valset that references it (this does init)
-        let valset_addr = instantiate_valset(&mut app, group_addr, 10, 5);
+        let valset_addr = instantiate_valset(&mut app, group_addr, 10, 5, engagement_id);
 
         // what do we expect?
         // end_block hasn't run yet, so empty list

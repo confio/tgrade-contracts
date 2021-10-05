@@ -219,10 +219,6 @@ pub enum QueryMsg {
     /// we recalculated endblock right now.
     /// Also returns ListActiveValidatorsResponse
     SimulateActiveValidators {},
-
-    /// Returns address of rewards distribution contract. Returns
-    /// `ContractResp`
-    RewardsDistributionContract {},
 }
 
 pub type ConfigResponse = Config;
@@ -295,12 +291,6 @@ pub struct ListActiveValidatorsResponse {
     pub validators: Vec<ValidatorInfo>,
 }
 
-#[derive(Serialize, Deserialize, Clone, PartialEq, JsonSchema, Debug)]
-#[serde(rename_all = "snake_case")]
-pub struct ContractResp {
-    contract: Addr,
-}
-
 /// Messages send by this contract to external contract
 #[derive(Serialize, Deserialize, Clone, PartialEq, JsonSchema, Debug)]
 #[serde(rename_all = "snake_case")]
@@ -315,6 +305,7 @@ pub enum DistributionMsg {
 pub struct RewardsInstantiateMsg {
     pub admin: Addr,
     pub token: String,
+    pub members: Vec<Member>,
 }
 
 #[derive(Serialize, Deserialize, Clone, PartialEq, JsonSchema, Debug)]

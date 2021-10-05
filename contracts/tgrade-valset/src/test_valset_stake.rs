@@ -13,7 +13,7 @@ use crate::msg::{
     ValidatorResponse,
 };
 use crate::state::ValidatorInfo;
-use crate::test_helpers::{addrs, contract_valset, valid_operator};
+use crate::test_helpers::{addrs, contract_engagement, contract_valset, valid_operator};
 
 const EPOCH_LENGTH: u64 = 100;
 
@@ -54,8 +54,14 @@ pub fn instantiate_valset(
     max_validators: u32,
     min_weight: u64,
 ) -> Addr {
+    let engagement_id = app.store_code(contract_engagement());
     let valset_id = app.store_code(contract_valset());
-    let msg = init_msg(&stake.to_string(), max_validators, min_weight);
+    let msg = init_msg(
+        &stake.to_string(),
+        max_validators,
+        min_weight,
+        engagement_id,
+    );
     app.instantiate_contract(
         valset_id,
         Addr::unchecked(STAKE_OWNER),
@@ -91,7 +97,12 @@ fn instantiate_stake(app: &mut BasicApp<TgradeMsg>) -> Addr {
 }
 
 // registers first PREREGISTER_MEMBERS members with pubkeys
-fn init_msg(stake_addr: &str, max_validators: u32, min_weight: u64) -> InstantiateMsg {
+fn init_msg(
+    stake_addr: &str,
+    max_validators: u32,
+    min_weight: u64,
+    rewards_code_id: u64,
+) -> InstantiateMsg {
     let members = addrs(PREREGISTER_MEMBERS)
         .into_iter()
         .map(|s| valid_operator(&s))
@@ -109,7 +120,7 @@ fn init_msg(stake_addr: &str, max_validators: u32, min_weight: u64) -> Instantia
         auto_unjail: false,
         validators_reward_ratio: Decimal::one(),
         distribution_contract: None,
-        rewards_code_id: 0,
+        rewards_code_id,
     }
 }
 
@@ -163,6 +174,7 @@ fn init_and_query_state() {
             auto_unjail: false,
             validators_reward_ratio: Decimal::one(),
             distribution_contract: None,
+            rewards_contract: cfg.rewards_contract.clone(),
         }
     );
 
