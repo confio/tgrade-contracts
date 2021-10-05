@@ -70,7 +70,7 @@ pub fn execute(
 
 /// Returns information about amount of tokens that is allowed to be released
 fn allowed_release(deps: Deps, env: &Env, plan: &VestingPlan) -> Result<Uint128, ContractError> {
-    let token_info = query_token_info(deps)?;
+    let token_info = token_info(deps)?;
 
     let all_available_tokens = token_info.initial - token_info.frozen - token_info.released;
     match plan {
@@ -258,15 +258,15 @@ fn release_tokens(
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
     match msg {
-        QueryMsg::AccountInfo {} => to_binary(&query_account_info(deps)?),
-        QueryMsg::TokenInfo {} => to_binary(&query_token_info(deps)?),
+        QueryMsg::AccountInfo {} => to_binary(&account_info(deps)?),
+        QueryMsg::TokenInfo {} => to_binary(&token_info(deps)?),
         _ => Err(cosmwasm_std::StdError::GenericErr {
             msg: "Querry not yet implemented".to_string(),
         }),
     }
 }
 
-fn query_account_info(deps: Deps) -> StdResult<AccountInfoResponse> {
+fn account_info(deps: Deps) -> StdResult<AccountInfoResponse> {
     let account = VESTING_ACCOUNT.load(deps.storage)?;
 
     let info = AccountInfoResponse {
@@ -278,7 +278,7 @@ fn query_account_info(deps: Deps) -> StdResult<AccountInfoResponse> {
     Ok(info)
 }
 
-fn query_token_info(deps: Deps) -> StdResult<TokenInfoResponse> {
+fn token_info(deps: Deps) -> StdResult<TokenInfoResponse> {
     let account = VESTING_ACCOUNT.load(deps.storage)?;
 
     let info = TokenInfoResponse {
@@ -496,7 +496,7 @@ mod tests {
         fn discrete_before_expiration() {
             let suite = SuiteBuilder::default().build();
 
-            let account = query_account_info(suite.deps.as_ref()).unwrap();
+            let account = account_info(suite.deps.as_ref()).unwrap();
             assert_eq!(
                 allowed_release(suite.deps.as_ref(), &mock_env(), &account.vesting_plan),
                 Ok(Uint128::zero())
@@ -507,7 +507,7 @@ mod tests {
         fn discrete_after_expiration() {
             let mut suite = SuiteBuilder::default().build();
 
-            let account = query_account_info(suite.deps.as_ref()).unwrap();
+            let account = account_info(suite.deps.as_ref()).unwrap();
 
             // 1 second after release_at expire
             suite.env.block.time = suite.env.block.time.plus_seconds(101);
@@ -524,7 +524,7 @@ mod tests {
                 .with_continuous_vesting_plan(DEFAULT_RELEASE, DEFAULT_RELEASE + 200)
                 .build();
 
-            let account = query_account_info(suite.deps.as_ref()).unwrap();
+            let account = account_info(suite.deps.as_ref()).unwrap();
 
             assert_eq!(
                 allowed_release(suite.deps.as_ref(), &suite.env, &account.vesting_plan),
@@ -539,7 +539,7 @@ mod tests {
                 .with_continuous_vesting_plan(DEFAULT_RELEASE, DEFAULT_RELEASE + 200)
                 .build();
 
-            let account = query_account_info(suite.deps.as_ref()).unwrap();
+            let account = account_info(suite.deps.as_ref()).unwrap();
 
             // 1 second after release_at expire
             suite.env.block.time = suite.env.block.time.plus_seconds(301);
@@ -556,7 +556,7 @@ mod tests {
                 .with_continuous_vesting_plan(DEFAULT_RELEASE, DEFAULT_RELEASE + 200)
                 .build();
 
-            let account = query_account_info(suite.deps.as_ref()).unwrap();
+            let account = account_info(suite.deps.as_ref()).unwrap();
 
             // 50 seconds after start, another 150 towards end
             suite.env.block.time = Timestamp::from_seconds(DEFAULT_RELEASE).plus_seconds(50);
@@ -614,7 +614,7 @@ mod tests {
                     }))
             );
             assert_matches!(
-                query_token_info(suite.deps.as_ref()),
+                token_info(suite.deps.as_ref()),
                 Ok(TokenInfoResponse {
                     released,
                     ..
@@ -631,7 +631,7 @@ mod tests {
                 Err(ContractError::NotEnoughTokensAvailable)
             );
             assert_matches!(
-                query_token_info(suite.deps.as_ref()),
+                token_info(suite.deps.as_ref()),
                 Ok(TokenInfoResponse {
                     released,
                     ..
@@ -661,7 +661,7 @@ mod tests {
                     }))
             );
             assert_matches!(
-                query_token_info(suite.deps.as_ref()),
+                token_info(suite.deps.as_ref()),
                 Ok(TokenInfoResponse {
                     released,
                     ..
@@ -676,7 +676,7 @@ mod tests {
                 .release_tokens(OPERATOR, Some(second_amount_released))
                 .unwrap();
             assert_matches!(
-                query_token_info(suite.deps.as_ref()),
+                token_info(suite.deps.as_ref()),
                 Ok(TokenInfoResponse {
                     released,
                     ..
@@ -691,7 +691,7 @@ mod tests {
                 .release_tokens(OPERATOR, Some(third_amount_released))
                 .unwrap();
             assert_matches!(
-                query_token_info(suite.deps.as_ref()),
+                token_info(suite.deps.as_ref()),
                 Ok(TokenInfoResponse {
                     released,
                     ..
@@ -714,7 +714,7 @@ mod tests {
                 Err(ContractError::NotEnoughTokensAvailable)
             );
             assert_matches!(
-                query_token_info(suite.deps.as_ref()),
+                token_info(suite.deps.as_ref()),
                 Ok(TokenInfoResponse {
                     released,
                     ..
@@ -730,7 +730,7 @@ mod tests {
 
             suite.freeze_tokens(OVERSIGHT, Some(10)).unwrap();
             assert_eq!(
-                query_token_info(suite.deps.as_ref()),
+                token_info(suite.deps.as_ref()),
                 Ok(TokenInfoResponse {
                     initial: Uint128::new(100),
                     frozen: Uint128::new(10),
@@ -749,7 +749,7 @@ mod tests {
                 Err(ContractError::NotEnoughTokensAvailable)
             );
             assert_matches!(
-                query_token_info(suite.deps.as_ref()),
+                token_info(suite.deps.as_ref()),
                 Ok(TokenInfoResponse {
                     released,
                     ..
@@ -771,7 +771,7 @@ mod tests {
                     }))
             );
             assert_matches!(
-                query_token_info(suite.deps.as_ref()),
+                token_info(suite.deps.as_ref()),
                 Ok(TokenInfoResponse {
                     released,
                     frozen,
@@ -788,7 +788,7 @@ mod tests {
 
             suite.freeze_tokens(OVERSIGHT, Some(10)).unwrap();
             assert_eq!(
-                query_token_info(suite.deps.as_ref()),
+                token_info(suite.deps.as_ref()),
                 Ok(TokenInfoResponse {
                     initial: Uint128::new(100),
                     frozen: Uint128::new(10),
@@ -806,7 +806,7 @@ mod tests {
                 Err(ContractError::NotEnoughTokensAvailable)
             );
             assert_matches!(
-                query_token_info(suite.deps.as_ref()),
+                token_info(suite.deps.as_ref()),
                 Ok(TokenInfoResponse {
                     released,
                     ..
@@ -845,7 +845,7 @@ mod tests {
         let suite = SuiteBuilder::default().build();
 
         assert_eq!(
-            query_account_info(suite.deps.as_ref()),
+            account_info(suite.deps.as_ref()),
             Ok(AccountInfoResponse {
                 recipient: Addr::unchecked(RECIPIENT),
                 operator: Addr::unchecked(OPERATOR),
@@ -862,7 +862,7 @@ mod tests {
         let suite = SuiteBuilder::default().build();
 
         assert_eq!(
-            query_token_info(suite.deps.as_ref()),
+            token_info(suite.deps.as_ref()),
             Ok(TokenInfoResponse {
                 initial: Uint128::new(100),
                 frozen: Uint128::zero(),
@@ -883,7 +883,7 @@ mod tests {
                 .add_attribute("sender", Addr::unchecked(OVERSIGHT)))
         );
         assert_eq!(
-            query_token_info(suite.deps.as_ref()),
+            token_info(suite.deps.as_ref()),
             Ok(TokenInfoResponse {
                 initial: Uint128::new(100),
                 frozen: Uint128::new(100),
@@ -905,7 +905,7 @@ mod tests {
                 .add_attribute("sender", Addr::unchecked(OVERSIGHT)))
         );
         assert_eq!(
-            query_token_info(suite.deps.as_ref()),
+            token_info(suite.deps.as_ref()),
             Ok(TokenInfoResponse {
                 initial: Uint128::new(100),
                 frozen: Uint128::new(100),
@@ -920,7 +920,7 @@ mod tests {
 
         suite.freeze_tokens(OVERSIGHT, Some(50)).unwrap();
         assert_eq!(
-            query_token_info(suite.deps.as_ref()),
+            token_info(suite.deps.as_ref()),
             Ok(TokenInfoResponse {
                 initial: Uint128::new(100),
                 frozen: Uint128::new(50),
@@ -936,7 +936,7 @@ mod tests {
                 .add_attribute("sender", Addr::unchecked(OVERSIGHT)))
         );
         assert_eq!(
-            query_token_info(suite.deps.as_ref()),
+            token_info(suite.deps.as_ref()),
             Ok(TokenInfoResponse {
                 initial: Uint128::new(100),
                 frozen: Uint128::zero(),
@@ -957,7 +957,7 @@ mod tests {
                 .add_attribute("sender", OVERSIGHT.to_string()))
         );
         assert_matches!(
-            query_account_info(suite.deps.as_ref()),
+            account_info(suite.deps.as_ref()),
             Ok(AccountInfoResponse {
                 operator,
                 ..
