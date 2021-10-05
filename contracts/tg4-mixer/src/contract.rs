@@ -1,10 +1,15 @@
+use integer_sqrt::IntegerSquareRoot;
+use rust_decimal::prelude::*;
+use rust_decimal_macros::dec;
+
 #[cfg(not(feature = "library"))]
 use cosmwasm_std::entry_point;
 use cosmwasm_std::{to_binary, Binary, Deps, DepsMut, Env, MessageInfo, Order, StdResult};
+
 use cw0::maybe_addr;
 use cw2::set_contract_version;
 use cw_storage_plus::{Bound, PrimaryKey, U64Key};
-use integer_sqrt::IntegerSquareRoot;
+
 use tg_bindings::TgradeMsg;
 use tg_utils::{members, HOOKS, PREAUTH, TOTAL};
 
@@ -96,6 +101,24 @@ fn mixer_fn(left: u64, right: u64) -> Result<u64, ContractError> {
         .checked_mul(right)
         .ok_or(ContractError::WeightOverflow {})?;
     Ok(mult.integer_sqrt())
+}
+
+/// Sigmoid-like function from the PoE white paper
+fn mixer_fn_sigmoid(left: u64, right: u64) -> Result<u64, ContractError> {
+    let mult = (left as i64)
+        .checked_mul(right as i64)
+        .ok_or(ContractError::WeightOverflow {})?;
+
+    let mult = Decimal::new(mult, 0);
+
+    let p = Decimal::new(68, 2);
+    let s = Decimal::new(3, 5);
+    let r_max = dec!(1000);
+
+    let one = dec!(1);
+    let reward = r_max * (dec!(2) / (one + (-s * mult.powd(p)).exp()) - one);
+
+    reward.to_u64().ok_or(ContractError::RewardOverflow {})
 }
 
 #[cfg_attr(not(feature = "library"), entry_point)]
