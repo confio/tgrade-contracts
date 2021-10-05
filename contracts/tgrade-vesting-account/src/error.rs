@@ -16,6 +16,9 @@ pub enum ContractError {
     #[error("Unauthorized - action requires sender to be set as an Oversight")]
     RequireOversight,
 
+    #[error("Not enough tokens available")]
+    NotEnoughTokensAvailable,
+
     // TODO: Temporary error to not panic at unimplemented parts - remove when done
     #[error("Not available - implementation is not finished")]
     NotImplemented,

@@ -33,15 +33,15 @@ where
         msgs: Vec<CosmosMsg<T>>,
     },
     ReleaseTokens {
-        amount: Uint128,
+        amount: Option<Uint128>,
     },
     /// If the recipient violates a contractual agreement, he may get find his
     /// tokens frozen
     FreezeTokens {
-        amount: Uint128,
+        amount: Option<Uint128>,
     },
     UnfreezeTokens {
-        amount: Uint128,
+        amount: Option<Uint128>,
     },
 
     // TODO: Add Bond/Unbond implementations
