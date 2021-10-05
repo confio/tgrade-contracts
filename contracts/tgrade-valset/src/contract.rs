@@ -3,8 +3,8 @@ use std::collections::BTreeSet;
 use std::convert::TryInto;
 
 use cosmwasm_std::{
-    entry_point, to_binary, Addr, Binary, BlockInfo, Deps, DepsMut, Env, MessageInfo, Order,
-    StdError, StdResult, Timestamp, WasmMsg,
+    entry_point, to_binary, Addr, Binary, BlockInfo, Deps, DepsMut, Env, Event, MessageInfo, Order,
+    Reply, StdError, StdResult, SubMsg, Timestamp, WasmMsg,
 };
 
 use cw0::maybe_addr;
@@ -25,15 +25,19 @@ use crate::msg::{
     ListActiveValidatorsResponse, ListValidatorResponse, OperatorResponse, QueryMsg,
     RewardsInstantiateMsg, ValidatorMetadata, ValidatorResponse,
 };
+use crate::proto::MsgInstantiateContractResponse;
 use crate::rewards::{distribute_to_validators, pay_block_rewards};
 use crate::state::{
     operators, Config, EpochInfo, OperatorInfo, ValidatorInfo, CONFIG, EPOCH, JAIL, VALIDATORS,
 };
+use protobuf::Message;
 use tg_utils::ADMIN;
 
 // version info for migration info
 const CONTRACT_NAME: &str = "crates.io:tgrade-valset";
 const CONTRACT_VERSION: &str = env!("CARGO_PKG_VERSION");
+
+const REWARDS_INIT_REPLY_ID: u64 = 1;
 
 /// We use this custom message everywhere
 pub type Response = cosmwasm_std::Response<TgradeMsg>;
@@ -102,13 +106,16 @@ pub fn instantiate(
         token,
     };
 
-    let resp = Response::new().add_message(WasmMsg::Instantiate {
-        admin: Some(env.contract.address.clone().to_string()),
-        code_id: msg.rewards_code_id,
-        msg: to_binary(&rewards_init)?,
-        funds: vec![],
-        label: format!("rewards_distribution_{}", env.contract.address),
-    });
+    let resp = Response::new().add_submessage(SubMsg::reply_on_success(
+        WasmMsg::Instantiate {
+            admin: Some(env.contract.address.clone().to_string()),
+            code_id: msg.rewards_code_id,
+            msg: to_binary(&rewards_init)?,
+            funds: vec![],
+            label: format!("rewards_distribution_{}", env.contract.address),
+        },
+        REWARDS_INIT_REPLY_ID,
+    ));
 
     Ok(resp)
 }
@@ -556,6 +563,38 @@ fn calculate_diff(cur_vals: Vec<ValidatorInfo>, old_vals: Vec<ValidatorInfo>) ->
     );
 
     ValidatorDiff { diffs }
+}
+
+#[cfg_attr(not(feature = "library"), entry_point)]
+pub fn reply(deps: DepsMut, _env: Env, msg: Reply) -> Result<Response, ContractError> {
+    match msg.id {
+        REWARDS_INIT_REPLY_ID => rewards_instantiate_reply(deps, msg),
+        _ => Err(ContractError::UnrecognisedReply(msg.id)),
+    }
+}
+
+pub fn rewards_instantiate_reply(deps: DepsMut, msg: Reply) -> Result<Response, ContractError> {
+    let res: MsgInstantiateContractResponse = Message::parse_from_bytes(
+        msg.result
+            .into_result()
+            .map_err(ContractError::SubmsgFailure)?
+            .data
+            .ok_or_else(|| ContractError::ReplyParseFailure {
+                id: msg.id,
+                err: "Missing reply data".to_owned(),
+            })?
+            .as_slice(),
+    )
+    .map_err(|err| ContractError::ReplyParseFailure {
+        id: msg.id,
+        err: err.to_string(),
+    })?;
+
+    let resp = Response::new()
+        .add_attribute("action", "tgrade-valset_instantiation")
+        .add_attribute("rewards_contract", res.get_contract_address());
+
+    Ok(resp)
 }
 
 #[cfg(test)]
