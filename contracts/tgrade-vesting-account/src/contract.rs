@@ -46,6 +46,7 @@ fn create_vesting_account(
         frozen_tokens: Uint128::zero(),
         paid_tokens: Uint128::zero(),
         initial_tokens,
+        hand_over: false,
     };
     VESTING_ACCOUNT.save(deps.storage, &account)?;
 
@@ -64,7 +65,24 @@ pub fn execute(
         ExecuteMsg::FreezeTokens { amount } => freeze_tokens(deps, info.sender, amount),
         ExecuteMsg::UnfreezeTokens { amount } => unfreeze_tokens(deps, info.sender, amount),
         ExecuteMsg::ChangeOperator { address } => change_operator(deps, info.sender, address),
+        ExecuteMsg::HandOver {} => hand_over(deps, env, info.sender),
         _ => Err(ContractError::NotImplemented),
+    }
+}
+
+fn require_operator(sender: &Addr, account: &VestingAccount) -> Result<(), ContractError> {
+    if *sender != account.operator && *sender != account.oversight {
+        Err(ContractError::RequireOperator)
+    } else {
+        Ok(())
+    }
+}
+
+fn require_oversight(sender: &Addr, account: &VestingAccount) -> Result<(), ContractError> {
+    if *sender != account.oversight {
+        Err(ContractError::RequireOversight)
+    } else {
+        Ok(())
     }
 }
 
@@ -107,19 +125,25 @@ fn allowed_release(deps: Deps, env: &Env, plan: &VestingPlan) -> Result<Uint128,
     }
 }
 
-fn require_operator(sender: &Addr, account: &VestingAccount) -> Result<(), ContractError> {
-    if *sender != account.operator && *sender != account.oversight {
-        Err(ContractError::RequireOperator)
-    } else {
-        Ok(())
-    }
-}
+fn release_tokens(
+    deps: DepsMut,
+    env: Env,
+    sender: Addr,
+    requested_amount: Option<Uint128>,
+) -> Result<Response, ContractError> {
+    let mut account = VESTING_ACCOUNT.load(deps.storage)?;
 
-fn require_oversight(sender: &Addr, account: &VestingAccount) -> Result<(), ContractError> {
-    if *sender != account.oversight {
-        Err(ContractError::RequireOversight)
+    require_operator(&sender, &account)?;
+
+    let allowed_to_release = allowed_release(deps.as_ref(), &env, &account.vesting_plan)?;
+    if let Some(requested_amount) = requested_amount {
+        if allowed_to_release >= requested_amount {
+            helpers::release_tokens(requested_amount, sender, &mut account, deps.storage)
+        } else {
+            Err(ContractError::NotEnoughTokensAvailable)
+        }
     } else {
-        Ok(())
+        helpers::release_tokens(allowed_to_release, sender, &mut account, deps.storage)
     }
 }
 
@@ -173,6 +197,39 @@ fn change_operator(
         .add_attribute("action", "change_operator")
         .add_attribute("operator", new_operator.to_string())
         .add_attribute("sender", sender))
+}
+
+fn hand_over(deps: DepsMut, env: Env, sender: Addr) -> Result<Response, ContractError> {
+    let mut account = VESTING_ACCOUNT.load(deps.storage)?;
+
+    if sender != account.recipient && sender != account.oversight {
+        return Err(ContractError::RequireRecipientOrOversight);
+    }
+
+    let is_expired = match account.vesting_plan {
+        VestingPlan::Discrete { release_at } => release_at.is_expired(&env.block),
+        VestingPlan::Continuous {
+            start_at: _,
+            end_at,
+        } => end_at.is_expired(&env.block),
+    };
+    if is_expired {
+        return Err(ContractError::ContractNotExpired);
+    }
+
+    let frozen_tokens = account.frozen_tokens.u128();
+    let msg = BankMsg::Burn {
+        amount: coins(frozen_tokens, VESTING_DENOM),
+    };
+
+    account.frozen_tokens = Uint128::zero();
+    VESTING_ACCOUNT.save(deps.storage, &account)?;
+
+    Ok(Response::new()
+        .add_attribute("action", "hand_over")
+        .add_attribute("burnt_tokens", frozen_tokens.to_string())
+        .add_attribute("sender", sender)
+        .add_message(msg))
 }
 
 mod helpers {
@@ -230,28 +287,6 @@ mod helpers {
             .add_attribute("action", "unfreeze_tokens")
             .add_attribute("tokens", amount.to_string())
             .add_attribute("sender", sender))
-    }
-}
-
-fn release_tokens(
-    deps: DepsMut,
-    env: Env,
-    sender: Addr,
-    requested_amount: Option<Uint128>,
-) -> Result<Response, ContractError> {
-    let mut account = VESTING_ACCOUNT.load(deps.storage)?;
-
-    require_operator(&sender, &account)?;
-
-    let allowed_to_release = allowed_release(deps.as_ref(), &env, &account.vesting_plan)?;
-    if let Some(requested_amount) = requested_amount {
-        if allowed_to_release >= requested_amount {
-            helpers::release_tokens(requested_amount, sender, &mut account, deps.storage)
-        } else {
-            Err(ContractError::NotEnoughTokensAvailable)
-        }
-    } else {
-        helpers::release_tokens(allowed_to_release, sender, &mut account, deps.storage)
     }
 }
 

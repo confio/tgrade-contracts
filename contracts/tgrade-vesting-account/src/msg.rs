@@ -57,7 +57,7 @@ where
     /// Once end time of the contract has passed, hand over can be performed.
     /// It will burn all frozen tokens and set Oversight and Operator's addresses
     /// to the Reciepient's key. This marks the contract as Liberated
-    HandOff {},
+    HandOver {},
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
@@ -74,7 +74,7 @@ where
     AccountInfo {},
     /// Shows current data about tokens from this vesting account.
     TokenInfo {},
-    /// After HandOff has been sucesfully finished, account will be set
+    /// After HandOver has been sucesfully finished, account will be set
     /// as liberated.
     IsLiberated {},
 }

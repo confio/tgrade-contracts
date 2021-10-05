@@ -33,6 +33,8 @@ pub struct VestingAccount {
     pub paid_tokens: Uint128,
     /// Number of initial tokens
     pub initial_tokens: Uint128,
+    /// Has hand over been completed
+    pub hand_over: bool,
 }
 
 pub const VESTING_ACCOUNT: Item<VestingAccount> = Item::new("vesting_account");
