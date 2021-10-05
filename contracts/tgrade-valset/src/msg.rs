@@ -313,8 +313,8 @@ pub enum DistributionMsg {
 #[derive(Serialize, Deserialize, Clone, PartialEq, JsonSchema, Debug)]
 #[serde(rename_all = "snake_case")]
 pub struct RewardsInstantiateMsg {
-    admin: Addr,
-    token: String,
+    pub admin: Addr,
+    pub token: String,
 }
 
 #[derive(Serialize, Deserialize, Clone, PartialEq, JsonSchema, Debug)]

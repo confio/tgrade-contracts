@@ -4,7 +4,7 @@ use std::convert::TryInto;
 
 use cosmwasm_std::{
     entry_point, to_binary, Addr, Binary, BlockInfo, Deps, DepsMut, Env, MessageInfo, Order,
-    StdError, StdResult, Timestamp,
+    StdError, StdResult, Timestamp, WasmMsg,
 };
 
 use cw0::maybe_addr;
@@ -23,7 +23,7 @@ use crate::error::ContractError;
 use crate::msg::{
     ConfigResponse, EpochResponse, ExecuteMsg, InstantiateMsg, JailingPeriod,
     ListActiveValidatorsResponse, ListValidatorResponse, OperatorResponse, QueryMsg,
-    ValidatorMetadata, ValidatorResponse,
+    RewardsInstantiateMsg, ValidatorMetadata, ValidatorResponse,
 };
 use crate::rewards::{distribute_to_validators, pay_block_rewards};
 use crate::state::{
@@ -41,11 +41,13 @@ pub type Response = cosmwasm_std::Response<TgradeMsg>;
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn instantiate(
     deps: DepsMut,
-    _env: Env,
+    env: Env,
     _info: MessageInfo,
     msg: InstantiateMsg,
 ) -> Result<Response, ContractError> {
     set_contract_version(deps.storage, CONTRACT_NAME, CONTRACT_VERSION)?;
+
+    let token = msg.epoch_reward.denom.clone();
 
     // verify the message and contract address are valid
     msg.validate()?;
@@ -95,7 +97,20 @@ pub fn instantiate(
         ADMIN.set(deps, Some(admin))?;
     }
 
-    Ok(Response::default())
+    let rewards_init = RewardsInstantiateMsg {
+        admin: env.contract.address.clone(),
+        token,
+    };
+
+    let resp = Response::new().add_message(WasmMsg::Instantiate {
+        admin: Some(env.contract.address.clone().to_string()),
+        code_id: msg.rewards_code_id,
+        msg: to_binary(&rewards_init)?,
+        funds: vec![],
+        label: format!("rewards_distribution_{}", env.contract.address),
+    });
+
+    Ok(resp)
 }
 
 #[cfg_attr(not(feature = "library"), entry_point)]
