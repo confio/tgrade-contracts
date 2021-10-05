@@ -216,7 +216,7 @@ fn hand_over(deps: DepsMut, env: Env, sender: Addr) -> Result<Response, Contract
             end_at,
         } => end_at.is_expired(&env.block),
     };
-    if is_expired {
+    if !is_expired {
         return Err(ContractError::ContractNotExpired);
     }
 
@@ -226,6 +226,7 @@ fn hand_over(deps: DepsMut, env: Env, sender: Addr) -> Result<Response, Contract
     };
 
     account.frozen_tokens = Uint128::zero();
+    account.hand_over = true;
     VESTING_ACCOUNT.save(deps.storage, &account)?;
 
     Ok(Response::new()
@@ -294,7 +295,7 @@ mod helpers {
 }
 
 #[cfg_attr(not(feature = "library"), entry_point)]
-pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
+pub fn query(deps: Deps, msg: QueryMsg) -> StdResult<Binary> {
     match msg {
         QueryMsg::AccountInfo {} => to_binary(&account_info(deps)?),
         QueryMsg::TokenInfo {} => to_binary(&token_info(deps)?),
@@ -487,6 +488,18 @@ mod tests {
                 ExecuteMsg::ChangeOperator {
                     address: Addr::unchecked(new_operator),
                 },
+            )
+        }
+
+        fn hand_over(&mut self, sender: &str) -> Result<Response, ContractError> {
+            execute(
+                self.deps.as_mut(),
+                self.env.clone(),
+                MessageInfo {
+                    sender: Addr::unchecked(sender),
+                    funds: vec![],
+                },
+                ExecuteMsg::HandOver {},
             )
         }
     }
@@ -1008,6 +1021,48 @@ mod tests {
                 operator,
                 ..
             }) if operator == Addr::unchecked(RECIPIENT)
+        );
+    }
+
+    #[test]
+    fn account_is_liberated() {
+        let mut suite = SuiteBuilder::default().build();
+
+        assert_eq!(
+            is_liberated(suite.deps.as_ref()),
+            Ok(IsLiberatedResponse {
+                is_liberated: false
+            })
+        );
+
+        let tokens_to_burn = 50;
+        suite
+            .freeze_tokens(OVERSIGHT, Some(tokens_to_burn))
+            .unwrap();
+
+        suite.env.block.time = Timestamp::from_seconds(DEFAULT_RELEASE);
+
+        assert_eq!(
+            // passing None will release all available tokens
+            suite.hand_over(OVERSIGHT),
+            Ok(Response::new()
+                .add_attribute("action", "hand_over")
+                .add_attribute("burnt_tokens", tokens_to_burn.to_string())
+                .add_attribute("sender", OVERSIGHT.to_string())
+                .add_message(BankMsg::Burn {
+                    amount: coins(tokens_to_burn, VESTING_DENOM)
+                }))
+        );
+        assert_eq!(
+            is_liberated(suite.deps.as_ref()),
+            Ok(IsLiberatedResponse { is_liberated: true })
+        );
+        assert_matches!(
+            token_info(suite.deps.as_ref()),
+            Ok(TokenInfoResponse {
+                frozen,
+                ..
+            }) if frozen == Uint128::zero()
         );
     }
 }
