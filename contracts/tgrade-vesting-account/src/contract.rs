@@ -7,7 +7,10 @@ use cosmwasm_std::{
 use cw2::set_contract_version;
 
 use crate::error::ContractError;
-use crate::msg::{AccountInfoResponse, ExecuteMsg, InstantiateMsg, QueryMsg, TokenInfoResponse};
+use crate::msg::{
+    AccountInfoResponse, ExecuteMsg, InstantiateMsg, IsLiberatedResponse, QueryMsg,
+    TokenInfoResponse,
+};
 use crate::state::{VestingAccount, VestingPlan, VESTING_ACCOUNT};
 use tg_bindings::TgradeMsg;
 
@@ -295,6 +298,7 @@ pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
     match msg {
         QueryMsg::AccountInfo {} => to_binary(&account_info(deps)?),
         QueryMsg::TokenInfo {} => to_binary(&token_info(deps)?),
+        QueryMsg::IsLiberated {} => to_binary(&is_liberated(deps)?),
         _ => Err(cosmwasm_std::StdError::GenericErr {
             msg: "Querry not yet implemented".to_string(),
         }),
@@ -322,6 +326,13 @@ fn token_info(deps: Deps) -> StdResult<TokenInfoResponse> {
         released: account.paid_tokens,
     };
     Ok(info)
+}
+
+fn is_liberated(deps: Deps) -> StdResult<IsLiberatedResponse> {
+    let account = VESTING_ACCOUNT.load(deps.storage)?;
+    Ok(IsLiberatedResponse {
+        is_liberated: account.hand_over,
+    })
 }
 
 #[cfg(test)]
