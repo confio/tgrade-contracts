@@ -8,8 +8,8 @@ use cw2::set_contract_version;
 
 use crate::error::ContractError;
 use crate::msg::{
-    AccountInfoResponse, ExecuteMsg, InstantiateMsg, IsLiberatedResponse, QueryMsg,
-    TokenInfoResponse,
+    AccountInfoResponse, CanExecuteResponse, ExecuteMsg, InstantiateMsg, IsLiberatedResponse,
+    QueryMsg, TokenInfoResponse,
 };
 use crate::state::{VestingAccount, VestingPlan, VESTING_ACCOUNT};
 use tg_bindings::TgradeMsg;
@@ -334,9 +334,7 @@ pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
         QueryMsg::AccountInfo {} => to_binary(&account_info(deps)?),
         QueryMsg::TokenInfo {} => to_binary(&token_info(deps)?),
         QueryMsg::IsLiberated {} => to_binary(&is_liberated(deps)?),
-        _ => Err(cosmwasm_std::StdError::GenericErr {
-            msg: "Querry not yet implemented".to_string(),
-        }),
+        QueryMsg::CanExecute { sender } => to_binary(&can_execute(deps, sender)?),
     }
 }
 
@@ -368,6 +366,18 @@ fn is_liberated(deps: Deps) -> StdResult<IsLiberatedResponse> {
     Ok(IsLiberatedResponse {
         is_liberated: account.hand_over,
     })
+}
+
+fn can_execute(deps: Deps, sender: String) -> StdResult<CanExecuteResponse> {
+    let account = VESTING_ACCOUNT.load(deps.storage)?;
+
+    if !is_liberated(deps)?.is_liberated {
+        return Ok(CanExecuteResponse { can_execute: false });
+    }
+    match require_oversight(&Addr::unchecked(sender), &account) {
+        Ok(_) => Ok(CanExecuteResponse { can_execute: true }),
+        Err(_) => Ok(CanExecuteResponse { can_execute: false }),
+    }
 }
 
 #[cfg(test)]

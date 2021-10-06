@@ -1,8 +1,7 @@
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
-use std::fmt;
 
-use cosmwasm_std::{Addr, CosmosMsg, Empty, Uint128};
+use cosmwasm_std::{Addr, CosmosMsg, Uint128};
 
 use crate::state::VestingPlan;
 use tg_bindings::TgradeMsg;
@@ -60,13 +59,10 @@ pub enum ExecuteMsg {
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 #[serde(rename_all = "snake_case")]
-pub enum QueryMsg<T = Empty>
-where
-    T: Clone + fmt::Debug + PartialEq + JsonSchema,
-{
+pub enum QueryMsg {
     /// If CanExecute returns true then a call to `Execute` with the same message,
     /// before any further state changes, should also succeed.
-    CanExecute { sender: String, msg: CosmosMsg<T> },
+    CanExecute { sender: String },
     /// Provides information about current recipient/operator/oversight addresses
     /// as well as vesting plan for this account
     AccountInfo {},
@@ -75,6 +71,12 @@ where
     /// After HandOver has been sucesfully finished, account will be set
     /// as liberated.
     IsLiberated {},
+}
+
+/// Response for CanExecute query
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
+pub struct CanExecuteResponse {
+    pub can_execute: bool,
 }
 
 /// Response for AccountInfo query
