@@ -64,6 +64,7 @@ pub fn execute(
     msg: ExecuteMsg,
 ) -> Result<Response, ContractError> {
     match msg {
+        //ExecuteMsg::Execute { msgs } => execute(deps, env, info, msgs),
         ExecuteMsg::ReleaseTokens { amount } => release_tokens(deps, env, info.sender, amount),
         ExecuteMsg::FreezeTokens { amount } => freeze_tokens(deps, info.sender, amount),
         ExecuteMsg::UnfreezeTokens { amount } => unfreeze_tokens(deps, info.sender, amount),
@@ -127,6 +128,17 @@ fn allowed_release(deps: Deps, env: &Env, plan: &VestingPlan) -> Result<Uint128,
         }
     }
 }
+
+// fn execute(
+//     deps: DepsMut,
+//     env: Env,
+//     info: MessageInfo,
+//     msgs: Vec<CosmosMsg<T>>,
+// ) -> Result<Response<T>, ContractError>
+// where
+//     T: Clone + fmt::Debug + PartialEq + JsonSchema,
+// {
+// }
 
 fn release_tokens(
     deps: DepsMut,
@@ -227,11 +239,13 @@ fn hand_over(deps: DepsMut, env: Env, sender: Addr) -> Result<Response, Contract
 
     account.frozen_tokens = Uint128::zero();
     account.hand_over = true;
+    account.oversight = account.recipient.clone();
     VESTING_ACCOUNT.save(deps.storage, &account)?;
 
     Ok(Response::new()
         .add_attribute("action", "hand_over")
         .add_attribute("burnt_tokens", frozen_tokens.to_string())
+        .add_attribute("new_oversight", account.oversight.to_string())
         .add_attribute("sender", sender)
         .add_message(msg))
 }
@@ -295,7 +309,7 @@ mod helpers {
 }
 
 #[cfg_attr(not(feature = "library"), entry_point)]
-pub fn query(deps: Deps, msg: QueryMsg) -> StdResult<Binary> {
+pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
     match msg {
         QueryMsg::AccountInfo {} => to_binary(&account_info(deps)?),
         QueryMsg::TokenInfo {} => to_binary(&token_info(deps)?),
@@ -1075,6 +1089,7 @@ mod tests {
                 Ok(Response::new()
                     .add_attribute("action", "hand_over")
                     .add_attribute("burnt_tokens", tokens_to_burn.to_string())
+                    .add_attribute("new_oversight", RECIPIENT.to_string())
                     .add_attribute("sender", OVERSIGHT.to_string())
                     .add_message(BankMsg::Burn {
                         amount: coins(tokens_to_burn, VESTING_DENOM)
@@ -1090,6 +1105,13 @@ mod tests {
                     frozen,
                     ..
                 }) if frozen == Uint128::zero()
+            );
+            assert_matches!(
+                account_info(suite.deps.as_ref()),
+                Ok(AccountInfoResponse {
+                    oversight,
+                    ..
+                }) if oversight == RECIPIENT
             );
         }
 
