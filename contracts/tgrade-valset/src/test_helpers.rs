@@ -1,7 +1,7 @@
 #![cfg(test)]
 use anyhow::{bail, Result as AnyResult};
-use cosmwasm_std::{coin, Addr, Binary, Coin, Decimal, StdResult};
-use cw_multi_test::{AppResponse, Contract, ContractWrapper, Executor};
+use cosmwasm_std::{coin, Addr, Binary, Coin, CosmosMsg, Decimal, StdResult};
+use cw_multi_test::{AppResponse, Contract, ContractWrapper, CosmosRouter, Executor};
 use derivative::Derivative;
 
 use tg4::Member;
@@ -13,7 +13,7 @@ use crate::msg::{
     ExecuteMsg, InstantiateMsg, JailingPeriod, ListActiveValidatorsResponse, ListValidatorResponse,
     OperatorInitInfo, OperatorResponse, QueryMsg, ValidatorMetadata,
 };
-use crate::state::ValidatorInfo;
+use crate::state::{Config, ValidatorInfo};
 
 const ED25519_PUBKEY_LENGTH: usize = 32;
 
@@ -232,6 +232,11 @@ impl SuiteBuilder {
         self
     }
 
+    pub fn with_fee_percentage(mut self, fee_percentage: Decimal) -> Self {
+        self.fee_percentage = fee_percentage;
+        self
+    }
+
     #[track_caller]
     pub fn build(mut self) -> Suite {
         self.member_operators.sort();
@@ -346,6 +351,12 @@ impl SuiteBuilder {
         let diff = diff.unwrap();
         assert_eq!(diff.diffs.len(), members.len());
 
+        // query for rewards contract
+        let resp: Config = app
+            .wrap()
+            .query_wasm_smart(valset.clone(), &QueryMsg::Config {})
+            .unwrap();
+
         Suite {
             app,
             valset,
@@ -355,6 +366,7 @@ impl SuiteBuilder {
             non_member_operators: self.non_member_operators,
             epoch_length: self.epoch_length,
             token,
+            rewards_contract: resp.rewards_contract,
         }
     }
 }
@@ -380,6 +392,8 @@ pub struct Suite {
     epoch_length: u64,
     /// Reward token
     token: String,
+    /// Rewards distribution contract address
+    rewards_contract: Addr,
 }
 
 impl Suite {
@@ -395,13 +409,11 @@ impl Suite {
         &mut self.app
     }
 
-    pub fn end_block(&mut self) -> AnyResult<Option<ValidatorDiff>> {
-        self.app.next_block()
-    }
-
     pub fn advance_epoch(&mut self) -> AnyResult<Option<ValidatorDiff>> {
         self.app.advance_seconds(self.epoch_length);
-        self.end_block()
+        let (_, diff) = self.app.end_block()?;
+        self.app.begin_block(vec![])?;
+        Ok(diff)
     }
 
     pub fn jail(
@@ -450,6 +462,39 @@ impl Suite {
         } else {
             bail!("No distribution contract configured")
         }
+    }
+
+    pub fn withdraw_validation_reward(&mut self, executor: &str) -> AnyResult<AppResponse> {
+        self.app.execute_contract(
+            Addr::unchecked(executor),
+            self.rewards_contract.clone(),
+            &tg4_engagement::msg::ExecuteMsg::WithdrawFunds {
+                owner: None,
+                receiver: None,
+            },
+            &[],
+        )
+    }
+
+    pub fn mint_rewards(&mut self, amount: u128) -> AnyResult<AppResponse> {
+        let block_info = self.app.block_info();
+        let denom = self.token.clone();
+        let admin = Addr::unchecked(&self.admin);
+        let recipient = self.valset.to_string();
+        self.app.init_modules(move |router, api, storage| {
+            router.execute(
+                api,
+                storage,
+                &block_info,
+                admin,
+                CosmosMsg::Custom(TgradeMsg::MintTokens {
+                    denom,
+                    amount: amount.into(),
+                    recipient,
+                })
+                .into(),
+            )
+        })
     }
 
     pub fn list_validators(
