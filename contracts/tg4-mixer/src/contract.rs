@@ -106,26 +106,32 @@ fn mixer_fn(left: u64, right: u64) -> Result<u64, ContractError> {
 /// Sigmoid-like function from the PoE white paper
 #[allow(dead_code)]
 fn mixer_fn_sigmoid(left: u64, right: u64) -> Result<u64, ContractError> {
-    let mult = (left as i64)
-        .checked_mul(right as i64)
-        .ok_or(ContractError::WeightOverflow {})?;
+    let left = Decimal::new(left as i64, 0);
+    let right = Decimal::new(right as i64, 0);
+    if left.is_sign_negative() || right.is_sign_negative() {
+        return Err(ContractError::WeightOverflow {});
+    }
 
-    let mult = Decimal::new(mult, 0);
-
+    let r_max = dec!(1000);
     let p = Decimal::new(68, 2);
     let s = Decimal::new(3, 5);
-    let r_max = dec!(1000);
 
     let one = dec!(1);
     let reward = r_max
         * (dec!(2)
             / (one
                 + (-s
-                    * mult
+                    * left
                         .checked_powd(p)
-                        .ok_or(ContractError::ComputationOverflow("powd"))?)
+                        .ok_or(ContractError::ComputationOverflow("powd"))?
+                        .checked_mul(
+                            right
+                                .checked_powd(p)
+                                .ok_or(ContractError::ComputationOverflow("powd"))?,
+                        )
+                        .ok_or(ContractError::ComputationOverflow("mul"))?)
                 .checked_exp()
-                .ok_or(ContractError::ComputationOverflow("exp"))?)
+                .ok_or(ContractError::ComputationUnderflow("exp"))?)
             - one);
 
     reward.to_u64().ok_or(ContractError::RewardOverflow {})
@@ -697,31 +703,41 @@ mod tests {
         assert_eq!(mixer_fn_sigmoid(0, 123456).unwrap(), 0);
         assert_eq!(mixer_fn_sigmoid(7777, 0).unwrap(), 0);
 
-        // basic math checks (no rounding)
+        // Basic math checks (no rounding)
         // Values from PoE paper, Appendix A, "root of engagement" curve
         assert_eq!(mixer_fn_sigmoid(5, 1000).unwrap(), 4);
-        assert_eq!(mixer_fn_sigmoid(1000, 1000).unwrap(), 178);
         assert_eq!(mixer_fn_sigmoid(5, 100000).unwrap(), 112);
-        // At the limit of currently supported values...
-        assert_eq!(mixer_fn_sigmoid(1000, 32313).unwrap(), 957);
+        assert_eq!(mixer_fn_sigmoid(1000, 1000).unwrap(), 178);
+        assert_eq!(mixer_fn_sigmoid(1000, 100000).unwrap(), 999);
 
         // Rounding down (697.8821566)
         assert_eq!(mixer_fn_sigmoid(100, 100000).unwrap(), 697);
 
         // Overflow checks
-        let very_big = 12_000_000_000u64;
-        let err = mixer_fn_sigmoid(very_big, very_big).unwrap_err();
+        let err = mixer_fn_sigmoid(u64::MAX, u64::MAX).unwrap_err();
         assert_eq!(err, ContractError::WeightOverflow {});
 
-        // Current computation overflows
-        let err = mixer_fn_sigmoid(5, 6462800).unwrap_err();
+        // Very big, but positive in the i64 range
+        let very_big = 12_000_000_000u64;
+        let err = mixer_fn_sigmoid(very_big, very_big).unwrap_err();
         assert_eq!(err, ContractError::ComputationOverflow("powd"));
 
-        let err = mixer_fn_sigmoid(1000, 32314).unwrap_err();
-        assert_eq!(err, ContractError::ComputationOverflow("powd"));
+        // Underflow checks
+        let err = mixer_fn_sigmoid(100000, 100000).unwrap_err();
+        assert_eq!(err, ContractError::ComputationUnderflow("exp"));
 
-        let err = mixer_fn_sigmoid(5684, 5685).unwrap_err();
-        assert_eq!(err, ContractError::ComputationOverflow("powd"));
+        // Precise limits
+        assert_eq!(mixer_fn_sigmoid(1679, 100000).unwrap(), 999);
+        let err = mixer_fn_sigmoid(1680, 100000).unwrap_err();
+        assert_eq!(err, ContractError::ComputationUnderflow("exp"));
+
+        assert_eq!(mixer_fn_sigmoid(100000, 1679).unwrap(), 999);
+        let err = mixer_fn_sigmoid(100000, 1680).unwrap_err();
+        assert_eq!(err, ContractError::ComputationUnderflow("exp"));
+
+        assert_eq!(mixer_fn_sigmoid(12961, 12961).unwrap(), 999);
+        let err = mixer_fn_sigmoid(12961, 12962).unwrap_err();
+        assert_eq!(err, ContractError::ComputationUnderflow("exp"));
     }
 
     // TODO: multi-test to init!
