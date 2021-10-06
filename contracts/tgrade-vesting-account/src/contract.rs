@@ -515,6 +515,11 @@ mod tests {
                 suite.freeze_tokens(RECIPIENT, None),
                 Err(ContractError::RequireOversight)
             );
+
+            assert_matches!(
+                suite.freeze_tokens(OPERATOR, None),
+                Err(ContractError::RequireOversight)
+            );
         }
 
         #[test]
@@ -523,6 +528,11 @@ mod tests {
 
             assert_matches!(
                 suite.unfreeze_tokens(RECIPIENT, Some(50)),
+                Err(ContractError::RequireOversight)
+            );
+
+            assert_matches!(
+                suite.unfreeze_tokens(OPERATOR, Some(50)),
                 Err(ContractError::RequireOversight)
             );
         }
@@ -535,6 +545,11 @@ mod tests {
                 suite.change_operator(RECIPIENT, RECIPIENT),
                 Err(ContractError::RequireOversight)
             );
+
+            assert_matches!(
+                suite.change_operator(OPERATOR, RECIPIENT),
+                Err(ContractError::RequireOversight)
+            );
         }
 
         #[test]
@@ -544,6 +559,16 @@ mod tests {
             assert_matches!(
                 suite.release_tokens(RECIPIENT, Some(50)),
                 Err(ContractError::RequireOperator)
+            );
+        }
+
+        #[test]
+        fn hand_over() {
+            let mut suite = SuiteBuilder::default().build();
+
+            assert_matches!(
+                suite.hand_over(OPERATOR),
+                Err(ContractError::RequireRecipientOrOversight)
             );
         }
     }
@@ -1024,45 +1049,58 @@ mod tests {
         );
     }
 
-    #[test]
-    fn account_is_liberated() {
-        let mut suite = SuiteBuilder::default().build();
+    mod handover {
+        use super::*;
 
-        assert_eq!(
-            is_liberated(suite.deps.as_ref()),
-            Ok(IsLiberatedResponse {
-                is_liberated: false
-            })
-        );
+        #[test]
+        fn account_is_liberated() {
+            let mut suite = SuiteBuilder::default().build();
 
-        let tokens_to_burn = 50;
-        suite
-            .freeze_tokens(OVERSIGHT, Some(tokens_to_burn))
-            .unwrap();
+            assert_eq!(
+                is_liberated(suite.deps.as_ref()),
+                Ok(IsLiberatedResponse {
+                    is_liberated: false
+                })
+            );
 
-        suite.env.block.time = Timestamp::from_seconds(DEFAULT_RELEASE);
+            let tokens_to_burn = 50;
+            suite
+                .freeze_tokens(OVERSIGHT, Some(tokens_to_burn))
+                .unwrap();
 
-        assert_eq!(
-            // passing None will release all available tokens
-            suite.hand_over(OVERSIGHT),
-            Ok(Response::new()
-                .add_attribute("action", "hand_over")
-                .add_attribute("burnt_tokens", tokens_to_burn.to_string())
-                .add_attribute("sender", OVERSIGHT.to_string())
-                .add_message(BankMsg::Burn {
-                    amount: coins(tokens_to_burn, VESTING_DENOM)
-                }))
-        );
-        assert_eq!(
-            is_liberated(suite.deps.as_ref()),
-            Ok(IsLiberatedResponse { is_liberated: true })
-        );
-        assert_matches!(
-            token_info(suite.deps.as_ref()),
-            Ok(TokenInfoResponse {
-                frozen,
-                ..
-            }) if frozen == Uint128::zero()
-        );
+            suite.env.block.time = Timestamp::from_seconds(DEFAULT_RELEASE);
+
+            assert_eq!(
+                suite.hand_over(OVERSIGHT),
+                Ok(Response::new()
+                    .add_attribute("action", "hand_over")
+                    .add_attribute("burnt_tokens", tokens_to_burn.to_string())
+                    .add_attribute("sender", OVERSIGHT.to_string())
+                    .add_message(BankMsg::Burn {
+                        amount: coins(tokens_to_burn, VESTING_DENOM)
+                    }))
+            );
+            assert_eq!(
+                is_liberated(suite.deps.as_ref()),
+                Ok(IsLiberatedResponse { is_liberated: true })
+            );
+            assert_matches!(
+                token_info(suite.deps.as_ref()),
+                Ok(TokenInfoResponse {
+                    frozen,
+                    ..
+                }) if frozen == Uint128::zero()
+            );
+        }
+
+        #[test]
+        fn before_expire() {
+            let mut suite = SuiteBuilder::default().build();
+
+            assert_eq!(
+                suite.hand_over(OVERSIGHT),
+                Err(ContractError::ContractNotExpired)
+            );
+        }
     }
 }
