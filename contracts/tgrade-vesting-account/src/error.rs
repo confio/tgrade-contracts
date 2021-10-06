@@ -25,6 +25,11 @@ pub enum ContractError {
     #[error("Contract must be expired to proceed with hand over")]
     ContractNotExpired,
 
+    #[error(
+        "Account must process hand over procedure in order to execute messagess on this account"
+    )]
+    HandOverNotCompleted,
+
     // TODO: Temporary error to not panic at unimplemented parts - remove when done
     #[error("Not available - implementation is not finished")]
     NotImplemented,

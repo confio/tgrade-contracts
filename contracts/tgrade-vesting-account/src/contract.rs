@@ -133,10 +133,12 @@ fn execute_msg(
     deps: DepsMut,
     sender: Addr,
     msgs: Vec<CosmosMsg<TgradeMsg>>,
-) -> Result<Response, ContractError>
-{
+) -> Result<Response, ContractError> {
     let account = VESTING_ACCOUNT.load(deps.storage)?;
 
+    if !is_liberated(deps.as_ref())?.is_liberated {
+        return Err(ContractError::HandOverNotCompleted);
+    }
     require_oversight(&sender, &account)?;
 
     Ok(Response::new()
