@@ -116,6 +116,7 @@ fn mixer_fn_sigmoid(left: u64, right: u64) -> Result<u64, ContractError> {
     let p = Decimal::new(68, 2);
     let s = Decimal::new(3, 5);
 
+    let zero = dec!(0);
     let one = dec!(1);
     let reward = r_max
         * (dec!(2)
@@ -131,7 +132,7 @@ fn mixer_fn_sigmoid(left: u64, right: u64) -> Result<u64, ContractError> {
                         )
                         .ok_or(ContractError::ComputationOverflow("mul"))?)
                 .checked_exp()
-                .ok_or(ContractError::ComputationUnderflow("exp"))?)
+                .unwrap_or(zero))
             - one);
 
     reward.to_u64().ok_or(ContractError::RewardOverflow {})
@@ -709,6 +710,7 @@ mod tests {
         assert_eq!(mixer_fn_sigmoid(5, 100000).unwrap(), 112);
         assert_eq!(mixer_fn_sigmoid(1000, 1000).unwrap(), 178);
         assert_eq!(mixer_fn_sigmoid(1000, 100000).unwrap(), 999);
+        assert_eq!(mixer_fn_sigmoid(100000, 100000).unwrap(), 1000);
 
         // Rounding down (697.8821566)
         assert_eq!(mixer_fn_sigmoid(100, 100000).unwrap(), 697);
@@ -718,26 +720,15 @@ mod tests {
         assert_eq!(err, ContractError::WeightOverflow {});
 
         // Very big, but positive in the i64 range
-        let very_big = 12_000_000_000u64;
+        let very_big = i64::MAX as u64;
         let err = mixer_fn_sigmoid(very_big, very_big).unwrap_err();
         assert_eq!(err, ContractError::ComputationOverflow("powd"));
 
-        // Underflow checks
-        let err = mixer_fn_sigmoid(100000, 100000).unwrap_err();
-        assert_eq!(err, ContractError::ComputationUnderflow("exp"));
-
-        // Precise limits
-        assert_eq!(mixer_fn_sigmoid(1679, 100000).unwrap(), 999);
-        let err = mixer_fn_sigmoid(1680, 100000).unwrap_err();
-        assert_eq!(err, ContractError::ComputationUnderflow("exp"));
-
-        assert_eq!(mixer_fn_sigmoid(100000, 1679).unwrap(), 999);
-        let err = mixer_fn_sigmoid(100000, 1680).unwrap_err();
-        assert_eq!(err, ContractError::ComputationUnderflow("exp"));
-
-        assert_eq!(mixer_fn_sigmoid(12961, 12961).unwrap(), 999);
-        let err = mixer_fn_sigmoid(12961, 12962).unwrap_err();
-        assert_eq!(err, ContractError::ComputationUnderflow("exp"));
+        // Precise limit
+        let very_big = 32_313_447;
+        assert_eq!(mixer_fn_sigmoid(very_big, very_big).unwrap(), 1000);
+        let err = mixer_fn_sigmoid(very_big, very_big + 1).unwrap_err();
+        assert_eq!(err, ContractError::ComputationOverflow("powd"));
     }
 
     // TODO: multi-test to init!

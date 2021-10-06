@@ -29,9 +29,6 @@ pub enum ContractError {
     #[error("Overflow when computing: {0}")]
     ComputationOverflow(&'static str),
 
-    #[error("Underflow when computing: {0}")]
-    ComputationUnderflow(&'static str),
-
     #[error("Overflow when computing rewards - the result cannot be represented as u64")]
     RewardOverflow {},
 }
