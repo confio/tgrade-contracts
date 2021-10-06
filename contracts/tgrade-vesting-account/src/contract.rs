@@ -90,6 +90,14 @@ fn require_oversight(sender: &Addr, account: &VestingAccount) -> Result<(), Cont
     }
 }
 
+fn require_not_liberated(deps: Deps) -> Result<(), ContractError> {
+    if is_liberated(deps)?.is_liberated {
+        Err(ContractError::HandOverCompleted)
+    } else {
+        Ok(())
+    }
+}
+
 /// Returns information about amount of tokens that is allowed to be released
 fn allowed_release(deps: Deps, env: &Env, plan: &VestingPlan) -> Result<Uint128, ContractError> {
     let token_info = token_info(deps)?;
@@ -152,8 +160,9 @@ fn release_tokens(
     sender: Addr,
     requested_amount: Option<Uint128>,
 ) -> Result<Response, ContractError> {
-    let mut account = VESTING_ACCOUNT.load(deps.storage)?;
+    require_not_liberated(deps.as_ref())?;
 
+    let mut account = VESTING_ACCOUNT.load(deps.storage)?;
     require_operator(&sender, &account)?;
 
     let allowed_to_release = allowed_release(deps.as_ref(), &env, &account.vesting_plan)?;
@@ -173,8 +182,9 @@ fn freeze_tokens(
     sender: Addr,
     requested_amount: Option<Uint128>,
 ) -> Result<Response, ContractError> {
-    let mut account = VESTING_ACCOUNT.load(deps.storage)?;
+    require_not_liberated(deps.as_ref())?;
 
+    let mut account = VESTING_ACCOUNT.load(deps.storage)?;
     require_oversight(&sender, &account)?;
 
     let available_to_freeze = account.initial_tokens - account.frozen_tokens - account.paid_tokens;
@@ -191,8 +201,9 @@ fn unfreeze_tokens(
     sender: Addr,
     requested_amount: Option<Uint128>,
 ) -> Result<Response, ContractError> {
-    let mut account = VESTING_ACCOUNT.load(deps.storage)?;
+    require_not_liberated(deps.as_ref())?;
 
+    let mut account = VESTING_ACCOUNT.load(deps.storage)?;
     require_oversight(&sender, &account)?;
 
     if let Some(requested_amount) = requested_amount {
@@ -207,8 +218,9 @@ fn change_operator(
     sender: Addr,
     new_operator: Addr,
 ) -> Result<Response, ContractError> {
-    let mut account = VESTING_ACCOUNT.load(deps.storage)?;
+    require_not_liberated(deps.as_ref())?;
 
+    let mut account = VESTING_ACCOUNT.load(deps.storage)?;
     require_oversight(&sender, &account)?;
 
     account.operator = new_operator.clone();
@@ -221,6 +233,8 @@ fn change_operator(
 }
 
 fn hand_over(deps: DepsMut, env: Env, sender: Addr) -> Result<Response, ContractError> {
+    require_not_liberated(deps.as_ref())?;
+
     let mut account = VESTING_ACCOUNT.load(deps.storage)?;
 
     if sender != account.recipient && sender != account.oversight {
@@ -591,6 +605,34 @@ mod tests {
                 Err(ContractError::RequireRecipientOrOversight)
             );
         }
+    }
+
+    #[test]
+    fn hand_over_completed_actions_not_accessible() {
+        let mut suite = SuiteBuilder::default().build();
+        suite.env.block.time = Timestamp::from_seconds(DEFAULT_RELEASE);
+
+        assert_matches!(suite.hand_over(OVERSIGHT), Ok(_));
+
+        assert_eq!(
+            suite.freeze_tokens(OVERSIGHT, None),
+            Err(ContractError::HandOverCompleted)
+        );
+
+        assert_eq!(
+            suite.unfreeze_tokens(OVERSIGHT, None),
+            Err(ContractError::HandOverCompleted)
+        );
+
+        assert_eq!(
+            suite.change_operator(OVERSIGHT, RECIPIENT),
+            Err(ContractError::HandOverCompleted)
+        );
+
+        assert_eq!(
+            suite.release_tokens(OPERATOR, None),
+            Err(ContractError::HandOverCompleted)
+        );
     }
 
     mod allowed_release {

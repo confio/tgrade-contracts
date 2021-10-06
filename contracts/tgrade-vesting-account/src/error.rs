@@ -30,6 +30,11 @@ pub enum ContractError {
     )]
     HandOverNotCompleted,
 
+    #[error(
+        "Unaccessible operation - account has released all available and burnt all frozen tokens"
+    )]
+    HandOverCompleted,
+
     // TODO: Temporary error to not panic at unimplemented parts - remove when done
     #[error("Not available - implementation is not finished")]
     NotImplemented,
