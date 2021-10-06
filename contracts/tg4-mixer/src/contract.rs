@@ -104,6 +104,7 @@ fn mixer_fn(left: u64, right: u64) -> Result<u64, ContractError> {
 }
 
 /// Sigmoid-like function from the PoE white paper
+#[allow(dead_code)]
 fn mixer_fn_sigmoid(left: u64, right: u64) -> Result<u64, ContractError> {
     let mult = (left as i64)
         .checked_mul(right as i64)
@@ -116,7 +117,16 @@ fn mixer_fn_sigmoid(left: u64, right: u64) -> Result<u64, ContractError> {
     let r_max = dec!(1000);
 
     let one = dec!(1);
-    let reward = r_max * (dec!(2) / (one + (-s * mult.powd(p)).exp()) - one);
+    let reward = r_max
+        * (dec!(2)
+            / (one
+                + (-s
+                    * mult
+                        .checked_powd(p)
+                        .ok_or(ContractError::ComputationOverflow("powd"))?)
+                .checked_exp()
+                .ok_or(ContractError::ComputationOverflow("exp"))?)
+            - one);
 
     reward.to_u64().ok_or(ContractError::RewardOverflow {})
 }
@@ -679,6 +689,33 @@ mod tests {
         let very_big = 12_000_000_000u64;
         let err = mixer_fn(very_big, very_big).unwrap_err();
         assert_eq!(err, ContractError::WeightOverflow {});
+    }
+
+    #[test]
+    fn mixer_sigmoid_works() {
+        // either 0 -> 0
+        assert_eq!(mixer_fn_sigmoid(0, 123456).unwrap(), 0);
+        assert_eq!(mixer_fn_sigmoid(7777, 0).unwrap(), 0);
+
+        // basic math checks (no rounding)
+        // Values from PoE paper, Appendix A, "root of engagement" curve
+        assert_eq!(mixer_fn_sigmoid(5, 1000).unwrap(), 4);
+        assert_eq!(mixer_fn_sigmoid(1000, 1000).unwrap(), 178);
+        assert_eq!(mixer_fn_sigmoid(5, 100000).unwrap(), 112);
+        // At the limit of currently supported values...
+        assert_eq!(mixer_fn_sigmoid(1000, 32313).unwrap(), 957);
+
+        // Rounding down (697.8821566)
+        assert_eq!(mixer_fn_sigmoid(100, 100000).unwrap(), 697);
+
+        // Overflow checks
+        let very_big = 12_000_000_000u64;
+        let err = mixer_fn_sigmoid(very_big, very_big).unwrap_err();
+        assert_eq!(err, ContractError::WeightOverflow {});
+
+        // Current overflows
+        let err = mixer_fn_sigmoid(1000, 32314).unwrap_err();
+        assert!(matches!(err, ContractError::ComputationOverflow("powd")));
     }
 
     // TODO: multi-test to init!

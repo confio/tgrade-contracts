@@ -26,6 +26,9 @@ pub enum ContractError {
     #[error("Overflow when multiplying group weights - the product must be less than 10^18")]
     WeightOverflow {},
 
+    #[error("Overflow when computing: {0}")]
+    ComputationOverflow(&'static str),
+
     #[error("Overflow when computing rewards - the result cannot be represented as u64")]
     RewardOverflow {},
 }
