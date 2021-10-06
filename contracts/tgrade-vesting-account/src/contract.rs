@@ -1,8 +1,8 @@
 #[cfg(not(feature = "library"))]
 use cosmwasm_std::entry_point;
 use cosmwasm_std::{
-    coins, to_binary, Addr, BankMsg, Binary, Decimal, Deps, DepsMut, Env, MessageInfo, StdResult,
-    Uint128,
+    coins, to_binary, Addr, BankMsg, Binary, CosmosMsg, Decimal, Deps, DepsMut, Env, MessageInfo,
+    StdResult, Uint128,
 };
 use cw2::set_contract_version;
 
@@ -64,7 +64,7 @@ pub fn execute(
     msg: ExecuteMsg,
 ) -> Result<Response, ContractError> {
     match msg {
-        //ExecuteMsg::Execute { msgs } => execute(deps, env, info, msgs),
+        ExecuteMsg::Execute { msgs } => execute_msg(deps, info.sender, msgs),
         ExecuteMsg::ReleaseTokens { amount } => release_tokens(deps, env, info.sender, amount),
         ExecuteMsg::FreezeTokens { amount } => freeze_tokens(deps, info.sender, amount),
         ExecuteMsg::UnfreezeTokens { amount } => unfreeze_tokens(deps, info.sender, amount),
@@ -129,16 +129,20 @@ fn allowed_release(deps: Deps, env: &Env, plan: &VestingPlan) -> Result<Uint128,
     }
 }
 
-// fn execute(
-//     deps: DepsMut,
-//     env: Env,
-//     info: MessageInfo,
-//     msgs: Vec<CosmosMsg<T>>,
-// ) -> Result<Response<T>, ContractError>
-// where
-//     T: Clone + fmt::Debug + PartialEq + JsonSchema,
-// {
-// }
+fn execute_msg(
+    deps: DepsMut,
+    sender: Addr,
+    msgs: Vec<CosmosMsg<TgradeMsg>>,
+) -> Result<Response, ContractError>
+{
+    let account = VESTING_ACCOUNT.load(deps.storage)?;
+
+    require_oversight(&sender, &account)?;
+
+    Ok(Response::new()
+        .add_messages(msgs)
+        .add_attribute("action", "execute"))
+}
 
 fn release_tokens(
     deps: DepsMut,

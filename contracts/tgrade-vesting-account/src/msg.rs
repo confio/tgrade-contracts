@@ -5,6 +5,7 @@ use std::fmt;
 use cosmwasm_std::{Addr, CosmosMsg, Empty, Uint128};
 
 use crate::state::VestingPlan;
+use tg_bindings::TgradeMsg;
 
 #[derive(Serialize, Deserialize, Clone, PartialEq, JsonSchema, Debug)]
 #[serde(rename_all = "snake_case")]
@@ -23,14 +24,12 @@ pub struct InstantiateMsg {
 
 #[derive(Serialize, Deserialize, Clone, PartialEq, JsonSchema, Debug)]
 #[serde(rename_all = "snake_case")]
-pub enum ExecuteMsg<T = Empty>
-where
-    T: Clone + fmt::Debug + PartialEq + JsonSchema,
+pub enum ExecuteMsg
 {
     /// Execute regular messages allowing to use vesting account as fully
     /// functional "proxy account"
     Execute {
-        msgs: Vec<CosmosMsg<T>>,
+        msgs: Vec<CosmosMsg<TgradeMsg>>,
     },
     ReleaseTokens {
         amount: Option<Uint128>,
