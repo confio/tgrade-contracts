@@ -713,9 +713,15 @@ mod tests {
         let err = mixer_fn_sigmoid(very_big, very_big).unwrap_err();
         assert_eq!(err, ContractError::WeightOverflow {});
 
-        // Current overflows
+        // Current computation overflows
+        let err = mixer_fn_sigmoid(5, 6462800).unwrap_err();
+        assert_eq!(err, ContractError::ComputationOverflow("powd"));
+
         let err = mixer_fn_sigmoid(1000, 32314).unwrap_err();
-        assert!(matches!(err, ContractError::ComputationOverflow("powd")));
+        assert_eq!(err, ContractError::ComputationOverflow("powd"));
+
+        let err = mixer_fn_sigmoid(5684, 5685).unwrap_err();
+        assert_eq!(err, ContractError::ComputationOverflow("powd"));
     }
 
     // TODO: multi-test to init!
