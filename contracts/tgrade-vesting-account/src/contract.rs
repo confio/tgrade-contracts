@@ -548,6 +548,43 @@ mod tests {
         }
     }
 
+    mod query {
+        use super::*;
+
+        #[test]
+        fn execute() {
+            let mut suite = SuiteBuilder::default().build();
+
+            // can't execute before hand over
+            assert_eq!(
+                can_execute(suite.deps.as_ref(), OVERSIGHT.to_string()),
+                Ok(CanExecuteResponse { can_execute: false })
+            );
+
+            // hand over has been completed
+            suite.env.block.time = Timestamp::from_seconds(DEFAULT_RELEASE);
+            // recipient becomes an oversight after hand over
+            assert_matches!(suite.hand_over(RECIPIENT), Ok(_));
+
+            assert_eq!(
+                // previous oversight from before hand over
+                can_execute(suite.deps.as_ref(), OVERSIGHT.to_string()),
+                Ok(CanExecuteResponse { can_execute: false })
+            );
+
+            assert_eq!(
+                can_execute(suite.deps.as_ref(), OPERATOR.to_string()),
+                Ok(CanExecuteResponse { can_execute: false })
+            );
+
+            assert_eq!(
+                // recipient is a new oversight after hand over
+                can_execute(suite.deps.as_ref(), RECIPIENT.to_string()),
+                Ok(CanExecuteResponse { can_execute: true })
+            );
+        }
+    }
+
     mod unauthorized {
         use super::*;
 
