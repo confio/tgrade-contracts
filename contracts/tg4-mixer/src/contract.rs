@@ -1,7 +1,3 @@
-use integer_sqrt::IntegerSquareRoot;
-use rust_decimal::prelude::*;
-use rust_decimal_macros::dec;
-
 #[cfg(not(feature = "library"))]
 use cosmwasm_std::entry_point;
 use cosmwasm_std::{to_binary, Binary, Deps, DepsMut, Env, MessageInfo, Order, StdResult};
@@ -19,6 +15,7 @@ use tg4::{
 };
 
 use crate::error::ContractError;
+use crate::functions::{GeometricMean, PoEFunction};
 use crate::msg::{ExecuteMsg, GroupsResponse, InstantiateMsg, PreauthResponse, QueryMsg};
 use crate::state::{Groups, GROUPS};
 
@@ -69,6 +66,8 @@ fn verify_tg4_input(deps: Deps, addr: &str) -> Result<Tg4Contract, ContractError
 const QUERY_LIMIT: Option<u32> = Some(30);
 
 fn initialize_members(deps: DepsMut, groups: Groups, height: u64) -> Result<(), ContractError> {
+    let geometric = GeometricMean::new();
+
     let mut total = 0u64;
     // we query all members of left group - for each non-None value, we check the value of right group and mix it.
     // Either as None means "not a member"
@@ -82,7 +81,7 @@ fn initialize_members(deps: DepsMut, groups: Groups, height: u64) -> Result<(), 
             // like calling `list_members` on the right side as well
             let other = groups.right.is_member(&deps.querier, &addr)?;
             if let Some(right) = other {
-                let weight = mixer_fn(member.weight, right)?;
+                let weight = geometric.rewards(member.weight, right)?;
                 total += weight;
                 members().save(deps.storage, &addr, &weight, height)?;
             }
@@ -92,50 +91,6 @@ fn initialize_members(deps: DepsMut, groups: Groups, height: u64) -> Result<(), 
     }
     TOTAL.save(deps.storage, &total)?;
     Ok(())
-}
-
-// FIXME: improve this, make this more flexible
-/// This takes a geometric mean of the two sqrt(left * right) using integer math
-fn mixer_fn(left: u64, right: u64) -> Result<u64, ContractError> {
-    let mult = left
-        .checked_mul(right)
-        .ok_or(ContractError::WeightOverflow {})?;
-    Ok(mult.integer_sqrt())
-}
-
-/// Sigmoid-like function from the PoE white paper
-#[allow(dead_code)]
-fn mixer_fn_sigmoid(left: u64, right: u64) -> Result<u64, ContractError> {
-    let left = Decimal::new(left as i64, 0);
-    let right = Decimal::new(right as i64, 0);
-    if left.is_sign_negative() || right.is_sign_negative() {
-        return Err(ContractError::WeightOverflow {});
-    }
-
-    let r_max = dec!(1000);
-    let p = Decimal::new(68, 2);
-    let s = Decimal::new(3, 5);
-
-    let zero = dec!(0);
-    let one = dec!(1);
-    let reward = r_max
-        * (dec!(2)
-            / (one
-                + (-s
-                    * left
-                        .checked_powd(p)
-                        .ok_or(ContractError::ComputationOverflow("powd"))?
-                        .checked_mul(
-                            right
-                                .checked_powd(p)
-                                .ok_or(ContractError::ComputationOverflow("powd"))?,
-                        )
-                        .ok_or(ContractError::ComputationOverflow("mul"))?)
-                .checked_exp()
-                .unwrap_or(zero))
-            - one);
-
-    reward.to_u64().ok_or(ContractError::RewardOverflow {})
 }
 
 #[cfg_attr(not(feature = "library"), entry_point)]
@@ -188,6 +143,8 @@ pub fn update_members(
     query_group: Tg4Contract,
     changes: Vec<MemberDiff>,
 ) -> Result<MemberChangedHookMsg, ContractError> {
+    let geometric = GeometricMean::new();
+
     let mut total = TOTAL.load(deps.storage)?;
     let mut diffs: Vec<MemberDiff> = vec![];
 
@@ -196,7 +153,7 @@ pub fn update_members(
         let member_addr = deps.api.addr_validate(&change.key)?;
         let new_weight = match change.new {
             Some(x) => match query_group.is_member(&deps.querier, &member_addr)? {
-                Some(y) => Some(mixer_fn(x, y)?),
+                Some(y) => Some(geometric.rewards(x, y)?),
                 None => None,
             },
             None => None,
@@ -678,57 +635,6 @@ mod tests {
             None,
             Some(500),
         );
-    }
-
-    #[test]
-    fn mixer_works() {
-        // either 0 -> 0
-        assert_eq!(mixer_fn(0, 123456).unwrap(), 0);
-        assert_eq!(mixer_fn(7777, 0).unwrap(), 0);
-
-        // basic math checks (no rounding)
-        assert_eq!(mixer_fn(4, 9).unwrap(), 6);
-
-        // rounding down (sqrt(240) = 15.49...
-        assert_eq!(mixer_fn(12, 20).unwrap(), 15);
-
-        // overflow checks
-        let very_big = 12_000_000_000u64;
-        let err = mixer_fn(very_big, very_big).unwrap_err();
-        assert_eq!(err, ContractError::WeightOverflow {});
-    }
-
-    #[test]
-    fn mixer_sigmoid_works() {
-        // either 0 -> 0
-        assert_eq!(mixer_fn_sigmoid(0, 123456).unwrap(), 0);
-        assert_eq!(mixer_fn_sigmoid(7777, 0).unwrap(), 0);
-
-        // Basic math checks (no rounding)
-        // Values from PoE paper, Appendix A, "root of engagement" curve
-        assert_eq!(mixer_fn_sigmoid(5, 1000).unwrap(), 4);
-        assert_eq!(mixer_fn_sigmoid(5, 100000).unwrap(), 112);
-        assert_eq!(mixer_fn_sigmoid(1000, 1000).unwrap(), 178);
-        assert_eq!(mixer_fn_sigmoid(1000, 100000).unwrap(), 999);
-        assert_eq!(mixer_fn_sigmoid(100000, 100000).unwrap(), 1000);
-
-        // Rounding down (697.8821566)
-        assert_eq!(mixer_fn_sigmoid(100, 100000).unwrap(), 697);
-
-        // Overflow checks
-        let err = mixer_fn_sigmoid(u64::MAX, u64::MAX).unwrap_err();
-        assert_eq!(err, ContractError::WeightOverflow {});
-
-        // Very big, but positive in the i64 range
-        let very_big = i64::MAX as u64;
-        let err = mixer_fn_sigmoid(very_big, very_big).unwrap_err();
-        assert_eq!(err, ContractError::ComputationOverflow("powd"));
-
-        // Precise limit
-        let very_big = 32_313_447;
-        assert_eq!(mixer_fn_sigmoid(very_big, very_big).unwrap(), 1000);
-        let err = mixer_fn_sigmoid(very_big, very_big + 1).unwrap_err();
-        assert_eq!(err, ContractError::ComputationOverflow("powd"));
     }
 
     // TODO: multi-test to init!
