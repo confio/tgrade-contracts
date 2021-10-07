@@ -423,11 +423,12 @@ jobs:
           name: Add clippy component
           command: rustup component add clippy
       - run:
-          name: Check formatting of workspace
-          command: cargo fmt -- --check
-      - run:
           name: Clippy linting on workspace
           command: cargo clippy --tests -- -D warnings
+
+      - run:
+          name: Check formatting of workspace
+          command: cargo fmt -- --check
       - save_cache:
           paths:
             - /usr/local/cargo/registry
