@@ -675,7 +675,7 @@ dependencies = [
 
 [[package]]
 name = "tg-bindings"
-version = "0.4.0"
+version = "0.4.1"
 dependencies = [
  "base64",
  "cosmwasm-schema",
@@ -688,7 +688,7 @@ dependencies = [
 
 [[package]]
 name = "tg-controllers"
-version = "0.4.0"
+version = "0.4.1"
 dependencies = [
  "cosmwasm-std",
  "cw-storage-plus",
@@ -701,7 +701,7 @@ dependencies = [
 
 [[package]]
 name = "tg4"
-version = "0.4.0"
+version = "0.4.1"
 dependencies = [
  "cosmwasm-schema",
  "cosmwasm-std",
@@ -712,7 +712,7 @@ dependencies = [
 
 [[package]]
 name = "tg4-engagement"
-version = "0.4.0"
+version = "0.4.1"
 dependencies = [
  "cosmwasm-schema",
  "cosmwasm-std",
@@ -730,7 +730,7 @@ dependencies = [
 
 [[package]]
 name = "tg4-mixer"
-version = "0.4.0"
+version = "0.4.1"
 dependencies = [
  "cosmwasm-schema",
  "cosmwasm-std",
@@ -752,7 +752,7 @@ dependencies = [
 
 [[package]]
 name = "tg4-stake"
-version = "0.4.0"
+version = "0.4.1"
 dependencies = [
  "cosmwasm-schema",
  "cosmwasm-std",
@@ -771,7 +771,7 @@ dependencies = [
 
 [[package]]
 name = "tgrade-dso"
-version = "0.4.0"
+version = "0.4.1"
 dependencies = [
  "cosmwasm-schema",
  "cosmwasm-std",
@@ -788,7 +788,7 @@ dependencies = [
 
 [[package]]
 name = "tgrade-gov-reflect"
-version = "0.4.0"
+version = "0.4.1"
 dependencies = [
  "cosmwasm-schema",
  "cosmwasm-std",
@@ -801,7 +801,7 @@ dependencies = [
 
 [[package]]
 name = "tgrade-valset"
-version = "0.4.0"
+version = "0.4.1"
 dependencies = [
  "cosmwasm-schema",
  "cosmwasm-std",
