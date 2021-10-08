@@ -1,9 +1,12 @@
 use integer_sqrt::IntegerSquareRoot;
+use rust_decimal::prelude::ToPrimitive;
 use rust_decimal::{Decimal, MathematicalOps};
+use rust_decimal_macros::dec;
+
+use cosmwasm_std::{Decimal as StdDecimal, Uint64};
 
 use crate::error::ContractError;
-use rust_decimal::prelude::ToPrimitive;
-use rust_decimal_macros::dec;
+use crate::msg::std_to_decimal;
 
 /// This defines the functions we can use for proof of engagement rewards.
 pub trait PoEFunction {
@@ -42,12 +45,12 @@ pub struct Sigmoid {
 }
 
 impl Sigmoid {
-    // FIXME: Limits, use StdDecimal
-    pub fn new(max_rewards: u64, p: Decimal, s: Decimal) -> Self {
+    // FIXME: Limits
+    pub fn new(max_rewards: Uint64, p: StdDecimal, s: StdDecimal) -> Self {
         Self {
-            max_rewards,
-            p,
-            s,
+            max_rewards: max_rewards.u64(),
+            p: std_to_decimal(p),
+            s: std_to_decimal(s),
             zero: dec!(0),
             one: dec!(1),
             two: dec!(2),
@@ -116,7 +119,11 @@ mod tests {
 
     #[test]
     fn mixer_sigmoid_works() {
-        let sigmoid = Sigmoid::new(1000, Decimal::new(68, 2), Decimal::new(3, 5));
+        let sigmoid = Sigmoid::new(
+            Uint64::new(1000),
+            StdDecimal::from_ratio(68u128, 100u128),
+            StdDecimal::from_ratio(3u128, 100000u128),
+        );
 
         // either 0 -> 0
         assert_eq!(sigmoid.rewards(0, 123456).unwrap(), 0);

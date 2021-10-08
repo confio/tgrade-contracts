@@ -325,6 +325,7 @@ fn list_members_by_weight(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::msg::PoEFunctionType;
     use cosmwasm_std::{coins, Addr, BankMsg, Uint128};
     use cw_multi_test::{next_block, AppBuilder, BasicApp, Contract, ContractWrapper, Executor};
     use tg_bindings::TgradeMsg;
@@ -432,6 +433,7 @@ mod tests {
             left_group: left.to_string(),
             right_group: right.to_string(),
             preauths: None,
+            function_type: PoEFunctionType::GeometricMean {},
         };
         app.instantiate_contract(flex_id, Addr::unchecked(OWNER), &msg, &[], "mixer", None)
             .unwrap()
