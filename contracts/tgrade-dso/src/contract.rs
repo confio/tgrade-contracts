@@ -367,20 +367,11 @@ pub fn execute_propose(
     };
     save_ballot(deps.storage, id, &info.sender, &ballot)?;
 
-    let mut res = Response::new()
+    let res = Response::new()
         .add_attribute("proposal_id", id.to_string())
         .add_attribute("action", "propose")
         .add_attribute("sender", info.sender)
         .add_events(events);
-
-    if let ProposalContent::AddVotingMembers { voters } = &prop.proposal {
-        let evt = Event::new(PROPOSE_VOTING_TYPE);
-        res = res.add_event(
-            voters
-                .iter()
-                .fold(evt, |ev, voter| ev.add_attribute(MEMBER_KEY, voter)),
-        );
-    }
 
     Ok(res)
 }
@@ -869,16 +860,14 @@ pub fn proposal_add_voting_members(
         .collect::<StdResult<Vec<_>>>()?;
     create_batch(deps.storage, &env, proposal_id, grace_period, &addrs)?;
 
-    let res = Response::new()
-        .add_attribute("action", "add_voting_members")
-        .add_attribute("added", to_add.len().to_string())
-        .add_attribute("proposal_id", proposal_id.to_string());
-
+    let mut evt =
+        Event::new(PROPOSE_VOTING_TYPE).add_attribute("proposal_id", proposal_id.to_string());
     // use the same placeholder for everyone in the proposal
     let escrow = EscrowStatus::pending(proposal_id);
     // make the local additions
     // Add all new voting members and update total
     for add in addrs.into_iter() {
+        evt = evt.add_attribute(MEMBER_KEY, &add);
         let old = ESCROWS.may_load(deps.storage, &add)?;
         // Only add the member if it does not already exist or is non-voting
         let create = match old {
@@ -891,6 +880,12 @@ pub fn proposal_add_voting_members(
             ESCROWS.save(deps.storage, &add, &escrow)?;
         }
     }
+
+    let res = Response::new()
+        .add_attribute("action", "add_voting_members")
+        .add_attribute("added", to_add.len().to_string())
+        .add_attribute("proposal_id", proposal_id.to_string())
+        .add_event(evt);
 
     Ok(res)
 }
@@ -912,6 +907,12 @@ pub fn add_remove_non_voting_members(
         .fold(Event::new(REMOVE_NON_VOTING_TYPE), |ev, addr| {
             ev.add_attribute(MEMBER_KEY, addr)
         });
+
+    let ev = Some(add_ev)
+        .into_iter()
+        .chain(Some(rem_ev))
+        .filter(|ev| ev.attributes.is_empty())
+        .collect();
 
     // Add all new non-voting members
     for add in to_add.into_iter() {
@@ -941,7 +942,7 @@ pub fn add_remove_non_voting_members(
         }
     }
 
-    Ok(vec![add_ev, rem_ev])
+    Ok(ev)
 }
 
 pub fn proposal_punish_members(
