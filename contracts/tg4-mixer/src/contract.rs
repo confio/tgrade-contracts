@@ -15,9 +15,9 @@ use tg4::{
 };
 
 use crate::error::ContractError;
-use crate::functions::{GeometricMean, PoEFunction};
+use crate::functions::PoEFunction;
 use crate::msg::{ExecuteMsg, GroupsResponse, InstantiateMsg, PreauthResponse, QueryMsg};
-use crate::state::{Groups, GROUPS};
+use crate::state::{Groups, GROUPS, POE_FUNCTION_TYPE};
 
 pub type Response = cosmwasm_std::Response<TgradeMsg>;
 pub type SubMsg = cosmwasm_std::SubMsg<TgradeMsg>;
@@ -38,6 +38,9 @@ pub fn instantiate(
         PREAUTH.set_auth(deps.storage, preauths)?;
     }
 
+    // Store the PoE function type / params
+    POE_FUNCTION_TYPE.save(deps.storage, &msg.function_type)?;
+
     // validate the two input groups and save
     let left = verify_tg4_input(deps.as_ref(), &msg.left_group)?;
     let right = verify_tg4_input(deps.as_ref(), &msg.right_group)?;
@@ -50,8 +53,11 @@ pub fn instantiate(
         .add_submessage(groups.left.add_hook(&env.contract.address)?)
         .add_submessage(groups.right.add_hook(&env.contract.address)?);
 
+    // Instantiate PoE function
+    let poe_function = msg.function_type.to_poe_fn();
+
     // calculate initial state from current members on both sides
-    initialize_members(deps, groups, env.block.height)?;
+    initialize_members(deps, groups, &*poe_function, env.block.height)?;
     Ok(res)
 }
 
@@ -65,9 +71,12 @@ fn verify_tg4_input(deps: Deps, addr: &str) -> Result<Tg4Contract, ContractError
 
 const QUERY_LIMIT: Option<u32> = Some(30);
 
-fn initialize_members(deps: DepsMut, groups: Groups, height: u64) -> Result<(), ContractError> {
-    let geometric = GeometricMean::new();
-
+fn initialize_members(
+    deps: DepsMut,
+    groups: Groups,
+    poe_function: &dyn PoEFunction,
+    height: u64,
+) -> Result<(), ContractError> {
     let mut total = 0u64;
     // we query all members of left group - for each non-None value, we check the value of right group and mix it.
     // Either as None means "not a member"
@@ -81,7 +90,7 @@ fn initialize_members(deps: DepsMut, groups: Groups, height: u64) -> Result<(), 
             // like calling `list_members` on the right side as well
             let other = groups.right.is_member(&deps.querier, &addr)?;
             if let Some(right) = other {
-                let weight = geometric.rewards(member.weight, right)?;
+                let weight = poe_function.rewards(member.weight, right)?;
                 total += weight;
                 members().save(deps.storage, &addr, &weight, height)?;
             }
@@ -122,9 +131,23 @@ pub fn execute_member_changed(
 
     // authorization check
     let diff = if info.sender == groups.left.addr() {
-        update_members(deps.branch(), env.block.height, groups.right, changes.diffs)
+        let poe_function = POE_FUNCTION_TYPE.load(deps.storage)?.to_poe_fn();
+        update_members(
+            deps.branch(),
+            env.block.height,
+            groups.right,
+            changes.diffs,
+            &*poe_function,
+        )
     } else if info.sender == groups.right.addr() {
-        update_members(deps.branch(), env.block.height, groups.left, changes.diffs)
+        let poe_function = POE_FUNCTION_TYPE.load(deps.storage)?.to_poe_fn();
+        update_members(
+            deps.branch(),
+            env.block.height,
+            groups.left,
+            changes.diffs,
+            &*poe_function,
+        )
     } else {
         Err(ContractError::Unauthorized {})
     }?;
@@ -142,9 +165,8 @@ pub fn update_members(
     height: u64,
     query_group: Tg4Contract,
     changes: Vec<MemberDiff>,
+    poe_function: &dyn PoEFunction,
 ) -> Result<MemberChangedHookMsg, ContractError> {
-    let geometric = GeometricMean::new();
-
     let mut total = TOTAL.load(deps.storage)?;
     let mut diffs: Vec<MemberDiff> = vec![];
 
@@ -153,7 +175,7 @@ pub fn update_members(
         let member_addr = deps.api.addr_validate(&change.key)?;
         let new_weight = match change.new {
             Some(x) => match query_group.is_member(&deps.querier, &member_addr)? {
-                Some(y) => Some(geometric.rewards(x, y)?),
+                Some(y) => Some(poe_function.rewards(x, y)?),
                 None => None,
             },
             None => None,
