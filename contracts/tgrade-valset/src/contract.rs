@@ -3,8 +3,8 @@ use std::collections::BTreeSet;
 use std::convert::TryInto;
 
 use cosmwasm_std::{
-    entry_point, to_binary, Addr, Binary, BlockInfo, Deps, DepsMut, Env, MessageInfo, Order,
-    StdError, StdResult, Timestamp,
+    entry_point, to_binary, Addr, Binary, BlockInfo, Deps, DepsMut, Env, MessageInfo, Order, Reply,
+    StdError, StdResult, SubMsg, Timestamp, WasmMsg,
 };
 
 use cw0::maybe_addr;
@@ -12,7 +12,7 @@ use cw2::set_contract_version;
 use cw_controllers::AdminError;
 use cw_storage_plus::Bound;
 
-use tg4::Tg4Contract;
+use tg4::{Member, Tg4Contract};
 use tg_bindings::{
     request_privileges, Ed25519Pubkey, Privilege, PrivilegeChangeMsg, Pubkey, TgradeMsg,
     TgradeSudoMsg, ValidatorDiff, ValidatorUpdate,
@@ -23,17 +23,21 @@ use crate::error::ContractError;
 use crate::msg::{
     ConfigResponse, EpochResponse, ExecuteMsg, InstantiateMsg, JailingPeriod,
     ListActiveValidatorsResponse, ListValidatorResponse, OperatorResponse, QueryMsg,
-    ValidatorMetadata, ValidatorResponse,
+    RewardsDistribution, RewardsInstantiateMsg, ValidatorMetadata, ValidatorResponse,
 };
-use crate::rewards::{distribute_to_validators, pay_block_rewards};
+use crate::proto::MsgInstantiateContractResponse;
+use crate::rewards::pay_block_rewards;
 use crate::state::{
     operators, Config, EpochInfo, OperatorInfo, ValidatorInfo, CONFIG, EPOCH, JAIL, VALIDATORS,
 };
+use protobuf::Message;
 use tg_utils::ADMIN;
 
 // version info for migration info
 const CONTRACT_NAME: &str = "crates.io:tgrade-valset";
 const CONTRACT_VERSION: &str = env!("CARGO_PKG_VERSION");
+
+const REWARDS_INIT_REPLY_ID: u64 = 1;
 
 /// We use this custom message everywhere
 pub type Response = cosmwasm_std::Response<TgradeMsg>;
@@ -41,11 +45,13 @@ pub type Response = cosmwasm_std::Response<TgradeMsg>;
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn instantiate(
     deps: DepsMut,
-    _env: Env,
+    env: Env,
     _info: MessageInfo,
     msg: InstantiateMsg,
 ) -> Result<Response, ContractError> {
     set_contract_version(deps.storage, CONTRACT_NAME, CONTRACT_VERSION)?;
+
+    let token = msg.epoch_reward.denom.clone();
 
     // verify the message and contract address are valid
     msg.validate()?;
@@ -67,6 +73,8 @@ pub fn instantiate(
             .distribution_contract
             .map(|addr| deps.api.addr_validate(&addr))
             .transpose()?,
+        // Will be overwritten in reply for rewards contract instantiation
+        rewards_contract: Addr::unchecked(""),
     };
     CONFIG.save(deps.storage, &cfg)?;
 
@@ -95,7 +103,24 @@ pub fn instantiate(
         ADMIN.set(deps, Some(admin))?;
     }
 
-    Ok(Response::default())
+    let rewards_init = RewardsInstantiateMsg {
+        admin: env.contract.address.clone(),
+        token,
+        members: vec![],
+    };
+
+    let resp = Response::new().add_submessage(SubMsg::reply_on_success(
+        WasmMsg::Instantiate {
+            admin: Some(env.contract.address.to_string()),
+            code_id: msg.rewards_code_id,
+            msg: to_binary(&rewards_init)?,
+            funds: vec![],
+            label: format!("rewards_distribution_{}", env.contract.address),
+        },
+        REWARDS_INIT_REPLY_ID,
+    ));
+
+    Ok(resp)
 }
 
 #[cfg_attr(not(feature = "library"), entry_point)]
@@ -386,6 +411,8 @@ fn is_genesis_block(block: &BlockInfo) -> bool {
 }
 
 fn end_block(deps: DepsMut, env: Env) -> Result<Response, ContractError> {
+    let cfg = CONFIG.load(deps.storage)?;
+
     // check if needed and quit early if we didn't hit epoch boundary
     let mut epoch = EPOCH.load(deps.storage)?;
     let cur_epoch = env.block.time.nanos() / (1_000_000_000 * epoch.epoch_length);
@@ -413,16 +440,22 @@ fn end_block(deps: DepsMut, env: Env) -> Result<Response, ContractError> {
     }
 
     let old_validators = VALIDATORS.load(deps.storage)?;
-    let pay_to = distribute_to_validators(&old_validators);
     VALIDATORS.save(deps.storage, &validators)?;
     // determine the diff to send back to tendermint
-    let diff = calculate_diff(validators, old_validators);
+    let (diff, update_members) = calculate_diff(validators, old_validators);
 
     // provide payment if there is rewards to give
     let mut res = Response::new().set_data(to_binary(&diff)?);
-    if pay_epochs > 0 && !pay_to.is_empty() {
-        res.messages = pay_block_rewards(deps, env, pay_to, pay_epochs)?
+    if pay_epochs > 0 {
+        res.messages = pay_block_rewards(deps, env, pay_epochs, &cfg)?
     };
+
+    let res = res.add_submessage(SubMsg::new(WasmMsg::Execute {
+        contract_addr: cfg.rewards_contract.to_string(),
+        msg: to_binary(&update_members)?,
+        funds: vec![],
+    }));
+
     Ok(res)
 }
 
@@ -514,32 +547,98 @@ fn calculate_validators(
 /// additions and updates, and by `validator_pubkey`, for removals.
 /// Additions and updates (power > 0) come first, and then removals (power == 0);
 /// and, each group is ordered in turn by `validator_pubkey` ascending.
-fn calculate_diff(cur_vals: Vec<ValidatorInfo>, old_vals: Vec<ValidatorInfo>) -> ValidatorDiff {
+fn calculate_diff(
+    cur_vals: Vec<ValidatorInfo>,
+    old_vals: Vec<ValidatorInfo>,
+) -> (ValidatorDiff, RewardsDistribution) {
     // Compute additions and updates
     let cur: BTreeSet<_> = cur_vals.iter().collect();
     let old: BTreeSet<_> = old_vals.iter().collect();
-    let mut diffs: Vec<_> = cur
+    let (mut diffs, add): (Vec<_>, Vec<_>) = cur
         .difference(&old)
-        .map(|vi| ValidatorUpdate {
-            pubkey: vi.validator_pubkey.clone(),
-            power: vi.power,
+        .map(|vi| {
+            let update = ValidatorUpdate {
+                pubkey: vi.validator_pubkey.clone(),
+                power: vi.power,
+            };
+            let member = Member {
+                addr: vi.operator.to_string(),
+                weight: vi.power,
+            };
+
+            (update, member)
         })
-        .collect();
+        .unzip();
 
     // Compute removals
-    let cur: BTreeSet<_> = cur_vals.iter().map(|vi| &vi.validator_pubkey).collect();
-    let old: BTreeSet<_> = old_vals.iter().map(|vi| &vi.validator_pubkey).collect();
-    // Compute, map and append removals to diffs
-    diffs.extend(
-        old.difference(&cur)
-            .map(|&pubkey| ValidatorUpdate {
+    let cur: BTreeSet<_> = cur_vals
+        .iter()
+        .map(|vi| (&vi.validator_pubkey, &vi.operator))
+        .collect();
+    let old: BTreeSet<_> = old_vals
+        .iter()
+        .map(|vi| (&vi.validator_pubkey, &vi.operator))
+        .collect();
+
+    let (removed_diff, remove): (Vec<_>, Vec<_>) = old
+        .difference(&cur)
+        .map(|&(pubkey, operator)| {
+            let update = ValidatorUpdate {
                 pubkey: pubkey.clone(),
                 power: 0,
-            })
-            .collect::<Vec<_>>(),
-    );
+            };
+            let member = operator.to_string();
 
-    ValidatorDiff { diffs }
+            (update, member)
+        })
+        .unzip();
+
+    // Compute, map and append removals to diffs
+    diffs.extend(removed_diff);
+
+    (
+        ValidatorDiff { diffs },
+        RewardsDistribution::UpdateMembers { add, remove },
+    )
+}
+
+#[cfg_attr(not(feature = "library"), entry_point)]
+pub fn reply(deps: DepsMut, _env: Env, msg: Reply) -> Result<Response, ContractError> {
+    match msg.id {
+        REWARDS_INIT_REPLY_ID => rewards_instantiate_reply(deps, msg),
+        _ => Err(ContractError::UnrecognisedReply(msg.id)),
+    }
+}
+
+pub fn rewards_instantiate_reply(deps: DepsMut, msg: Reply) -> Result<Response, ContractError> {
+    let id = msg.id;
+    let res: MsgInstantiateContractResponse = Message::parse_from_bytes(
+        msg.result
+            .into_result()
+            .map_err(ContractError::SubmsgFailure)?
+            .data
+            .ok_or_else(|| ContractError::ReplyParseFailure {
+                id,
+                err: "Missing reply data".to_owned(),
+            })?
+            .as_slice(),
+    )
+    .map_err(|err| ContractError::ReplyParseFailure {
+        id,
+        err: err.to_string(),
+    })?;
+
+    let addr = deps.api.addr_validate(res.get_contract_address())?;
+    CONFIG.update(deps.storage, |mut config| -> StdResult<_> {
+        config.rewards_contract = addr;
+        Ok(config)
+    })?;
+
+    let resp = Response::new()
+        .add_attribute("action", "tgrade-valset_instantiation")
+        .add_attribute("rewards_contract", res.get_contract_address());
+
+    Ok(resp)
 }
 
 #[cfg(test)]
@@ -590,9 +689,10 @@ mod test {
         stake: Addr,
         max_validators: u32,
         min_weight: u64,
+        rewards_code_id: u64,
     ) -> Addr {
         let valset_id = app.store_code(contract_valset());
-        let msg = init_msg(stake, max_validators, min_weight);
+        let msg = init_msg(stake, max_validators, min_weight, rewards_code_id);
         app.instantiate_contract(
             valset_id,
             Addr::unchecked(GROUP_OWNER),
@@ -621,7 +721,12 @@ mod test {
     }
 
     // registers first PREREGISTER_MEMBERS members and PREREGISTER_NONMEMBERS non-members with pubkeys
-    fn init_msg(group_addr: Addr, max_validators: u32, min_weight: u64) -> InstantiateMsg {
+    fn init_msg(
+        group_addr: Addr,
+        max_validators: u32,
+        min_weight: u64,
+        rewards_code_id: u64,
+    ) -> InstantiateMsg {
         let members = addrs(PREREGISTER_MEMBERS)
             .into_iter()
             .map(|s| valid_operator(&s));
@@ -642,17 +747,31 @@ mod test {
             auto_unjail: false,
             validators_reward_ratio: Decimal::one(),
             distribution_contract: None,
+            rewards_code_id,
         }
+    }
+
+    fn update_members_msg(remove: Vec<&str>, add: Vec<(&str, u64)>) -> RewardsDistribution {
+        let remove = remove.into_iter().map(str::to_owned).collect();
+        let add = add
+            .into_iter()
+            .map(|(addr, weight)| Member {
+                addr: addr.to_owned(),
+                weight,
+            })
+            .collect();
+        RewardsDistribution::UpdateMembers { add, remove }
     }
 
     #[test]
     fn init_and_query_state() {
         let mut app = AppBuilder::new_custom().build(|_, _, _| ());
 
+        let engagement_id = app.store_code(contract_engagement());
         // make a simple group
         let group_addr = instantiate_group(&mut app, 36);
         // make a valset that references it (this does init)
-        let valset_addr = instantiate_valset(&mut app, group_addr.clone(), 10, 5);
+        let valset_addr = instantiate_valset(&mut app, group_addr.clone(), 10, 5, engagement_id);
 
         // check config
         let cfg: ConfigResponse = app
@@ -671,6 +790,7 @@ mod test {
                 auto_unjail: false,
                 validators_reward_ratio: Decimal::one(),
                 distribution_contract: None,
+                rewards_contract: cfg.rewards_contract.clone(),
             }
         );
 
@@ -723,10 +843,11 @@ mod test {
     fn simulate_validators() {
         let mut app = AppBuilder::new_custom().build(|_, _, _| ());
 
+        let engagement_id = app.store_code(contract_engagement());
         // make a simple group
         let group_addr = instantiate_group(&mut app, 36);
         // make a valset that references it (this does init)
-        let valset_addr = instantiate_valset(&mut app, group_addr, 10, 5);
+        let valset_addr = instantiate_valset(&mut app, group_addr, 10, 5, engagement_id);
 
         // what do we expect?
         // 1..24 have pubkeys registered, we take the top 10 (14..24)
@@ -758,10 +879,11 @@ mod test {
     fn update_metadata_works() {
         let mut app = AppBuilder::new_custom().build(|_, _, _| ());
 
+        let engagement_id = app.store_code(contract_engagement());
         // make a simple group
         let group_addr = instantiate_group(&mut app, 36);
         // make a valset that references it (this does init)
-        let valset_addr = instantiate_valset(&mut app, group_addr, 10, 5);
+        let valset_addr = instantiate_valset(&mut app, group_addr, 10, 5, engagement_id);
 
         // get my initial metadata
         let operator = addrs(3).pop().unwrap();
@@ -817,10 +939,11 @@ mod test {
     fn validator_list() {
         let mut app = AppBuilder::new_custom().build(|_, _, _| ());
 
+        let engagement_id = app.store_code(contract_engagement());
         // make a simple group
         let group_addr = instantiate_group(&mut app, 36);
         // make a valset that references it (this does init)
-        let valset_addr = instantiate_valset(&mut app, group_addr, 10, 5);
+        let valset_addr = instantiate_valset(&mut app, group_addr, 10, 5, engagement_id);
 
         // List validator keys
         // First come the non-members
@@ -938,10 +1061,11 @@ mod test {
     fn end_block_run() {
         let mut app = AppBuilder::new_custom().build(|_, _, _| ());
 
+        let engagement_id = app.store_code(contract_engagement());
         // make a simple group
         let group_addr = instantiate_group(&mut app, 36);
         // make a valset that references it (this does init)
-        let valset_addr = instantiate_valset(&mut app, group_addr, 10, 5);
+        let valset_addr = instantiate_valset(&mut app, group_addr, 10, 5, engagement_id);
 
         // what do we expect?
         // end_block hasn't run yet, so empty list
@@ -986,12 +1110,12 @@ mod test {
         ];
 
         // diff with itself must be empty
-        let diff = calculate_diff(vals.clone(), vals.clone());
-        assert_eq!(diff.diffs.len(), 0);
+        let (diff, update_members) = calculate_diff(vals.clone(), vals.clone());
+        assert_eq!(diff.diffs, vec![]);
+        assert_eq!(update_members, update_members_msg(vec![], vec! {}));
 
         // diff with empty must be itself (additions)
-        let diff = calculate_diff(vals.clone(), empty.clone());
-        assert_eq!(diff.diffs.len(), 2);
+        let (diff, update_members) = calculate_diff(vals.clone(), empty.clone());
         assert_eq!(
             vec![
                 ValidatorUpdate {
@@ -1005,10 +1129,13 @@ mod test {
             ],
             diff.diffs
         );
+        assert_eq!(
+            update_members,
+            update_members_msg(vec![], vec![("op1", 1), ("op2", 2)])
+        );
 
         // diff between empty and vals must be removals
-        let diff = calculate_diff(empty, vals.clone());
-        assert_eq!(diff.diffs.len(), 2);
+        let (diff, update_members) = calculate_diff(empty, vals.clone());
         assert_eq!(
             vec![
                 ValidatorUpdate {
@@ -1022,6 +1149,10 @@ mod test {
             ],
             diff.diffs
         );
+        assert_eq!(
+            update_members,
+            update_members_msg(vec!["op1", "op2"], vec![])
+        );
 
         // Add a new member
         let mut cur = vals.clone();
@@ -1032,8 +1163,7 @@ mod test {
         });
 
         // diff must be add last
-        let diff = calculate_diff(cur, vals.clone());
-        assert_eq!(diff.diffs.len(), 1);
+        let (diff, update_members) = calculate_diff(cur, vals.clone());
         assert_eq!(
             vec![ValidatorUpdate {
                 pubkey: Pubkey::Ed25519(b"pubkey3".into()),
@@ -1041,13 +1171,13 @@ mod test {
             },],
             diff.diffs
         );
+        assert_eq!(update_members, update_members_msg(vec![], vec![("op3", 3)]));
 
         // add all but (one) last member
         let old: Vec<_> = vals.iter().skip(1).cloned().collect();
 
         // diff must be add all but last
-        let diff = calculate_diff(vals.clone(), old);
-        assert_eq!(diff.diffs.len(), 1);
+        let (diff, update_members) = calculate_diff(vals.clone(), old);
         assert_eq!(
             vec![ValidatorUpdate {
                 pubkey: Pubkey::Ed25519(b"pubkey1".into()),
@@ -1055,12 +1185,12 @@ mod test {
             },],
             diff.diffs
         );
+        assert_eq!(update_members, update_members_msg(vec![], vec![("op1", 1)]));
 
         // remove last member
         let cur: Vec<_> = vals.iter().take(1).cloned().collect();
         // diff must be remove last
-        let diff = calculate_diff(cur, vals.clone());
-        assert_eq!(diff.diffs.len(), 1);
+        let (diff, update_members) = calculate_diff(cur, vals.clone());
         assert_eq!(
             vec![ValidatorUpdate {
                 pubkey: Pubkey::Ed25519(b"pubkey2".into()),
@@ -1068,12 +1198,12 @@ mod test {
             },],
             diff.diffs
         );
+        assert_eq!(update_members, update_members_msg(vec!["op2"], vec![]));
 
         // remove all but last member
         let cur: Vec<_> = vals.iter().skip(1).cloned().collect();
         // diff must be remove all but last
-        let diff = calculate_diff(cur, vals);
-        assert_eq!(diff.diffs.len(), 1);
+        let (diff, update_members) = calculate_diff(cur, vals);
         assert_eq!(
             vec![ValidatorUpdate {
                 pubkey: Pubkey::Ed25519(b"pubkey1".into()),
@@ -1081,6 +1211,8 @@ mod test {
             },],
             diff.diffs
         );
+
+        assert_eq!(update_members, update_members_msg(vec!["op1"], vec![]));
     }
 
     #[test]
@@ -1089,12 +1221,12 @@ mod test {
         let vals = validators(VALIDATORS);
 
         // diff with itself must be empty
-        let diff = calculate_diff(vals.clone(), vals.clone());
-        assert_eq!(diff.diffs.len(), 0);
+        let (diff, update_members) = calculate_diff(vals.clone(), vals.clone());
+        assert_eq!(diff.diffs, vec![]);
+        assert_eq!(update_members, update_members_msg(vec![], vec![]));
 
         // diff with empty must be itself (additions)
-        let diff = calculate_diff(vals.clone(), empty.clone());
-        assert_eq!(diff.diffs.len(), VALIDATORS);
+        let (diff, update_members) = calculate_diff(vals.clone(), empty.clone());
         assert_eq!(
             ValidatorDiff {
                 diffs: vals
@@ -1107,10 +1239,18 @@ mod test {
             },
             diff
         );
+        assert_eq!(
+            update_members,
+            update_members_msg(
+                vec![],
+                vals.iter()
+                    .map(|vi| (vi.operator.as_str(), vi.power))
+                    .collect()
+            )
+        );
 
         // diff between empty and vals must be removals
-        let diff = calculate_diff(empty, vals.clone());
-        assert_eq!(diff.diffs.len(), VALIDATORS);
+        let (diff, update_members) = calculate_diff(empty, vals.clone());
         assert_eq!(
             ValidatorDiff {
                 diffs: vals
@@ -1122,34 +1262,42 @@ mod test {
                     .collect()
             },
             diff
+        );
+        assert_eq!(
+            update_members,
+            update_members_msg(vals.iter().map(|vi| vi.operator.as_str()).collect(), vec![])
         );
 
         // Add a new member
         let cur = validators(VALIDATORS + 1);
 
         // diff must be add last
-        let diff = calculate_diff(cur.clone(), vals.clone());
-        assert_eq!(diff.diffs.len(), 1);
+        let (diff, update_members) = calculate_diff(cur.clone(), vals.clone());
         assert_eq!(
             ValidatorDiff {
-                diffs: cur
-                    .iter()
-                    .skip(VALIDATORS)
-                    .map(|vi| ValidatorUpdate {
-                        pubkey: vi.validator_pubkey.clone(),
-                        power: (VALIDATORS + 1) as u64
-                    })
-                    .collect()
+                diffs: vec![ValidatorUpdate {
+                    pubkey: cur.last().as_ref().unwrap().validator_pubkey.clone(),
+                    power: (VALIDATORS + 1) as u64
+                }]
             },
             diff
+        );
+        assert_eq!(
+            update_members,
+            update_members_msg(
+                vec![],
+                vec![(
+                    cur.last().as_ref().unwrap().operator.as_str(),
+                    (VALIDATORS + 1) as u64
+                )]
+            )
         );
 
         // add all but (one) last member
         let old: Vec<_> = vals.iter().skip(VALIDATORS - 1).cloned().collect();
 
         // diff must be add all but last
-        let diff = calculate_diff(vals.clone(), old);
-        assert_eq!(diff.diffs.len(), VALIDATORS - 1);
+        let (diff, update_members) = calculate_diff(vals.clone(), old);
         assert_eq!(
             ValidatorDiff {
                 diffs: vals
@@ -1163,31 +1311,39 @@ mod test {
             },
             diff
         );
+        assert_eq!(
+            update_members,
+            update_members_msg(
+                vec![],
+                vals.iter()
+                    .take(VALIDATORS - 1)
+                    .map(|vi| (vi.operator.as_ref(), vi.power))
+                    .collect()
+            )
+        );
 
         // remove last member
         let cur: Vec<_> = vals.iter().take(VALIDATORS - 1).cloned().collect();
         // diff must be remove last
-        let diff = calculate_diff(cur, vals.clone());
-        assert_eq!(diff.diffs.len(), 1);
+        let (diff, update_members) = calculate_diff(cur, vals.clone());
         assert_eq!(
             ValidatorDiff {
-                diffs: vals
-                    .iter()
-                    .skip(VALIDATORS - 1)
-                    .map(|vi| ValidatorUpdate {
-                        pubkey: vi.validator_pubkey.clone(),
-                        power: 0
-                    })
-                    .collect()
+                diffs: vec![ValidatorUpdate {
+                    pubkey: vals.last().unwrap().validator_pubkey.clone(),
+                    power: 0,
+                }]
             },
             diff
+        );
+        assert_eq!(
+            update_members,
+            update_members_msg(vec![vals.last().unwrap().operator.as_ref()], vec![])
         );
 
         // remove all but last member
         let cur: Vec<_> = vals.iter().skip(VALIDATORS - 1).cloned().collect();
         // diff must be remove all but last
-        let diff = calculate_diff(cur, vals.clone());
-        assert_eq!(diff.diffs.len(), VALIDATORS - 1);
+        let (diff, update_members) = calculate_diff(cur, vals.clone());
         assert_eq!(
             ValidatorDiff {
                 diffs: vals
@@ -1200,6 +1356,16 @@ mod test {
                     .collect()
             },
             diff
+        );
+        assert_eq!(
+            update_members,
+            update_members_msg(
+                vals.iter()
+                    .take(VALIDATORS - 1)
+                    .map(|vi| vi.operator.as_ref())
+                    .collect(),
+                vec![]
+            )
         );
     }
 
@@ -1542,9 +1708,13 @@ mod test {
                 ],
             );
         }
+    }
+
+    mod rewards_split {
+        use super::*;
 
         #[test]
-        fn rewards_are_properly_split_on_epoch_end() {
+        fn no_fees_divisible_reward() {
             let engagement = vec!["dist1", "dist2"];
             let members = vec!["member1", "member2"];
             let mut suite = SuiteBuilder::new()
@@ -1561,6 +1731,8 @@ mod test {
 
             suite.withdraw_engagement_reward(engagement[0]).unwrap();
             suite.withdraw_engagement_reward(engagement[1]).unwrap();
+            suite.withdraw_validation_reward(members[0]).unwrap();
+            suite.withdraw_validation_reward(members[1]).unwrap();
 
             // Single epoch reward, no fees.
             // 60% goes to validators:
@@ -1575,7 +1747,7 @@ mod test {
         }
 
         #[test]
-        fn non_divisible_rewards_are_properly_split_on_epoch_end() {
+        fn no_fees_invidivisible_reward() {
             let engagement = vec!["dist1", "dist2"];
             let members = vec!["member1", "member2"];
             let mut suite = SuiteBuilder::new()
@@ -1592,6 +1764,8 @@ mod test {
 
             suite.withdraw_engagement_reward(engagement[0]).unwrap();
             suite.withdraw_engagement_reward(engagement[1]).unwrap();
+            suite.withdraw_validation_reward(members[0]).unwrap();
+            suite.withdraw_validation_reward(members[1]).unwrap();
 
             // Single epoch reward, no fees.
             // 60% goes to validators:
@@ -1603,6 +1777,114 @@ mod test {
             assert_eq!(suite.token_balance(members[1]).unwrap(), 363);
             assert_eq!(suite.token_balance(engagement[0]).unwrap(), 121);
             assert_eq!(suite.token_balance(engagement[1]).unwrap(), 282);
+        }
+
+        #[test]
+        fn fees_divisible_reward() {
+            let engagement = vec!["dist1", "dist2"];
+            let members = vec!["member1", "member2"];
+            let mut suite = SuiteBuilder::new()
+                .with_operators(&[(members[0], 2), (members[1], 3)], &[])
+                .with_epoch_reward(coin(1000, "usdc"))
+                .with_distribution(
+                    Decimal::percent(60),
+                    &[(engagement[0], 3), (engagement[1], 7)],
+                    None,
+                )
+                .build();
+
+            suite.mint_rewards(500).unwrap();
+            suite.advance_epoch().unwrap();
+
+            suite.withdraw_engagement_reward(engagement[0]).unwrap();
+            suite.withdraw_engagement_reward(engagement[1]).unwrap();
+            suite.withdraw_validation_reward(members[0]).unwrap();
+            suite.withdraw_validation_reward(members[1]).unwrap();
+
+            // Single epoch reward, 500 tokens fees. 1500 rewards in total.
+            // 60% goes to validators:
+            // * member1: 0.6 * 2/5 * 1500 = 0.6 * 0.4 * 1500 = 0.24 * 1500 = 360
+            // * member2: 0.6 * 3/5 * 1500 = 0.6 * 0.6 * 1500 = 0.36 * 1500 = 540
+            // * dist1: 0.4 * 0.3 = 0.12 * 1500 = 180
+            // * dist2: 0.4 * 0.7 = 0.28 * 1500 = 420
+            assert_eq!(suite.token_balance(members[0]).unwrap(), 360);
+            assert_eq!(suite.token_balance(members[1]).unwrap(), 540);
+            assert_eq!(suite.token_balance(engagement[0]).unwrap(), 180);
+            assert_eq!(suite.token_balance(engagement[1]).unwrap(), 420);
+        }
+
+        #[test]
+        fn fees_with_fee_reduction() {
+            let engagement = vec!["dist1", "dist2"];
+            let members = vec!["member1", "member2"];
+            let mut suite = SuiteBuilder::new()
+                .with_operators(&[(members[0], 2), (members[1], 3)], &[])
+                .with_epoch_reward(coin(1000, "usdc"))
+                .with_fee_percentage(Decimal::percent(50))
+                .with_distribution(
+                    Decimal::percent(60),
+                    &[(engagement[0], 3), (engagement[1], 7)],
+                    None,
+                )
+                .build();
+
+            suite.mint_rewards(1000).unwrap();
+            suite.advance_epoch().unwrap();
+
+            suite.withdraw_engagement_reward(engagement[0]).unwrap();
+            suite.withdraw_engagement_reward(engagement[1]).unwrap();
+            suite.withdraw_validation_reward(members[0]).unwrap();
+            suite.withdraw_validation_reward(members[1]).unwrap();
+
+            // Single epoch reward, 1000 tokens of fees. 50% fee percentage.
+            // 1500 tokens rewards in total.
+            // 60% goes to validators:
+            // * member1: 0.6 * 2/5 * 1500 = 0.6 * 0.4 * 1500 = 0.24 * 1500 = 360
+            // * member2: 0.6 * 3/5 * 1500 = 0.6 * 0.6 * 1500 = 0.36 * 1500 = 540
+            // * dist1: 0.4 * 0.3 = 0.12 * 1500 = 180
+            // * dist2: 0.4 * 0.7 = 0.28 * 1500 = 420
+            assert_eq!(suite.token_balance(members[0]).unwrap(), 360);
+            assert_eq!(suite.token_balance(members[1]).unwrap(), 540);
+            assert_eq!(suite.token_balance(engagement[0]).unwrap(), 180);
+            assert_eq!(suite.token_balance(engagement[1]).unwrap(), 420);
+        }
+
+        #[test]
+        fn jailed_validators_not_rewarded() {
+            let engagement = vec!["dist1", "dist2"];
+            let members = vec!["member1", "member2"];
+            let mut suite = SuiteBuilder::new()
+                .with_operators(&[(members[0], 2), (members[1], 3)], &[])
+                .with_epoch_reward(coin(1000, "usdc"))
+                .with_distribution(
+                    Decimal::percent(60),
+                    &[(engagement[0], 3), (engagement[1], 7)],
+                    None,
+                )
+                .build();
+            let admin = suite.admin().to_owned();
+
+            suite.jail(&admin, members[0], None).unwrap();
+            suite.advance_epoch().unwrap();
+
+            suite.advance_epoch().unwrap();
+
+            suite.withdraw_engagement_reward(engagement[0]).unwrap();
+            suite.withdraw_engagement_reward(engagement[1]).unwrap();
+            suite.withdraw_validation_reward(members[0]).unwrap();
+            suite.withdraw_validation_reward(members[1]).unwrap();
+
+            // Single epoch reward, no fees.
+            // Rewards from first epoch exactly the same as in `no_fees_divisible_reward`.
+            // 60% goes to validators:
+            // * member1: no rewards, jailed, only rewards from prev. epoch (240)
+            // * member2: 360 + 0.6 * 1000 = 360 + 600 + 960
+            // * dist1: 120 + 0.4 * 0.3 = 120 + 0.12 * 1000 = 240
+            // * dist2: 280 + 0.4 * 0.7 = 280 + 0.28 * 1000 = 560
+            assert_eq!(suite.token_balance(members[0]).unwrap(), 240);
+            assert_eq!(suite.token_balance(members[1]).unwrap(), 960);
+            assert_eq!(suite.token_balance(engagement[0]).unwrap(), 240);
+            assert_eq!(suite.token_balance(engagement[1]).unwrap(), 560);
         }
     }
 }

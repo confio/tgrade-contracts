@@ -58,11 +58,69 @@ but with at least `min_weight`. `scaling` is optional field which allows to scal
 weight for Tendermint purposes (it should not affect reward split). When validators
 are selected, then `cumulative_reward` is split between them, proportionally to
 validators `weight`. All of `max_validators`, `min_weight`, and `scaling` are
-configurable while instantiation.
+configurable while instantiation. Splitting `validators_reward` is realized by
+external contract.
 
 The default value of `fee_percentage` is `0` (so when it is not specified in message,
 the reward reduction is disabled). At the genesis of Tgrade `fee_percentage` is meant
 to be set to `0.5`.
+
+## Rewards distribution contract
+
+As stated in previous section, rewards distribution is realized by external contract
+managed by the `tgrade-valset`. It is assumed to be `tg4-engagement` contract, but
+in reality it should just support proper API which is used by `tgrade-valset`
+(which is just a subset of `tg4-engagement`).
+
+While valset instantion, the rewards distribution contract is instantiated using
+the message:
+
+```json
+{
+  "admin": "tgrade_valset_addr",
+  "token": "epoch_reward_denom",
+  "members": []
+}
+```
+
+The code of instantiated contract is send to valset in instantiation message
+(`rewards_code_id` field). Address of the rewards distribution contract would be
+emitted with `wasm` event:
+
+```json
+{
+  "_contract_addr": "valset_addr",
+  "action": "tgrade-valset_instantiation",
+  "rewards_contract": "rewards_contract_addr"
+}
+```
+
+Additionally the rewards contract address can be queried at any time using
+`rewards_distribution_contract {}` query.
+
+At every epoch end, rewards would be send to rewards distribution contract
+with execution message:
+
+```json
+{
+  "distribute_funds": {}
+}
+```
+
+After this, another message would be send to update validators and their
+weights:
+
+```json
+{
+  "update_members": {
+    "remove": ["validator_to_be_removed"],
+    "add": [{
+      "addr": "validator_with_weight_updated",
+      "weight": 10
+    }]
+  }
+}
+```
 
 ## Jailing
 
@@ -130,6 +188,8 @@ pub struct InstantiateMsg {
     #[serde(default)]
     pub auto_unjail: bool,
 
+    /// Code id of contract which would be used to distribute rewards of this token
+    pub rewards_code_id: u64,
 }
 ```
 
