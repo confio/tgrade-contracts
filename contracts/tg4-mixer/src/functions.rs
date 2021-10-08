@@ -75,6 +75,12 @@ impl PoEFunction for Sigmoid {
             return Err(ContractError::RewardOverflow {});
         }
 
+        // This is the implementation of the PoE whitepaper, Appendix A,
+        // "root of engagement" sigmoid-like function, using fixed point math.
+        // `reward = r_max * (2 / (1 + e^(-s * (stake * engagement)^p) ) - 1)`
+        // We distribute the power over the factors here, just to extend the range of the function.
+        // Given that `s` is always positive, we also replace the underflowed exponential case
+        // with zero, also to extend the range.
         let reward = r_max
             * (self.two
                 / (self.one
