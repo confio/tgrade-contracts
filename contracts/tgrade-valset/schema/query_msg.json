@@ -92,7 +92,7 @@
       "additionalProperties": false
     },
     {
-      "description": "This will calculate who the new validators would be if we recalculated endblock right now. Also returns ListActiveValidatorsResponse",
+      "description": "This will calculate who the new validators would be if we recalculated end block right now. Also returns ListActiveValidatorsResponse",
       "type": "object",
       "required": [
         "simulate_active_validators"
