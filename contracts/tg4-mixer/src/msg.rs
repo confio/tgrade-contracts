@@ -1,8 +1,7 @@
-use rust_decimal::Decimal;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
-use cosmwasm_std::{Decimal as StdDecimal, Fraction, Uint64};
+use cosmwasm_std::{Decimal as StdDecimal, Uint64};
 use tg4::{Member, MemberChangedHookMsg};
 
 use crate::functions::{GeometricMean, PoEFunction, Sigmoid};
@@ -31,10 +30,6 @@ pub enum PoEFunctionType {
         p: StdDecimal,
         s: StdDecimal,
     },
-}
-
-pub fn std_to_decimal(std_decimal: StdDecimal) -> Decimal {
-    Decimal::from_i128_with_scale(std_decimal.numerator().u128() as i128, 18) // FIXME: StdDecimal::DECIMAL_PLACES is private
 }
 
 impl PoEFunctionType {

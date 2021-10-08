@@ -3,10 +3,13 @@ use rust_decimal::prelude::ToPrimitive;
 use rust_decimal::{Decimal, MathematicalOps};
 use rust_decimal_macros::dec;
 
-use cosmwasm_std::{Decimal as StdDecimal, Uint64};
+use cosmwasm_std::{Decimal as StdDecimal, Fraction, Uint64};
 
 use crate::error::ContractError;
-use crate::msg::std_to_decimal;
+
+pub fn std_to_decimal(std_decimal: StdDecimal) -> Decimal {
+    Decimal::from_i128_with_scale(std_decimal.numerator().u128() as i128, 18) // FIXME: StdDecimal::DECIMAL_PLACES is private
+}
 
 /// This defines the functions we can use for proof of engagement rewards.
 pub trait PoEFunction {
