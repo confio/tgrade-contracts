@@ -78,10 +78,12 @@ pub fn instantiate(
 
     members().save(deps.storage, &info.sender, &VOTING_WEIGHT, env.block.height)?;
     TOTAL.save(deps.storage, &VOTING_WEIGHT)?;
+    let promote_ev = Event::new(PROMOTE_TYPE).add_attribute(MEMBER_KEY, info.sender);
 
     // add all members
-    add_remove_non_voting_members(deps, env.block.height, msg.initial_members, vec![])?;
-    Ok(Response::default())
+    let add_evs =
+        add_remove_non_voting_members(deps, env.block.height, msg.initial_members, vec![])?;
+    Ok(Response::new().add_events(add_evs).add_event(promote_ev))
 }
 
 // And declare a custom Error variant for the ones where you will want to make use of it
@@ -201,6 +203,9 @@ fn update_batch_after_escrow_paid(
 }
 
 const DEMOTE_TYPE: &str = "demoted";
+const ADD_NON_VOTING_TYPE: &str = "add_non_voting";
+const REMOVE_NON_VOTING_TYPE: &str = "remove_non_voting";
+const PROPOSE_VOTING_TYPE: &str = "propose_voting";
 const PROMOTE_TYPE: &str = "promoted";
 const PROPOSAL_KEY: &str = "proposal";
 const MEMBER_KEY: &str = "member";
@@ -372,11 +377,21 @@ pub fn execute_propose(
     };
     save_ballot(deps.storage, id, &info.sender, &ballot)?;
 
-    let res = Response::new()
+    let mut res = Response::new()
         .add_attribute("proposal_id", id.to_string())
         .add_attribute("action", "propose")
         .add_attribute("sender", info.sender)
         .add_events(events);
+
+    if let ProposalContent::AddVotingMembers { voters } = &prop.proposal {
+        let evt = Event::new(PROPOSE_VOTING_TYPE);
+        res = res.add_event(
+            voters
+                .iter()
+                .fold(evt, |ev, voter| ev.add_attribute(MEMBER_KEY, voter)),
+        );
+    }
+
     Ok(res)
 }
 
@@ -826,8 +841,8 @@ pub fn proposal_add_remove_non_voting_members(
         .add_attribute("removed", remove.len().to_string());
 
     // make the local update
-    let _diff = add_remove_non_voting_members(deps, env.block.height, add, remove)?;
-    Ok(res)
+    let ev = add_remove_non_voting_members(deps, env.block.height, add, remove)?;
+    Ok(res.add_events(ev))
 }
 
 pub fn proposal_edit_trusted_circle(
@@ -899,7 +914,18 @@ pub fn add_remove_non_voting_members(
     height: u64,
     to_add: Vec<String>,
     to_remove: Vec<String>,
-) -> Result<(), ContractError> {
+) -> Result<Vec<Event>, ContractError> {
+    let add_ev = to_add
+        .iter()
+        .fold(Event::new(ADD_NON_VOTING_TYPE), |ev, addr| {
+            ev.add_attribute(MEMBER_KEY, addr)
+        });
+    let rem_ev = to_remove
+        .iter()
+        .fold(Event::new(REMOVE_NON_VOTING_TYPE), |ev, addr| {
+            ev.add_attribute(MEMBER_KEY, addr)
+        });
+
     // Add all new non-voting members
     for add in to_add.into_iter() {
         let add_addr = deps.api.addr_validate(&add)?;
@@ -927,7 +953,8 @@ pub fn add_remove_non_voting_members(
             }
         }
     }
-    Ok(())
+
+    Ok(vec![add_ev, rem_ev])
 }
 
 pub fn proposal_punish_members(
