@@ -27,5 +27,5 @@ fn main() {
 
     export_schema(&schema_for!(DistributionMsg), &out_dir);
     export_schema(&schema_for!(RewardsInstantiateMsg), &out_dir);
-    export_schema(&schema_for!(RewardsInstantiateMsg), &out_dir);
+    export_schema(&schema_for!(RewardsDistribution), &out_dir);
 }

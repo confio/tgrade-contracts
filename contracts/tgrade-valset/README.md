@@ -89,7 +89,7 @@ emitted with `wasm` event:
 
 ```json
 {
-  "_contract_addr": "valset_addr"
+  "_contract_addr": "valset_addr",
   "action": "tgrade-valset_instantiation",
   "rewards_contract": "rewards_contract_addr"
 }
