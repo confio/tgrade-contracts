@@ -107,6 +107,68 @@ impl PoEFunction for Sigmoid {
     }
 }
 
+/// Sigmoid function. `f(x) = 1 / (1 + e^-x)`.
+/// Fitting the sigmoid-like to a 1/2 (sqrt) exponent.
+/// `f(x) = r_max * (2 / (1 + e ^(-s * sqrt(x)) - 1)`
+pub struct SigmoidSqrt {
+    pub max_rewards: u64,
+    pub s: Decimal,
+    zero: Decimal,
+    one: Decimal,
+    two: Decimal,
+}
+
+impl SigmoidSqrt {
+    // FIXME: Limits
+    pub fn new(max_rewards: Uint64, s: StdDecimal) -> Self {
+        Self {
+            max_rewards: max_rewards.u64(),
+            s: std_to_decimal(s),
+            zero: dec!(0),
+            one: dec!(1),
+            two: dec!(2),
+        }
+    }
+}
+
+impl PoEFunction for SigmoidSqrt {
+    fn rewards(&self, stake: u64, engagement: u64) -> Result<u64, ContractError> {
+        // Cast to i64 because of rust_decimal::Decimal underlying impl
+        let left = Decimal::new(stake as i64, 0);
+        let right = Decimal::new(engagement as i64, 0);
+
+        // Rejects u64 values larger than 2^63, which become negative in Decimal
+        if left.is_sign_negative() || right.is_sign_negative() {
+            return Err(ContractError::WeightOverflow {});
+        }
+
+        let r_max = Decimal::new(self.max_rewards as i64, 0);
+        // Late check of `r_max` range / validity
+        if r_max.is_sign_negative() {
+            return Err(ContractError::RewardOverflow {});
+        }
+
+        // `reward = r_max * (2 / (1 + e^(-s * sqrt(stake * engagement)) ) - 1)`
+        // We replace the mul overflow by Decimal::max (i.e. saturating_mul).
+        // Given that `s` is always positive, we also replace the underflowed exponential case
+        // with zero (also to extend the range).
+        let reward = r_max
+            * (self.two
+                / (self.one
+                    + (-self.s
+                        * left
+                            .checked_mul(right)
+                            .unwrap_or(Decimal::MAX)
+                            .sqrt()
+                            .ok_or(ContractError::ComputationOverflow("sqrt"))?)
+                    .checked_exp()
+                    .unwrap_or(self.zero))
+                - self.one);
+
+        reward.to_u64().ok_or(ContractError::RewardOverflow {})
+    }
+}
+
 /// Algebraic sigmoid. `f(x) = x / sqrt(1 + x^2)`.
 /// Fitting the sigmoid-like function from the PoE whitepaper.
 /// `p` and `s` are just equivalent to the `Sigmoid` parameters.
@@ -234,6 +296,68 @@ mod tests {
         assert_eq!(sigmoid.rewards(very_big, very_big).unwrap(), 1000);
         let err = sigmoid.rewards(very_big, very_big + 1).unwrap_err();
         assert_eq!(err, ContractError::ComputationOverflow("powd"));
+    }
+
+    #[test]
+    fn mixer_sigmoid_half_works() {
+        let sigmoid = Sigmoid::new(
+            Uint64::new(1000),
+            StdDecimal::from_ratio(5u128, 10u128),
+            StdDecimal::from_ratio(3u128, 10000u128),
+        );
+
+        // either 0 -> 0
+        assert_eq!(sigmoid.rewards(0, 123456).unwrap(), 0);
+        assert_eq!(sigmoid.rewards(7777, 0).unwrap(), 0);
+
+        // Basic math checks (no rounding)
+        assert_eq!(sigmoid.rewards(5, 1000).unwrap(), 10);
+        assert_eq!(sigmoid.rewards(5, 100000).unwrap(), 105);
+        assert_eq!(sigmoid.rewards(1000, 1000).unwrap(), 148);
+        assert_eq!(sigmoid.rewards(1000, 100000).unwrap(), 905);
+        assert_eq!(sigmoid.rewards(100000, 100000).unwrap(), 1000);
+
+        // Overflow checks
+        let err = sigmoid.rewards(u64::MAX, u64::MAX).unwrap_err();
+        assert_eq!(err, ContractError::WeightOverflow {});
+
+        // Very big, but positive in the i64 range
+        let very_big = i64::MAX as u64;
+        let err = sigmoid.rewards(very_big, very_big).unwrap_err();
+        assert_eq!(err, ContractError::ComputationOverflow("powd"));
+
+        // Precise limit
+        let very_big = 16_321_545_412;
+        assert_eq!(sigmoid.rewards(very_big, very_big).unwrap(), 1000);
+        let err = sigmoid.rewards(very_big, very_big + 1).unwrap_err();
+        assert_eq!(err, ContractError::ComputationOverflow("powd"));
+    }
+
+    #[test]
+    fn mixer_sigmoid_sqrt_works() {
+        let sigmoid = SigmoidSqrt::new(Uint64::new(1000), StdDecimal::from_ratio(3u128, 10000u128));
+
+        // either 0 -> 0
+        assert_eq!(sigmoid.rewards(0, 123456).unwrap(), 0);
+        assert_eq!(sigmoid.rewards(7777, 0).unwrap(), 0);
+
+        // Basic math checks (no rounding)
+        assert_eq!(sigmoid.rewards(5, 1000).unwrap(), 10);
+        assert_eq!(sigmoid.rewards(5, 100000).unwrap(), 105);
+        assert_eq!(sigmoid.rewards(1000, 1000).unwrap(), 148);
+        assert_eq!(sigmoid.rewards(1000, 100000).unwrap(), 905);
+        assert_eq!(sigmoid.rewards(100000, 100000).unwrap(), 1000);
+
+        // Overflow checks
+        let err = sigmoid.rewards(u64::MAX, u64::MAX).unwrap_err();
+        assert_eq!(err, ContractError::WeightOverflow {});
+
+        // Precise limit
+        // Very big, but positive in the i64 range
+        let very_big = i64::MAX as u64;
+        assert_eq!(sigmoid.rewards(very_big, very_big).unwrap(), 1000);
+        let err = sigmoid.rewards(very_big, very_big + 1).unwrap_err();
+        assert_eq!(err, ContractError::WeightOverflow {});
     }
 
     #[test]
