@@ -80,7 +80,7 @@ impl PoEFunction for Sigmoid {
         // `reward = r_max * (2 / (1 + e^(-s * (stake * engagement)^p) ) - 1)`
         // We distribute the power over the factors here, just to extend the range of the function.
         // Given that `s` is always positive, we also replace the underflowed exponential case
-        // with zero, also to extend the range.
+        // with zero (also to extend the range).
         let reward = r_max
             * (self.two
                 / (self.one
@@ -97,6 +97,68 @@ impl PoEFunction for Sigmoid {
                     .checked_exp()
                     .unwrap_or(self.zero))
                 - self.one);
+
+        reward.to_u64().ok_or(ContractError::RewardOverflow {})
+    }
+}
+
+/// Algebraic sigmoid. Fitting the sigmoid-like function from the PoE whitepaper.
+/// `p` and `s` are equivalent to the `Sigmoid` parameters.
+/// `a` is just an adjustment / fitting parameter (`1 <= a < 4`). To better match the
+/// two curves different slopes.
+pub struct AlgebraicSigmoid {
+    pub max_rewards: u64,
+    pub a: Decimal,
+    pub p: Decimal,
+    pub s: Decimal,
+}
+
+impl AlgebraicSigmoid {
+    // FIXME: Limits
+    pub fn new(max_rewards: Uint64, a: StdDecimal, p: StdDecimal, s: StdDecimal) -> Self {
+        Self {
+            max_rewards: max_rewards.u64(),
+            a: std_to_decimal(a),
+            p: std_to_decimal(p),
+            s: std_to_decimal(s),
+        }
+    }
+}
+
+impl PoEFunction for AlgebraicSigmoid {
+    fn rewards(&self, stake: u64, engagement: u64) -> Result<u64, ContractError> {
+        let left = Decimal::new(stake as i64, 0);
+        let right = Decimal::new(engagement as i64, 0);
+
+        if left.is_sign_negative() || right.is_sign_negative() {
+            return Err(ContractError::WeightOverflow {});
+        }
+
+        let r_max = Decimal::new(self.max_rewards as i64, 0);
+        if r_max.is_sign_negative() {
+            return Err(ContractError::RewardOverflow {});
+        }
+
+        // x = s * (reward * engagement)^p
+        // We distribute the power over the factors here, just to extend the range of the function.
+        let x = self.s
+            * left
+                .checked_powd(self.p)
+                .ok_or(ContractError::ComputationOverflow("powd"))?
+                .checked_mul(
+                    right
+                        .checked_powd(self.p)
+                        .ok_or(ContractError::ComputationOverflow("powd"))?,
+                )
+                .ok_or(ContractError::ComputationOverflow("mul"))?;
+
+        // reward = r_max * x / sqrt(a + x^2)
+        let reward = r_max * x
+            / (self.a
+                + x.checked_powu(2)
+                    .ok_or(ContractError::ComputationOverflow("powu"))?)
+            .sqrt()
+            .ok_or(ContractError::ComputationOverflow("sqrt"))?;
 
         reward.to_u64().ok_or(ContractError::RewardOverflow {})
     }
@@ -162,6 +224,45 @@ mod tests {
         let very_big = 32_313_447;
         assert_eq!(sigmoid.rewards(very_big, very_big).unwrap(), 1000);
         let err = sigmoid.rewards(very_big, very_big + 1).unwrap_err();
+        assert_eq!(err, ContractError::ComputationOverflow("powd"));
+    }
+
+    #[test]
+    fn mixer_algebraic_sigmoid_works() {
+        let algebraic_sigmoid = AlgebraicSigmoid::new(
+            Uint64::new(1000),
+            StdDecimal::from_ratio(371872u128, 100000u128),
+            StdDecimal::from_ratio(68u128, 100u128),
+            StdDecimal::from_ratio(3u128, 100000u128),
+        );
+
+        // either 0 -> 0
+        assert_eq!(algebraic_sigmoid.rewards(0, 123456).unwrap(), 0);
+        assert_eq!(algebraic_sigmoid.rewards(7777, 0).unwrap(), 0);
+
+        // Basic math checks (no rounding)
+        // Values from PoE paper, Appendix A, "root of engagement" curve
+        assert_eq!(algebraic_sigmoid.rewards(5, 1000).unwrap(), 5);
+        assert_eq!(algebraic_sigmoid.rewards(5, 100000).unwrap(), 115);
+        assert_eq!(algebraic_sigmoid.rewards(1000, 1000).unwrap(), 183);
+        assert_eq!(algebraic_sigmoid.rewards(1000, 100000).unwrap(), 973);
+        assert_eq!(algebraic_sigmoid.rewards(100000, 100000).unwrap(), 999);
+
+        // Overflow checks
+        let err = algebraic_sigmoid.rewards(u64::MAX, u64::MAX).unwrap_err();
+        assert_eq!(err, ContractError::WeightOverflow {});
+
+        // Very big, but positive in the i64 range
+        let very_big = i64::MAX as u64;
+        let err = algebraic_sigmoid.rewards(very_big, very_big).unwrap_err();
+        assert_eq!(err, ContractError::ComputationOverflow("powd"));
+
+        // Precise limit
+        let very_big = 32_313_447;
+        assert_eq!(algebraic_sigmoid.rewards(very_big, very_big).unwrap(), 999);
+        let err = algebraic_sigmoid
+            .rewards(very_big, very_big + 1)
+            .unwrap_err();
         assert_eq!(err, ContractError::ComputationOverflow("powd"));
     }
 }
