@@ -37,7 +37,9 @@ impl PoEFunction for GeometricMean {
     }
 }
 
-/// Sigmoid-like function from the PoE whitepaper
+/// Sigmoid function. `f(x) = 1 / (1 + e^-x)`.
+/// Fitting the sigmoid-like function from the PoE whitepaper:
+/// `f(x) = r_max * (2 / (1 + e ^(-s * x^p) - 1)`
 pub struct Sigmoid {
     pub max_rewards: u64,
     pub p: Decimal,
@@ -63,14 +65,17 @@ impl Sigmoid {
 
 impl PoEFunction for Sigmoid {
     fn rewards(&self, stake: u64, engagement: u64) -> Result<u64, ContractError> {
+        // Cast to i64 because of rust_decimal::Decimal underlying impl
         let left = Decimal::new(stake as i64, 0);
         let right = Decimal::new(engagement as i64, 0);
 
+        // Rejects u64 values larger than 2^63, which become negative in Decimal
         if left.is_sign_negative() || right.is_sign_negative() {
             return Err(ContractError::WeightOverflow {});
         }
 
         let r_max = Decimal::new(self.max_rewards as i64, 0);
+        // Late check of `r_max` range / validity
         if r_max.is_sign_negative() {
             return Err(ContractError::RewardOverflow {});
         }
@@ -102,10 +107,11 @@ impl PoEFunction for Sigmoid {
     }
 }
 
-/// Algebraic sigmoid. Fitting the sigmoid-like function from the PoE whitepaper.
-/// `p` and `s` are equivalent to the `Sigmoid` parameters.
-/// `a` is just an adjustment / fitting parameter (`1 <= a < 4`). To better match the
-/// two curves different slopes.
+/// Algebraic sigmoid. `f(x) = x / sqrt(1 + x^2)`.
+/// Fitting the sigmoid-like function from the PoE whitepaper.
+/// `p` and `s` are just equivalent to the `Sigmoid` parameters.
+/// `a` is an adjustment / fitting parameter (`1 <= a < 4`), to better match the
+/// two curves differing slopes.
 pub struct AlgebraicSigmoid {
     pub max_rewards: u64,
     pub a: Decimal,
@@ -127,14 +133,17 @@ impl AlgebraicSigmoid {
 
 impl PoEFunction for AlgebraicSigmoid {
     fn rewards(&self, stake: u64, engagement: u64) -> Result<u64, ContractError> {
+        // Cast to i64 because of rust_decimal::Decimal underlying impl
         let left = Decimal::new(stake as i64, 0);
         let right = Decimal::new(engagement as i64, 0);
 
+        // Rejects u64 values larger than 2^63, which become negative in Decimal
         if left.is_sign_negative() || right.is_sign_negative() {
             return Err(ContractError::WeightOverflow {});
         }
 
         let r_max = Decimal::new(self.max_rewards as i64, 0);
+        // Late check of `r_max` range / validity
         if r_max.is_sign_negative() {
             return Err(ContractError::RewardOverflow {});
         }
