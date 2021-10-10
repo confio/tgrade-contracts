@@ -1,7 +1,10 @@
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
+use cosmwasm_std::{Decimal as StdDecimal, Uint64};
 use tg4::{Member, MemberChangedHookMsg};
+
+use crate::functions::{GeometricMean, PoEFunction, Sigmoid};
 
 #[derive(Serialize, Deserialize, Clone, PartialEq, JsonSchema, Debug)]
 pub struct InstantiateMsg {
@@ -9,9 +12,35 @@ pub struct InstantiateMsg {
     pub left_group: String,
     /// The other group we feed to the mixer function
     pub right_group: String,
-    /// preauthorize some hooks on init (only way to add them)
+    /// Preauthorize some hooks on init (only way to add them)
     pub preauths: Option<u64>,
-    // TODO: configure mixer function here?
+    /// Enum to store the proof-of-engagement function parameters used for this contract
+    pub function_type: PoEFunctionType,
+}
+
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
+#[serde(rename_all = "snake_case")]
+pub enum PoEFunctionType {
+    /// GeometricMean returns the geometric mean of staked amount and engagement points
+    GeometricMean {},
+    /// Sigmoid returns a sigmoid-like value of staked amount times engagement points.
+    /// See the Proof-of-Engagement whitepaper for details
+    Sigmoid {
+        max_rewards: Uint64,
+        p: StdDecimal,
+        s: StdDecimal,
+    },
+}
+
+impl PoEFunctionType {
+    pub fn to_poe_fn(&self) -> Box<dyn PoEFunction> {
+        match self.clone() {
+            PoEFunctionType::GeometricMean {} => Box::new(GeometricMean::new()),
+            PoEFunctionType::Sigmoid { max_rewards, p, s } => {
+                Box::new(Sigmoid::new(max_rewards, p, s))
+            }
+        }
+    }
 }
 
 #[derive(Serialize, Deserialize, Clone, PartialEq, JsonSchema, Debug)]

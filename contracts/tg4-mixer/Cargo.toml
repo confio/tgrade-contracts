@@ -31,6 +31,8 @@ integer-sqrt = "0.1.5"
 schemars = "0.8"
 serde = { version = "1.0.103", default-features = false, features = ["derive"] }
 thiserror = { version = "1.0.21" }
+rust_decimal = { version = "1.16", default-features = false, features = ["maths"] }
+rust_decimal_macros = { version = "1.16", default-features = false }
 
 [dev-dependencies]
 cw-multi-test = { version = "=0.10.0-soon3" }

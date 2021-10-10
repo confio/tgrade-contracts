@@ -1,10 +1,11 @@
 #[cfg(not(feature = "library"))]
 use cosmwasm_std::entry_point;
 use cosmwasm_std::{to_binary, Binary, Deps, DepsMut, Env, MessageInfo, Order, StdResult};
+
 use cw0::maybe_addr;
 use cw2::set_contract_version;
 use cw_storage_plus::{Bound, PrimaryKey, U64Key};
-use integer_sqrt::IntegerSquareRoot;
+
 use tg_bindings::TgradeMsg;
 use tg_utils::{members, HOOKS, PREAUTH, TOTAL};
 
@@ -14,8 +15,9 @@ use tg4::{
 };
 
 use crate::error::ContractError;
+use crate::functions::PoEFunction;
 use crate::msg::{ExecuteMsg, GroupsResponse, InstantiateMsg, PreauthResponse, QueryMsg};
-use crate::state::{Groups, GROUPS};
+use crate::state::{Groups, GROUPS, POE_FUNCTION_TYPE};
 
 pub type Response = cosmwasm_std::Response<TgradeMsg>;
 pub type SubMsg = cosmwasm_std::SubMsg<TgradeMsg>;
@@ -36,6 +38,9 @@ pub fn instantiate(
         PREAUTH.set_auth(deps.storage, preauths)?;
     }
 
+    // Store the PoE function type / params
+    POE_FUNCTION_TYPE.save(deps.storage, &msg.function_type)?;
+
     // validate the two input groups and save
     let left = verify_tg4_input(deps.as_ref(), &msg.left_group)?;
     let right = verify_tg4_input(deps.as_ref(), &msg.right_group)?;
@@ -48,8 +53,11 @@ pub fn instantiate(
         .add_submessage(groups.left.add_hook(&env.contract.address)?)
         .add_submessage(groups.right.add_hook(&env.contract.address)?);
 
+    // Instantiate PoE function
+    let poe_function = msg.function_type.to_poe_fn();
+
     // calculate initial state from current members on both sides
-    initialize_members(deps, groups, env.block.height)?;
+    initialize_members(deps, groups, &*poe_function, env.block.height)?;
     Ok(res)
 }
 
@@ -63,7 +71,12 @@ fn verify_tg4_input(deps: Deps, addr: &str) -> Result<Tg4Contract, ContractError
 
 const QUERY_LIMIT: Option<u32> = Some(30);
 
-fn initialize_members(deps: DepsMut, groups: Groups, height: u64) -> Result<(), ContractError> {
+fn initialize_members(
+    deps: DepsMut,
+    groups: Groups,
+    poe_function: &dyn PoEFunction,
+    height: u64,
+) -> Result<(), ContractError> {
     let mut total = 0u64;
     // we query all members of left group - for each non-None value, we check the value of right group and mix it.
     // Either as None means "not a member"
@@ -77,7 +90,7 @@ fn initialize_members(deps: DepsMut, groups: Groups, height: u64) -> Result<(), 
             // like calling `list_members` on the right side as well
             let other = groups.right.is_member(&deps.querier, &addr)?;
             if let Some(right) = other {
-                let weight = mixer_fn(member.weight, right)?;
+                let weight = poe_function.rewards(member.weight, right)?;
                 total += weight;
                 members().save(deps.storage, &addr, &weight, height)?;
             }
@@ -87,15 +100,6 @@ fn initialize_members(deps: DepsMut, groups: Groups, height: u64) -> Result<(), 
     }
     TOTAL.save(deps.storage, &total)?;
     Ok(())
-}
-
-// FIXME: improve this, make this more flexible
-/// This takes a geometric mean of the two sqrt(left * right) using integer math
-fn mixer_fn(left: u64, right: u64) -> Result<u64, ContractError> {
-    let mult = left
-        .checked_mul(right)
-        .ok_or(ContractError::WeightOverflow {})?;
-    Ok(mult.integer_sqrt())
 }
 
 #[cfg_attr(not(feature = "library"), entry_point)]
@@ -127,9 +131,23 @@ pub fn execute_member_changed(
 
     // authorization check
     let diff = if info.sender == groups.left.addr() {
-        update_members(deps.branch(), env.block.height, groups.right, changes.diffs)
+        let poe_function = POE_FUNCTION_TYPE.load(deps.storage)?.to_poe_fn();
+        update_members(
+            deps.branch(),
+            env.block.height,
+            groups.right,
+            changes.diffs,
+            &*poe_function,
+        )
     } else if info.sender == groups.right.addr() {
-        update_members(deps.branch(), env.block.height, groups.left, changes.diffs)
+        let poe_function = POE_FUNCTION_TYPE.load(deps.storage)?.to_poe_fn();
+        update_members(
+            deps.branch(),
+            env.block.height,
+            groups.left,
+            changes.diffs,
+            &*poe_function,
+        )
     } else {
         Err(ContractError::Unauthorized {})
     }?;
@@ -147,6 +165,7 @@ pub fn update_members(
     height: u64,
     query_group: Tg4Contract,
     changes: Vec<MemberDiff>,
+    poe_function: &dyn PoEFunction,
 ) -> Result<MemberChangedHookMsg, ContractError> {
     let mut total = TOTAL.load(deps.storage)?;
     let mut diffs: Vec<MemberDiff> = vec![];
@@ -156,7 +175,7 @@ pub fn update_members(
         let member_addr = deps.api.addr_validate(&change.key)?;
         let new_weight = match change.new {
             Some(x) => match query_group.is_member(&deps.querier, &member_addr)? {
-                Some(y) => Some(mixer_fn(x, y)?),
+                Some(y) => Some(poe_function.rewards(x, y)?),
                 None => None,
             },
             None => None,
@@ -328,6 +347,7 @@ fn list_members_by_weight(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::msg::PoEFunctionType;
     use cosmwasm_std::{coins, Addr, BankMsg, Uint128};
     use cw_multi_test::{next_block, AppBuilder, BasicApp, Contract, ContractWrapper, Executor};
     use tg_bindings::TgradeMsg;
@@ -435,6 +455,7 @@ mod tests {
             left_group: left.to_string(),
             right_group: right.to_string(),
             preauths: None,
+            function_type: PoEFunctionType::GeometricMean {},
         };
         app.instantiate_contract(flex_id, Addr::unchecked(OWNER), &msg, &[], "mixer", None)
             .unwrap()
@@ -638,24 +659,6 @@ mod tests {
             None,
             Some(500),
         );
-    }
-
-    #[test]
-    fn mixer_works() {
-        // either 0 -> 0
-        assert_eq!(mixer_fn(0, 123456).unwrap(), 0);
-        assert_eq!(mixer_fn(7777, 0).unwrap(), 0);
-
-        // basic math checks (no rounding)
-        assert_eq!(mixer_fn(4, 9).unwrap(), 6);
-
-        // rounding down (sqrt(240) = 15.49...
-        assert_eq!(mixer_fn(12, 20).unwrap(), 15);
-
-        // overflow checks
-        let very_big = 12_000_000_000u64;
-        let err = mixer_fn(very_big, very_big).unwrap_err();
-        assert_eq!(err, ContractError::WeightOverflow {});
     }
 
     // TODO: multi-test to init!
