@@ -53,6 +53,15 @@ pub enum ContractError {
 
     #[error("No distribution contract")]
     NoDistributionContract {},
+
+    #[error("Failure response from submsg: {0}")]
+    SubmsgFailure(String),
+
+    #[error("Invalid reply from submessage {id}, {err}")]
+    ReplyParseFailure { id: u64, err: String },
+
+    #[error("Unrecognised reply id: {0}")]
+    UnrecognisedReply(u64),
 }
 
 impl From<Ed25519PubkeyConversionError> for ContractError {

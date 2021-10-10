@@ -7,6 +7,7 @@
     "max_validators",
     "membership",
     "min_weight",
+    "rewards_contract",
     "validators_reward_ratio"
   ],
   "properties": {
@@ -62,6 +63,14 @@
       "type": "integer",
       "format": "uint64",
       "minimum": 0.0
+    },
+    "rewards_contract": {
+      "description": "Address of contract for rewards distribution.",
+      "allOf": [
+        {
+          "$ref": "#/definitions/Addr"
+        }
+      ]
     },
     "scaling": {
       "description": "A scaling factor to multiply tg4-engagement weights to produce the tendermint validator power (TODO: should we allow this to reduce weight? Like 1/1000?)",
