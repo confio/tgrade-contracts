@@ -228,7 +228,7 @@ fn hand_over(deps: DepsMut, env: Env, sender: Addr) -> Result<Response, Contract
     if account.handed_over {
         return Err(ContractError::HandOverCompleted);
     }
-    if sender != account.recipient && sender != account.oversight {
+    if ![&account.recipient, &account.oversight].contains(&&sender) {
         return Err(ContractError::RequireRecipientOrOversight);
     }
 
@@ -265,14 +265,14 @@ mod helpers {
         storage: &mut dyn Storage,
     ) -> Result<Response, ContractError> {
         amount_not_zero(amount)?;
-        let msg = BankMsg::Send {
-            to_address: account.recipient.to_string(),
-            amount: coins(amount.u128(), VESTING_DENOM),
-        };
 
         account.paid_tokens += amount;
         VESTING_ACCOUNT.save(storage, account)?;
 
+        let msg = BankMsg::Send {
+            to_address: account.recipient.to_string(),
+            amount: coins(amount.u128(), VESTING_DENOM),
+        };
         Ok(Response::new()
             .add_attribute("action", "release_tokens")
             .add_attribute("tokens", amount.to_string())
