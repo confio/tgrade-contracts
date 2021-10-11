@@ -8,7 +8,7 @@ use cw2::set_contract_version;
 
 use crate::error::ContractError;
 use crate::msg::{
-    AccountInfoResponse, CanExecuteResponse, ExecuteMsg, InstantiateMsg, IsLiberatedResponse,
+    AccountInfoResponse, CanExecuteResponse, ExecuteMsg, InstantiateMsg, IsHandedOverResponse,
     QueryMsg, TokenInfoResponse,
 };
 use crate::state::{VestingAccount, VestingPlan, VESTING_ACCOUNT};
@@ -90,8 +90,8 @@ fn require_oversight(sender: &Addr, account: &VestingAccount) -> Result<(), Cont
     }
 }
 
-fn require_not_liberated(deps: Deps) -> Result<(), ContractError> {
-    if is_liberated(deps)?.is_liberated {
+fn require_not_handed_over(deps: Deps) -> Result<(), ContractError> {
+    if is_handed_over(deps)?.is_handed_over {
         Err(ContractError::HandOverCompleted)
     } else {
         Ok(())
@@ -144,7 +144,7 @@ fn execute_msg(
 ) -> Result<Response, ContractError> {
     let account = VESTING_ACCOUNT.load(deps.storage)?;
 
-    if !is_liberated(deps.as_ref())?.is_liberated {
+    if !is_handed_over(deps.as_ref())?.is_handed_over {
         return Err(ContractError::HandOverNotCompleted);
     }
     require_oversight(&sender, &account)?;
@@ -160,7 +160,7 @@ fn release_tokens(
     sender: Addr,
     requested_amount: Option<Uint128>,
 ) -> Result<Response, ContractError> {
-    require_not_liberated(deps.as_ref())?;
+    require_not_handed_over(deps.as_ref())?;
 
     let mut account = VESTING_ACCOUNT.load(deps.storage)?;
     require_operator(&sender, &account)?;
@@ -178,7 +178,7 @@ fn freeze_tokens(
     sender: Addr,
     requested_amount: Option<Uint128>,
 ) -> Result<Response, ContractError> {
-    require_not_liberated(deps.as_ref())?;
+    require_not_handed_over(deps.as_ref())?;
 
     let mut account = VESTING_ACCOUNT.load(deps.storage)?;
     require_oversight(&sender, &account)?;
@@ -197,7 +197,7 @@ fn unfreeze_tokens(
     sender: Addr,
     requested_amount: Option<Uint128>,
 ) -> Result<Response, ContractError> {
-    require_not_liberated(deps.as_ref())?;
+    require_not_handed_over(deps.as_ref())?;
 
     let mut account = VESTING_ACCOUNT.load(deps.storage)?;
     require_oversight(&sender, &account)?;
@@ -214,7 +214,7 @@ fn change_operator(
     sender: Addr,
     new_operator: Addr,
 ) -> Result<Response, ContractError> {
-    require_not_liberated(deps.as_ref())?;
+    require_not_handed_over(deps.as_ref())?;
 
     let mut account = VESTING_ACCOUNT.load(deps.storage)?;
     require_oversight(&sender, &account)?;
@@ -229,7 +229,7 @@ fn change_operator(
 }
 
 fn hand_over(deps: DepsMut, env: Env, sender: Addr) -> Result<Response, ContractError> {
-    require_not_liberated(deps.as_ref())?;
+    require_not_handed_over(deps.as_ref())?;
 
     let mut account = VESTING_ACCOUNT.load(deps.storage)?;
 
@@ -326,7 +326,7 @@ pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
     match msg {
         QueryMsg::AccountInfo {} => to_binary(&account_info(deps)?),
         QueryMsg::TokenInfo {} => to_binary(&token_info(deps)?),
-        QueryMsg::IsLiberated {} => to_binary(&is_liberated(deps)?),
+        QueryMsg::IsHandedOver {} => to_binary(&is_handed_over(deps)?),
         QueryMsg::CanExecute { sender } => to_binary(&can_execute(deps, sender)?),
     }
 }
@@ -354,17 +354,17 @@ fn token_info(deps: Deps) -> StdResult<TokenInfoResponse> {
     Ok(info)
 }
 
-fn is_liberated(deps: Deps) -> StdResult<IsLiberatedResponse> {
+fn is_handed_over(deps: Deps) -> StdResult<IsHandedOverResponse> {
     let account = VESTING_ACCOUNT.load(deps.storage)?;
-    Ok(IsLiberatedResponse {
-        is_liberated: account.handed_over,
+    Ok(IsHandedOverResponse {
+        is_handed_over: account.handed_over,
     })
 }
 
 fn can_execute(deps: Deps, sender: String) -> StdResult<CanExecuteResponse> {
     let account = VESTING_ACCOUNT.load(deps.storage)?;
 
-    if !is_liberated(deps)?.is_liberated {
+    if !is_handed_over(deps)?.is_handed_over {
         return Ok(CanExecuteResponse { can_execute: false });
     }
     match require_oversight(&Addr::unchecked(sender), &account) {
@@ -1155,13 +1155,13 @@ mod tests {
         use super::*;
 
         #[test]
-        fn account_is_liberated() {
+        fn account_is_handed_over() {
             let mut suite = SuiteBuilder::default().build();
 
             assert_eq!(
-                is_liberated(suite.deps.as_ref()),
-                Ok(IsLiberatedResponse {
-                    is_liberated: false
+                is_handed_over(suite.deps.as_ref()),
+                Ok(IsHandedOverResponse {
+                    is_handed_over: false
                 })
             );
 
@@ -1184,8 +1184,10 @@ mod tests {
                     }))
             );
             assert_eq!(
-                is_liberated(suite.deps.as_ref()),
-                Ok(IsLiberatedResponse { is_liberated: true })
+                is_handed_over(suite.deps.as_ref()),
+                Ok(IsHandedOverResponse {
+                    is_handed_over: true
+                })
             );
             assert_matches!(
                 token_info(suite.deps.as_ref()),

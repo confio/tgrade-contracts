@@ -67,9 +67,8 @@ pub enum QueryMsg {
     AccountInfo {},
     /// Shows current data about tokens from this vesting account.
     TokenInfo {},
-    /// After HandOver has been sucesfully finished, account will be set
-    /// as liberated.
-    IsLiberated {},
+    /// Shows whether hand over procedure has been completed or not
+    IsHandedOver {},
 }
 
 /// Response for CanExecute query
@@ -101,8 +100,8 @@ pub struct TokenInfoResponse {
 
 /// Response for IsLiberated query
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
-pub struct IsLiberatedResponse {
+pub struct IsHandedOverResponse {
     /// Does this account completed hand over procedure and thus achieved
     /// "liberated" status
-    pub is_liberated: bool,
+    pub is_handed_over: bool,
 }
