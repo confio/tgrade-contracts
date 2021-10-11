@@ -264,6 +264,7 @@ mod helpers {
         account: &mut VestingAccount,
         storage: &mut dyn Storage,
     ) -> Result<Response, ContractError> {
+        amount_not_zero(amount)?;
         let msg = BankMsg::Send {
             to_address: account.recipient.to_string(),
             amount: coins(amount.u128(), VESTING_DENOM),
@@ -285,6 +286,7 @@ mod helpers {
         account: &mut VestingAccount,
         storage: &mut dyn Storage,
     ) -> Result<Response, ContractError> {
+        amount_not_zero(amount)?;
         account.frozen_tokens += amount;
 
         VESTING_ACCOUNT.save(storage, account)?;
@@ -301,6 +303,7 @@ mod helpers {
         account: &mut VestingAccount,
         storage: &mut dyn Storage,
     ) -> Result<Response, ContractError> {
+        amount_not_zero(amount)?;
         // Don't subtract with overflow
         account.frozen_tokens = account.frozen_tokens.saturating_sub(amount);
         VESTING_ACCOUNT.save(storage, account)?;
@@ -309,6 +312,14 @@ mod helpers {
             .add_attribute("action", "unfreeze_tokens")
             .add_attribute("tokens", amount.to_string())
             .add_attribute("sender", sender))
+    }
+
+    fn amount_not_zero(amount: Uint128) -> Result<(), ContractError> {
+        if amount == Uint128::zero() {
+            Err(ContractError::ZeroTokensNotAllowed)
+        } else {
+            Ok(())
+        }
     }
 }
 
@@ -1205,5 +1216,23 @@ mod tests {
                 Err(ContractError::ContractNotExpired)
             );
         }
+    }
+
+    #[test]
+    fn zero_tokens_operations_not_allowed() {
+        let mut suite = SuiteBuilder::default().build();
+
+        assert_eq!(
+            suite.freeze_tokens(OVERSIGHT, Some(0)),
+            Err(ContractError::ZeroTokensNotAllowed)
+        );
+        assert_eq!(
+            suite.unfreeze_tokens(OVERSIGHT, Some(0)),
+            Err(ContractError::ZeroTokensNotAllowed)
+        );
+        assert_eq!(
+            suite.release_tokens(OVERSIGHT, Some(0)),
+            Err(ContractError::ZeroTokensNotAllowed)
+        );
     }
 }

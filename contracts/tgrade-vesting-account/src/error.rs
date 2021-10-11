@@ -33,6 +33,9 @@ pub enum ContractError {
     )]
     HandOverCompleted,
 
+    #[error("Amount of tokens in operation must be higher then zero")]
+    ZeroTokensNotAllowed,
+
     // TODO: Temporary error to not panic at unimplemented parts - remove when done
     #[error("Not available - implementation is not finished")]
     NotImplemented,
