@@ -237,11 +237,7 @@ fn hand_over(deps: DepsMut, env: Env, sender: Addr) -> Result<Response, Contract
         return Err(ContractError::RequireRecipientOrOversight);
     }
 
-    let is_expired = match account.vesting_plan {
-        VestingPlan::Discrete { release_at } => release_at.is_expired(&env.block),
-        VestingPlan::Continuous { end_at, .. } => end_at.is_expired(&env.block),
-    };
-    if !is_expired {
+    if !account.vesting_plan.is_expired(env.block.time) {
         return Err(ContractError::ContractNotExpired);
     }
 

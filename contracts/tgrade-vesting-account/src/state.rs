@@ -1,7 +1,7 @@
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
-use cosmwasm_std::{Addr, Uint128};
+use cosmwasm_std::{Addr, Timestamp, Uint128};
 use cw_storage_plus::Item;
 use tg_utils::Expiration;
 
@@ -19,6 +19,15 @@ pub enum VestingPlan {
         /// end_at allows linear interpolation between these points.
         end_at: Expiration,
     },
+}
+
+impl VestingPlan {
+    pub fn is_expired(&self, timestamp: Timestamp) -> bool {
+        match self {
+            VestingPlan::Discrete { release_at } => release_at.is_expired_time(timestamp),
+            VestingPlan::Continuous { end_at, .. } => end_at.is_expired_time(timestamp),
+        }
+    }
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
