@@ -661,5 +661,79 @@ mod tests {
         );
     }
 
+    #[test]
+    fn hook_on_engagement() {
+        let stakers = vec![
+            member(VOTER1, 10000), // 10000 stake, 100 weight -> 1000 mixed
+            member(VOTER3, 7500),  // 7500 stake, 300 weight -> 1500 mixed
+            member(VOTER5, 50),    // below stake threshold -> None
+        ];
+
+        let mut app = AppBuilder::new_custom().build(|router, _, storage| {
+            router
+                .bank
+                .init_balance(storage, &Addr::unchecked(RESERVE), coins(450, STAKE_DENOM))
+                .unwrap();
+
+            for staker in &stakers {
+                router
+                    .bank
+                    .init_balance(
+                        storage,
+                        &Addr::unchecked(&staker.addr),
+                        coins(staker.weight as u128, STAKE_DENOM),
+                    )
+                    .unwrap();
+            }
+        });
+
+        let (mixer_addr, group_addr, _) = setup_test_case(&mut app, stakers);
+
+        // query the membership values
+        check_membership(
+            &app,
+            &mixer_addr,
+            None,
+            Some(1000),
+            None,
+            Some(1500),
+            None,
+            None,
+        );
+
+        // Update members on group, should update mixer as well
+        app.execute_contract(
+            Addr::unchecked(OWNER),
+            group_addr,
+            &tg4_engagement::msg::ExecuteMsg::UpdateMembers {
+                add: vec![
+                    Member {
+                        addr: VOTER2.to_owned(),
+                        weight: 400,
+                    },
+                    Member {
+                        addr: VOTER1.to_owned(),
+                        weight: 8000,
+                    },
+                ],
+                remove: vec![VOTER3.to_owned()],
+            },
+            &[],
+        )
+        .unwrap();
+
+        // query the membership values, hope they updated
+        check_membership(
+            &app,
+            &mixer_addr,
+            None,
+            Some(8944), // (8k, 100) mixed
+            None,
+            None,
+            None,
+            None,
+        );
+    }
+
     // TODO: multi-test to init!
 }
