@@ -90,14 +90,6 @@ fn require_oversight(sender: &Addr, account: &VestingAccount) -> Result<(), Cont
     }
 }
 
-fn require_not_handed_over(deps: Deps) -> Result<(), ContractError> {
-    if is_handed_over(deps)?.is_handed_over {
-        Err(ContractError::HandOverCompleted)
-    } else {
-        Ok(())
-    }
-}
-
 /// Returns information about amount of tokens that is allowed to be released
 fn allowed_release(deps: Deps, env: &Env, plan: &VestingPlan) -> Result<Uint128, ContractError> {
     let token_info = token_info(deps)?;
@@ -143,8 +135,7 @@ fn execute_msg(
     msgs: Vec<CosmosMsg<TgradeMsg>>,
 ) -> Result<Response, ContractError> {
     let account = VESTING_ACCOUNT.load(deps.storage)?;
-
-    if !is_handed_over(deps.as_ref())?.is_handed_over {
+    if !account.handed_over {
         return Err(ContractError::HandOverNotCompleted);
     }
     require_oversight(&sender, &account)?;
@@ -160,9 +151,10 @@ fn release_tokens(
     sender: Addr,
     requested_amount: Option<Uint128>,
 ) -> Result<Response, ContractError> {
-    require_not_handed_over(deps.as_ref())?;
-
     let mut account = VESTING_ACCOUNT.load(deps.storage)?;
+    if account.handed_over {
+        return Err(ContractError::HandOverCompleted);
+    }
     require_operator(&sender, &account)?;
 
     let allowed_to_release = allowed_release(deps.as_ref(), &env, &account.vesting_plan)?;
@@ -178,9 +170,10 @@ fn freeze_tokens(
     sender: Addr,
     requested_amount: Option<Uint128>,
 ) -> Result<Response, ContractError> {
-    require_not_handed_over(deps.as_ref())?;
-
     let mut account = VESTING_ACCOUNT.load(deps.storage)?;
+    if account.handed_over {
+        return Err(ContractError::HandOverCompleted);
+    }
     require_oversight(&sender, &account)?;
 
     let available_to_freeze = account.initial_tokens - account.frozen_tokens - account.paid_tokens;
@@ -197,9 +190,10 @@ fn unfreeze_tokens(
     sender: Addr,
     requested_amount: Option<Uint128>,
 ) -> Result<Response, ContractError> {
-    require_not_handed_over(deps.as_ref())?;
-
     let mut account = VESTING_ACCOUNT.load(deps.storage)?;
+    if account.handed_over {
+        return Err(ContractError::HandOverCompleted);
+    }
     require_oversight(&sender, &account)?;
 
     if let Some(requested_amount) = requested_amount {
@@ -214,9 +208,10 @@ fn change_operator(
     sender: Addr,
     new_operator: Addr,
 ) -> Result<Response, ContractError> {
-    require_not_handed_over(deps.as_ref())?;
-
     let mut account = VESTING_ACCOUNT.load(deps.storage)?;
+    if account.handed_over {
+        return Err(ContractError::HandOverCompleted);
+    }
     require_oversight(&sender, &account)?;
 
     account.operator = new_operator.clone();
@@ -229,10 +224,10 @@ fn change_operator(
 }
 
 fn hand_over(deps: DepsMut, env: Env, sender: Addr) -> Result<Response, ContractError> {
-    require_not_handed_over(deps.as_ref())?;
-
     let mut account = VESTING_ACCOUNT.load(deps.storage)?;
-
+    if account.handed_over {
+        return Err(ContractError::HandOverCompleted);
+    }
     if sender != account.recipient && sender != account.oversight {
         return Err(ContractError::RequireRecipientOrOversight);
     }
@@ -360,7 +355,7 @@ fn is_handed_over(deps: Deps) -> StdResult<IsHandedOverResponse> {
 fn can_execute(deps: Deps, sender: String) -> StdResult<CanExecuteResponse> {
     let account = VESTING_ACCOUNT.load(deps.storage)?;
 
-    if !is_handed_over(deps)?.is_handed_over {
+    if !account.handed_over {
         return Ok(CanExecuteResponse { can_execute: false });
     }
     match require_oversight(&Addr::unchecked(sender), &account) {
