@@ -17,7 +17,12 @@
           ],
           "properties": {
             "metadata": {
-              "$ref": "#/definitions/ValidatorMetadata"
+              "description": "Additional metadata assigned to this validator",
+              "allOf": [
+                {
+                  "$ref": "#/definitions/ValidatorMetadata"
+                }
+              ]
             },
             "pubkey": {
               "$ref": "#/definitions/Pubkey"
