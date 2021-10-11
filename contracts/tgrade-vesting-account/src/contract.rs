@@ -166,15 +166,11 @@ fn release_tokens(
     require_operator(&sender, &account)?;
 
     let allowed_to_release = allowed_release(deps.as_ref(), &env, &account.vesting_plan)?;
-    if let Some(requested_amount) = requested_amount {
-        if allowed_to_release >= requested_amount {
-            helpers::release_tokens(requested_amount, sender, &mut account, deps.storage)
-        } else {
-            Err(ContractError::NotEnoughTokensAvailable)
-        }
-    } else {
-        helpers::release_tokens(allowed_to_release, sender, &mut account, deps.storage)
-    }
+    let requested_amount = requested_amount.unwrap_or(allowed_to_release);
+    if requested_amount > allowed_to_release {
+        return Err(ContractError::NotEnoughTokensAvailable);
+    };
+    helpers::release_tokens(requested_amount, sender, &mut account, deps.storage)
 }
 
 fn freeze_tokens(
@@ -243,10 +239,7 @@ fn hand_over(deps: DepsMut, env: Env, sender: Addr) -> Result<Response, Contract
 
     let is_expired = match account.vesting_plan {
         VestingPlan::Discrete { release_at } => release_at.is_expired(&env.block),
-        VestingPlan::Continuous {
-            start_at: _,
-            end_at,
-        } => end_at.is_expired(&env.block),
+        VestingPlan::Continuous { end_at, .. } => end_at.is_expired(&env.block),
     };
     if !is_expired {
         return Err(ContractError::ContractNotExpired);
