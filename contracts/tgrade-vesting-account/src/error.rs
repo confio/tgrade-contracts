@@ -26,7 +26,7 @@ pub enum ContractError {
     ContractNotExpired,
 
     #[error(
-        "Account must process hand over procedure in order to execute messagess on this account"
+        "Unauthorized - hand over not done"
     )]
     HandOverNotCompleted,
 
