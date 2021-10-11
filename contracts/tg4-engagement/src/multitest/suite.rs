@@ -1,48 +1,13 @@
 use crate::error::ContractError;
 use crate::msg::*;
 use anyhow::Result as AnyResult;
-use cosmwasm_std::{Addr, Coin, CosmosMsg, Empty, StdResult};
+use cosmwasm_std::{Addr, Coin, CosmosMsg, StdResult};
 use cw_multi_test::{AppResponse, Contract, ContractWrapper, CosmosRouter, Executor};
 use derivative::Derivative;
 use tg4::{Member, MemberListResponse};
 use tg_bindings::TgradeMsg;
 use tg_bindings_test::TgradeApp;
 use tg_utils::Duration;
-
-/// Fake tg4 compliant contract which does literally nothing, but accepts tf4 messages required by
-/// mixer, to be places as right group for it.
-mod tg4_nop_contract {
-    use cosmwasm_std::{to_binary, Binary, Deps, DepsMut, Empty, Env, MessageInfo};
-
-    use super::*;
-
-    type Response = cosmwasm_std::Response<TgradeMsg>;
-
-    pub fn execute(
-        _deps: DepsMut,
-        _env: Env,
-        _info: MessageInfo,
-        _msg: ExecuteMsg,
-    ) -> Result<Response, ContractError> {
-        Ok(Response::new())
-    }
-
-    pub fn instantiate(
-        _deps: DepsMut,
-        _env: Env,
-        _info: MessageInfo,
-        _msg: Empty,
-    ) -> Result<Response, ContractError> {
-        Ok(Response::new())
-    }
-
-    pub fn query(_deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
-        match msg {
-            QueryMsg::ListMembers { .. } => Ok(to_binary(&MemberListResponse { members: vec![] })?),
-            _ => Ok(Binary::default()),
-        }
-    }
-}
 
 pub fn contract_engagement() -> Box<dyn Contract<TgradeMsg>> {
     let contract = ContractWrapper::new(
@@ -51,26 +16,6 @@ pub fn contract_engagement() -> Box<dyn Contract<TgradeMsg>> {
         crate::contract::query,
     )
     .with_sudo(crate::contract::sudo);
-
-    Box::new(contract)
-}
-
-pub fn contract_mixer() -> Box<dyn Contract<TgradeMsg>> {
-    let contract = ContractWrapper::new(
-        tg4_mixer::contract::execute,
-        tg4_mixer::contract::instantiate,
-        tg4_mixer::contract::query,
-    );
-
-    Box::new(contract)
-}
-
-pub fn contract_nop() -> Box<dyn Contract<TgradeMsg>> {
-    let contract = ContractWrapper::new(
-        tg4_nop_contract::execute,
-        tg4_nop_contract::instantiate,
-        tg4_nop_contract::query,
-    );
 
     Box::new(contract)
 }
@@ -154,40 +99,12 @@ impl SuiteBuilder {
                 &InstantiateMsg {
                     admin: Some(owner.to_string()),
                     members: self.members,
-                    preauths: Some(2),
+                    preauths: None,
                     halflife: self.halflife,
                     token: token.clone(),
                 },
                 &[],
                 "engagement",
-                Some(owner.to_string()),
-            )
-            .unwrap();
-
-        let nop_id = app.store_code(contract_nop());
-        let nop = app
-            .instantiate_contract(
-                nop_id,
-                owner.clone(),
-                &Empty {},
-                &[],
-                "nop",
-                Some(owner.to_string()),
-            )
-            .unwrap();
-
-        let mixer_id = app.store_code(contract_mixer());
-        let mixer = app
-            .instantiate_contract(
-                mixer_id,
-                owner.clone(),
-                &tg4_mixer::msg::InstantiateMsg {
-                    left_group: contract.to_string(),
-                    right_group: nop.to_string(),
-                    preauths: None,
-                },
-                &[],
-                "mixer",
                 Some(owner.to_string()),
             )
             .unwrap();
@@ -201,7 +118,6 @@ impl SuiteBuilder {
         Suite {
             app,
             contract,
-            mixer,
             owner,
             token,
         }
@@ -216,8 +132,6 @@ pub struct Suite {
     /// Engagement contract address
     pub contract: Addr,
     /// Mixer contract address
-    pub mixer: Addr,
-    /// Extra account for calling any administrative messages, also an initial admin of engagement contract
     pub owner: Addr,
     /// Token which might be distributed by this contract
     pub token: String,
