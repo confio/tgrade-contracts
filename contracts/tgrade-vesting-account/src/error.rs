@@ -16,6 +16,9 @@ pub enum ContractError {
     #[error("Unauthorized - action requires sender to be Oversight")]
     RequireOversight,
 
+    #[error("Unauthorized - action requires sender to be Recipient")]
+    RequireRecipient,
+
     #[error("Unauthorized - action requires sender to be Recipient or Oversight")]
     RequireRecipientOrOversight,
 

@@ -88,6 +88,13 @@ fn require_oversight(sender: &Addr, account: &VestingAccount) -> Result<(), Cont
     Ok(())
 }
 
+fn require_recipient(sender: &Addr, account: &VestingAccount) -> Result<(), ContractError> {
+    if *sender != account.recipient {
+        return Err(ContractError::RequireRecipient);
+    };
+    Ok(())
+}
+
 /// Some actions are not available if hand over procedure has been completed
 fn hand_over_completed(account: &VestingAccount) -> Result<(), ContractError> {
     if account.handed_over {
@@ -144,7 +151,7 @@ fn execute_msg(
     if !account.handed_over {
         return Err(ContractError::HandOverNotCompleted);
     }
-    require_oversight(&sender, &account)?;
+    require_recipient(&sender, &account)?;
 
     Ok(Response::new()
         .add_messages(msgs)
@@ -363,7 +370,7 @@ fn can_execute(deps: Deps, sender: String) -> StdResult<CanExecuteResponse> {
     if !account.handed_over {
         return Ok(CanExecuteResponse { can_execute: false });
     }
-    match require_oversight(&Addr::unchecked(sender), &account) {
+    match require_recipient(&Addr::unchecked(sender), &account) {
         Ok(_) => Ok(CanExecuteResponse { can_execute: true }),
         Err(_) => Ok(CanExecuteResponse { can_execute: false }),
     }
@@ -567,7 +574,6 @@ mod tests {
             );
 
             assert_eq!(
-                // recipient is a new oversight after hand over
                 can_execute(suite.deps.as_ref(), RECIPIENT.to_string()),
                 Ok(CanExecuteResponse { can_execute: true })
             );
