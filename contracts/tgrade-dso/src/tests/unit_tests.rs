@@ -675,6 +675,93 @@ fn test_update_nonvoting_members() {
 }
 
 #[test]
+fn test_whitelist_trading_pair() {
+    let mut deps = mock_dependencies(&[]);
+    let info = mock_info(INIT_ADMIN, &escrow_funds());
+    do_instantiate(deps.as_mut(), info, vec![]).unwrap();
+
+    // check pair is not there
+    let trading_pair = query_member(deps.as_ref(), TRADING_PAIR.into(), None).unwrap();
+    assert_eq!(trading_pair.weight, None);
+
+    // make a new proposal
+    let prop = ProposalContent::WhitelistTradingPair(TRADING_PAIR.into());
+    let msg = ExecuteMsg::Propose {
+        title: "Whitelist trading pair".to_string(),
+        description: "This is my trusted token pair".to_string(),
+        proposal: prop,
+    };
+    let mut env = mock_env();
+    env.block.height += 10;
+    let res = execute(deps.as_mut(), env.clone(), mock_info(INIT_ADMIN, &[]), msg).unwrap();
+    let proposal_id = parse_prop_id(&res.attributes);
+
+    // ensure it passed (already via principal voter)
+    let raw = query(
+        deps.as_ref(),
+        env.clone(),
+        QueryMsg::Proposal { proposal_id },
+    )
+    .unwrap();
+    let prop: ProposalResponse = from_slice(&raw).unwrap();
+    assert_eq!(prop.total_weight, 1);
+    assert_eq!(prop.status, Status::Passed);
+    assert_eq!(prop.id, 1);
+
+    // anyone can execute it
+    env.block.height += 1;
+    execute(
+        deps.as_mut(),
+        env,
+        mock_info(NONVOTING1, &[]),
+        ExecuteMsg::Execute { proposal_id },
+    )
+    .unwrap();
+
+    // check pair added as non-voting member
+    let trading_pair = query_member(deps.as_ref(), TRADING_PAIR.into(), None).unwrap();
+    assert_eq!(trading_pair.weight, Some(0));
+
+    // now remove it
+    let prop = ProposalContent::RemoveTradingPair(TRADING_PAIR.into());
+    let msg = ExecuteMsg::Propose {
+        title: "Remove trading pair".to_string(),
+        description: "This was a trusted token pair".to_string(),
+        proposal: prop,
+    };
+    let mut env = mock_env();
+    env.block.height += 10;
+    let res = execute(deps.as_mut(), env.clone(), mock_info(INIT_ADMIN, &[]), msg).unwrap();
+    let proposal_id = parse_prop_id(&res.attributes);
+
+    // ensure it passed (already via principal voter)
+    let raw = query(
+        deps.as_ref(),
+        env.clone(),
+        QueryMsg::Proposal { proposal_id },
+    )
+    .unwrap();
+    let prop: ProposalResponse = from_slice(&raw).unwrap();
+    assert_eq!(prop.total_weight, 1);
+    assert_eq!(prop.status, Status::Passed);
+    assert_eq!(prop.id, 2);
+
+    // anyone can execute it
+    env.block.height += 1;
+    execute(
+        deps.as_mut(),
+        env,
+        mock_info(NONVOTING1, &[]),
+        ExecuteMsg::Execute { proposal_id },
+    )
+    .unwrap();
+
+    // check pair removed
+    let trading_pair = query_member(deps.as_ref(), TRADING_PAIR.into(), None).unwrap();
+    assert_eq!(trading_pair.weight, None);
+}
+
+#[test]
 fn propose_new_voting_rules() {
     let mut deps = mock_dependencies(&[]);
     let info = mock_info(INIT_ADMIN, &escrow_funds());
