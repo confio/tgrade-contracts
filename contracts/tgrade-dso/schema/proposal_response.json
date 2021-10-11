@@ -250,6 +250,30 @@
             }
           },
           "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "required": [
+            "whitelist_trading_pair"
+          ],
+          "properties": {
+            "whitelist_trading_pair": {
+              "type": "string"
+            }
+          },
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "required": [
+            "remove_trading_pair"
+          ],
+          "properties": {
+            "remove_trading_pair": {
+              "type": "string"
+            }
+          },
+          "additionalProperties": false
         }
       ]
     },
