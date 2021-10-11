@@ -20,20 +20,21 @@ pub struct InstantiateMsg {
     /// Minimum weight needed by an address in `membership` to be considered for the validator set.
     /// 0-weight members are always filtered out.
     /// TODO: if we allow sub-1 scaling factors, determine if this is pre-/post- scaling
-    /// (use weight for cw4, power for tendermint)
+    /// (use weight for cw4, power for Tendermint)
     pub min_weight: u64,
     /// The maximum number of validators that can be included in the Tendermint validator set.
     /// If there are more validators than slots, we select the top N by membership weight
-    /// descending. (In case of ties at the last slot, select by "first" tendermint pubkey
+    /// descending. (In case of ties at the last slot, select by "first" Tendermint pubkey,
     /// lexicographically sorted).
     pub max_validators: u32,
     /// Number of seconds in one epoch. We update the Tendermint validator set only once per epoch.
-    /// Epoch # is env.block.time/epoch_length (round down). First block with a new epoch number
+    /// Epoch # is env.block.time/epoch_length (round down). The first block with a new epoch number
     /// will trigger a new validator calculation.
     pub epoch_length: u64,
-    /// Total reward paid out each epoch. This will be split among all validators during the last
+    /// Total reward paid out at each epoch. This will be split among all validators during the last
     /// epoch.
-    /// (epoch_reward.amount * 86_400 * 30 / epoch_length) is reward tokens to mint each month.
+    /// (epoch_reward.amount * 86_400 * 30 / epoch_length) is the amount of reward tokens to mint
+    /// each month.
     /// Ensure this is sensible in relation to the total token supply.
     pub epoch_reward: Coin,
 
@@ -42,11 +43,11 @@ pub struct InstantiateMsg {
     /// making this privileged/calling the EndBlockers, so that we have a non-empty validator set
     pub initial_keys: Vec<OperatorInitInfo>,
 
-    /// A scaling factor to multiply cw4-group weights to produce the tendermint validator power
+    /// A scaling factor to multiply cw4-group weights to produce the Tendermint validator power
     /// (TODO: should we allow this to reduce weight? Like 1/1000?)
     pub scaling: Option<u32>,
 
-    /// Percentage of total accumulated fees which is subtracted from tokens minted as a rewards.
+    /// Percentage of total accumulated fees that is subtracted from tokens minted as rewards.
     /// 50% by default. To disable this feature just set it to 0 (which effectively means that fees
     /// don't affect the per-epoch reward).
     #[serde(default = "default_fee_percentage")]
@@ -176,6 +177,7 @@ pub enum ExecuteMsg {
     /// No two operators may have the same consensus_key.
     RegisterValidatorKey {
         pubkey: Pubkey,
+        /// Additional metadata assigned to this validator
         metadata: ValidatorMetadata,
     },
     UpdateMetadata(ValidatorMetadata),
