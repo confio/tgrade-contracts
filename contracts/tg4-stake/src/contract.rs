@@ -174,7 +174,7 @@ pub fn execute_unbond(
         .add_attribute("amount", amount)
         .add_attribute("sender", &info.sender)
         .add_attribute(
-            "copmletion_time",
+            "completion_time",
             completion.timestamp().nanos().to_string(),
         );
     res.messages = update_membership(deps.storage, info.sender, new_stake, &cfg, env.block.height)?;
