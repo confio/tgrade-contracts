@@ -38,4 +38,7 @@ pub enum ContractError {
 
     #[error("Amount of tokens in operation must be higher then zero")]
     ZeroTokensNotAllowed,
+
+    #[error("No {denom} tokens sent")]
+    EmptyBalance { denom: String },
 }

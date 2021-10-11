@@ -2,7 +2,7 @@
 use cosmwasm_std::entry_point;
 use cosmwasm_std::{
     coins, to_binary, Addr, BankMsg, Binary, CosmosMsg, Decimal, Deps, DepsMut, Env, MessageInfo,
-    StdResult, Uint128,
+    StakingMsg, StdResult, Uint128,
 };
 use cw2::set_contract_version;
 
@@ -69,8 +69,8 @@ pub fn execute(
         ExecuteMsg::UnfreezeTokens { amount } => unfreeze_tokens(deps, info.sender, amount),
         ExecuteMsg::ChangeOperator { address } => change_operator(deps, info.sender, address),
         ExecuteMsg::HandOver {} => hand_over(deps, env, info.sender),
-        ExecuteMsg::Bond {} => bond(deps, info.sender),
-        ExecuteMsg::Unbond { .. } => unbond(deps, info.sender),
+        ExecuteMsg::Bond {} => bond(deps, info),
+        ExecuteMsg::Unbond { amount } => unbond(deps, info, amount),
     }
 }
 
@@ -256,16 +256,31 @@ fn hand_over(deps: DepsMut, env: Env, sender: Addr) -> Result<Response, Contract
         .add_message(msg))
 }
 
-fn bond(deps: DepsMut, sender: Addr) -> Result<Response, ContractError> {
+fn bond(deps: DepsMut, info: MessageInfo) -> Result<Response, ContractError> {
     let mut account = VESTING_ACCOUNT.load(deps.storage)?;
-    require_operator(&sender, &account)?;
+    require_operator(&info.sender, &account)?;
 
-    Ok(Response::new())
+    let payment = info
+        .funds
+        .iter()
+        .find(|x| x.denom == VESTING_DENOM)
+        .ok_or_else(|| ContractError::EmptyBalance {
+            denom: VESTING_DENOM.to_string(),
+        })?;
+
+    Ok(Response::new()
+        .add_message(StakingMsg::Delegate {
+            validator: invest.validator,
+            amount: payment.clone(),
+        })
+        .add_attribute("action", "bond")
+        .add_attribute("from", info.sender)
+        .add_attribute("bonded", payment.amount))
 }
 
-fn unbond(deps: DepsMut, sender: Addr) -> Result<Response, ContractError> {
+fn unbond(deps: DepsMut, _info: MessageInfo, _amount: Uint128) -> Result<Response, ContractError> {
     let mut account = VESTING_ACCOUNT.load(deps.storage)?;
-    require_operator(&sender, &account)?;
+    require_operator(&info.sender, &account)?;
 
     Ok(Response::new())
 }
