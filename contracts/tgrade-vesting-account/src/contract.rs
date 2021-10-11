@@ -49,7 +49,7 @@ fn create_vesting_account(
         frozen_tokens: Uint128::zero(),
         paid_tokens: Uint128::zero(),
         initial_tokens,
-        hand_over: false,
+        handed_over: false,
     };
     VESTING_ACCOUNT.save(deps.storage, &account)?;
 
@@ -251,7 +251,7 @@ fn hand_over(deps: DepsMut, env: Env, sender: Addr) -> Result<Response, Contract
     };
 
     account.frozen_tokens = Uint128::zero();
-    account.hand_over = true;
+    account.handed_over = true;
     account.oversight = account.recipient.clone();
     VESTING_ACCOUNT.save(deps.storage, &account)?;
 
@@ -357,7 +357,7 @@ fn token_info(deps: Deps) -> StdResult<TokenInfoResponse> {
 fn is_liberated(deps: Deps) -> StdResult<IsLiberatedResponse> {
     let account = VESTING_ACCOUNT.load(deps.storage)?;
     Ok(IsLiberatedResponse {
-        is_liberated: account.hand_over,
+        is_liberated: account.handed_over,
     })
 }
 
