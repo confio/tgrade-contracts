@@ -202,6 +202,7 @@ const REMOVE_NON_VOTING_TYPE: &str = "remove_non_voting";
 const PROPOSE_VOTING_TYPE: &str = "propose_voting";
 const PROMOTE_TYPE: &str = "promoted";
 const WHITELIST_TYPE: &str = "whitelisted";
+const REMOVE_TYPE: &str = "removed";
 const PROPOSAL_KEY: &str = "proposal";
 const MEMBER_KEY: &str = "member";
 const TRADING_PAIR_KEY: &str = "trading_pair";
@@ -414,7 +415,7 @@ pub fn validate_proposal(
             }
             punishments.iter().try_for_each(|p| p.validate(&deps))
         }
-        ProposalContent::WhitelistTradingPair(addr) => {
+        ProposalContent::WhitelistTradingPair(addr) | ProposalContent::RemoveTradingPair(addr) => {
             validate_addresses(deps.api, &[addr.into()])
             // FIXME: Check that address belongs to a contract
         }
@@ -818,6 +819,7 @@ pub fn proposal_execute(
         ProposalContent::WhitelistTradingPair(addr) => {
             proposal_whitelist_trading_pair(deps, env, &addr)
         }
+        ProposalContent::RemoveTradingPair(addr) => proposal_remove_trading_pair(deps, env, &addr),
     }
 }
 
@@ -911,6 +913,19 @@ pub fn proposal_whitelist_trading_pair(
         .add_attribute("trading_pair", addr);
 
     let ev = whitelist_trading_pair(deps, env.block.height, addr)?;
+    Ok(res.add_events(ev))
+}
+
+pub fn proposal_remove_trading_pair(
+    deps: DepsMut,
+    env: Env,
+    addr: &str,
+) -> Result<Response, ContractError> {
+    let res = Response::new()
+        .add_attribute("proposal", "remove_trading_pair")
+        .add_attribute("trading_pair", addr);
+
+    let ev = remove_trading_pair(deps, env.block.height, addr)?;
     Ok(res.add_events(ev))
 }
 
@@ -1079,6 +1094,18 @@ pub fn whitelist_trading_pair(
     let ev = Event::new(WHITELIST_TYPE).add_attribute(TRADING_PAIR_KEY, addr);
 
     add_remove_non_voting_members(deps, height, vec![addr.into()], vec![])?;
+
+    Ok(vec![ev])
+}
+
+pub fn remove_trading_pair(
+    deps: DepsMut,
+    height: u64,
+    addr: &str,
+) -> Result<Vec<Event>, ContractError> {
+    let ev = Event::new(REMOVE_TYPE).add_attribute(TRADING_PAIR_KEY, addr);
+
+    add_remove_non_voting_members(deps, height, vec![], vec![addr.into()])?;
 
     Ok(vec![ev])
 }
