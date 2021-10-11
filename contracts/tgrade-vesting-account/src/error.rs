@@ -25,9 +25,7 @@ pub enum ContractError {
     #[error("Contract must be expired to proceed with hand over")]
     ContractNotExpired,
 
-    #[error(
-        "Unauthorized - hand over not done"
-    )]
+    #[error("Unauthorized - hand over not done")]
     HandOverNotCompleted,
 
     #[error(

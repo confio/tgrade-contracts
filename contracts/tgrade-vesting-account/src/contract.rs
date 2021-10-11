@@ -75,7 +75,7 @@ pub fn execute(
 }
 
 fn require_operator(sender: &Addr, account: &VestingAccount) -> Result<(), ContractError> {
-    if *sender != account.operator && *sender != account.oversight {
+    if ![&account.operator, &account.oversight].contains(&sender) {
         Err(ContractError::RequireOperator)
     } else {
         Ok(())
