@@ -1,11 +1,12 @@
 use crate::error::ContractError;
 use crate::msg::*;
 use anyhow::Result as AnyResult;
-use cosmwasm_std::{coins, Addr, Coin, StdResult};
-use cw_multi_test::{AppBuilder, AppResponse, BasicApp, Contract, ContractWrapper, Executor};
+use cosmwasm_std::{Addr, Coin, CosmosMsg, StdResult};
+use cw_multi_test::{AppResponse, Contract, ContractWrapper, CosmosRouter, Executor};
 use derivative::Derivative;
-use tg4::Member;
+use tg4::{Member, MemberListResponse};
 use tg_bindings::TgradeMsg;
+use tg_bindings_test::TgradeApp;
 use tg_utils::Duration;
 
 pub fn contract_engagement() -> Box<dyn Contract<TgradeMsg>> {
@@ -17,6 +18,16 @@ pub fn contract_engagement() -> Box<dyn Contract<TgradeMsg>> {
     .with_sudo(crate::contract::sudo);
 
     Box::new(contract)
+}
+
+pub fn expected_members(members: Vec<(&str, u64)>) -> Vec<Member> {
+    members
+        .into_iter()
+        .map(|(addr, weight)| Member {
+            addr: addr.to_owned(),
+            weight,
+        })
+        .collect()
 }
 
 #[derive(Derivative)]
@@ -43,6 +54,11 @@ impl SuiteBuilder {
         self
     }
 
+    pub fn with_halflife(mut self, halflife: Duration) -> Self {
+        self.halflife = Some(halflife);
+        self
+    }
+
     #[track_caller]
     pub fn build(self) -> Suite {
         let funds = self.funds;
@@ -50,17 +66,28 @@ impl SuiteBuilder {
         let owner = Addr::unchecked("owner");
         let token = "usdc".to_owned();
 
-        let mut app = {
-            let token = &token;
-            AppBuilder::new_custom().build(move |router, _, storage| {
-                for (addr, amount) in funds {
-                    router
-                        .bank
-                        .init_balance(storage, &addr, coins(amount, token))
-                        .unwrap()
-                }
-            })
-        };
+        let mut app = TgradeApp::new(owner.as_str());
+
+        let block_info = app.block_info();
+        app.init_modules(|router, api, storage| -> AnyResult<()> {
+            for (addr, amount) in funds {
+                router.execute(
+                    api,
+                    storage,
+                    &block_info,
+                    owner.clone(),
+                    CosmosMsg::Custom(TgradeMsg::MintTokens {
+                        denom: token.clone(),
+                        amount: amount.into(),
+                        recipient: addr.to_string(),
+                    })
+                    .into(),
+                )?;
+            }
+
+            Ok(())
+        })
+        .unwrap();
 
         let contract_id = app.store_code(contract_engagement());
         let contract = app
@@ -80,6 +107,15 @@ impl SuiteBuilder {
             )
             .unwrap();
 
+        // start from genesis
+        app.back_to_genesis();
+
+        // promote the engagement contract
+        app.promote(owner.as_str(), contract.as_str()).unwrap();
+
+        // process initial genesis block
+        app.next_block().unwrap();
+
         Suite {
             app,
             contract,
@@ -93,7 +129,7 @@ impl SuiteBuilder {
 #[derivative(Debug)]
 pub struct Suite {
     #[derivative(Debug = "ignore")]
-    pub app: BasicApp<TgradeMsg>,
+    pub app: TgradeApp,
     /// Engagement contract address
     pub contract: Addr,
     /// Extra account for calling any administrative messages, also an initial admin of engagement contract
@@ -219,5 +255,16 @@ impl Suite {
             .query_balance(&Addr::unchecked(owner), &self.token)?
             .amount;
         Ok(amount.into())
+    }
+
+    pub fn members(&self) -> StdResult<Vec<Member>> {
+        let resp: MemberListResponse = self.app.wrap().query_wasm_smart(
+            self.contract.clone(),
+            &QueryMsg::ListMembers {
+                start_after: None,
+                limit: None,
+            },
+        )?;
+        Ok(resp.members)
     }
 }

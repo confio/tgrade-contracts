@@ -457,6 +457,7 @@ pub fn apply_points_correction(
 
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn sudo(deps: DepsMut, env: Env, msg: SudoMsg) -> Result<Response, ContractError> {
+    println!("Sudo");
     match msg {
         SudoMsg::UpdateMember(member) => sudo_add_member(deps, env, member),
         SudoMsg::PrivilegeChange(PrivilegeChangeMsg::Promoted {}) => privilege_promote(deps),
@@ -483,7 +484,7 @@ fn end_block(mut deps: DepsMut, env: Env) -> Result<Response, ContractError> {
 
     // If duration of half life added to timestamp of last applied
     // if lesser then current timestamp, do nothing
-    if !HALFLIFE.load(deps.storage)?.should_apply(env.block.time) {
+    if dbg!(!HALFLIFE.load(deps.storage)?.should_apply(env.block.time)) {
         return Ok(resp);
     }
 
