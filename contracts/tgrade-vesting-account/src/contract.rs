@@ -69,7 +69,8 @@ pub fn execute(
         ExecuteMsg::UnfreezeTokens { amount } => unfreeze_tokens(deps, info.sender, amount),
         ExecuteMsg::ChangeOperator { address } => change_operator(deps, info.sender, address),
         ExecuteMsg::HandOver {} => hand_over(deps, env, info.sender),
-        _ => Err(ContractError::NotImplemented),
+        ExecuteMsg::Bond {} => bond(deps, info.sender),
+        ExecuteMsg::Unbond { .. } => unbond(deps, info.sender),
     }
 }
 
@@ -253,6 +254,20 @@ fn hand_over(deps: DepsMut, env: Env, sender: Addr) -> Result<Response, Contract
         .add_attribute("new_oversight", account.oversight.to_string())
         .add_attribute("sender", sender)
         .add_message(msg))
+}
+
+fn bond(deps: DepsMut, sender: Addr) -> Result<Response, ContractError> {
+    let mut account = VESTING_ACCOUNT.load(deps.storage)?;
+    require_operator(&sender, &account)?;
+
+    Ok(Response::new())
+}
+
+fn unbond(deps: DepsMut, sender: Addr) -> Result<Response, ContractError> {
+    let mut account = VESTING_ACCOUNT.load(deps.storage)?;
+    require_operator(&sender, &account)?;
+
+    Ok(Response::new())
 }
 
 mod helpers {
