@@ -510,6 +510,8 @@ pub enum ProposalContent {
         voters: Vec<String>,
     },
     PunishMembers(Vec<Punishment>),
+    WhitelistTradingPair(String),
+    RemoveTradingPair(String),
 }
 
 #[derive(Serialize, Deserialize, Clone, PartialEq, JsonSchema, Debug)]

@@ -201,8 +201,11 @@ const ADD_NON_VOTING_TYPE: &str = "add_non_voting";
 const REMOVE_NON_VOTING_TYPE: &str = "remove_non_voting";
 const PROPOSE_VOTING_TYPE: &str = "propose_voting";
 const PROMOTE_TYPE: &str = "promoted";
+const WHITELIST_TYPE: &str = "whitelisted";
+const REMOVE_TYPE: &str = "removed";
 const PROPOSAL_KEY: &str = "proposal";
 const MEMBER_KEY: &str = "member";
+const TRADING_PAIR_KEY: &str = "trading_pair";
 
 /// Call when the batch is ready to become voters (all paid or expiration hit).
 /// This checks all members if they have paid up, and if so makes them full voters.
@@ -397,18 +400,24 @@ pub fn validate_proposal(
             }
             validate_addresses(deps.api, add)?;
             validate_addresses(deps.api, remove)
+            // FIXME: Check that addresses don't belong to a contract
         }
         ProposalContent::AddVotingMembers { voters } => {
             if voters.is_empty() {
                 return Err(ContractError::NoMembers {});
             }
             validate_addresses(deps.api, voters)
+            // FIXME: Check that addresses don't belong to a contract
         }
         ProposalContent::PunishMembers(punishments) => {
             if punishments.is_empty() {
                 return Err(ContractError::NoPunishments {});
             }
             punishments.iter().try_for_each(|p| p.validate(&deps))
+        }
+        ProposalContent::WhitelistTradingPair(addr) | ProposalContent::RemoveTradingPair(addr) => {
+            validate_addresses(deps.api, &[addr.into()])
+            // FIXME: Check that address belongs to a contract
         }
     }
 }
@@ -807,6 +816,10 @@ pub fn proposal_execute(
         ProposalContent::PunishMembers(punishments) => {
             proposal_punish_members(deps, env, proposal_id, &punishments)
         }
+        ProposalContent::WhitelistTradingPair(addr) => {
+            proposal_whitelist_trading_pair(deps, env, &addr)
+        }
+        ProposalContent::RemoveTradingPair(addr) => proposal_remove_trading_pair(deps, env, &addr),
     }
 }
 
@@ -888,6 +901,32 @@ pub fn proposal_add_voting_members(
         .add_event(evt);
 
     Ok(res)
+}
+
+pub fn proposal_whitelist_trading_pair(
+    deps: DepsMut,
+    env: Env,
+    addr: &str,
+) -> Result<Response, ContractError> {
+    let res = Response::new()
+        .add_attribute("proposal", "whitelist_trading_pair")
+        .add_attribute("trading_pair", addr);
+
+    let ev = whitelist_trading_pair(deps, env.block.height, addr)?;
+    Ok(res.add_events(ev))
+}
+
+pub fn proposal_remove_trading_pair(
+    deps: DepsMut,
+    env: Env,
+    addr: &str,
+) -> Result<Response, ContractError> {
+    let res = Response::new()
+        .add_attribute("proposal", "remove_trading_pair")
+        .add_attribute("trading_pair", addr);
+
+    let ev = remove_trading_pair(deps, env.block.height, addr)?;
+    Ok(res.add_events(ev))
 }
 
 // This is a helper used both on instantiation as well as on passed proposals
@@ -1045,6 +1084,30 @@ pub fn proposal_punish_members(
     )?;
 
     Ok(res)
+}
+
+pub fn whitelist_trading_pair(
+    deps: DepsMut,
+    height: u64,
+    addr: &str,
+) -> Result<Vec<Event>, ContractError> {
+    let ev = Event::new(WHITELIST_TYPE).add_attribute(TRADING_PAIR_KEY, addr);
+
+    add_remove_non_voting_members(deps, height, vec![addr.into()], vec![])?;
+
+    Ok(vec![ev])
+}
+
+pub fn remove_trading_pair(
+    deps: DepsMut,
+    height: u64,
+    addr: &str,
+) -> Result<Vec<Event>, ContractError> {
+    let ev = Event::new(REMOVE_TYPE).add_attribute(TRADING_PAIR_KEY, addr);
+
+    add_remove_non_voting_members(deps, height, vec![], vec![addr.into()])?;
+
+    Ok(vec![ev])
 }
 
 #[cfg_attr(not(feature = "library"), entry_point)]
