@@ -68,6 +68,9 @@ impl SuiteBuilder {
 
         let mut app = TgradeApp::new(owner.as_str());
 
+        // start from genesis
+        app.back_to_genesis();
+
         let block_info = app.block_info();
         app.init_modules(|router, api, storage| -> AnyResult<()> {
             for (addr, amount) in funds {
@@ -106,9 +109,6 @@ impl SuiteBuilder {
                 Some(owner.to_string()),
             )
             .unwrap();
-
-        // start from genesis
-        app.back_to_genesis();
 
         // promote the engagement contract
         app.promote(owner.as_str(), contract.as_str()).unwrap();

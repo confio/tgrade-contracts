@@ -386,6 +386,10 @@ mod funds_distribution {
 
         let token = suite.token.clone();
 
+        // Pre-halflife split, total weights 1 + 2 + 5 = 8
+        // members[0], weight 1: 400 * 1 / 8 = 50
+        // members[1], weight 2: 400 * 2 / 8 = 100
+        // members[2], weight 5: 400 * 5 / 8 = 250
         suite
             .distribute_funds(&members[3], None, &coins(400, &token))
             .unwrap();
@@ -393,25 +397,34 @@ mod funds_distribution {
         suite.app.advance_seconds(125);
         suite.app.next_block().unwrap();
 
+        // Post-halflife split, total weights 1 + 1 + 2 = 4
+        // members[0], weight 1: 600 * 1 / 4 = 150
+        // members[1], weight 1: 600 * 1 / 4 = 150
+        // members[2], weight 2: 600 * 2 / 4 = 300
         suite
             .distribute_funds(&members[3], None, &coins(600, &token))
             .unwrap();
 
+        // Withdrawal of combined splits:
+        // members[0]: 50 + 150 = 200
+        // members[1]: 100 + 150 = 250
+        // members[2]: 250 + 300 = 550
         suite.withdraw_funds(&members[0], None, None).unwrap();
         suite.withdraw_funds(&members[1], None, None).unwrap();
         suite.withdraw_funds(&members[2], None, None).unwrap();
 
         assert_eq!(suite.token_balance(suite.contract.as_str()).unwrap(), 0);
-        assert_eq!(suite.token_balance(&members[0]).unwrap(), 125);
+        assert_eq!(suite.token_balance(&members[0]).unwrap(), 200);
         assert_eq!(suite.token_balance(&members[1]).unwrap(), 250);
-        assert_eq!(suite.token_balance(&members[2]).unwrap(), 625);
+        assert_eq!(suite.token_balance(&members[2]).unwrap(), 550);
         assert_eq!(suite.token_balance(&members[3]).unwrap(), 0);
 
+        // Verifying halflife splits
         let mut resp = suite.members().unwrap();
         resp.sort_by_key(|member| member.addr.clone());
 
         let mut expected =
-            expected_members(vec![(&members[0], 1), (&members[1], 1), (&members[2], 3)]);
+            expected_members(vec![(&members[0], 1), (&members[1], 1), (&members[2], 2)]);
         expected.sort_by_key(|member| member.addr.clone());
 
         assert_eq!(resp, expected);
