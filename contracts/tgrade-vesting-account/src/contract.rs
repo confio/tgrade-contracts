@@ -1,13 +1,16 @@
 #[cfg(not(feature = "library"))]
 use cosmwasm_std::entry_point;
 use cosmwasm_std::{
-    coins, to_binary, Addr, BankMsg, Binary, Decimal, Deps, DepsMut, Env, MessageInfo, StdResult,
-    Uint128,
+    coins, to_binary, Addr, BankMsg, Binary, CosmosMsg, Decimal, Deps, DepsMut, Env, MessageInfo,
+    StdResult, Uint128,
 };
 use cw2::set_contract_version;
 
 use crate::error::ContractError;
-use crate::msg::{AccountInfoResponse, ExecuteMsg, InstantiateMsg, QueryMsg, TokenInfoResponse};
+use crate::msg::{
+    AccountInfoResponse, CanExecuteResponse, ExecuteMsg, InstantiateMsg, IsHandedOverResponse,
+    QueryMsg, TokenInfoResponse,
+};
 use crate::state::{VestingAccount, VestingPlan, VESTING_ACCOUNT};
 use tg_bindings::TgradeMsg;
 
@@ -46,6 +49,7 @@ fn create_vesting_account(
         frozen_tokens: Uint128::zero(),
         paid_tokens: Uint128::zero(),
         initial_tokens,
+        handed_over: false,
     };
     VESTING_ACCOUNT.save(deps.storage, &account)?;
 
@@ -60,12 +64,43 @@ pub fn execute(
     msg: ExecuteMsg,
 ) -> Result<Response, ContractError> {
     match msg {
+        ExecuteMsg::Execute { msgs } => execute_msg(deps, info.sender, msgs),
         ExecuteMsg::ReleaseTokens { amount } => release_tokens(deps, env, info.sender, amount),
         ExecuteMsg::FreezeTokens { amount } => freeze_tokens(deps, info.sender, amount),
         ExecuteMsg::UnfreezeTokens { amount } => unfreeze_tokens(deps, info.sender, amount),
         ExecuteMsg::ChangeOperator { address } => change_operator(deps, info.sender, address),
+        ExecuteMsg::HandOver {} => hand_over(deps, env, info.sender),
         _ => Err(ContractError::NotImplemented),
     }
+}
+
+fn require_operator(sender: &Addr, account: &VestingAccount) -> Result<(), ContractError> {
+    if ![&account.operator, &account.oversight].contains(&sender) {
+        return Err(ContractError::RequireOperator);
+    };
+    Ok(())
+}
+
+fn require_oversight(sender: &Addr, account: &VestingAccount) -> Result<(), ContractError> {
+    if *sender != account.oversight {
+        return Err(ContractError::RequireOversight);
+    };
+    Ok(())
+}
+
+fn require_recipient(sender: &Addr, account: &VestingAccount) -> Result<(), ContractError> {
+    if *sender != account.recipient {
+        return Err(ContractError::RequireRecipient);
+    };
+    Ok(())
+}
+
+/// Some actions are not available if hand over procedure has been completed
+fn hand_over_completed(account: &VestingAccount) -> Result<(), ContractError> {
+    if account.handed_over {
+        return Err(ContractError::HandOverCompleted);
+    }
+    Ok(())
 }
 
 /// Returns information about amount of tokens that is allowed to be released
@@ -107,20 +142,38 @@ fn allowed_release(deps: Deps, env: &Env, plan: &VestingPlan) -> Result<Uint128,
     }
 }
 
-fn require_operator(sender: &Addr, account: &VestingAccount) -> Result<(), ContractError> {
-    if *sender != account.operator && *sender != account.oversight {
-        Err(ContractError::RequireOperator)
-    } else {
-        Ok(())
+fn execute_msg(
+    deps: DepsMut,
+    sender: Addr,
+    msgs: Vec<CosmosMsg<TgradeMsg>>,
+) -> Result<Response, ContractError> {
+    let account = VESTING_ACCOUNT.load(deps.storage)?;
+    if !account.handed_over {
+        return Err(ContractError::HandOverNotCompleted);
     }
+    require_recipient(&sender, &account)?;
+
+    Ok(Response::new()
+        .add_messages(msgs)
+        .add_attribute("action", "execute"))
 }
 
-fn require_oversight(sender: &Addr, account: &VestingAccount) -> Result<(), ContractError> {
-    if *sender != account.oversight {
-        Err(ContractError::RequireOversight)
-    } else {
-        Ok(())
-    }
+fn release_tokens(
+    deps: DepsMut,
+    env: Env,
+    sender: Addr,
+    requested_amount: Option<Uint128>,
+) -> Result<Response, ContractError> {
+    let mut account = VESTING_ACCOUNT.load(deps.storage)?;
+    hand_over_completed(&account)?;
+    require_operator(&sender, &account)?;
+
+    let allowed_to_release = allowed_release(deps.as_ref(), &env, &account.vesting_plan)?;
+    let requested_amount = requested_amount.unwrap_or(allowed_to_release);
+    if requested_amount > allowed_to_release {
+        return Err(ContractError::NotEnoughTokensAvailable);
+    };
+    helpers::release_tokens(requested_amount, sender, &mut account, deps.storage)
 }
 
 fn freeze_tokens(
@@ -129,7 +182,7 @@ fn freeze_tokens(
     requested_amount: Option<Uint128>,
 ) -> Result<Response, ContractError> {
     let mut account = VESTING_ACCOUNT.load(deps.storage)?;
-
+    hand_over_completed(&account)?;
     require_oversight(&sender, &account)?;
 
     let available_to_freeze = account.initial_tokens - account.frozen_tokens - account.paid_tokens;
@@ -147,7 +200,7 @@ fn unfreeze_tokens(
     requested_amount: Option<Uint128>,
 ) -> Result<Response, ContractError> {
     let mut account = VESTING_ACCOUNT.load(deps.storage)?;
-
+    hand_over_completed(&account)?;
     require_oversight(&sender, &account)?;
 
     if let Some(requested_amount) = requested_amount {
@@ -163,7 +216,7 @@ fn change_operator(
     new_operator: Addr,
 ) -> Result<Response, ContractError> {
     let mut account = VESTING_ACCOUNT.load(deps.storage)?;
-
+    hand_over_completed(&account)?;
     require_oversight(&sender, &account)?;
 
     account.operator = new_operator.clone();
@@ -173,6 +226,34 @@ fn change_operator(
         .add_attribute("action", "change_operator")
         .add_attribute("operator", new_operator.to_string())
         .add_attribute("sender", sender))
+}
+
+fn hand_over(deps: DepsMut, env: Env, sender: Addr) -> Result<Response, ContractError> {
+    let mut account = VESTING_ACCOUNT.load(deps.storage)?;
+    hand_over_completed(&account)?;
+    if ![&account.recipient, &account.oversight].contains(&&sender) {
+        return Err(ContractError::RequireRecipientOrOversight);
+    }
+    if !account.vesting_plan.is_expired(env.block.time) {
+        return Err(ContractError::ContractNotExpired);
+    }
+
+    let frozen_tokens = account.frozen_tokens.u128();
+    let msg = BankMsg::Burn {
+        amount: coins(frozen_tokens, VESTING_DENOM),
+    };
+
+    account.frozen_tokens = Uint128::zero();
+    account.handed_over = true;
+    account.oversight = account.recipient.clone();
+    VESTING_ACCOUNT.save(deps.storage, &account)?;
+
+    Ok(Response::new()
+        .add_attribute("action", "hand_over")
+        .add_attribute("burnt_tokens", frozen_tokens.to_string())
+        .add_attribute("new_oversight", account.oversight.to_string())
+        .add_attribute("sender", sender)
+        .add_message(msg))
 }
 
 mod helpers {
@@ -185,14 +266,15 @@ mod helpers {
         account: &mut VestingAccount,
         storage: &mut dyn Storage,
     ) -> Result<Response, ContractError> {
-        let msg = BankMsg::Send {
-            to_address: account.recipient.to_string(),
-            amount: coins(amount.u128(), VESTING_DENOM),
-        };
+        amount_not_zero(amount)?;
 
         account.paid_tokens += amount;
         VESTING_ACCOUNT.save(storage, account)?;
 
+        let msg = BankMsg::Send {
+            to_address: account.recipient.to_string(),
+            amount: coins(amount.u128(), VESTING_DENOM),
+        };
         Ok(Response::new()
             .add_attribute("action", "release_tokens")
             .add_attribute("tokens", amount.to_string())
@@ -206,8 +288,9 @@ mod helpers {
         account: &mut VestingAccount,
         storage: &mut dyn Storage,
     ) -> Result<Response, ContractError> {
-        account.frozen_tokens += amount;
+        amount_not_zero(amount)?;
 
+        account.frozen_tokens += amount;
         VESTING_ACCOUNT.save(storage, account)?;
 
         Ok(Response::new()
@@ -222,6 +305,8 @@ mod helpers {
         account: &mut VestingAccount,
         storage: &mut dyn Storage,
     ) -> Result<Response, ContractError> {
+        amount_not_zero(amount)?;
+
         // Don't subtract with overflow
         account.frozen_tokens = account.frozen_tokens.saturating_sub(amount);
         VESTING_ACCOUNT.save(storage, account)?;
@@ -231,27 +316,12 @@ mod helpers {
             .add_attribute("tokens", amount.to_string())
             .add_attribute("sender", sender))
     }
-}
 
-fn release_tokens(
-    deps: DepsMut,
-    env: Env,
-    sender: Addr,
-    requested_amount: Option<Uint128>,
-) -> Result<Response, ContractError> {
-    let mut account = VESTING_ACCOUNT.load(deps.storage)?;
-
-    require_operator(&sender, &account)?;
-
-    let allowed_to_release = allowed_release(deps.as_ref(), &env, &account.vesting_plan)?;
-    if let Some(requested_amount) = requested_amount {
-        if allowed_to_release >= requested_amount {
-            helpers::release_tokens(requested_amount, sender, &mut account, deps.storage)
-        } else {
-            Err(ContractError::NotEnoughTokensAvailable)
-        }
-    } else {
-        helpers::release_tokens(allowed_to_release, sender, &mut account, deps.storage)
+    fn amount_not_zero(amount: Uint128) -> Result<(), ContractError> {
+        if amount == Uint128::zero() {
+            return Err(ContractError::ZeroTokensNotAllowed);
+        };
+        Ok(())
     }
 }
 
@@ -260,9 +330,8 @@ pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
     match msg {
         QueryMsg::AccountInfo {} => to_binary(&account_info(deps)?),
         QueryMsg::TokenInfo {} => to_binary(&token_info(deps)?),
-        _ => Err(cosmwasm_std::StdError::GenericErr {
-            msg: "Querry not yet implemented".to_string(),
-        }),
+        QueryMsg::IsHandedOver {} => to_binary(&is_handed_over(deps)?),
+        QueryMsg::CanExecute { sender } => to_binary(&can_execute(deps, sender)?),
     }
 }
 
@@ -287,6 +356,24 @@ fn token_info(deps: Deps) -> StdResult<TokenInfoResponse> {
         released: account.paid_tokens,
     };
     Ok(info)
+}
+
+fn is_handed_over(deps: Deps) -> StdResult<IsHandedOverResponse> {
+    let account = VESTING_ACCOUNT.load(deps.storage)?;
+    Ok(IsHandedOverResponse {
+        is_handed_over: account.handed_over,
+    })
+}
+
+fn can_execute(deps: Deps, sender: String) -> StdResult<CanExecuteResponse> {
+    let account = VESTING_ACCOUNT.load(deps.storage)?;
+    if !account.handed_over {
+        return Ok(CanExecuteResponse { can_execute: false });
+    }
+    match require_recipient(&Addr::unchecked(sender), &account) {
+        Ok(_) => Ok(CanExecuteResponse { can_execute: true }),
+        Err(_) => Ok(CanExecuteResponse { can_execute: false }),
+    }
 }
 
 #[cfg(test)]
@@ -443,6 +530,54 @@ mod tests {
                 },
             )
         }
+
+        fn hand_over(&mut self, sender: &str) -> Result<Response, ContractError> {
+            execute(
+                self.deps.as_mut(),
+                self.env.clone(),
+                MessageInfo {
+                    sender: Addr::unchecked(sender),
+                    funds: vec![],
+                },
+                ExecuteMsg::HandOver {},
+            )
+        }
+    }
+
+    mod query {
+        use super::*;
+
+        #[test]
+        fn execute() {
+            let mut suite = SuiteBuilder::default().build();
+
+            // can't execute before hand over
+            assert_eq!(
+                can_execute(suite.deps.as_ref(), OVERSIGHT.to_string()),
+                Ok(CanExecuteResponse { can_execute: false })
+            );
+
+            // hand over has been completed
+            suite.env.block.time = Timestamp::from_seconds(DEFAULT_RELEASE);
+            // recipient becomes an oversight after hand over
+            assert_matches!(suite.hand_over(RECIPIENT), Ok(_));
+
+            assert_eq!(
+                // previous oversight from before hand over
+                can_execute(suite.deps.as_ref(), OVERSIGHT.to_string()),
+                Ok(CanExecuteResponse { can_execute: false })
+            );
+
+            assert_eq!(
+                can_execute(suite.deps.as_ref(), OPERATOR.to_string()),
+                Ok(CanExecuteResponse { can_execute: false })
+            );
+
+            assert_eq!(
+                can_execute(suite.deps.as_ref(), RECIPIENT.to_string()),
+                Ok(CanExecuteResponse { can_execute: true })
+            );
+        }
     }
 
     mod unauthorized {
@@ -456,6 +591,11 @@ mod tests {
                 suite.freeze_tokens(RECIPIENT, None),
                 Err(ContractError::RequireOversight)
             );
+
+            assert_matches!(
+                suite.freeze_tokens(OPERATOR, None),
+                Err(ContractError::RequireOversight)
+            );
         }
 
         #[test]
@@ -466,6 +606,11 @@ mod tests {
                 suite.unfreeze_tokens(RECIPIENT, Some(50)),
                 Err(ContractError::RequireOversight)
             );
+
+            assert_matches!(
+                suite.unfreeze_tokens(OPERATOR, Some(50)),
+                Err(ContractError::RequireOversight)
+            );
         }
 
         #[test]
@@ -474,6 +619,11 @@ mod tests {
 
             assert_matches!(
                 suite.change_operator(RECIPIENT, RECIPIENT),
+                Err(ContractError::RequireOversight)
+            );
+
+            assert_matches!(
+                suite.change_operator(OPERATOR, RECIPIENT),
                 Err(ContractError::RequireOversight)
             );
         }
@@ -487,6 +637,44 @@ mod tests {
                 Err(ContractError::RequireOperator)
             );
         }
+
+        #[test]
+        fn hand_over() {
+            let mut suite = SuiteBuilder::default().build();
+
+            assert_matches!(
+                suite.hand_over(OPERATOR),
+                Err(ContractError::RequireRecipientOrOversight)
+            );
+        }
+    }
+
+    #[test]
+    fn hand_over_completed_actions_not_accessible() {
+        let mut suite = SuiteBuilder::default().build();
+        suite.env.block.time = Timestamp::from_seconds(DEFAULT_RELEASE);
+
+        assert_matches!(suite.hand_over(OVERSIGHT), Ok(_));
+
+        assert_eq!(
+            suite.freeze_tokens(OVERSIGHT, None),
+            Err(ContractError::HandOverCompleted)
+        );
+
+        assert_eq!(
+            suite.unfreeze_tokens(OVERSIGHT, None),
+            Err(ContractError::HandOverCompleted)
+        );
+
+        assert_eq!(
+            suite.change_operator(OVERSIGHT, RECIPIENT),
+            Err(ContractError::HandOverCompleted)
+        );
+
+        assert_eq!(
+            suite.release_tokens(OPERATOR, None),
+            Err(ContractError::HandOverCompleted)
+        );
     }
 
     mod allowed_release {
@@ -962,6 +1150,89 @@ mod tests {
                 operator,
                 ..
             }) if operator == Addr::unchecked(RECIPIENT)
+        );
+    }
+
+    mod handover {
+        use super::*;
+
+        #[test]
+        fn account_is_handed_over() {
+            let mut suite = SuiteBuilder::default().build();
+
+            assert_eq!(
+                is_handed_over(suite.deps.as_ref()),
+                Ok(IsHandedOverResponse {
+                    is_handed_over: false
+                })
+            );
+
+            let tokens_to_burn = 50;
+            suite
+                .freeze_tokens(OVERSIGHT, Some(tokens_to_burn))
+                .unwrap();
+
+            suite.env.block.time = Timestamp::from_seconds(DEFAULT_RELEASE);
+
+            assert_eq!(
+                suite.hand_over(OVERSIGHT),
+                Ok(Response::new()
+                    .add_attribute("action", "hand_over")
+                    .add_attribute("burnt_tokens", tokens_to_burn.to_string())
+                    .add_attribute("new_oversight", RECIPIENT.to_string())
+                    .add_attribute("sender", OVERSIGHT.to_string())
+                    .add_message(BankMsg::Burn {
+                        amount: coins(tokens_to_burn, VESTING_DENOM)
+                    }))
+            );
+            assert_eq!(
+                is_handed_over(suite.deps.as_ref()),
+                Ok(IsHandedOverResponse {
+                    is_handed_over: true
+                })
+            );
+            assert_matches!(
+                token_info(suite.deps.as_ref()),
+                Ok(TokenInfoResponse {
+                    frozen,
+                    ..
+                }) if frozen == Uint128::zero()
+            );
+            assert_matches!(
+                account_info(suite.deps.as_ref()),
+                Ok(AccountInfoResponse {
+                    oversight,
+                    ..
+                }) if oversight == RECIPIENT
+            );
+        }
+
+        #[test]
+        fn before_expire() {
+            let mut suite = SuiteBuilder::default().build();
+
+            assert_eq!(
+                suite.hand_over(OVERSIGHT),
+                Err(ContractError::ContractNotExpired)
+            );
+        }
+    }
+
+    #[test]
+    fn zero_tokens_operations_not_allowed() {
+        let mut suite = SuiteBuilder::default().build();
+
+        assert_eq!(
+            suite.freeze_tokens(OVERSIGHT, Some(0)),
+            Err(ContractError::ZeroTokensNotAllowed)
+        );
+        assert_eq!(
+            suite.unfreeze_tokens(OVERSIGHT, Some(0)),
+            Err(ContractError::ZeroTokensNotAllowed)
+        );
+        assert_eq!(
+            suite.release_tokens(OVERSIGHT, Some(0)),
+            Err(ContractError::ZeroTokensNotAllowed)
         );
     }
 }

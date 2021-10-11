@@ -1,7 +1,7 @@
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
-use cosmwasm_std::{Addr, Uint128};
+use cosmwasm_std::{Addr, Timestamp, Uint128};
 use cw_storage_plus::Item;
 use tg_utils::Expiration;
 
@@ -21,6 +21,15 @@ pub enum VestingPlan {
     },
 }
 
+impl VestingPlan {
+    pub fn is_expired(&self, timestamp: Timestamp) -> bool {
+        match self {
+            VestingPlan::Discrete { release_at } => release_at.is_expired_time(timestamp),
+            VestingPlan::Continuous { end_at, .. } => end_at.is_expired_time(timestamp),
+        }
+    }
+}
+
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct VestingAccount {
     pub recipient: Addr,
@@ -33,6 +42,8 @@ pub struct VestingAccount {
     pub paid_tokens: Uint128,
     /// Number of initial tokens
     pub initial_tokens: Uint128,
+    /// Has hand over been completed
+    pub handed_over: bool,
 }
 
 pub const VESTING_ACCOUNT: Item<VestingAccount> = Item::new("vesting_account");

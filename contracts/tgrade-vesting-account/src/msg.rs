@@ -1,10 +1,10 @@
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
-use std::fmt;
 
-use cosmwasm_std::{Addr, CosmosMsg, Empty, Uint128};
+use cosmwasm_std::{Addr, CosmosMsg, Uint128};
 
 use crate::state::VestingPlan;
+use tg_bindings::TgradeMsg;
 
 #[derive(Serialize, Deserialize, Clone, PartialEq, JsonSchema, Debug)]
 #[serde(rename_all = "snake_case")]
@@ -23,14 +23,11 @@ pub struct InstantiateMsg {
 
 #[derive(Serialize, Deserialize, Clone, PartialEq, JsonSchema, Debug)]
 #[serde(rename_all = "snake_case")]
-pub enum ExecuteMsg<T = Empty>
-where
-    T: Clone + fmt::Debug + PartialEq + JsonSchema,
-{
+pub enum ExecuteMsg {
     /// Execute regular messages allowing to use vesting account as fully
     /// functional "proxy account"
     Execute {
-        msgs: Vec<CosmosMsg<T>>,
+        msgs: Vec<CosmosMsg<TgradeMsg>>,
     },
     ReleaseTokens {
         amount: Option<Uint128>,
@@ -57,26 +54,27 @@ where
     /// Once end time of the contract has passed, hand over can be performed.
     /// It will burn all frozen tokens and set Oversight and Operator's addresses
     /// to the Reciepient's key. This marks the contract as Liberated
-    HandOff {},
+    HandOver {},
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 #[serde(rename_all = "snake_case")]
-pub enum QueryMsg<T = Empty>
-where
-    T: Clone + fmt::Debug + PartialEq + JsonSchema,
-{
-    /// If CanExecute returns true then a call to `Execute` with the same message,
-    /// before any further state changes, should also succeed.
-    CanExecute { sender: String, msg: CosmosMsg<T> },
+pub enum QueryMsg {
+    /// Checks whether account has been handed over and if Sender is the Oversight
+    CanExecute { sender: String },
     /// Provides information about current recipient/operator/oversight addresses
     /// as well as vesting plan for this account
     AccountInfo {},
     /// Shows current data about tokens from this vesting account.
     TokenInfo {},
-    /// After HandOff has been sucesfully finished, account will be set
-    /// as liberated.
-    IsLiberated {},
+    /// Shows whether hand over procedure has been completed or not
+    IsHandedOver {},
+}
+
+/// Response for CanExecute query
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
+pub struct CanExecuteResponse {
+    pub can_execute: bool,
 }
 
 /// Response for AccountInfo query
@@ -102,8 +100,8 @@ pub struct TokenInfoResponse {
 
 /// Response for IsLiberated query
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
-pub struct IsLiberatedResponse {
+pub struct IsHandedOverResponse {
     /// Does this account completed hand over procedure and thus achieved
     /// "liberated" status
-    pub is_liberated: bool,
+    pub is_handed_over: bool,
 }
