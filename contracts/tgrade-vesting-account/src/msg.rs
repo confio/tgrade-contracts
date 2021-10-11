@@ -60,8 +60,7 @@ pub enum ExecuteMsg {
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 #[serde(rename_all = "snake_case")]
 pub enum QueryMsg {
-    /// If CanExecute returns true then a call to `Execute` with the same message,
-    /// before any further state changes, should also succeed.
+    /// Checks whether account has been handed over and if Sender is the Oversight
     CanExecute { sender: String },
     /// Provides information about current recipient/operator/oversight addresses
     /// as well as vesting plan for this account

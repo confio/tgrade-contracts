@@ -10,13 +10,13 @@ pub enum ContractError {
     #[error("{0}")]
     PaymentError(#[from] cw0::PaymentError),
 
-    #[error("Unauthorized - action requires sender to be set as an Operator or Oversight")]
+    #[error("Unauthorized - action requires sender to be Operator or Oversight")]
     RequireOperator,
 
-    #[error("Unauthorized - action requires sender to be set as an Oversight")]
+    #[error("Unauthorized - action requires sender to be Oversight")]
     RequireOversight,
 
-    #[error("Unauthorized - action requires sender to be set as a Recipient or an Oversight")]
+    #[error("Unauthorized - action requires sender to be Recipient or Oversight")]
     RequireRecipientOrOversight,
 
     #[error("Not enough tokens available")]
