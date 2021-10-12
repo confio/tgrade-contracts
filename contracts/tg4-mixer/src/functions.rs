@@ -30,10 +30,8 @@ impl GeometricMean {
 
 impl PoEFunction for GeometricMean {
     fn rewards(&self, stake: u64, engagement: u64) -> Result<u64, ContractError> {
-        let mult = stake
-            .checked_mul(engagement)
-            .ok_or(ContractError::WeightOverflow {})?;
-        Ok(mult.integer_sqrt())
+        let mult = (stake as u128) * (engagement as u128);
+        Ok(mult.integer_sqrt() as u64)
     }
 }
 
@@ -253,10 +251,9 @@ mod tests {
         // rounding down (sqrt(240) = 15.49...
         assert_eq!(geometric.rewards(12, 20).unwrap(), 15);
 
-        // overflow checks
-        let very_big = 12_000_000_000u64;
-        let err = geometric.rewards(very_big, very_big).unwrap_err();
-        assert_eq!(err, ContractError::WeightOverflow {});
+        // not overflow checks
+        let very_big = u64::MAX;
+        assert_eq!(geometric.rewards(very_big, very_big).unwrap(), very_big);
     }
 
     #[test]
