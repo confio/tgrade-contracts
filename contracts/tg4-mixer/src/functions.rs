@@ -111,6 +111,7 @@ impl PoEFunction for Sigmoid {
 pub struct SigmoidSqrt {
     pub max_rewards: u64,
     pub s: Decimal,
+    geometric: GeometricMean,
     zero: Decimal,
     one: Decimal,
     two: Decimal,
@@ -122,6 +123,7 @@ impl SigmoidSqrt {
         Self {
             max_rewards: max_rewards.u64(),
             s: std_to_decimal(s),
+            geometric: GeometricMean::new(),
             zero: dec!(0),
             one: dec!(1),
             two: dec!(2),
@@ -131,12 +133,10 @@ impl SigmoidSqrt {
 
 impl PoEFunction for SigmoidSqrt {
     fn rewards(&self, stake: u64, engagement: u64) -> Result<u64, ContractError> {
-        // Cast to i64 because of rust_decimal::Decimal underlying impl
-        let left = Decimal::new(stake as i64, 0);
-        let right = Decimal::new(engagement as i64, 0);
-
-        // Rejects u64 values larger than 2^63, which become negative in Decimal
-        if left.is_sign_negative() || right.is_sign_negative() {
+        // `reward = r_max * (2 / (1 + e^(-s * sqrt(stake * engagement)) ) - 1)`
+        let geometric_mean = self.geometric.rewards(stake, engagement).unwrap();
+        let geometric_mean = Decimal::new(geometric_mean as i64, 0);
+        if geometric_mean.is_sign_negative() {
             return Err(ContractError::WeightOverflow {});
         }
 
@@ -146,21 +146,14 @@ impl PoEFunction for SigmoidSqrt {
             return Err(ContractError::RewardOverflow {});
         }
 
-        // `reward = r_max * (2 / (1 + e^(-s * sqrt(stake * engagement)) ) - 1)`
-        // We replace the mul overflow by Decimal::max (i.e. saturating_mul).
-        // Given that `s` is always positive, we also replace the underflowed exponential case
+        // Given that `s` is always positive, we replace the underflowed exponential case
         // with zero (also to extend the range).
         let reward = r_max
             * (self.two
                 / (self.one
-                    + (-self.s
-                        * left
-                            .checked_mul(right)
-                            .unwrap_or(Decimal::MAX)
-                            .sqrt()
-                            .ok_or(ContractError::ComputationOverflow("sqrt"))?)
-                    .checked_exp()
-                    .unwrap_or(self.zero))
+                    + (-self.s * geometric_mean)
+                        .checked_exp()
+                        .unwrap_or(self.zero))
                 - self.one);
 
         reward.to_u64().ok_or(ContractError::RewardOverflow {})
@@ -353,7 +346,7 @@ mod tests {
         // Very big, but positive in the i64 range
         let very_big = i64::MAX as u64;
         assert_eq!(sigmoid.rewards(very_big, very_big).unwrap(), 1000);
-        let err = sigmoid.rewards(very_big, very_big + 1).unwrap_err();
+        let err = sigmoid.rewards(very_big + 1, very_big + 1).unwrap_err();
         assert_eq!(err, ContractError::WeightOverflow {});
     }
 
