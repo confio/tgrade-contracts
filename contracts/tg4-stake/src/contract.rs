@@ -160,18 +160,23 @@ pub fn execute_unbond(
 
     // provide them a claim
     let cfg = CONFIG.load(deps.storage)?;
+    let completion = cfg.unbonding_period.after(&env.block);
     claims().create_claim(
         deps.storage,
         info.sender.clone(),
         amount,
-        cfg.unbonding_period.after(&env.block),
+        completion,
         env.block.height,
     )?;
 
     let mut res = Response::new()
         .add_attribute("action", "unbond")
         .add_attribute("amount", amount)
-        .add_attribute("sender", &info.sender);
+        .add_attribute("sender", &info.sender)
+        .add_attribute(
+            "completion_time",
+            completion.timestamp().nanos().to_string(),
+        );
     res.messages = update_membership(deps.storage, info.sender, new_stake, &cfg, env.block.height)?;
 
     Ok(res)

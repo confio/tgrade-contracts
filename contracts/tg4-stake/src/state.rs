@@ -32,6 +32,10 @@ impl Expiration {
     pub fn is_expired(&self, block: &BlockInfo) -> bool {
         block.time >= self.0
     }
+
+    pub fn timestamp(&self) -> Timestamp {
+        self.0
+    }
 }
 
 #[derive(Clone, PartialEq, Eq, Debug)]
