@@ -263,9 +263,9 @@ fn bond(deps: DepsMut, info: MessageInfo) -> Result<Response, ContractError> {
     let payment = info
         .funds
         .iter()
-        .find(|x| x.denom == VESTING_DENOM)
+        .find(|x| x.denom == account.denom)
         .ok_or_else(|| ContractError::EmptyBalance {
-            denom: VESTING_DENOM.to_string(),
+            denom: account.denom,
         })?;
 
     Ok(Response::new()
@@ -278,7 +278,7 @@ fn bond(deps: DepsMut, info: MessageInfo) -> Result<Response, ContractError> {
         .add_attribute("bonded", payment.amount))
 }
 
-fn unbond(deps: DepsMut, _info: MessageInfo, _amount: Uint128) -> Result<Response, ContractError> {
+fn unbond(deps: DepsMut, info: MessageInfo, _amount: Uint128) -> Result<Response, ContractError> {
     let mut account = VESTING_ACCOUNT.load(deps.storage)?;
     require_operator(&info.sender, &account)?;
 

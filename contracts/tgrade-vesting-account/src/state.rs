@@ -47,4 +47,11 @@ pub struct VestingAccount {
     pub handed_over: bool,
 }
 
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
+pub struct StakingInfo {
+    pub validator: String,
+    pub owner: Addr,
+}
+
 pub const VESTING_ACCOUNT: Item<VestingAccount> = Item::new("vesting_account");
+pub const STAKING: Item<StakingInfo> = Item::new("staking_info");
