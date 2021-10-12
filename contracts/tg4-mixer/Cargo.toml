@@ -19,14 +19,14 @@ backtraces = ["cosmwasm-std/backtraces"]
 library = []
 
 [dependencies]
-cw0 = "=0.10.0-soon3"
-cw2 = "=0.10.0-soon3"
-cw20 = "=0.10.0-soon3"
-cw-storage-plus = "=0.10.0-soon3"
+cw0 = "0.10.0"
+cw2 = "0.10.0"
+cw20 = "0.10.0"
+cw-storage-plus = "0.10.0"
 tg4 = { path = "../../packages/tg4", version = "0.4.0" }
 tg-utils = { path = "../../packages/utils", version = "0.4.0" }
 tg-bindings = { path = "../../packages/bindings", version = "0.4.0" }
-cosmwasm-std = "1.0.0-soon"
+cosmwasm-std = "1.0.0-beta"
 integer-sqrt = "0.1.5"
 schemars = "0.8"
 serde = { version = "1.0.103", default-features = false, features = ["derive"] }
@@ -35,7 +35,7 @@ rust_decimal = { version = "1.16", default-features = false, features = ["maths"
 rust_decimal_macros = { version = "1.16", default-features = false }
 
 [dev-dependencies]
-cw-multi-test = { version = "=0.10.0-soon3" }
-cosmwasm-schema = { version = "1.0.0-soon" }
+cw-multi-test = { version = "0.10.0" }
+cosmwasm-schema = { version = "1.0.0-beta" }
 tg4-engagement = { path = "../tg4-engagement", version = "0.4.0", features = ["library"] }
 tg4-stake = { path = "../tg4-stake", version = "0.4.0", features = ["library"] }

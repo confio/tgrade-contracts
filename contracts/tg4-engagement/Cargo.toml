@@ -19,10 +19,10 @@ backtraces = ["cosmwasm-std/backtraces"]
 library = []
 
 [dependencies]
-cw0 = "=0.10.0-soon3"
-cw2 = "=0.10.0-soon3"
-cw-controllers = "=0.10.0-soon3"
-cw-storage-plus = "=0.10.0-soon3"
+cw0 = "0.10.0"
+cw2 = "0.10.0"
+cw-controllers = "0.10.0"
+cw-storage-plus = "0.10.0"
 tg4 = { path = "../../packages/tg4", version = "0.4.0" }
 tg-utils = { version = "0.4.0", path = "../../packages/utils" }
 tg-bindings = { version = "0.4.0", path = "../../packages/bindings" }
@@ -33,7 +33,7 @@ thiserror = { version = "1.0.21" }
 
 [dev-dependencies]
 cosmwasm-schema = { version = "1.0.0-beta" }
-cw-multi-test = { version = "0.10.0-soon3" }
+cw-multi-test = { version = "0.10.0" }
 tg-bindings-test = { version = "0.4.0", path = "../../packages/bindings-test" }
 tg4-mixer = { path = "../tg4-mixer/", version = "0.4.0" }
 derivative = "2"
