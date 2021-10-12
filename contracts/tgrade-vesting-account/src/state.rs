@@ -32,6 +32,7 @@ impl VestingPlan {
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct VestingAccount {
+    pub denom: String,
     pub recipient: Addr,
     pub operator: Addr,
     pub oversight: Addr,
