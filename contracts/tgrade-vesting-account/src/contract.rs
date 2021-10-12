@@ -11,7 +11,7 @@ use crate::msg::{
     AccountInfoResponse, CanExecuteResponse, ExecuteMsg, InstantiateMsg, IsHandedOverResponse,
     QueryMsg, TokenInfoResponse,
 };
-use crate::state::{VestingAccount, VestingPlan, VESTING_ACCOUNT};
+use crate::state::{StakingInfo, VestingAccount, VestingPlan, STAKING, VESTING_ACCOUNT};
 use tg_bindings::TgradeMsg;
 
 pub type Response = cosmwasm_std::Response<TgradeMsg>;
@@ -51,6 +51,11 @@ fn create_vesting_account(
         handed_over: false,
     };
     VESTING_ACCOUNT.save(deps.storage, &account)?;
+
+    let staking = StakingInfo {
+        validator: msg.validator,
+    };
+    STAKING.save(deps.storage, &staking)?;
 
     Ok(())
 }
@@ -257,20 +262,19 @@ fn hand_over(deps: DepsMut, env: Env, sender: Addr) -> Result<Response, Contract
 }
 
 fn bond(deps: DepsMut, info: MessageInfo) -> Result<Response, ContractError> {
-    let mut account = VESTING_ACCOUNT.load(deps.storage)?;
+    let account = VESTING_ACCOUNT.load(deps.storage)?;
     require_operator(&info.sender, &account)?;
 
-    let payment = info
-        .funds
-        .iter()
-        .find(|x| x.denom == account.denom)
-        .ok_or_else(|| ContractError::EmptyBalance {
+    let payment = info.funds.iter().find(|x| x.denom == account.denom).ok_or(
+        ContractError::EmptyBalance {
             denom: account.denom,
-        })?;
+        },
+    )?;
 
+    let staking_info = STAKING.load(deps.storage)?;
     Ok(Response::new()
         .add_message(StakingMsg::Delegate {
-            validator: invest.validator,
+            validator: staking_info.validator,
             amount: payment.clone(),
         })
         .add_attribute("action", "bond")
@@ -279,7 +283,7 @@ fn bond(deps: DepsMut, info: MessageInfo) -> Result<Response, ContractError> {
 }
 
 fn unbond(deps: DepsMut, info: MessageInfo, _amount: Uint128) -> Result<Response, ContractError> {
-    let mut account = VESTING_ACCOUNT.load(deps.storage)?;
+    let account = VESTING_ACCOUNT.load(deps.storage)?;
     require_operator(&info.sender, &account)?;
 
     Ok(Response::new())

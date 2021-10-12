@@ -49,8 +49,8 @@ pub struct VestingAccount {
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct StakingInfo {
+    /// All tokens are bonded to this validator
     pub validator: String,
-    pub owner: Addr,
 }
 
 pub const VESTING_ACCOUNT: Item<VestingAccount> = Item::new("vesting_account");

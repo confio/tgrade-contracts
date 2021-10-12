@@ -20,6 +20,8 @@ pub struct InstantiateMsg {
     /// recipient.
     pub oversight: Addr,
     pub vesting_plan: VestingPlan,
+    /// All tokens are bonded to this validator,
+    pub validator: String,
 }
 
 #[derive(Serialize, Deserialize, Clone, PartialEq, JsonSchema, Debug)]
