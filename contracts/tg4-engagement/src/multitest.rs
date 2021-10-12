@@ -1,9 +1,11 @@
 mod suite;
 
 use cosmwasm_std::{coin, coins, Event};
-use suite::SuiteBuilder;
+use suite::{expected_members, SuiteBuilder};
 
 mod funds_distribution {
+    use tg_utils::Duration;
+
     use crate::error::ContractError;
 
     use super::*;
@@ -363,6 +365,69 @@ mod funds_distribution {
         assert_eq!(suite.token_balance(&members[0]).unwrap(), 700);
         assert_eq!(suite.token_balance(&members[1]).unwrap(), 1100);
         assert_eq!(suite.token_balance(&members[2]).unwrap(), 1300);
+    }
+
+    #[test]
+    fn distribution_cross_halflife() {
+        let members = vec![
+            "member1".to_owned(),
+            "member2".to_owned(),
+            "member3".to_owned(),
+            "member4".to_owned(),
+        ];
+
+        let mut suite = SuiteBuilder::new()
+            .with_member(&members[0], 1)
+            .with_member(&members[1], 2)
+            .with_member(&members[2], 5)
+            .with_funds(&members[3], 1000)
+            .with_halflife(Duration::new(100))
+            .build();
+
+        let token = suite.token.clone();
+
+        // Pre-halflife split, total weights 1 + 2 + 5 = 8
+        // members[0], weight 1: 400 * 1 / 8 = 50
+        // members[1], weight 2: 400 * 2 / 8 = 100
+        // members[2], weight 5: 400 * 5 / 8 = 250
+        suite
+            .distribute_funds(&members[3], None, &coins(400, &token))
+            .unwrap();
+
+        suite.app.advance_seconds(125);
+        suite.app.next_block().unwrap();
+
+        // Post-halflife split, total weights 1 + 1 + 2 = 4
+        // members[0], weight 1: 600 * 1 / 4 = 150
+        // members[1], weight 1: 600 * 1 / 4 = 150
+        // members[2], weight 2: 600 * 2 / 4 = 300
+        suite
+            .distribute_funds(&members[3], None, &coins(600, &token))
+            .unwrap();
+
+        // Withdrawal of combined splits:
+        // members[0]: 50 + 150 = 200
+        // members[1]: 100 + 150 = 250
+        // members[2]: 250 + 300 = 550
+        suite.withdraw_funds(&members[0], None, None).unwrap();
+        suite.withdraw_funds(&members[1], None, None).unwrap();
+        suite.withdraw_funds(&members[2], None, None).unwrap();
+
+        assert_eq!(suite.token_balance(suite.contract.as_str()).unwrap(), 0);
+        assert_eq!(suite.token_balance(&members[0]).unwrap(), 200);
+        assert_eq!(suite.token_balance(&members[1]).unwrap(), 250);
+        assert_eq!(suite.token_balance(&members[2]).unwrap(), 550);
+        assert_eq!(suite.token_balance(&members[3]).unwrap(), 0);
+
+        // Verifying halflife splits
+        let mut resp = suite.members().unwrap();
+        resp.sort_by_key(|member| member.addr.clone());
+
+        let mut expected =
+            expected_members(vec![(&members[0], 1), (&members[1], 1), (&members[2], 2)]);
+        expected.sort_by_key(|member| member.addr.clone());
+
+        assert_eq!(resp, expected);
     }
 
     #[test]
