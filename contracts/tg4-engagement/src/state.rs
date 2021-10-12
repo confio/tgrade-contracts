@@ -17,7 +17,6 @@ pub struct Halflife {
 impl Halflife {
     pub fn should_apply(&self, t: Timestamp) -> bool {
         if let Some(halflife) = self.halflife {
-            self.last_applied.seconds();
             halflife.after_time(self.last_applied).is_expired_time(t)
         } else {
             false

@@ -722,7 +722,7 @@ mod tests {
         )
         .unwrap();
 
-        // query the membership values, hope they updated
+        // query the membership values
         check_membership(
             &app,
             &mixer_addr,
