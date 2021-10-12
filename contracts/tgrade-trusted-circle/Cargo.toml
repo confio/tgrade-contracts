@@ -19,18 +19,18 @@ backtraces = ["cosmwasm-std/backtraces"]
 library = []
 
 [dependencies]
-cw0 = "=0.10.0-soon3"
-cw2 = "=0.10.0-soon3"
-cw3 = "=0.10.0-soon3"
-cw-controllers = "=0.10.0-soon3"
-cw-storage-plus = "=0.10.0-soon3"
+cw0 = "0.10.0"
+cw2 = "0.10.0"
+cw3 = "0.10.0"
+cw-controllers = "0.10.0"
+cw-storage-plus = "0.10.0"
 tg4 = { path = "../../packages/tg4", version = "0.4.0" }
 tg-bindings = { path = "../../packages/bindings", version = "0.4.0" }
 tg-utils = { path = "../../packages/utils", version = "0.4.0" }
-cosmwasm-std = "1.0.0-soon"
+cosmwasm-std = "1.0.0-beta"
 schemars = "0.8"
 serde = { version = "1.0.103", default-features = false, features = ["derive"] }
 thiserror = { version = "1.0.21" }
 
 [dev-dependencies]
-cosmwasm-schema = { version = "1.0.0-soon" }
+cosmwasm-schema = { version = "1.0.0-beta" }

@@ -27,12 +27,12 @@ library = []
 protobuf-codegen-pure = "2"
 
 [dependencies]
-cw0 = { version = "=0.10.0-soon3" }
-cw2 = { version = "=0.10.0-soon3" }
+cw0 = { version = "0.10.0" }
+cw2 = { version = "0.10.0" }
 tg4 = { path = "../../packages/tg4", version = "0.4.0" }
-cw-controllers = { version = "=0.10.0-soon3" }
-cw-storage-plus = { version = "=0.10.0-soon3" }
-cosmwasm-std = { version = "1.0.0-soon" }
+cw-controllers = { version = "0.10.0" }
+cw-storage-plus = { version = "0.10.0" }
+cosmwasm-std = { version = "1.0.0-beta" }
 tg-bindings = { version = "0.4.0", path = "../../packages/bindings" }
 tg-utils = { version = "0.4.0", path = "../../packages/utils" }
 schemars = "0.8"
@@ -41,8 +41,8 @@ thiserror = { version = "1.0.21" }
 protobuf = { version = "2", features = ["with-bytes"] }
 
 [dev-dependencies]
-cosmwasm-schema = { version = "1.0.0-soon" }
-cw-multi-test = { version = "=0.10.0-soon3" }
+cosmwasm-schema = { version = "1.0.0-beta" }
+cw-multi-test = { version = "0.10.0" }
 tg4-engagement = { path = "../tg4-engagement", version = "0.4.0" }
 tg4-stake = { path = "../tg4-stake", version = "0.4.0" }
 # we enable multitest feature only for tests
