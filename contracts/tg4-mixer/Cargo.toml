@@ -11,12 +11,15 @@ homepage = "https://tgrade.finance"
 
 [lib]
 crate-type = ["cdylib", "rlib"]
+# See https://bheisler.github.io/criterion.rs/book/faq.html#cargo-bench-gives-unrecognized-option-errors-for-valid-command-line-options
+bench = false
 
 [features]
 # for more explicit tests, cargo test --features=backtraces
 backtraces = ["cosmwasm-std/backtraces"]
 # use library feature to disable all instantiate/execute/query exports
 library = []
+benches = [ "cosmwasm-vm" ]
 
 [dependencies]
 cw0 = "0.10.0"
@@ -34,8 +37,16 @@ thiserror = { version = "1.0.21" }
 rust_decimal = { version = "1.16", default-features = false, features = ["maths"] }
 rust_decimal_macros = { version = "1.16", default-features = false }
 
+# bench dependencies
+cosmwasm-vm = { version = "1.0.0-beta", optional = true }
+
 [dev-dependencies]
 cw-multi-test = { version = "0.10.0" }
 cosmwasm-schema = { version = "1.0.0-beta" }
 tg4-engagement = { path = "../tg4-engagement", version = "0.4.0", features = ["library"] }
 tg4-stake = { path = "../tg4-stake", version = "0.4.0", features = ["library"] }
+
+[[bench]]
+name = "main"
+harness = false
+required-features = [ "benches" ]
