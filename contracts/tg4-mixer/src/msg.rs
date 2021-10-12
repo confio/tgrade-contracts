@@ -4,7 +4,7 @@ use serde::{Deserialize, Serialize};
 use cosmwasm_std::{Decimal as StdDecimal, Uint64};
 use tg4::{Member, MemberChangedHookMsg};
 
-use crate::functions::{GeometricMean, PoEFunction, Sigmoid};
+use crate::functions::{AlgebraicSigmoid, GeometricMean, PoEFunction, Sigmoid, SigmoidSqrt};
 
 #[derive(Serialize, Deserialize, Clone, PartialEq, JsonSchema, Debug)]
 pub struct InstantiateMsg {
@@ -30,6 +30,19 @@ pub enum PoEFunctionType {
         p: StdDecimal,
         s: StdDecimal,
     },
+    /// SigmoidSqrt returns a sigmoid-like value of the geometric mean of staked amount and
+    /// engagement points.
+    /// It is equal to `Sigmoid` with `p = 0.5`, but implemented using integer sqrt instead of
+    /// fixed-point fractional power.
+    SigmoidSqrt { max_rewards: Uint64, s: StdDecimal },
+    /// `AlgebraicSigmoid` returns a sigmoid-like value of staked amount times engagement points.
+    /// It is similar to `Sigmoid`, but uses integer sqrt instead of a fixed-point exponential.
+    AlgebraicSigmoid {
+        max_rewards: Uint64,
+        a: StdDecimal,
+        p: StdDecimal,
+        s: StdDecimal,
+    },
 }
 
 impl PoEFunctionType {
@@ -39,6 +52,15 @@ impl PoEFunctionType {
             PoEFunctionType::Sigmoid { max_rewards, p, s } => {
                 Box::new(Sigmoid::new(max_rewards, p, s))
             }
+            PoEFunctionType::SigmoidSqrt { max_rewards, s } => {
+                Box::new(SigmoidSqrt::new(max_rewards, s))
+            }
+            PoEFunctionType::AlgebraicSigmoid {
+                max_rewards,
+                a,
+                p,
+                s,
+            } => Box::new(AlgebraicSigmoid::new(max_rewards, a, p, s)),
         }
     }
 }
