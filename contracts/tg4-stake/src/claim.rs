@@ -6,8 +6,8 @@ use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
 use cosmwasm_std::{Addr, BlockInfo, Deps, Order, StdResult, Storage, Uint128};
-use cw_storage_plus::{Bound, Index, IndexList, IndexedMap, MultiIndex, PrimaryKey};
-use tg_utils::{Expiration, ExpirationKey};
+use cw_storage_plus::{Bound, Index, IndexList, IndexedMap, MultiIndex, PrimaryKey, U64Key};
+use tg_utils::Expiration;
 
 // settings for pagination
 const MAX_LIMIT: u32 = 30;
@@ -29,7 +29,7 @@ pub struct Claim {
 }
 
 struct ClaimIndexes<'a> {
-    pub release_at: MultiIndex<'a, (ExpirationKey, Vec<u8>), Claim>,
+    pub release_at: MultiIndex<'a, (U64Key, Vec<u8>), Claim>,
 }
 
 impl<'a> IndexList<Claim> for ClaimIndexes<'a> {
@@ -53,14 +53,14 @@ impl Claim {
 pub struct Claims<'a> {
     /// Claims are indexed by `(addr, release_at)` pair. Claims falling into the same key are
     /// merged (summarized) as there is no point to distinguish them.
-    claims: IndexedMap<'a, (&'a Addr, ExpirationKey), Claim, ClaimIndexes<'a>>,
+    claims: IndexedMap<'a, (&'a Addr, U64Key), Claim, ClaimIndexes<'a>>,
 }
 
 impl<'a> Claims<'a> {
     pub fn new(storage_key: &'a str, release_subkey: &'a str) -> Self {
         let indexes = ClaimIndexes {
             release_at: MultiIndex::new(
-                |claim, k| (claim.release_at.into(), k),
+                |claim, k| (claim.release_at.as_key(), k),
                 storage_key,
                 release_subkey,
             ),
@@ -84,7 +84,7 @@ impl<'a> Claims<'a> {
         // Add a claim to this user to get their tokens after the unbonding period
         self.claims.update(
             storage,
-            (addr, release_at.into()),
+            (addr, release_at.as_key()),
             move |claim| -> StdResult<_> {
                 match claim {
                     Some(mut claim) => {
@@ -121,7 +121,7 @@ impl<'a> Claims<'a> {
                 storage,
                 None,
                 Some(Bound::inclusive(
-                    ExpirationKey::new(Expiration::now(block)).joined_key(),
+                    Expiration::now(block).as_key().joined_key(),
                 )),
                 Order::Ascending,
             );
@@ -157,7 +157,7 @@ impl<'a> Claims<'a> {
                 storage,
                 None,
                 Some(Bound::exclusive(self.claims.idx.release_at.index_key((
-                    ExpirationKey::new(Expiration::at_timestamp(excluded_timestamp)),
+                    Expiration::at_timestamp(excluded_timestamp).as_key(),
                     vec![],
                 )))),
                 Order::Ascending,
@@ -207,7 +207,7 @@ impl<'a> Claims<'a> {
     ) -> StdResult<()> {
         for claim in claims {
             self.claims
-                .remove(storage, (&claim.addr, claim.release_at.into()))?;
+                .remove(storage, (&claim.addr, claim.release_at.as_key()))?;
         }
 
         Ok(())
@@ -221,7 +221,7 @@ impl<'a> Claims<'a> {
         start_after: Option<Expiration>,
     ) -> StdResult<Vec<Claim>> {
         let limit = limit.unwrap_or(DEFAULT_LIMIT).min(MAX_LIMIT) as usize;
-        let start = start_after.map(|s| Bound::exclusive(ExpirationKey::new(s)));
+        let start = start_after.map(|s| Bound::exclusive(s.as_key()));
 
         self.claims
             .prefix(&address)

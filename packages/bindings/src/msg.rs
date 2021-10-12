@@ -1,7 +1,7 @@
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
-use cosmwasm_std::{Binary, CosmosMsg, Uint128};
+use cosmwasm_std::{Binary, CosmosMsg, CustomMsg, Uint128};
 
 use crate::gov::GovProposal;
 use crate::hooks::PrivilegeMsg;
@@ -132,3 +132,5 @@ impl From<ConsensusParams> for CosmosMsg<TgradeMsg> {
         CosmosMsg::Custom(TgradeMsg::ConsensusParams(params))
     }
 }
+
+impl CustomMsg for TgradeMsg {}
