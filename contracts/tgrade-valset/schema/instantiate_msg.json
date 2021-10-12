@@ -20,25 +20,25 @@
       ]
     },
     "auto_unjail": {
-      "description": "Flag determining if validators should be automatically unjailed after jailing period, false by default.",
+      "description": "Flag determining if validators should be automatically unjailed after the jailing period; false by default.",
       "default": false,
       "type": "boolean"
     },
     "distribution_contract": {
-      "description": "Address where part of reward for non-validators is send for further distribution. It is required to handle `distribute {}` message (eg. tg4-engagement contract) which would distribute funds send with this message. If no account is provided, `validators_reward_ratio` has to be `1`.",
+      "description": "Address where part of the reward for non-validators is sent for further distribution. It is required to handle the `Distribute {}` message (eg. tg4-engagement contract) which would distribute the funds sent with this message. If no account is provided, `validators_reward_ratio` has to be `1`.",
       "type": [
         "string",
         "null"
       ]
     },
     "epoch_length": {
-      "description": "Number of seconds in one epoch. We update the Tendermint validator set only once per epoch. Epoch # is env.block.time/epoch_length (round down). First block with a new epoch number will trigger a new validator calculation.",
+      "description": "Number of seconds in one epoch. We update the Tendermint validator set only once per epoch. Epoch # is env.block.time/epoch_length (round down). The first block with a new epoch number will trigger a new validator calculation.",
       "type": "integer",
       "format": "uint64",
       "minimum": 0.0
     },
     "epoch_reward": {
-      "description": "Total reward paid out each epoch. This will be split among all validators during the last epoch. (epoch_reward.amount * 86_400 * 30 / epoch_length) is reward tokens to mint each month. Ensure this is sensible in relation to the total token supply.",
+      "description": "Total reward paid out at each epoch. This will be split among all validators during the last epoch. (epoch_reward.amount * 86_400 * 30 / epoch_length) is the amount of reward tokens to mint each month. Ensure this is sensible in relation to the total token supply.",
       "allOf": [
         {
           "$ref": "#/definitions/Coin"
@@ -46,7 +46,7 @@
       ]
     },
     "fee_percentage": {
-      "description": "Percentage of total accumulated fees which is substracted from tokens minted as a rewards. 50% as default. To disable this feature just set it to 0 (which efectivelly means that fees doesn't affect the per epoch reward).",
+      "description": "Percentage of total accumulated fees that is subtracted from tokens minted as rewards. 50% by default. To disable this feature just set it to 0 (which effectively means that fees don't affect the per-epoch reward).",
       "default": "0",
       "allOf": [
         {
@@ -55,36 +55,36 @@
       ]
     },
     "initial_keys": {
-      "description": "Initial operators and validator keys registered. If you do not set this, the validators need to register themselves before making this privileged/calling the EndBlockers, so we have a non-empty validator set",
+      "description": "Initial operators and validator keys registered. If you do not set this, the validators need to register themselves before making this privileged/calling the EndBlockers, so that we have a non-empty validator set",
       "type": "array",
       "items": {
         "$ref": "#/definitions/OperatorInitInfo"
       }
     },
     "max_validators": {
-      "description": "The maximum number of validators that can be included in the Tendermint validator set. If there are more validators than slots, we select the top N by membership weight descending. (In case of ties at the last slot, select by \"first\" tendermint pubkey lexicographically sorted).",
+      "description": "The maximum number of validators that can be included in the Tendermint validator set. If there are more validators than slots, we select the top N by membership weight descending. (In case of ties at the last slot, select by \"first\" Tendermint pubkey, lexicographically sorted).",
       "type": "integer",
       "format": "uint32",
       "minimum": 0.0
     },
     "membership": {
-      "description": "address of a cw4 contract with the raw membership used to feed the validator set",
+      "description": "Address of a cw4 contract with the raw membership used to feed the validator set",
       "type": "string"
     },
     "min_weight": {
-      "description": "minimum weight needed by an address in `membership` to be considered for the validator set. 0-weight members are always filtered out. TODO: if we allow sub-1 scaling factors, determine if this is pre-/post- scaling (use weight for cw4, power for tendermint)",
+      "description": "Minimum weight needed by an address in `membership` to be considered for the validator set. 0-weight members are always filtered out. TODO: if we allow sub-1 scaling factors, determine if this is pre-/post- scaling (use weight for cw4, power for Tendermint)",
       "type": "integer",
       "format": "uint64",
       "minimum": 0.0
     },
     "rewards_code_id": {
-      "description": "Code id of contract which would be used to distribute rewards of this token, assuming `tg4-engagement`. Contract will be initialized with message: ```json { \"admin\": \"self_addr\", \"token\": \"reward_denom\", } ```\n\nThis contract has to support all `RewardsDistribution` messages",
+      "description": "Code id of the contract which would be used to distribute the rewards of this token, assuming `tg4-engagement`. The contract will be initialized with the message: ```json { \"admin\": \"valset_addr\", \"token\": \"reward_denom\", } ```\n\nThis contract has to support all the `RewardsDistribution` messages",
       "type": "integer",
       "format": "uint64",
       "minimum": 0.0
     },
     "scaling": {
-      "description": "A scaling factor to multiply cw4-group weights to produce the tendermint validator power (TODO: should we allow this to reduce weight? Like 1/1000?)",
+      "description": "A scaling factor to multiply cw4-group weights to produce the Tendermint validator power (TODO: should we allow this to reduce weight? Like 1/1000?)",
       "type": [
         "integer",
         "null"
@@ -93,7 +93,7 @@
       "minimum": 0.0
     },
     "validators_reward_ratio": {
-      "description": "Fraction of how much reward is distributed between validators. Remainder is send to the `distribution_contract` with `Distribute` message, which should perform distribution of send funds between non-validator basing on their engagement. This value is in range of `[0-1]`, `1` (or `100%`) by default.",
+      "description": "Fraction of how much reward is distributed between validators. The remainder is sent to the `distribution_contract` with a `Distribute` message, which should perform distribution of the sent funds between non-validators, based on their engagement. This value is in range of `[0-1]`, `1` (or `100%`) by default.",
       "default": "1",
       "allOf": [
         {

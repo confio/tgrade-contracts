@@ -15,71 +15,72 @@ pub struct InstantiateMsg {
     /// Address allowed to jail, meant to be a OC voting contract. If `None`, then jailing is
     /// impossible in this contract.
     pub admin: Option<String>,
-    /// address of a cw4 contract with the raw membership used to feed the validator set
+    /// Address of a cw4 contract with the raw membership used to feed the validator set
     pub membership: String,
-    /// minimum weight needed by an address in `membership` to be considered for the validator set.
+    /// Minimum weight needed by an address in `membership` to be considered for the validator set.
     /// 0-weight members are always filtered out.
     /// TODO: if we allow sub-1 scaling factors, determine if this is pre-/post- scaling
-    /// (use weight for cw4, power for tendermint)
+    /// (use weight for cw4, power for Tendermint)
     pub min_weight: u64,
     /// The maximum number of validators that can be included in the Tendermint validator set.
     /// If there are more validators than slots, we select the top N by membership weight
-    /// descending. (In case of ties at the last slot, select by "first" tendermint pubkey
+    /// descending. (In case of ties at the last slot, select by "first" Tendermint pubkey,
     /// lexicographically sorted).
     pub max_validators: u32,
     /// Number of seconds in one epoch. We update the Tendermint validator set only once per epoch.
-    /// Epoch # is env.block.time/epoch_length (round down). First block with a new epoch number
+    /// Epoch # is env.block.time/epoch_length (round down). The first block with a new epoch number
     /// will trigger a new validator calculation.
     pub epoch_length: u64,
-    /// Total reward paid out each epoch. This will be split among all validators during the last
+    /// Total reward paid out at each epoch. This will be split among all validators during the last
     /// epoch.
-    /// (epoch_reward.amount * 86_400 * 30 / epoch_length) is reward tokens to mint each month.
+    /// (epoch_reward.amount * 86_400 * 30 / epoch_length) is the amount of reward tokens to mint
+    /// each month.
     /// Ensure this is sensible in relation to the total token supply.
     pub epoch_reward: Coin,
 
     /// Initial operators and validator keys registered.
     /// If you do not set this, the validators need to register themselves before
-    /// making this privileged/calling the EndBlockers, so we have a non-empty validator set
+    /// making this privileged/calling the EndBlockers, so that we have a non-empty validator set
     pub initial_keys: Vec<OperatorInitInfo>,
 
-    /// A scaling factor to multiply cw4-group weights to produce the tendermint validator power
+    /// A scaling factor to multiply cw4-group weights to produce the Tendermint validator power
     /// (TODO: should we allow this to reduce weight? Like 1/1000?)
     pub scaling: Option<u32>,
 
-    /// Percentage of total accumulated fees which is substracted from tokens minted as a rewards.
-    /// 50% as default. To disable this feature just set it to 0 (which efectivelly means that fees
-    /// doesn't affect the per epoch reward).
+    /// Percentage of total accumulated fees that is subtracted from tokens minted as rewards.
+    /// 50% by default. To disable this feature just set it to 0 (which effectively means that fees
+    /// don't affect the per-epoch reward).
     #[serde(default = "default_fee_percentage")]
     pub fee_percentage: Decimal,
 
-    /// Flag determining if validators should be automatically unjailed after jailing period, false
-    /// by default.
+    /// Flag determining if validators should be automatically unjailed after the jailing period;
+    /// false by default.
     #[serde(default)]
     pub auto_unjail: bool,
 
-    /// Fraction of how much reward is distributed between validators. Remainder is send to the
-    /// `distribution_contract` with `Distribute` message, which should perform distribution of
-    /// send funds between non-validator basing on their engagement.
+    /// Fraction of how much reward is distributed between validators. The remainder is sent to the
+    /// `distribution_contract` with a `Distribute` message, which should perform distribution of
+    /// the sent funds between non-validators, based on their engagement.
     /// This value is in range of `[0-1]`, `1` (or `100%`) by default.
     #[serde(default = "default_validators_reward_ratio")]
     pub validators_reward_ratio: Decimal,
 
-    /// Address where part of reward for non-validators is send for further distribution. It is
-    /// required to handle `distribute {}` message (eg. tg4-engagement contract) which would
-    /// distribute funds send with this message.
+    /// Address where part of the reward for non-validators is sent for further distribution. It is
+    /// required to handle the `Distribute {}` message (eg. tg4-engagement contract) which would
+    /// distribute the funds sent with this message.
     /// If no account is provided, `validators_reward_ratio` has to be `1`.
     pub distribution_contract: Option<String>,
 
-    /// Code id of contract which would be used to distribute rewards of this token, assuming
-    /// `tg4-engagement`. Contract will be initialized with message:
+    /// Code id of the contract which would be used to distribute the rewards of this token, assuming
+    /// `tg4-engagement`. The contract will be initialized with the message:
     /// ```json
     /// {
-    ///     "admin": "self_addr",
+    ///     "admin": "valset_addr",
     ///     "token": "reward_denom",
     /// }
     /// ```
     ///
-    /// This contract has to support all `RewardsDistribution` messages
+    /// This contract has to support all the `RewardsDistribution` messages
     pub rewards_code_id: u64,
 }
 
@@ -176,6 +177,7 @@ pub enum ExecuteMsg {
     /// No two operators may have the same consensus_key.
     RegisterValidatorKey {
         pubkey: Pubkey,
+        /// Additional metadata assigned to this validator
         metadata: ValidatorMetadata,
     },
     UpdateMetadata(ValidatorMetadata),
@@ -187,10 +189,10 @@ pub enum ExecuteMsg {
         duration: Option<Duration>,
     },
     /// Unjails validator. Admin can unjail anyone anytime, others can unjail only themselves and
-    /// only if jail duration passed
+    /// only if the jail period passed.
     Unjail {
-        /// Address to unjail. Optional, as if not provided it is assumed to be sender of the
-        /// message (for convenience when unjailing self after jail period).
+        /// Address to unjail. Optional, as if not provided it is assumed to be the sender of the
+        /// message (for convenience when unjailing self after the jail period).
         operator: Option<String>,
     },
 }
@@ -216,7 +218,7 @@ pub enum QueryMsg {
     ListActiveValidators {},
 
     /// This will calculate who the new validators would be if
-    /// we recalculated endblock right now.
+    /// we recalculated end block right now.
     /// Also returns ListActiveValidatorsResponse
     SimulateActiveValidators {},
 }
@@ -291,11 +293,11 @@ pub struct ListActiveValidatorsResponse {
     pub validators: Vec<ValidatorInfo>,
 }
 
-/// Messages send by this contract to external contract
+/// Messages sent by this contract to an external contract
 #[derive(Serialize, Deserialize, Clone, PartialEq, JsonSchema, Debug)]
 #[serde(rename_all = "snake_case")]
 pub enum DistributionMsg {
-    /// Message send to `distribution_contract` with funds which are part of reward to be splitted
+    /// Message sent to `distribution_contract` with funds which are part of the reward to be split
     /// between engaged operators
     DistributeFunds {},
 }
