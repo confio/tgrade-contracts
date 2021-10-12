@@ -7,6 +7,7 @@
     "operator",
     "oversight",
     "recipient",
+    "validator",
     "vesting_plan"
   ],
   "properties": {
@@ -36,6 +37,10 @@
           "$ref": "#/definitions/Addr"
         }
       ]
+    },
+    "validator": {
+      "description": "All tokens are bonded to this validator,",
+      "type": "string"
     },
     "vesting_plan": {
       "$ref": "#/definitions/VestingPlan"

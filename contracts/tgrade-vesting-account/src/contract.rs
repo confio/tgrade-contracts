@@ -54,6 +54,7 @@ fn create_vesting_account(
 
     let staking = StakingInfo {
         validator: msg.validator,
+        bonded: Uint128::zero(),
     };
     STAKING.save(deps.storage, &staking)?;
 
@@ -271,7 +272,11 @@ fn bond(deps: DepsMut, info: MessageInfo) -> Result<Response, ContractError> {
         },
     )?;
 
-    let staking_info = STAKING.load(deps.storage)?;
+    let mut staking_info = STAKING.load(deps.storage)?;
+
+    // TODO: Calculate all bonded tokens, limit it
+    staking_info.bonded += payment.amount.clone();
+
     Ok(Response::new()
         .add_message(StakingMsg::Delegate {
             validator: staking_info.validator,
@@ -285,6 +290,8 @@ fn bond(deps: DepsMut, info: MessageInfo) -> Result<Response, ContractError> {
 fn unbond(deps: DepsMut, info: MessageInfo, _amount: Uint128) -> Result<Response, ContractError> {
     let account = VESTING_ACCOUNT.load(deps.storage)?;
     require_operator(&info.sender, &account)?;
+
+    // TODO: Include minimum withdraw?
 
     Ok(Response::new())
 }
@@ -425,6 +432,7 @@ mod tests {
     const RECIPIENT: &str = "recipient";
     const OPERATOR: &str = "operator";
     const OVERSIGHT: &str = "oversight";
+    const VALIDATOR: &str = "validator";
 
     /// Default timestamp from mock_env() in seconds with 100 seconds added
     const DEFAULT_RELEASE: u64 = 1571797419 + 100;
@@ -437,6 +445,7 @@ mod tests {
         oversight: Addr,
         vesting_plan: VestingPlan,
         coins: Vec<Coin>,
+        validator: String,
     }
 
     impl Default for SuiteBuilder {
@@ -449,6 +458,7 @@ mod tests {
                     release_at: Expiration::at_timestamp(Timestamp::from_seconds(DEFAULT_RELEASE)),
                 },
                 coins: vec![Coin::new(100, VESTING_DENOM)],
+                validator: String::from(VALIDATOR),
             }
         }
     }
@@ -472,6 +482,7 @@ mod tests {
                 operator: self.operator,
                 oversight: self.oversight,
                 vesting_plan: self.vesting_plan,
+                validator: self.validator,
             };
 
             instantiate(
@@ -1052,6 +1063,7 @@ mod tests {
             vesting_plan: VestingPlan::Discrete {
                 release_at: Expiration::at_timestamp(Timestamp::from_seconds(DEFAULT_RELEASE)),
             },
+            validator: String::from(VALIDATOR),
         };
 
         assert_matches!(

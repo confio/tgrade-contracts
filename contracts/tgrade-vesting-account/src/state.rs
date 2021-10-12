@@ -51,6 +51,8 @@ pub struct VestingAccount {
 pub struct StakingInfo {
     /// All tokens are bonded to this validator
     pub validator: String,
+    /// Number of bonded tokens
+    pub bonded: Uint128,
 }
 
 pub const VESTING_ACCOUNT: Item<VestingAccount> = Item::new("vesting_account");
