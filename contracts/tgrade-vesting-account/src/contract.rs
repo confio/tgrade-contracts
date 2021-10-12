@@ -1,8 +1,8 @@
 #[cfg(not(feature = "library"))]
 use cosmwasm_std::entry_point;
 use cosmwasm_std::{
-    coins, to_binary, Addr, BankMsg, Binary, CosmosMsg, Decimal, Deps, DepsMut, Env, MessageInfo,
-    StakingMsg, StdResult, Uint128,
+    coin, coins, to_binary, Addr, BankMsg, Binary, CosmosMsg, Decimal, Deps, DepsMut, Env,
+    MessageInfo, StakingMsg, StdResult, Uint128,
 };
 use cw2::set_contract_version;
 
@@ -275,7 +275,7 @@ fn bond(deps: DepsMut, info: MessageInfo) -> Result<Response, ContractError> {
     let mut staking_info = STAKING.load(deps.storage)?;
 
     // TODO: Calculate all bonded tokens, limit it
-    staking_info.bonded += payment.amount.clone();
+    staking_info.bonded += payment.amount;
 
     Ok(Response::new()
         .add_message(StakingMsg::Delegate {
@@ -287,13 +287,22 @@ fn bond(deps: DepsMut, info: MessageInfo) -> Result<Response, ContractError> {
         .add_attribute("bonded", payment.amount))
 }
 
-fn unbond(deps: DepsMut, info: MessageInfo, _amount: Uint128) -> Result<Response, ContractError> {
+fn unbond(deps: DepsMut, info: MessageInfo, amount: Uint128) -> Result<Response, ContractError> {
     let account = VESTING_ACCOUNT.load(deps.storage)?;
     require_operator(&info.sender, &account)?;
 
+    let mut staking_info = STAKING.load(deps.storage)?;
+    staking_info.bonded -= amount;
     // TODO: Include minimum withdraw?
 
-    Ok(Response::new())
+    Ok(Response::new()
+        .add_message(StakingMsg::Undelegate {
+            validator: staking_info.validator,
+            amount: coin(amount.u128(), &account.denom),
+        })
+        .add_attribute("action", "unbond")
+        .add_attribute("to", info.sender)
+        .add_attribute("unbonded", amount))
 }
 
 mod helpers {
