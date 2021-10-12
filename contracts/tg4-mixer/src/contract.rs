@@ -1,6 +1,8 @@
 #[cfg(not(feature = "library"))]
 use cosmwasm_std::entry_point;
-use cosmwasm_std::{to_binary, Binary, Deps, DepsMut, Env, MessageInfo, Order, StdResult};
+use cosmwasm_std::{
+    to_binary, Binary, Deps, DepsMut, Env, MessageInfo, Order, StdError, StdResult,
+};
 
 use cw0::maybe_addr;
 use cw2::set_contract_version;
@@ -16,7 +18,10 @@ use tg4::{
 
 use crate::error::ContractError;
 use crate::functions::PoEFunction;
-use crate::msg::{ExecuteMsg, GroupsResponse, InstantiateMsg, PreauthResponse, QueryMsg};
+use crate::msg::{
+    ExecuteMsg, GroupsResponse, InstantiateMsg, PoEFunctionType, PreauthResponse, QueryMsg,
+    RewardsResponse,
+};
 use crate::state::{Groups, GROUPS, POE_FUNCTION_TYPE};
 
 pub type Response = cosmwasm_std::Response<TgradeMsg>;
@@ -266,6 +271,15 @@ pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
             let preauths = PREAUTH.get_auth(deps.storage)?;
             to_binary(&PreauthResponse { preauths })
         }
+        QueryMsg::Rewards {
+            stake,
+            engagement,
+            poe_function,
+        } => {
+            let rewards = query_rewards(deps, stake.u64(), engagement.u64(), poe_function)
+                .map_err(|err| StdError::generic_err(err.to_string()))?;
+            to_binary(&RewardsResponse { rewards })
+        }
     }
 }
 
@@ -342,6 +356,21 @@ fn list_members_by_weight(
         .collect();
 
     Ok(MemberListResponse { members: members? })
+}
+
+pub fn query_rewards(
+    deps: Deps,
+    stake: u64,
+    engagement: u64,
+    poe_function: Option<PoEFunctionType>,
+) -> Result<u64, ContractError> {
+    let poe_function = match poe_function {
+        Some(poe_function_type) => poe_function_type,
+        None => POE_FUNCTION_TYPE.load(deps.storage)?,
+    }
+    .to_poe_fn();
+
+    poe_function.rewards(stake, engagement)
 }
 
 #[cfg(test)]
