@@ -3,12 +3,16 @@
   "title": "InstantiateMsg",
   "type": "object",
   "required": [
+    "denom",
     "operator",
     "oversight",
     "recipient",
     "vesting_plan"
   ],
   "properties": {
+    "denom": {
+      "type": "string"
+    },
     "operator": {
       "description": "Secure multi-sig from SOB, which can be used to change the Operator or to hald the release of future tokens in the case of misbehavior.",
       "allOf": [

@@ -9,6 +9,7 @@ use tg_bindings::TgradeMsg;
 #[derive(Serialize, Deserialize, Clone, PartialEq, JsonSchema, Debug)]
 #[serde(rename_all = "snake_case")]
 pub struct InstantiateMsg {
+    pub denom: String,
     /// Account that receives the tokens once they have been vested and released.
     pub recipient: Addr,
     /// Secure multi-sig from SOB, which can be used to change the Operator

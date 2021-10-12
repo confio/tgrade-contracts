@@ -21,8 +21,6 @@ pub type SubMsg = cosmwasm_std::SubMsg<TgradeMsg>;
 const CONTRACT_NAME: &str = "crates.io:vesting-contract";
 const CONTRACT_VERSION: &str = env!("CARGO_PKG_VERSION");
 
-const VESTING_DENOM: &str = "vesting";
-
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn instantiate(
     deps: DepsMut,
@@ -40,8 +38,9 @@ fn create_vesting_account(
     info: MessageInfo,
     msg: InstantiateMsg,
 ) -> Result<(), ContractError> {
-    let initial_tokens = cw0::must_pay(&info, VESTING_DENOM)?;
+    let initial_tokens = cw0::must_pay(&info, msg.denom.as_str())?;
     let account = VestingAccount {
+        denom: msg.denom,
         recipient: msg.recipient,
         operator: msg.operator,
         oversight: msg.oversight,
@@ -240,7 +239,7 @@ fn hand_over(deps: DepsMut, env: Env, sender: Addr) -> Result<Response, Contract
 
     let frozen_tokens = account.frozen_tokens.u128();
     let msg = BankMsg::Burn {
-        amount: coins(frozen_tokens, VESTING_DENOM),
+        amount: coins(frozen_tokens, account.denom.clone()),
     };
 
     account.frozen_tokens = Uint128::zero();
@@ -273,7 +272,7 @@ mod helpers {
 
         let msg = BankMsg::Send {
             to_address: account.recipient.to_string(),
-            amount: coins(amount.u128(), VESTING_DENOM),
+            amount: coins(amount.u128(), account.denom.clone()),
         };
         Ok(Response::new()
             .add_attribute("action", "release_tokens")
@@ -396,6 +395,8 @@ mod tests {
     /// Default timestamp from mock_env() in seconds with 100 seconds added
     const DEFAULT_RELEASE: u64 = 1571797419 + 100;
 
+    const VESTING_DENOM: &str = "vesting";
+
     struct SuiteBuilder {
         recipient: Addr,
         operator: Addr,
@@ -432,6 +433,7 @@ mod tests {
             let owner = mock_info(self.recipient.as_str(), &self.coins);
 
             let instantiate_message = InstantiateMsg {
+                denom: self.coins[0].denom.clone(),
                 recipient: self.recipient,
                 operator: self.operator,
                 oversight: self.oversight,
@@ -1009,6 +1011,7 @@ mod tests {
         let owner = mock_info(OWNER, &[]);
 
         let instantiate_message = InstantiateMsg {
+            denom: VESTING_DENOM.to_string(),
             recipient: Addr::unchecked(RECIPIENT),
             operator: Addr::unchecked(OPERATOR),
             oversight: Addr::unchecked(OVERSIGHT),
