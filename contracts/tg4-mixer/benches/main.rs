@@ -24,8 +24,12 @@ fn main() {
         poe_function: Some(GeometricMean {}),
     };
 
+    let gas_before = deps.get_gas_left();
     let raw = query(&mut deps, mock_env(), benchmark_msg).unwrap();
     let res: RewardsResponse = from_slice(&raw, DESERIALIZATION_LIMIT).unwrap();
+    let gas_used = gas_before - deps.get_gas_left();
 
     assert_eq!(res, RewardsResponse { rewards: 22360 });
+
+    println!("GeometricMean::rewards(100000, 5000): {} gas", gas_used);
 }
