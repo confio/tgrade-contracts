@@ -1,9 +1,8 @@
 #[cfg(not(feature = "library"))]
 use cosmwasm_std::entry_point;
 use cosmwasm_std::{
-    coin, to_binary, to_vec, Addr, Api, BankMsg, Binary, BlockInfo, ContractResult, Deps, DepsMut,
-    Empty, Env, Event, MessageInfo, Order, QuerierWrapper, QueryRequest, Response, StdError,
-    StdResult, Storage, SystemError, SystemResult, Uint128, WasmQuery,
+    coin, to_binary, Addr, Api, BankMsg, Binary, BlockInfo, Deps, DepsMut, Env, Event, MessageInfo,
+    Order, QuerierWrapper, Response, StdError, StdResult, Storage, Uint128,
 };
 use cw0::{maybe_addr, Expiration};
 use cw2::set_contract_version;
@@ -1123,21 +1122,10 @@ pub fn remove_trading_pair(
 // wasmd error returned on QuerySmart: https://github.com/CosmWasm/wasmd/blob/6a471a4a16730e371863067b27858f60a3996c91/x/wasm/keeper/keeper.go#L627
 // no error returned on QueryRaw: https://github.com/CosmWasm/wasmd/blob/6a471a4a16730e371863067b27858f60a3996c91/x/wasm/keeper/keeper.go#L612-L620
 pub fn is_contract(querier: &QuerierWrapper, addr: &Addr) -> StdResult<bool> {
-    let raw = QueryRequest::<Empty>::Wasm(WasmQuery::Raw {
-        contract_addr: addr.to_string(),
-        key: b"any".into(),
-    });
-    match querier.raw_query(&to_vec(&raw)?) {
-        SystemResult::Err(SystemError::NoSuchContract { .. }) => Ok(false),
-        SystemResult::Err(system_err) => Err(StdError::generic_err(format!(
-            "Querier system error: {}",
-            system_err
-        ))),
-        SystemResult::Ok(ContractResult::Err(contract_err)) => Err(StdError::generic_err(format!(
-            "Querier contract error: {}",
-            contract_err
-        ))),
-        SystemResult::Ok(ContractResult::Ok(_)) => Ok(true),
+    // see cw2.CONTRACT
+    match querier.query_wasm_raw(addr, b"contract_info")? {
+        Some(data) if data.len() > 0 => Ok(true),
+        _ => Ok(false),
     }
 }
 
