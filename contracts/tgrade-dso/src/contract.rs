@@ -1124,7 +1124,7 @@ pub fn remove_trading_pair(
 pub fn is_contract(querier: &QuerierWrapper, addr: &Addr) -> StdResult<bool> {
     // see cw2.CONTRACT
     match querier.query_wasm_raw(addr, b"contract_info")? {
-        Some(data) if data.len() > 0 => Ok(true),
+        Some(data) if !data.is_empty() => Ok(true),
         _ => Ok(false),
     }
 }
