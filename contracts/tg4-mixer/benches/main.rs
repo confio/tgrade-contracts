@@ -27,12 +27,26 @@ fn main() {
     let a = Decimal::from_ratio(37u128, 10u128);
     let p = Decimal::from_ratio(68u128, 100u128);
     let s = Decimal::from_ratio(3u128, 100000u128);
+    let s_sqrt = Decimal::from_ratio(3u128, 10000u128);
 
     println!();
-    for (poe_fn_name, poe_fn, result) in [
-        ("GeometricMean", GeometricMean {}, 22360),
-        ("Sigmoid", Sigmoid { max_rewards, p, s }, MAX_REWARDS),
-        ("SigmoidSqrt", SigmoidSqrt { max_rewards, s }, 323),
+    for (poe_fn_name, poe_fn, result, gas) in [
+        ("GeometricMean", GeometricMean {}, 22360, 5804550000),
+        (
+            "Sigmoid",
+            Sigmoid { max_rewards, p, s },
+            MAX_REWARDS,
+            91235700000,
+        ),
+        (
+            "SigmoidSqrt",
+            SigmoidSqrt {
+                max_rewards,
+                s: s_sqrt,
+            },
+            997,
+            20566350000,
+        ),
         (
             "AlgebraicSigmoid",
             AlgebraicSigmoid {
@@ -42,6 +56,7 @@ fn main() {
                 s,
             },
             996,
+            85918200000,
         ),
     ] {
         let benchmark_msg = QueryMsg::Rewards {
@@ -55,8 +70,17 @@ fn main() {
         let res: RewardsResponse = from_slice(&raw, DESERIALIZATION_LIMIT).unwrap();
         let gas_used = gas_before - deps.get_gas_left();
 
-        assert_eq!(res, RewardsResponse { rewards: result });
+        println!(
+            "{:>16}({}, {}) = {:>5} ({:>11} gas)",
+            poe_fn_name, STAKE, ENGAGEMENT, res.rewards, gas_used
+        );
 
-        println!("{:>16}(100000, 5000):{:>12} gas", poe_fn_name, gas_used);
+        assert_eq!(
+            res,
+            RewardsResponse { rewards: result },
+            "{} result",
+            poe_fn_name
+        );
+        assert_eq!(gas_used, gas, "{} gas", poe_fn_name);
     }
 }
