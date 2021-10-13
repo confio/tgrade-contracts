@@ -2,11 +2,11 @@
 //! It depends on a Wasm build being available, which you can create with `cargo wasm`.
 //! Then running `cargo bench` will validate we can properly call into that generated Wasm.
 //!
-use cosmwasm_std::{Uint64, Decimal};
+use cosmwasm_std::{Decimal, Uint64};
 use cosmwasm_vm::from_slice;
 use cosmwasm_vm::testing::{mock_env, mock_instance, query};
 
-use tg4_mixer::msg::PoEFunctionType::{GeometricMean, Sigmoid, SigmoidSqrt, AlgebraicSigmoid};
+use tg4_mixer::msg::PoEFunctionType::{AlgebraicSigmoid, GeometricMean, Sigmoid, SigmoidSqrt};
 use tg4_mixer::msg::{QueryMsg, RewardsResponse};
 
 // Output of cargo wasm
@@ -26,18 +26,24 @@ fn main() {
     let max_rewards = Uint64::new(MAX_REWARDS);
     let a = Decimal::from_ratio(37u128, 10u128);
     let p = Decimal::from_ratio(68u128, 100u128);
-    let s =  Decimal::from_ratio(3u128, 100000u128);
+    let s = Decimal::from_ratio(3u128, 100000u128);
 
     println!();
-    for (poe_fn_name, poe_fn, result) in [("GeometricMean", GeometricMean {}, 22360),
-        ("Sigmoid", Sigmoid {
-            max_rewards, p, s
-    }, MAX_REWARDS), ("SigmoidSqrt", SigmoidSqrt { max_rewards, s }, 323), ("AlgebraicSigmoid", AlgebraicSigmoid {
-            max_rewards,
-            a,
-            p,
-            s
-        }, 996)] {
+    for (poe_fn_name, poe_fn, result) in [
+        ("GeometricMean", GeometricMean {}, 22360),
+        ("Sigmoid", Sigmoid { max_rewards, p, s }, MAX_REWARDS),
+        ("SigmoidSqrt", SigmoidSqrt { max_rewards, s }, 323),
+        (
+            "AlgebraicSigmoid",
+            AlgebraicSigmoid {
+                max_rewards,
+                a,
+                p,
+                s,
+            },
+            996,
+        ),
+    ] {
         let benchmark_msg = QueryMsg::Rewards {
             stake: Uint64::new(STAKE),
             engagement: Uint64::new(ENGAGEMENT),
