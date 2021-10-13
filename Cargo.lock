@@ -1606,6 +1606,7 @@ name = "tgrade-valset"
 version = "0.4.0"
 dependencies = [
  "anyhow",
+ "assert_matches",
  "cosmwasm-schema",
  "cosmwasm-std",
  "cw-controllers",
