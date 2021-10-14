@@ -1,4 +1,4 @@
-use crate::{msg::*, state::*};
+use crate::{error::ContractError, msg::*, state::*};
 
 use cosmwasm_std::{coin, Addr, CosmosMsg, Timestamp, Uint128};
 use cw_multi_test::{AppResponse, Contract, ContractWrapper, CosmosRouter, Executor};
@@ -30,6 +30,8 @@ pub struct SuiteBuilder {
     oversight: String,
     #[derivative(Default(value = "String::from(\"VESTING\")"))]
     denom: String,
+    // create any vesting plan, just to decrease boilerplate code
+    // in a lot of cases it's not needed
     #[derivative(Default(value = "VestingPlan::Discrete {
         release_at: Expiration::at_timestamp(Timestamp::from_seconds(1))
     }"))]
@@ -38,26 +40,6 @@ pub struct SuiteBuilder {
 }
 
 impl SuiteBuilder {
-    pub fn with_recipient(mut self, recipient: &str) -> Self {
-        self.recipient = recipient.to_owned();
-        self
-    }
-
-    pub fn with_operator(mut self, operator: &str) -> Self {
-        self.operator = operator.to_owned();
-        self
-    }
-
-    pub fn with_oversight(mut self, oversight: &str) -> Self {
-        self.oversight = oversight.to_owned();
-        self
-    }
-
-    pub fn with_vesting_plan(mut self, vesting_plan: VestingPlan) -> Self {
-        self.vesting_plan = vesting_plan;
-        self
-    }
-
     pub fn with_tokens(mut self, amount: u128) -> Self {
         self.initial_tokens = amount;
         self
@@ -103,14 +85,11 @@ impl SuiteBuilder {
                     oversight: oversight.clone(),
                     vesting_plan: self.vesting_plan,
                 },
-                &[coin(self.initial_tokens, self.denom.to_owned())],
+                &[coin(self.initial_tokens, self.denom)],
                 "vesting",
                 Some(owner.to_string()),
             )
             .unwrap();
-
-        // promote the vesting contract
-        // app.promote(owner.as_str(), contract.as_str()).unwrap();
 
         // process initial genesis block
         app.next_block().unwrap();
@@ -149,5 +128,26 @@ impl Suite {
             &ExecuteMsg::FreezeTokens { amount },
             &[],
         )
+    }
+
+    pub fn unfreeze_tokens(
+        &mut self,
+        sender: Addr,
+        amount: Option<Uint128>,
+    ) -> AnyResult<AppResponse> {
+        self.app.execute_contract(
+            sender,
+            self.contract.clone(),
+            &ExecuteMsg::UnfreezeTokens { amount },
+            &[],
+        )
+    }
+
+    pub fn token_info(&self) -> Result<TokenInfoResponse, ContractError> {
+        let resp: TokenInfoResponse = self
+            .app
+            .wrap()
+            .query_wasm_smart(self.contract.clone(), &QueryMsg::TokenInfo {})?;
+        Ok(resp)
     }
 }
