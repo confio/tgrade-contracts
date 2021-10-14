@@ -685,7 +685,7 @@ fn test_whitelist_trading_pair() {
     assert_eq!(trading_pair.weight, None);
 
     // make a new proposal
-    let prop = ProposalContent::WhitelistTradingPair(TRADING_PAIR.into());
+    let prop = ProposalContent::WhitelistContract(TRADING_PAIR.into());
     let msg = ExecuteMsg::Propose {
         title: "Whitelist trading pair".to_string(),
         description: "This is my trusted token pair".to_string(),
@@ -723,7 +723,7 @@ fn test_whitelist_trading_pair() {
     assert_eq!(trading_pair.weight, Some(0));
 
     // now remove it
-    let prop = ProposalContent::RemoveTradingPair(TRADING_PAIR.into());
+    let prop = ProposalContent::RemoveContract(TRADING_PAIR.into());
     let msg = ExecuteMsg::Propose {
         title: "Remove trading pair".to_string(),
         description: "This was a trusted token pair".to_string(),

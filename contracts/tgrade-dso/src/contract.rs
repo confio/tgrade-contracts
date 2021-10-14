@@ -415,7 +415,7 @@ pub fn validate_proposal(
             }
             punishments.iter().try_for_each(|p| p.validate(&deps))
         }
-        ProposalContent::WhitelistTradingPair(addr) | ProposalContent::RemoveTradingPair(addr) => {
+        ProposalContent::WhitelistContract(addr) | ProposalContent::RemoveContract(addr) => {
             validate_addresses(deps.api, &[addr.into()])
             // FIXME: Check that address belongs to a contract
         }
@@ -816,10 +816,10 @@ pub fn proposal_execute(
         ProposalContent::PunishMembers(punishments) => {
             proposal_punish_members(deps, env, proposal_id, &punishments)
         }
-        ProposalContent::WhitelistTradingPair(addr) => {
+        ProposalContent::WhitelistContract(addr) => {
             proposal_whitelist_trading_pair(deps, env, &addr)
         }
-        ProposalContent::RemoveTradingPair(addr) => proposal_remove_trading_pair(deps, env, &addr),
+        ProposalContent::RemoveContract(addr) => proposal_remove_trading_pair(deps, env, &addr),
     }
 }
 
