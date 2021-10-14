@@ -20,7 +20,7 @@ use crate::error::ContractError;
 use crate::functions::PoEFunction;
 use crate::msg::{
     ExecuteMsg, GroupsResponse, InstantiateMsg, PoEFunctionType, PreauthResponse, QueryMsg,
-    RewardsResponse,
+    RewardFunctionResponse,
 };
 use crate::state::{Groups, GROUPS, POE_FUNCTION_TYPE};
 
@@ -271,14 +271,14 @@ pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
             let preauths = PREAUTH.get_auth(deps.storage)?;
             to_binary(&PreauthResponse { preauths })
         }
-        QueryMsg::Rewards {
+        QueryMsg::RewardFunction {
             stake,
             engagement,
             poe_function,
         } => {
-            let rewards = query_rewards(deps, stake.u64(), engagement.u64(), poe_function)
+            let reward = query_reward_function(deps, stake.u64(), engagement.u64(), poe_function)
                 .map_err(|err| StdError::generic_err(err.to_string()))?;
-            to_binary(&RewardsResponse { rewards })
+            to_binary(&RewardFunctionResponse { reward })
         }
     }
 }
@@ -358,7 +358,7 @@ fn list_members_by_weight(
     Ok(MemberListResponse { members: members? })
 }
 
-pub fn query_rewards(
+pub fn query_reward_function(
     deps: Deps,
     stake: u64,
     engagement: u64,

@@ -7,7 +7,7 @@ use cosmwasm_vm::from_slice;
 use cosmwasm_vm::testing::{mock_env, mock_instance, query};
 
 use tg4_mixer::msg::PoEFunctionType::{AlgebraicSigmoid, GeometricMean, Sigmoid, SigmoidSqrt};
-use tg4_mixer::msg::{QueryMsg, RewardsResponse};
+use tg4_mixer::msg::{QueryMsg, RewardFunctionResponse};
 
 // Output of cargo wasm
 static WASM: &[u8] =
@@ -62,7 +62,7 @@ fn main() {
             85918200000,
         ),
     ] {
-        let benchmark_msg = QueryMsg::Rewards {
+        let benchmark_msg = QueryMsg::RewardFunction {
             stake: Uint64::new(STAKE),
             engagement: Uint64::new(ENGAGEMENT),
             poe_function: Some(poe_fn),
@@ -70,18 +70,18 @@ fn main() {
 
         let gas_before = deps.get_gas_left();
         let raw = query(&mut deps, mock_env(), benchmark_msg).unwrap();
-        let res: RewardsResponse = from_slice(&raw, DESERIALIZATION_LIMIT).unwrap();
+        let res: RewardFunctionResponse = from_slice(&raw, DESERIALIZATION_LIMIT).unwrap();
         let gas_used = gas_before - deps.get_gas_left();
         let sdk_gas = gas_used / GAS_MULTIPLIER;
 
         println!(
             "{:>16}({}, {}) = {:>5} ({:>3} SDK gas)",
-            poe_fn_name, STAKE, ENGAGEMENT, res.rewards, sdk_gas
+            poe_fn_name, STAKE, ENGAGEMENT, res.reward, sdk_gas
         );
 
         assert_eq!(
             res,
-            RewardsResponse { rewards: result },
+            RewardFunctionResponse { reward: result },
             "{} result",
             poe_fn_name
         );

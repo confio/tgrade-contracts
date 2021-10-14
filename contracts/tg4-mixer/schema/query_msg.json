@@ -149,10 +149,10 @@
       "description": "Rewards of a PoE function (used for benchmarking). Returns RewardsResponse.",
       "type": "object",
       "required": [
-        "rewards"
+        "reward_function"
       ],
       "properties": {
-        "rewards": {
+        "reward_function": {
           "type": "object",
           "required": [
             "engagement",

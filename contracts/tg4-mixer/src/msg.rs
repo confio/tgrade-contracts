@@ -105,7 +105,7 @@ pub enum QueryMsg {
     Preauths {},
     /// Rewards of a PoE function (used for benchmarking).
     /// Returns RewardsResponse.
-    Rewards {
+    RewardFunction {
         stake: Uint64,
         engagement: Uint64,
         poe_function: Option<PoEFunctionType>,
@@ -125,6 +125,6 @@ pub struct PreauthResponse {
 }
 
 #[derive(Serialize, Deserialize, Clone, PartialEq, JsonSchema, Debug)]
-pub struct RewardsResponse {
-    pub rewards: u64,
+pub struct RewardFunctionResponse {
+    pub reward: u64,
 }
