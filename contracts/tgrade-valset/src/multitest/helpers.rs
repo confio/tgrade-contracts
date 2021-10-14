@@ -1,8 +1,8 @@
-use cosmwasm_std::{Addr, Binary};
+use cosmwasm_std::Binary;
 use tg_bindings::Pubkey;
 
 use crate::msg::{JailingPeriod, OperatorResponse, ValidatorMetadata};
-use crate::state::{OperatorInfo, ValidatorInfo};
+use crate::state::ValidatorInfo;
 
 pub fn mock_pubkey(base: &[u8]) -> Pubkey {
     const ED25519_PUBKEY_LENGTH: usize = 32;
@@ -35,7 +35,7 @@ pub fn members_init<'m>(members: &[&'m str], weights: &[u64]) -> Vec<(&'m str, u
 #[track_caller]
 pub fn assert_active_validators(received: &[ValidatorInfo], expected: &[(&str, u64)]) {
     let mut received: Vec<_> = received
-        .into_iter()
+        .iter()
         .map(|validator| (validator.operator.to_string(), validator.power))
         .collect();
     let mut expected: Vec<_> = expected
@@ -55,13 +55,13 @@ pub fn assert_active_validators(received: &[ValidatorInfo], expected: &[(&str, u
 #[track_caller]
 pub fn assert_operators(received: &[OperatorResponse], expected: &[(&str, Option<JailingPeriod>)]) {
     let mut received: Vec<_> = received
-        .into_iter()
+        .iter()
         .cloned()
         .map(|operator| (operator.operator, operator.jailed_until))
         .collect();
 
     let mut expected: Vec<_> = expected
-        .into_iter()
+        .iter()
         .cloned()
         .map(|(addr, jailing)| (addr.to_owned(), jailing))
         .collect();

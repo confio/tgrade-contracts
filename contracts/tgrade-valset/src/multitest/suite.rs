@@ -2,11 +2,11 @@ use super::helpers::{mock_metadata, mock_pubkey};
 use crate::state::Config;
 use crate::{msg::*, state::ValidatorInfo};
 use anyhow::{bail, Result as AnyResult};
-use cosmwasm_std::{coin, Addr, Binary, Coin, CosmosMsg, Decimal, StdResult, Timestamp};
+use cosmwasm_std::{coin, Addr, Coin, CosmosMsg, Decimal, StdResult, Timestamp};
 use cw_multi_test::{next_block, AppResponse, Contract, ContractWrapper, CosmosRouter, Executor};
 use derivative::Derivative;
 use tg4::Member;
-use tg_bindings::{Pubkey, TgradeMsg, ValidatorDiff};
+use tg_bindings::{TgradeMsg, ValidatorDiff};
 use tg_bindings_test::TgradeApp;
 use tg_utils::Duration;
 
@@ -294,10 +294,6 @@ pub struct Suite {
 impl Suite {
     pub fn admin(&self) -> &str {
         &self.admin
-    }
-
-    pub fn member_operators(&self) -> &[Member] {
-        &self.member_operators
     }
 
     pub fn app(&mut self) -> &mut TgradeApp {

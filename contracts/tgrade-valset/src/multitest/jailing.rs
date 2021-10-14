@@ -218,7 +218,7 @@ fn auto_unjail() {
     suite.jail(&admin, members[1], None).unwrap();
 
     // Move forward a little, but not enough for jailing to expire
-    suite.next_block();
+    suite.next_block().unwrap();
 
     // Operators are jailed...
     assert_operators(

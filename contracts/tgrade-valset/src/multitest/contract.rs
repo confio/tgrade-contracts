@@ -59,7 +59,7 @@ fn initialization() {
     // Validators should be set on genesis processing block
     assert_active_validators(
         &suite.list_active_validators().unwrap(),
-        &[(&members[2], 5), (&members[3], 8)],
+        &[(members[2], 5), (members[3], 8)],
     );
 
     for member in &members {
@@ -84,12 +84,12 @@ fn simulate_validators() {
 
     assert_active_validators(
         &suite.simulate_active_validators().unwrap(),
-        &[(&members[4], 13), (&members[5], 21)],
+        &[(members[4], 13), (members[5], 21)],
     );
 
     assert_active_validators(
         &suite.list_active_validators().unwrap(),
-        &[(&members[4], 13), (&members[5], 21)],
+        &[(members[4], 13), (members[5], 21)],
     );
 }
 
