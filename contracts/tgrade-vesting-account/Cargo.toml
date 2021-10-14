@@ -15,7 +15,7 @@ crate-type = ["cdylib", "rlib"]
 library = []
 
 [dependencies]
-cosmwasm-std = { version = "1.0.0-beta" }
+cosmwasm-std = "1.0.0-beta"
 cw0 = "0.10.0"
 cw2 = "0.10.0"
 cw-storage-plus = "0.10.0"
@@ -23,8 +23,12 @@ schemars = "0.8.1"
 serde = { version = "1.0.103", default-features = false, features = ["derive"] }
 tg-bindings = { version = "0.4.0", path = "../../packages/bindings" }
 tg-utils = { version = "0.4.0", path = "../../packages/utils" }
-thiserror = { version = "1.0.21" }
+thiserror = "1.0.21"
 
 [dev-dependencies]
+anyhow = "1"
 assert_matches = "1"
+derivative = "2"
 cosmwasm-schema = "1.0.0-beta"
+cw-multi-test = "0.10.0"
+tg-bindings-test = { version = "0.4.0", path = "../../packages/bindings-test" }
