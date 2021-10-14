@@ -15,6 +15,9 @@ static WASM: &[u8] =
 
 const DESERIALIZATION_LIMIT: usize = 20_000;
 
+// From https://github.com/CosmWasm/wasmd/blob/master/x/wasm/keeper/gas_register.go#L31
+const GAS_MULTIPLIER: u64 = 140_000_000;
+
 fn main() {
     const MAX_REWARDS: u64 = 1000;
 
@@ -69,10 +72,11 @@ fn main() {
         let raw = query(&mut deps, mock_env(), benchmark_msg).unwrap();
         let res: RewardsResponse = from_slice(&raw, DESERIALIZATION_LIMIT).unwrap();
         let gas_used = gas_before - deps.get_gas_left();
+        let sdk_gas = gas_used / GAS_MULTIPLIER;
 
         println!(
-            "{:>16}({}, {}) = {:>5} ({:>11} gas)",
-            poe_fn_name, STAKE, ENGAGEMENT, res.rewards, gas_used
+            "{:>16}({}, {}) = {:>5} ({:>3} SDK gas)",
+            poe_fn_name, STAKE, ENGAGEMENT, res.rewards, sdk_gas
         );
 
         assert_eq!(
