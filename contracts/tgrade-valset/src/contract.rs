@@ -764,66 +764,6 @@ mod test {
     }
 
     #[test]
-    fn update_metadata_works() {
-        let mut app = AppBuilder::new_custom().build(|_, _, _| ());
-
-        let engagement_id = app.store_code(contract_engagement());
-        // make a simple group
-        let group_addr = instantiate_group(&mut app, 36);
-        // make a valset that references it (this does init)
-        let valset_addr = instantiate_valset(&mut app, group_addr, 10, 5, engagement_id);
-
-        // get my initial metadata
-        let operator = addrs(3).pop().unwrap();
-        let query = QueryMsg::Validator {
-            operator: operator.clone(),
-        };
-        let val_info: ValidatorResponse =
-            app.wrap().query_wasm_smart(&valset_addr, &query).unwrap();
-        let val_init = val_info.validator.unwrap();
-        assert_eq!(val_init.metadata, mock_metadata(&operator));
-
-        // update the validator metadata
-        let updated = ValidatorMetadata {
-            moniker: "funny boy".to_string(),
-            identity: Some("one".to_string()),
-            website: None,
-            security_contact: Some("security@google.com".to_string()),
-            details: None,
-        };
-        let exec = ExecuteMsg::UpdateMetadata(updated.clone());
-        app.execute_contract(Addr::unchecked(&operator), valset_addr.clone(), &exec, &[])
-            .unwrap();
-
-        // it should be what we set
-        let val_info: ValidatorResponse =
-            app.wrap().query_wasm_smart(&valset_addr, &query).unwrap();
-        let val = val_info.validator.unwrap();
-        assert_eq!(val.metadata, updated);
-        // nothing else changed
-        assert_eq!(val.pubkey, val_init.pubkey);
-        assert_eq!(val.operator, val_init.operator);
-
-        // test that we cannot set empty moniker
-        let bad_update = ExecuteMsg::UpdateMetadata(ValidatorMetadata::default());
-        let err = app
-            .execute_contract(
-                Addr::unchecked(&operator),
-                valset_addr.clone(),
-                &bad_update,
-                &[],
-            )
-            .unwrap_err();
-        assert_eq!(ContractError::InvalidMoniker {}, err.downcast().unwrap());
-
-        // test that non-members cannot set data
-        let err = app
-            .execute_contract(Addr::unchecked("random"), valset_addr, &exec, &[])
-            .unwrap_err();
-        assert_eq!(ContractError::Unauthorized {}, err.downcast().unwrap());
-    }
-
-    #[test]
     fn validator_list() {
         let mut app = AppBuilder::new_custom().build(|_, _, _| ());
 

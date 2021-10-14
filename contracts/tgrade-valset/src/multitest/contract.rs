@@ -1,4 +1,5 @@
-use crate::msg::EpochResponse;
+use crate::error::ContractError;
+use crate::msg::{EpochResponse, ValidatorMetadata};
 use crate::state::Config;
 
 use super::helpers::{assert_active_validators, assert_operators, members_init};
@@ -89,5 +90,72 @@ fn simulate_validators() {
     assert_active_validators(
         suite.list_active_validators().unwrap(),
         &[(&members[4], 13), (&members[5], 21)],
+    );
+}
+
+#[test]
+fn update_metadata() {
+    let members = vec!["member1"];
+    let mut suite = SuiteBuilder::new()
+        .with_operators(&members_init(&members, &[2]), &[])
+        .build();
+
+    let meta = ValidatorMetadata {
+        moniker: "funny boy".to_owned(),
+        identity: Some("Secret identity".to_owned()),
+        website: Some("https://www.funny.boy.rs".to_owned()),
+        security_contact: Some("funny@boy.rs".to_owned()),
+        details: Some("Comedian".to_owned()),
+    };
+
+    suite.update_metadata(members[0], &meta).unwrap();
+
+    assert_eq!(
+        suite
+            .validator(members[0])
+            .unwrap()
+            .validator
+            .unwrap()
+            .metadata,
+        meta
+    );
+
+    let invalid_meta = ValidatorMetadata {
+        moniker: "".to_owned(),
+        identity: Some("Magic identity".to_owned()),
+        website: Some("https://www.empty.one.rs".to_owned()),
+        security_contact: Some("empty@one.rs".to_owned()),
+        details: Some("Ghost".to_owned()),
+    };
+
+    // Update with invalid meta (empty moniker) fails
+    assert_eq!(
+        ContractError::InvalidMoniker {},
+        suite
+            .update_metadata(members[0], &invalid_meta)
+            .unwrap_err()
+            .downcast()
+            .unwrap(),
+    );
+
+    // Ensure no metadata changed
+    assert_eq!(
+        suite
+            .validator(members[0])
+            .unwrap()
+            .validator
+            .unwrap()
+            .metadata,
+        meta
+    );
+
+    // Update with valid meta on non-member always fail
+    assert_eq!(
+        ContractError::Unauthorized {},
+        suite
+            .update_metadata("invalid", &meta)
+            .unwrap_err()
+            .downcast()
+            .unwrap(),
     );
 }

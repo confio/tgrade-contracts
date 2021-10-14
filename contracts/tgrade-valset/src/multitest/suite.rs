@@ -348,6 +348,19 @@ impl Suite {
         )
     }
 
+    pub fn update_metadata(
+        &mut self,
+        executor: &str,
+        metadata: &ValidatorMetadata,
+    ) -> AnyResult<AppResponse> {
+        self.app.execute_contract(
+            Addr::unchecked(executor),
+            self.valset.clone(),
+            &ExecuteMsg::UpdateMetadata(metadata.clone()),
+            &[],
+        )
+    }
+
     pub fn withdraw_engagement_reward(&mut self, executor: &str) -> AnyResult<AppResponse> {
         if let Some(contract) = &self.distribution_contract {
             self.app.execute_contract(
