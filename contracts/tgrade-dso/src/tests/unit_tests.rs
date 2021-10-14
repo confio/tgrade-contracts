@@ -758,15 +758,15 @@ fn test_whitelist_contract() {
     let info = mock_info(INIT_ADMIN, &escrow_funds());
     do_instantiate(deps.as_mut(), info, vec![]).unwrap();
 
-    // check pair is not there
-    let trading_pair = query_member(deps.as_ref(), TOKEN_ADDR.into(), None).unwrap();
-    assert_eq!(trading_pair.weight, None);
+    // check token address is not there
+    let token_addr = query_member(deps.as_ref(), TOKEN_ADDR.into(), None).unwrap();
+    assert_eq!(token_addr.weight, None);
 
     // make a new proposal
     let prop = ProposalContent::WhitelistContract(TOKEN_ADDR.into());
     let msg = ExecuteMsg::Propose {
-        title: "Whitelist trading pair".to_string(),
-        description: "This is my trusted token pair".to_string(),
+        title: "Whitelist token address".to_string(),
+        description: "This is my trusted token".to_string(),
         proposal: prop,
     };
     let mut env = mock_env();
@@ -796,15 +796,15 @@ fn test_whitelist_contract() {
     )
     .unwrap();
 
-    // check pair added as non-voting member
-    let trading_pair = query_member(deps.as_ref(), TOKEN_ADDR.into(), None).unwrap();
-    assert_eq!(trading_pair.weight, Some(0));
+    // check token address added as non-voting member
+    let token_addr = query_member(deps.as_ref(), TOKEN_ADDR.into(), None).unwrap();
+    assert_eq!(token_addr.weight, Some(0));
 
     // now remove it
     let prop = ProposalContent::RemoveContract(TOKEN_ADDR.into());
     let msg = ExecuteMsg::Propose {
-        title: "Remove trading pair".to_string(),
-        description: "This was a trusted token pair".to_string(),
+        title: "Remove token address".to_string(),
+        description: "This was a trusted token".to_string(),
         proposal: prop,
     };
     let mut env = mock_env();
@@ -834,9 +834,9 @@ fn test_whitelist_contract() {
     )
     .unwrap();
 
-    // check pair removed
-    let trading_pair = query_member(deps.as_ref(), TOKEN_ADDR.into(), None).unwrap();
-    assert_eq!(trading_pair.weight, None);
+    // check token address removed
+    let token_addr = query_member(deps.as_ref(), TOKEN_ADDR.into(), None).unwrap();
+    assert_eq!(token_addr.weight, None);
 }
 
 #[test]
