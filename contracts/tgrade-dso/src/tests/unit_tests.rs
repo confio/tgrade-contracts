@@ -1,11 +1,81 @@
 #![cfg(test)]
 use super::*;
-use cosmwasm_std::{Addr, Deps, StdError, SubMsg};
+use cosmwasm_std::{
+    Addr, Binary, ContractResult, Deps, Empty, QuerierResult, QueryRequest, StdError, SubMsg,
+    SystemError, SystemResult, WasmQuery,
+};
 
 use crate::state::{EscrowStatus, Punishment};
 use crate::tests::bdd_tests::{
     propose_add_voting_members_and_execute, PROPOSAL_ID_1, PROPOSAL_ID_2,
 };
+use cosmwasm_std::testing::{MockApi, MockStorage};
+use cw_storage_plus::Item;
+
+// Used for the whitelisting test
+pub const TOKEN_CONTRACT: Item<String> = Item::new("contract_info");
+
+struct TokenQuerier {
+    contract: String,
+    storage: MockStorage,
+}
+
+impl TokenQuerier {
+    pub fn new(contract: &Addr, token_version: &str) -> Self {
+        let mut storage = MockStorage::new();
+        TOKEN_CONTRACT
+            .save(&mut storage, &token_version.to_string())
+            .unwrap();
+
+        TokenQuerier {
+            contract: contract.to_string(),
+            storage,
+        }
+    }
+
+    fn handle_query(&self, request: QueryRequest<Empty>) -> QuerierResult {
+        match request {
+            QueryRequest::Wasm(WasmQuery::Raw { contract_addr, key }) => {
+                self.query_wasm(contract_addr, key)
+            }
+            QueryRequest::Wasm(WasmQuery::Smart { .. }) => {
+                SystemResult::Err(SystemError::UnsupportedRequest {
+                    kind: "WasmQuery::Smart".to_string(),
+                })
+            }
+            _ => SystemResult::Err(SystemError::UnsupportedRequest {
+                kind: "not wasm".to_string(),
+            }),
+        }
+    }
+
+    // TODO: we should be able to add a custom wasm handler to MockQuerier from cosmwasm_std::mock
+    fn query_wasm(&self, contract_addr: String, key: Binary) -> QuerierResult {
+        if contract_addr != self.contract {
+            SystemResult::Err(SystemError::NoSuchContract {
+                addr: contract_addr,
+            })
+        } else {
+            let bin = self.storage.get(&key).unwrap_or_default();
+            SystemResult::Ok(ContractResult::Ok(bin.into()))
+        }
+    }
+}
+
+impl Querier for TokenQuerier {
+    fn raw_query(&self, bin_request: &[u8]) -> QuerierResult {
+        let request: QueryRequest<Empty> = match from_slice(bin_request) {
+            Ok(v) => v,
+            Err(e) => {
+                return SystemResult::Err(SystemError::InvalidRequest {
+                    error: format!("Parsing query request: {:?}", e),
+                    request: bin_request.into(),
+                })
+            }
+        };
+        self.handle_query(request)
+    }
+}
 
 #[test]
 fn instantiation_no_funds() {
@@ -676,7 +746,15 @@ fn test_update_nonvoting_members() {
 
 #[test]
 fn test_whitelist_contract() {
-    let mut deps = mock_dependencies(&[]);
+    // Set and honour our local data
+    let querier = TokenQuerier::new(&Addr::unchecked(TOKEN_ADDR), "0.1");
+
+    let mut deps = OwnedDeps {
+        storage: MockStorage::default(),
+        api: MockApi::default(),
+        querier,
+    };
+
     let info = mock_info(INIT_ADMIN, &escrow_funds());
     do_instantiate(deps.as_mut(), info, vec![]).unwrap();
 
