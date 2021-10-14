@@ -398,16 +398,15 @@ pub fn validate_proposal(
             if add.is_empty() && remove.is_empty() {
                 return Err(ContractError::NoMembers {});
             }
-            validate_addresses(deps.api, add)?;
-            validate_addresses(deps.api, remove)
-            // FIXME: Check that addresses don't belong to a contract
+            validate_human_addresses(&deps, add)?;
+            validate_human_addresses(&deps, remove)
         }
         ProposalContent::AddVotingMembers { voters } => {
             if voters.is_empty() {
                 return Err(ContractError::NoMembers {});
             }
-            validate_addresses(deps.api, voters)
-            // FIXME: Check that addresses don't belong to a contract
+            validate_human_addresses(&deps, voters)?;
+            validate_human_addresses(&deps, voters)
         }
         ProposalContent::PunishMembers(punishments) => {
             if punishments.is_empty() {
@@ -416,18 +415,40 @@ pub fn validate_proposal(
             punishments.iter().try_for_each(|p| p.validate(&deps))
         }
         ProposalContent::WhitelistContract(addr) | ProposalContent::RemoveContract(addr) => {
-            validate_addresses(deps.api, &[addr.into()])
-            // FIXME: Check that address belongs to a contract
+            validate_contract_address(&deps, addr.clone())
         }
     }
 }
 
-pub fn validate_addresses(api: &dyn Api, addrs: &[String]) -> Result<(), ContractError> {
-    addrs
+pub fn validate_addresses(api: &dyn Api, addrs: &[String]) -> StdResult<Vec<Addr>> {
+    addrs.iter().map(|addr| api.addr_validate(addr)).collect()
+}
+
+pub fn validate_human_addresses(deps: &Deps, addrs: &[String]) -> Result<(), ContractError> {
+    validate_addresses(deps.api, addrs)?
         .iter()
-        .map(|addr| api.addr_validate(addr))
-        .collect::<StdResult<Vec<_>>>()?;
+        .map(|a| Ok((a, is_contract(&deps.querier, a)?)))
+        .collect::<StdResult<Vec<_>>>()?
+        .iter()
+        .map(|&(addr, c)| {
+            if c {
+                Err(ContractError::NotAHuman(addr.clone()))
+            } else {
+                Ok(())
+            }
+        })
+        .collect::<Result<Vec<_>, ContractError>>()?;
     Ok(())
+}
+
+pub fn validate_contract_address(deps: &Deps, addr: String) -> Result<(), ContractError> {
+    match validate_human_addresses(deps, &[addr.clone()]) {
+        Err(e) => match e {
+            ContractError::NotAHuman { .. } => Ok(()),
+            _ => Err(e),
+        },
+        Ok(()) => Err(ContractError::NotAContract(addr)),
+    }
 }
 
 pub fn execute_vote(
