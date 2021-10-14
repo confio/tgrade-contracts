@@ -1144,9 +1144,11 @@ pub fn remove_trading_pair(
 // no error returned on QueryRaw: https://github.com/CosmWasm/wasmd/blob/6a471a4a16730e371863067b27858f60a3996c91/x/wasm/keeper/keeper.go#L612-L620
 pub fn is_contract(querier: &QuerierWrapper, addr: &Addr) -> StdResult<bool> {
     // see cw2.CONTRACT
-    match querier.query_wasm_raw(addr, b"contract_info")? {
-        Some(data) if !data.is_empty() => Ok(true),
-        _ => Ok(false),
+    match querier.query_wasm_raw(addr, b"contract_info") {
+        Ok(Some(data)) if !data.is_empty() => Ok(true),
+        Ok(_) => Ok(false),
+        Err(StdError::GenericErr { msg, .. }) if msg.contains("No such contract") => Ok(false),
+        Err(err) => Err(err),
     }
 }
 
