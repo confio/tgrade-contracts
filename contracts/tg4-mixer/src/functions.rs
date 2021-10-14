@@ -3,16 +3,12 @@ use rust_decimal::prelude::ToPrimitive;
 use rust_decimal::{Decimal, MathematicalOps};
 use rust_decimal_macros::dec;
 
-use cosmwasm_std::{Decimal as StdDecimal, Fraction, Uint128, Uint64};
+use cosmwasm_std::{Decimal as StdDecimal, Fraction, Uint64};
 
 use crate::error::ContractError;
 
 pub fn std_to_decimal(std_decimal: StdDecimal) -> Decimal {
     Decimal::from_i128_with_scale(std_decimal.numerator().u128() as i128, 18) // FIXME: StdDecimal::DECIMAL_PLACES is private
-}
-
-fn uint64_to_std_decimal(value: &Uint64) -> StdDecimal {
-    StdDecimal::from_ratio(Uint128::new(value.u64() as u128), 1u128)
 }
 
 /// This defines the functions we can use for proof of engagement rewards.
@@ -69,18 +65,18 @@ impl Sigmoid {
         if max_rewards.u64() > i64::MAX as u64 {
             return Err(ContractError::ParameterRange(
                 "max_rewards",
-                uint64_to_std_decimal(max_rewards),
+                max_rewards.to_string(),
             ));
         }
 
         // validate `p`
         if !(StdDecimal::zero()..=StdDecimal::one()).contains(p) {
-            return Err(ContractError::ParameterRange("p", *p));
+            return Err(ContractError::ParameterRange("p", p.to_string()));
         }
 
         // validate `s`
         if !(StdDecimal::zero()..=StdDecimal::one()).contains(s) {
-            return Err(ContractError::ParameterRange("s", *s));
+            return Err(ContractError::ParameterRange("s", s.to_string()));
         }
         Ok(())
     }
@@ -154,13 +150,13 @@ impl SigmoidSqrt {
         if max_rewards.u64() > i64::MAX as u64 {
             return Err(ContractError::ParameterRange(
                 "max_rewards",
-                uint64_to_std_decimal(max_rewards),
+                max_rewards.to_string(),
             ));
         }
 
         // validate `s`
         if !(StdDecimal::zero()..=StdDecimal::one()).contains(s) {
-            return Err(ContractError::ParameterRange("s", *s));
+            return Err(ContractError::ParameterRange("s", s.to_string()));
         }
         Ok(())
     }
@@ -227,23 +223,23 @@ impl AlgebraicSigmoid {
         if max_rewards.u64() > i64::MAX as u64 {
             return Err(ContractError::ParameterRange(
                 "max_rewards",
-                uint64_to_std_decimal(max_rewards),
+                max_rewards.to_string(),
             ));
         }
 
         // validate `a`
         if !(StdDecimal::zero()..=StdDecimal::from_ratio(5u8, 1u8)).contains(a) {
-            return Err(ContractError::ParameterRange("a", *a));
+            return Err(ContractError::ParameterRange("a", a.to_string()));
         }
 
         // validate `p`
         if !(StdDecimal::zero()..=StdDecimal::one()).contains(p) {
-            return Err(ContractError::ParameterRange("p", *p));
+            return Err(ContractError::ParameterRange("p", p.to_string()));
         }
 
         // validate `s`
         if !(StdDecimal::zero()..=StdDecimal::one()).contains(s) {
-            return Err(ContractError::ParameterRange("s", *s));
+            return Err(ContractError::ParameterRange("s", s.to_string()));
         }
         Ok(())
     }

@@ -1,4 +1,4 @@
-use cosmwasm_std::{Decimal, StdError};
+use cosmwasm_std::StdError;
 use tg_utils::{HookError, PreauthError};
 use thiserror::Error;
 
@@ -33,5 +33,5 @@ pub enum ContractError {
     RewardOverflow {},
 
     #[error("The parameter '{0}' is out of range: {1}")]
-    ParameterRange(&'static str, Decimal),
+    ParameterRange(&'static str, String),
 }
