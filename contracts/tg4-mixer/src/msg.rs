@@ -49,7 +49,7 @@ pub enum PoEFunctionType {
 impl PoEFunctionType {
     pub fn to_poe_fn(&self) -> Result<Box<dyn PoEFunction>, ContractError> {
         match self.clone() {
-            PoEFunctionType::GeometricMean {} => Ok(Box::new(GeometricMean::new()?)),
+            PoEFunctionType::GeometricMean {} => Ok(Box::new(GeometricMean::new())),
             PoEFunctionType::Sigmoid { max_rewards, p, s } => {
                 Ok(Box::new(Sigmoid::new(max_rewards, p, s)?))
             }

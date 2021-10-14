@@ -3,7 +3,7 @@ use rust_decimal::prelude::ToPrimitive;
 use rust_decimal::{Decimal, MathematicalOps};
 use rust_decimal_macros::dec;
 
-use cosmwasm_std::{Decimal as StdDecimal, Fraction, StdResult, Uint128, Uint64};
+use cosmwasm_std::{Decimal as StdDecimal, Fraction, Uint128, Uint64};
 
 use crate::error::ContractError;
 
@@ -27,8 +27,8 @@ pub trait PoEFunction {
 pub struct GeometricMean {}
 
 impl GeometricMean {
-    pub fn new() -> StdResult<Self> {
-        Ok(Self::default())
+    pub fn new() -> Self {
+        Self::default()
     }
 }
 
@@ -142,7 +142,7 @@ impl SigmoidSqrt {
         Ok(Self {
             max_rewards: Decimal::new(max_rewards.u64() as i64, 0),
             s: std_to_decimal(s),
-            geometric: GeometricMean::new().unwrap(),
+            geometric: GeometricMean::new(),
             zero: dec!(0),
             one: dec!(1),
             two: dec!(2),
@@ -291,7 +291,7 @@ mod tests {
 
     #[test]
     fn mixer_geometric_works() {
-        let geometric = GeometricMean::new().unwrap();
+        let geometric = GeometricMean::new();
 
         // either 0 -> 0
         assert_eq!(geometric.rewards(0, 123456).unwrap(), 0);
