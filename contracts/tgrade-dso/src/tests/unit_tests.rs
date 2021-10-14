@@ -675,17 +675,17 @@ fn test_update_nonvoting_members() {
 }
 
 #[test]
-fn test_whitelist_trading_pair() {
+fn test_whitelist_contract() {
     let mut deps = mock_dependencies(&[]);
     let info = mock_info(INIT_ADMIN, &escrow_funds());
     do_instantiate(deps.as_mut(), info, vec![]).unwrap();
 
     // check pair is not there
-    let trading_pair = query_member(deps.as_ref(), TRADING_PAIR.into(), None).unwrap();
+    let trading_pair = query_member(deps.as_ref(), TOKEN_ADDR.into(), None).unwrap();
     assert_eq!(trading_pair.weight, None);
 
     // make a new proposal
-    let prop = ProposalContent::WhitelistContract(TRADING_PAIR.into());
+    let prop = ProposalContent::WhitelistContract(TOKEN_ADDR.into());
     let msg = ExecuteMsg::Propose {
         title: "Whitelist trading pair".to_string(),
         description: "This is my trusted token pair".to_string(),
@@ -719,11 +719,11 @@ fn test_whitelist_trading_pair() {
     .unwrap();
 
     // check pair added as non-voting member
-    let trading_pair = query_member(deps.as_ref(), TRADING_PAIR.into(), None).unwrap();
+    let trading_pair = query_member(deps.as_ref(), TOKEN_ADDR.into(), None).unwrap();
     assert_eq!(trading_pair.weight, Some(0));
 
     // now remove it
-    let prop = ProposalContent::RemoveContract(TRADING_PAIR.into());
+    let prop = ProposalContent::RemoveContract(TOKEN_ADDR.into());
     let msg = ExecuteMsg::Propose {
         title: "Remove trading pair".to_string(),
         description: "This was a trusted token pair".to_string(),
@@ -757,7 +757,7 @@ fn test_whitelist_trading_pair() {
     .unwrap();
 
     // check pair removed
-    let trading_pair = query_member(deps.as_ref(), TRADING_PAIR.into(), None).unwrap();
+    let trading_pair = query_member(deps.as_ref(), TOKEN_ADDR.into(), None).unwrap();
     assert_eq!(trading_pair.weight, None);
 }
 
