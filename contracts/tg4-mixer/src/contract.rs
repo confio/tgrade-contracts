@@ -368,7 +368,7 @@ pub fn query_reward_function(
         Some(poe_function_type) => poe_function_type,
         None => POE_FUNCTION_TYPE.load(deps.storage)?,
     }
-    .to_poe_fn();
+    .to_poe_fn()?;
 
     poe_function.rewards(stake, engagement)
 }
