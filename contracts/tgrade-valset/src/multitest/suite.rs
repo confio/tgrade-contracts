@@ -422,8 +422,8 @@ impl Suite {
         Ok(resp.validators)
     }
 
-    pub fn simulate_active_validators(&self) -> StdResult<Vec<OperatorResponse>> {
-        let resp: ListValidatorResponse = self
+    pub fn simulate_active_validators(&self) -> StdResult<Vec<ValidatorInfo>> {
+        let resp: ListActiveValidatorsResponse = self
             .app
             .wrap()
             .query_wasm_smart(self.valset.clone(), &QueryMsg::SimulateActiveValidators {})?;

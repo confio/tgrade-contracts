@@ -1,6 +1,7 @@
-use crate::{msg::EpochResponse, state::Config};
+use crate::msg::EpochResponse;
+use crate::state::Config;
 
-use super::helpers::assert_active_validators;
+use super::helpers::{assert_active_validators, assert_operators, members_init};
 use super::suite::SuiteBuilder;
 use assert_matches::assert_matches;
 use cosmwasm_std::{coin, Decimal};
@@ -10,15 +11,7 @@ fn initialization() {
     let members = vec!["member1", "member2", "member3", "member4"];
 
     let suite = SuiteBuilder::new()
-        .with_operators(
-            &[
-                (members[0], 2),
-                (members[1], 3),
-                (members[2], 5),
-                (members[3], 8),
-            ],
-            &[],
-        )
+        .with_operators(&members_init(&members, &[2, 3, 5, 8]), &[])
         .with_epoch_reward(coin(100, "eth"))
         .with_max_validators(10)
         .with_min_weight(5)
@@ -74,4 +67,27 @@ fn initialization() {
             *member
         );
     }
+}
+
+#[test]
+fn simulate_validators() {
+    let members = vec![
+        "member1", "member2", "member3", "member4", "member5", "member6",
+    ];
+
+    let suite = SuiteBuilder::new()
+        .with_operators(&members_init(&members, &[2, 3, 5, 8, 13, 21]), &[])
+        .with_max_validators(2)
+        .with_min_weight(5)
+        .build();
+
+    assert_operators(
+        &suite.simulate_active_validators().unwrap(),
+        &[(&members[4], 13), (&members[5], 21)],
+    );
+
+    assert_active_validators(
+        suite.list_active_validators().unwrap(),
+        &[(&members[4], 13), (&members[5], 21)],
+    );
 }

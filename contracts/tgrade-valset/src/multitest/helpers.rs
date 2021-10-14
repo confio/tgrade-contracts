@@ -1,7 +1,8 @@
-use cosmwasm_std::Binary;
+use cosmwasm_std::{Addr, Binary};
 use tg_bindings::Pubkey;
 
-use crate::{msg::ValidatorMetadata, state::ValidatorInfo};
+use crate::msg::ValidatorMetadata;
+use crate::state::ValidatorInfo;
 
 pub fn mock_pubkey(base: &[u8]) -> Pubkey {
     const ED25519_PUBKEY_LENGTH: usize = 32;
@@ -20,6 +21,14 @@ pub fn mock_metadata(seed: &str) -> ValidatorMetadata {
     }
 }
 
+pub fn members_init<'m>(members: &[&'m str], weights: &[u64]) -> Vec<(&'m str, u64)> {
+    members
+        .iter()
+        .zip(weights)
+        .map(|(member, weight)| (*member, *weight))
+        .collect()
+}
+
 /// Utility function for verifying active validators - in tests in most cases is completely ignored,
 /// therefore as expected value vector of `(addr, voting_power)` are taken.
 /// Also order of operators should not matter, so proper sorting is also handled.
@@ -32,6 +41,29 @@ pub fn assert_active_validators(received: Vec<ValidatorInfo>, expected: &[(&str,
     let mut expected: Vec<_> = expected
         .iter()
         .map(|(addr, weight)| ((*addr).to_owned(), *weight))
+        .collect();
+
+    received.sort_unstable_by_key(|(addr, _)| addr.clone());
+    expected.sort_unstable_by_key(|(addr, _)| addr.clone());
+
+    assert_eq!(received, expected);
+}
+
+/// Utility function for verifying validators - in tests in most cases pubkey and metadata all
+/// completely ignored, therefore as expected value vector of `(addr, jailed_until)` are taken.
+/// Also order of operators should not matter, so proper sorting is also handled.
+#[track_caller]
+pub fn assert_operators(received: &[ValidatorInfo], expected: &[(&str, u64)]) {
+    let mut received: Vec<_> = received
+        .into_iter()
+        .cloned()
+        .map(|operator| (operator.operator, operator.power))
+        .collect();
+
+    let mut expected: Vec<_> = expected
+        .into_iter()
+        .cloned()
+        .map(|(addr, weight)| (Addr::unchecked(addr), weight))
         .collect();
 
     received.sort_unstable_by_key(|(addr, _)| addr.clone());
