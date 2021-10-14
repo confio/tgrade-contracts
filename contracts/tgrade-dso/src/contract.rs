@@ -205,7 +205,7 @@ const WHITELIST_TYPE: &str = "whitelisted";
 const REMOVE_TYPE: &str = "removed";
 const PROPOSAL_KEY: &str = "proposal";
 const MEMBER_KEY: &str = "member";
-const TRADING_PAIR_KEY: &str = "trading_pair";
+const CONTRACT_ADDR_KEY: &str = "contract_addr";
 
 /// Call when the batch is ready to become voters (all paid or expiration hit).
 /// This checks all members if they have paid up, and if so makes them full voters.
@@ -838,9 +838,9 @@ pub fn proposal_execute(
             proposal_punish_members(deps, env, proposal_id, &punishments)
         }
         ProposalContent::WhitelistContract(addr) => {
-            proposal_whitelist_trading_pair(deps, env, &addr)
+            proposal_whitelist_contract_addr(deps, env, &addr)
         }
-        ProposalContent::RemoveContract(addr) => proposal_remove_trading_pair(deps, env, &addr),
+        ProposalContent::RemoveContract(addr) => proposal_remove_contract_addr(deps, env, &addr),
     }
 }
 
@@ -924,29 +924,29 @@ pub fn proposal_add_voting_members(
     Ok(res)
 }
 
-pub fn proposal_whitelist_trading_pair(
+pub fn proposal_whitelist_contract_addr(
     deps: DepsMut,
     env: Env,
     addr: &str,
 ) -> Result<Response, ContractError> {
     let res = Response::new()
-        .add_attribute("proposal", "whitelist_trading_pair")
-        .add_attribute("trading_pair", addr);
+        .add_attribute("proposal", "whitelist_contract_addr")
+        .add_attribute("addr", addr);
 
-    let ev = whitelist_trading_pair(deps, env.block.height, addr)?;
+    let ev = whitelist_contract_addr(deps, env.block.height, addr)?;
     Ok(res.add_events(ev))
 }
 
-pub fn proposal_remove_trading_pair(
+pub fn proposal_remove_contract_addr(
     deps: DepsMut,
     env: Env,
     addr: &str,
 ) -> Result<Response, ContractError> {
     let res = Response::new()
-        .add_attribute("proposal", "remove_trading_pair")
-        .add_attribute("trading_pair", addr);
+        .add_attribute("proposal", "remove_contract_addr")
+        .add_attribute("addr", addr);
 
-    let ev = remove_trading_pair(deps, env.block.height, addr)?;
+    let ev = remove_contract_addr(deps, env.block.height, addr)?;
     Ok(res.add_events(ev))
 }
 
@@ -1107,24 +1107,24 @@ pub fn proposal_punish_members(
     Ok(res)
 }
 
-pub fn whitelist_trading_pair(
+pub fn whitelist_contract_addr(
     deps: DepsMut,
     height: u64,
     addr: &str,
 ) -> Result<Vec<Event>, ContractError> {
-    let ev = Event::new(WHITELIST_TYPE).add_attribute(TRADING_PAIR_KEY, addr);
+    let ev = Event::new(WHITELIST_TYPE).add_attribute(CONTRACT_ADDR_KEY, addr);
 
     add_remove_non_voting_members(deps, height, vec![addr.into()], vec![])?;
 
     Ok(vec![ev])
 }
 
-pub fn remove_trading_pair(
+pub fn remove_contract_addr(
     deps: DepsMut,
     height: u64,
     addr: &str,
 ) -> Result<Vec<Event>, ContractError> {
-    let ev = Event::new(REMOVE_TYPE).add_attribute(TRADING_PAIR_KEY, addr);
+    let ev = Event::new(REMOVE_TYPE).add_attribute(CONTRACT_ADDR_KEY, addr);
 
     add_remove_non_voting_members(deps, height, vec![], vec![addr.into()])?;
 
