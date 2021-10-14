@@ -1,6 +1,8 @@
 #[cfg(not(feature = "library"))]
 use cosmwasm_std::entry_point;
-use cosmwasm_std::{to_binary, Binary, Deps, DepsMut, Env, MessageInfo, Order, StdResult};
+use cosmwasm_std::{
+    to_binary, Binary, Deps, DepsMut, Env, MessageInfo, Order, StdError, StdResult,
+};
 
 use cw0::maybe_addr;
 use cw2::set_contract_version;
@@ -16,7 +18,10 @@ use tg4::{
 
 use crate::error::ContractError;
 use crate::functions::PoEFunction;
-use crate::msg::{ExecuteMsg, GroupsResponse, InstantiateMsg, PreauthResponse, QueryMsg};
+use crate::msg::{
+    ExecuteMsg, GroupsResponse, InstantiateMsg, PoEFunctionType, PreauthResponse, QueryMsg,
+    RewardFunctionResponse,
+};
 use crate::state::{Groups, GROUPS, POE_FUNCTION_TYPE};
 
 pub type Response = cosmwasm_std::Response<TgradeMsg>;
@@ -54,7 +59,7 @@ pub fn instantiate(
         .add_submessage(groups.right.add_hook(&env.contract.address)?);
 
     // Instantiate PoE function
-    let poe_function = msg.function_type.to_poe_fn();
+    let poe_function = msg.function_type.to_poe_fn()?;
 
     // calculate initial state from current members on both sides
     initialize_members(deps, groups, &*poe_function, env.block.height)?;
@@ -131,7 +136,7 @@ pub fn execute_member_changed(
 
     // authorization check
     let diff = if info.sender == groups.left.addr() {
-        let poe_function = POE_FUNCTION_TYPE.load(deps.storage)?.to_poe_fn();
+        let poe_function = POE_FUNCTION_TYPE.load(deps.storage)?.to_poe_fn()?;
         update_members(
             deps.branch(),
             env.block.height,
@@ -140,7 +145,7 @@ pub fn execute_member_changed(
             &*poe_function,
         )
     } else if info.sender == groups.right.addr() {
-        let poe_function = POE_FUNCTION_TYPE.load(deps.storage)?.to_poe_fn();
+        let poe_function = POE_FUNCTION_TYPE.load(deps.storage)?.to_poe_fn()?;
         update_members(
             deps.branch(),
             env.block.height,
@@ -266,6 +271,15 @@ pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
             let preauths = PREAUTH.get_auth(deps.storage)?;
             to_binary(&PreauthResponse { preauths })
         }
+        QueryMsg::RewardFunction {
+            stake,
+            engagement,
+            poe_function,
+        } => {
+            let reward = query_reward_function(deps, stake.u64(), engagement.u64(), poe_function)
+                .map_err(|err| StdError::generic_err(err.to_string()))?;
+            to_binary(&RewardFunctionResponse { reward })
+        }
     }
 }
 
@@ -342,6 +356,21 @@ fn list_members_by_weight(
         .collect();
 
     Ok(MemberListResponse { members: members? })
+}
+
+pub fn query_reward_function(
+    deps: Deps,
+    stake: u64,
+    engagement: u64,
+    poe_function: Option<PoEFunctionType>,
+) -> Result<u64, ContractError> {
+    let poe_function = match poe_function {
+        Some(poe_function_type) => poe_function_type,
+        None => POE_FUNCTION_TYPE.load(deps.storage)?,
+    }
+    .to_poe_fn()?;
+
+    poe_function.rewards(stake, engagement)
 }
 
 #[cfg(test)]

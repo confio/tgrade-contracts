@@ -1,7 +1,7 @@
 # TG4 Mixer
 
 This mixes two tg4 contracts as [defined here](https://github.com/confio/tgrade-contracts/issues/8).
-On init, you pass addresses to two tg4 contracts, and this one will 
+On init, you pass addresses to two tg4 contracts, and this one will
 register a listening hook on both. Following that, it will query both
 for their current state and use a mixing function to calculate the combined value.
 (We currently implement/optimized it with the assumption that `None` weight in
@@ -38,3 +38,10 @@ Basic messages, queries, and hooks are defined by the
 
 We just add `ExecuteMsg::MemberChangedHook` to listen for changes on the
 upstream contracts.
+
+## Benchmarking
+
+```
+cd contracts/tg4-mixer
+cargo bench --features benches
+```

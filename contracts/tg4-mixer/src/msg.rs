@@ -4,7 +4,8 @@ use serde::{Deserialize, Serialize};
 use cosmwasm_std::{Decimal as StdDecimal, Uint64};
 use tg4::{Member, MemberChangedHookMsg};
 
-use crate::functions::{GeometricMean, PoEFunction, Sigmoid};
+use crate::error::ContractError;
+use crate::functions::{AlgebraicSigmoid, GeometricMean, PoEFunction, Sigmoid, SigmoidSqrt};
 
 #[derive(Serialize, Deserialize, Clone, PartialEq, JsonSchema, Debug)]
 pub struct InstantiateMsg {
@@ -30,15 +31,37 @@ pub enum PoEFunctionType {
         p: StdDecimal,
         s: StdDecimal,
     },
+    /// SigmoidSqrt returns a sigmoid-like value of the geometric mean of staked amount and
+    /// engagement points.
+    /// It is equal to `Sigmoid` with `p = 0.5`, but implemented using integer sqrt instead of
+    /// fixed-point fractional power.
+    SigmoidSqrt { max_rewards: Uint64, s: StdDecimal },
+    /// `AlgebraicSigmoid` returns a sigmoid-like value of staked amount times engagement points.
+    /// It is similar to `Sigmoid`, but uses integer sqrt instead of a fixed-point exponential.
+    AlgebraicSigmoid {
+        max_rewards: Uint64,
+        a: StdDecimal,
+        p: StdDecimal,
+        s: StdDecimal,
+    },
 }
 
 impl PoEFunctionType {
-    pub fn to_poe_fn(&self) -> Box<dyn PoEFunction> {
+    pub fn to_poe_fn(&self) -> Result<Box<dyn PoEFunction>, ContractError> {
         match self.clone() {
-            PoEFunctionType::GeometricMean {} => Box::new(GeometricMean::new()),
+            PoEFunctionType::GeometricMean {} => Ok(Box::new(GeometricMean::new())),
             PoEFunctionType::Sigmoid { max_rewards, p, s } => {
-                Box::new(Sigmoid::new(max_rewards, p, s))
+                Ok(Box::new(Sigmoid::new(max_rewards, p, s)?))
             }
+            PoEFunctionType::SigmoidSqrt { max_rewards, s } => {
+                Ok(Box::new(SigmoidSqrt::new(max_rewards, s)?))
+            }
+            PoEFunctionType::AlgebraicSigmoid {
+                max_rewards,
+                a,
+                p,
+                s,
+            } => Ok(Box::new(AlgebraicSigmoid::new(max_rewards, a, p, s)?)),
         }
     }
 }
@@ -80,6 +103,13 @@ pub enum QueryMsg {
     Groups {},
     /// Return the current number of preauths. Returns PreauthResponse.
     Preauths {},
+    /// Rewards of a PoE function (used for benchmarking).
+    /// Returns RewardsResponse.
+    RewardFunction {
+        stake: Uint64,
+        engagement: Uint64,
+        poe_function: Option<PoEFunctionType>,
+    },
 }
 
 /// Return the two groups we are listening to
@@ -92,4 +122,9 @@ pub struct GroupsResponse {
 #[derive(Serialize, Deserialize, Clone, PartialEq, JsonSchema, Debug)]
 pub struct PreauthResponse {
     pub preauths: u64,
+}
+
+#[derive(Serialize, Deserialize, Clone, PartialEq, JsonSchema, Debug)]
+pub struct RewardFunctionResponse {
+    pub reward: u64,
 }

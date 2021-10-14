@@ -82,6 +82,64 @@
             }
           },
           "additionalProperties": false
+        },
+        {
+          "description": "SigmoidSqrt returns a sigmoid-like value of the geometric mean of staked amount and engagement points. It is equal to `Sigmoid` with `p = 0.5`, but implemented using integer sqrt instead of fixed-point fractional power.",
+          "type": "object",
+          "required": [
+            "sigmoid_sqrt"
+          ],
+          "properties": {
+            "sigmoid_sqrt": {
+              "type": "object",
+              "required": [
+                "max_rewards",
+                "s"
+              ],
+              "properties": {
+                "max_rewards": {
+                  "$ref": "#/definitions/Uint64"
+                },
+                "s": {
+                  "$ref": "#/definitions/Decimal"
+                }
+              }
+            }
+          },
+          "additionalProperties": false
+        },
+        {
+          "description": "`AlgebraicSigmoid` returns a sigmoid-like value of staked amount times engagement points. It is similar to `Sigmoid`, but uses integer sqrt instead of a fixed-point exponential.",
+          "type": "object",
+          "required": [
+            "algebraic_sigmoid"
+          ],
+          "properties": {
+            "algebraic_sigmoid": {
+              "type": "object",
+              "required": [
+                "a",
+                "max_rewards",
+                "p",
+                "s"
+              ],
+              "properties": {
+                "a": {
+                  "$ref": "#/definitions/Decimal"
+                },
+                "max_rewards": {
+                  "$ref": "#/definitions/Uint64"
+                },
+                "p": {
+                  "$ref": "#/definitions/Decimal"
+                },
+                "s": {
+                  "$ref": "#/definitions/Decimal"
+                }
+              }
+            }
+          },
+          "additionalProperties": false
         }
       ]
     },

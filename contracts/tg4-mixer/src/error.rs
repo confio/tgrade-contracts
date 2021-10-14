@@ -31,4 +31,7 @@ pub enum ContractError {
 
     #[error("Overflow when computing rewards - the result cannot be represented as u64")]
     RewardOverflow {},
+
+    #[error("The parameter '{0}' is out of range: {1}")]
+    ParameterRange(&'static str, String),
 }

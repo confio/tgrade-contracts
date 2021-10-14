@@ -144,9 +144,48 @@
         }
       },
       "additionalProperties": false
+    },
+    {
+      "description": "Rewards of a PoE function (used for benchmarking). Returns RewardsResponse.",
+      "type": "object",
+      "required": [
+        "reward_function"
+      ],
+      "properties": {
+        "reward_function": {
+          "type": "object",
+          "required": [
+            "engagement",
+            "stake"
+          ],
+          "properties": {
+            "engagement": {
+              "$ref": "#/definitions/Uint64"
+            },
+            "poe_function": {
+              "anyOf": [
+                {
+                  "$ref": "#/definitions/PoEFunctionType"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "stake": {
+              "$ref": "#/definitions/Uint64"
+            }
+          }
+        }
+      },
+      "additionalProperties": false
     }
   ],
   "definitions": {
+    "Decimal": {
+      "description": "A fixed-point decimal value with 18 fractional digits, i.e. Decimal(1_000_000_000_000_000_000) == 1.0\n\nThe greatest possible value that can be represented is 340282366920938463463.374607431768211455 (which is (2^128 - 1) / 10^18)",
+      "type": "string"
+    },
     "Member": {
       "description": "A group member has a weight associated with them. This may all be equal, or may have meaning in the app that makes use of the group (eg. voting power)",
       "type": "object",
@@ -164,6 +203,114 @@
           "minimum": 0.0
         }
       }
+    },
+    "PoEFunctionType": {
+      "oneOf": [
+        {
+          "description": "GeometricMean returns the geometric mean of staked amount and engagement points",
+          "type": "object",
+          "required": [
+            "geometric_mean"
+          ],
+          "properties": {
+            "geometric_mean": {
+              "type": "object"
+            }
+          },
+          "additionalProperties": false
+        },
+        {
+          "description": "Sigmoid returns a sigmoid-like value of staked amount times engagement points. See the Proof-of-Engagement whitepaper for details",
+          "type": "object",
+          "required": [
+            "sigmoid"
+          ],
+          "properties": {
+            "sigmoid": {
+              "type": "object",
+              "required": [
+                "max_rewards",
+                "p",
+                "s"
+              ],
+              "properties": {
+                "max_rewards": {
+                  "$ref": "#/definitions/Uint64"
+                },
+                "p": {
+                  "$ref": "#/definitions/Decimal"
+                },
+                "s": {
+                  "$ref": "#/definitions/Decimal"
+                }
+              }
+            }
+          },
+          "additionalProperties": false
+        },
+        {
+          "description": "SigmoidSqrt returns a sigmoid-like value of the geometric mean of staked amount and engagement points. It is equal to `Sigmoid` with `p = 0.5`, but implemented using integer sqrt instead of fixed-point fractional power.",
+          "type": "object",
+          "required": [
+            "sigmoid_sqrt"
+          ],
+          "properties": {
+            "sigmoid_sqrt": {
+              "type": "object",
+              "required": [
+                "max_rewards",
+                "s"
+              ],
+              "properties": {
+                "max_rewards": {
+                  "$ref": "#/definitions/Uint64"
+                },
+                "s": {
+                  "$ref": "#/definitions/Decimal"
+                }
+              }
+            }
+          },
+          "additionalProperties": false
+        },
+        {
+          "description": "`AlgebraicSigmoid` returns a sigmoid-like value of staked amount times engagement points. It is similar to `Sigmoid`, but uses integer sqrt instead of a fixed-point exponential.",
+          "type": "object",
+          "required": [
+            "algebraic_sigmoid"
+          ],
+          "properties": {
+            "algebraic_sigmoid": {
+              "type": "object",
+              "required": [
+                "a",
+                "max_rewards",
+                "p",
+                "s"
+              ],
+              "properties": {
+                "a": {
+                  "$ref": "#/definitions/Decimal"
+                },
+                "max_rewards": {
+                  "$ref": "#/definitions/Uint64"
+                },
+                "p": {
+                  "$ref": "#/definitions/Decimal"
+                },
+                "s": {
+                  "$ref": "#/definitions/Decimal"
+                }
+              }
+            }
+          },
+          "additionalProperties": false
+        }
+      ]
+    },
+    "Uint64": {
+      "description": "A thin wrapper around u64 that is using strings for JSON encoding/decoding, such that the full u64 range can be used for clients that convert JSON numbers to floats, like JavaScript and jq.\n\n# Examples\n\nUse `from` to create instances of this and `u64` to get the value out:\n\n``` # use cosmwasm_std::Uint64; let a = Uint64::from(42u64); assert_eq!(a.u64(), 42);\n\nlet b = Uint64::from(70u32); assert_eq!(b.u64(), 70); ```",
+      "type": "string"
     }
   }
 }
