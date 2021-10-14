@@ -3,7 +3,7 @@ use rust_decimal::prelude::ToPrimitive;
 use rust_decimal::{Decimal, MathematicalOps};
 use rust_decimal_macros::dec;
 
-use cosmwasm_std::{Decimal as StdDecimal, Fraction, Uint64};
+use cosmwasm_std::{Decimal as StdDecimal, Fraction, StdResult, Uint128, Uint64};
 
 use crate::error::ContractError;
 
@@ -11,10 +11,14 @@ pub fn std_to_decimal(std_decimal: StdDecimal) -> Decimal {
     Decimal::from_i128_with_scale(std_decimal.numerator().u128() as i128, 18) // FIXME: StdDecimal::DECIMAL_PLACES is private
 }
 
+fn uint64_to_std_decimal(value: &Uint64) -> StdDecimal {
+    StdDecimal::from_ratio(Uint128::new(value.u64() as u128), 1u128)
+}
+
 /// This defines the functions we can use for proof of engagement rewards.
 pub trait PoEFunction {
-    /// Returns the rewards based on the amount of stake and engagement points
-    /// `f(x)` from the README
+    /// Returns the rewards based on the amount of stake and engagement points.
+    /// `f(x)` from the README.
     fn rewards(&self, stake: u64, engagement: u64) -> Result<u64, ContractError>;
 }
 
@@ -23,8 +27,8 @@ pub trait PoEFunction {
 pub struct GeometricMean {}
 
 impl GeometricMean {
-    pub fn new() -> Self {
-        Self::default()
+    pub fn new() -> StdResult<Self> {
+        Ok(Self::default())
     }
 }
 
@@ -39,7 +43,7 @@ impl PoEFunction for GeometricMean {
 /// Fitting the sigmoid-like function from the PoE whitepaper:
 /// `f(x) = r_max * (2 / (1 + e ^(-s * x^p) - 1)`
 pub struct Sigmoid {
-    pub max_rewards: u64,
+    pub max_rewards: Decimal,
     pub p: Decimal,
     pub s: Decimal,
     zero: Decimal,
@@ -48,16 +52,37 @@ pub struct Sigmoid {
 }
 
 impl Sigmoid {
-    // FIXME: Limits
-    pub fn new(max_rewards: Uint64, p: StdDecimal, s: StdDecimal) -> Self {
-        Self {
-            max_rewards: max_rewards.u64(),
+    pub fn new(max_rewards: Uint64, p: StdDecimal, s: StdDecimal) -> Result<Self, ContractError> {
+        Self::validate(&max_rewards, &p, &s)?;
+        Ok(Self {
+            max_rewards: Decimal::new(max_rewards.u64() as i64, 0),
             p: std_to_decimal(p),
             s: std_to_decimal(s),
             zero: dec!(0),
             one: dec!(1),
             two: dec!(2),
+        })
+    }
+
+    fn validate(max_rewards: &Uint64, p: &StdDecimal, s: &StdDecimal) -> Result<(), ContractError> {
+        // validate `max_rewards`
+        if max_rewards.u64() > i64::MAX as u64 {
+            return Err(ContractError::ParameterRange(
+                "max_rewards",
+                uint64_to_std_decimal(max_rewards),
+            ));
         }
+
+        // validate `p`
+        if &StdDecimal::zero() > p || &StdDecimal::one() < p {
+            return Err(ContractError::ParameterRange("p", *p));
+        }
+
+        // validate `s`
+        if &StdDecimal::zero() > s || &StdDecimal::one() < s {
+            return Err(ContractError::ParameterRange("s", *s));
+        }
+        Ok(())
     }
 }
 
@@ -72,19 +97,13 @@ impl PoEFunction for Sigmoid {
             return Err(ContractError::WeightOverflow {});
         }
 
-        let r_max = Decimal::new(self.max_rewards as i64, 0);
-        // Late check of `r_max` range / validity
-        if r_max.is_sign_negative() {
-            return Err(ContractError::RewardOverflow {});
-        }
-
         // This is the implementation of the PoE whitepaper, Appendix A,
         // "root of engagement" sigmoid-like function, using fixed point math.
         // `reward = r_max * (2 / (1 + e^(-s * (stake * engagement)^p) ) - 1)`
         // We distribute the power over the factors here, just to extend the range of the function.
         // Given that `s` is always positive, we also replace the underflowed exponential case
         // with zero (also to extend the range).
-        let reward = r_max
+        let reward = self.max_rewards
             * (self.two
                 / (self.one
                     + (-self.s
@@ -109,7 +128,7 @@ impl PoEFunction for Sigmoid {
 /// Fitting the sigmoid-like to a 1/2 (sqrt) exponent.
 /// `f(x) = r_max * (2 / (1 + e ^(-s * sqrt(x)) - 1)`
 pub struct SigmoidSqrt {
-    pub max_rewards: u64,
+    pub max_rewards: Decimal,
     pub s: Decimal,
     geometric: GeometricMean,
     zero: Decimal,
@@ -118,16 +137,32 @@ pub struct SigmoidSqrt {
 }
 
 impl SigmoidSqrt {
-    // FIXME: Limits
-    pub fn new(max_rewards: Uint64, s: StdDecimal) -> Self {
-        Self {
-            max_rewards: max_rewards.u64(),
+    pub fn new(max_rewards: Uint64, s: StdDecimal) -> Result<Self, ContractError> {
+        Self::validate(&max_rewards, &s)?;
+        Ok(Self {
+            max_rewards: Decimal::new(max_rewards.u64() as i64, 0),
             s: std_to_decimal(s),
-            geometric: GeometricMean::new(),
+            geometric: GeometricMean::new().unwrap(),
             zero: dec!(0),
             one: dec!(1),
             two: dec!(2),
+        })
+    }
+
+    fn validate(max_rewards: &Uint64, s: &StdDecimal) -> Result<(), ContractError> {
+        // validate `max_rewards`
+        if max_rewards.u64() > i64::MAX as u64 {
+            return Err(ContractError::ParameterRange(
+                "max_rewards",
+                uint64_to_std_decimal(max_rewards),
+            ));
         }
+
+        // validate `s`
+        if &StdDecimal::zero() > s || &StdDecimal::one() < s {
+            return Err(ContractError::ParameterRange("s", *s));
+        }
+        Ok(())
     }
 }
 
@@ -140,15 +175,9 @@ impl PoEFunction for SigmoidSqrt {
             return Err(ContractError::WeightOverflow {});
         }
 
-        let r_max = Decimal::new(self.max_rewards as i64, 0);
-        // Late check of `r_max` range / validity
-        if r_max.is_sign_negative() {
-            return Err(ContractError::RewardOverflow {});
-        }
-
         // Given that `s` is always positive, we replace the underflowed exponential case
         // with zero (also to extend the range).
-        let reward = r_max
+        let reward = self.max_rewards
             * (self.two
                 / (self.one
                     + (-self.s * geometric_mean)
@@ -166,21 +195,57 @@ impl PoEFunction for SigmoidSqrt {
 /// `a` is an adjustment / fitting parameter (`1 <= a < 4`), to better match the
 /// two curves differing slopes.
 pub struct AlgebraicSigmoid {
-    pub max_rewards: u64,
+    pub max_rewards: Decimal,
     pub a: Decimal,
     pub p: Decimal,
     pub s: Decimal,
 }
 
 impl AlgebraicSigmoid {
-    // FIXME: Limits
-    pub fn new(max_rewards: Uint64, a: StdDecimal, p: StdDecimal, s: StdDecimal) -> Self {
-        Self {
-            max_rewards: max_rewards.u64(),
+    pub fn new(
+        max_rewards: Uint64,
+        a: StdDecimal,
+        p: StdDecimal,
+        s: StdDecimal,
+    ) -> Result<Self, ContractError> {
+        Self::validate(&max_rewards, &a, &p, &s)?;
+        Ok(Self {
+            max_rewards: Decimal::new(max_rewards.u64() as i64, 0),
             a: std_to_decimal(a),
             p: std_to_decimal(p),
             s: std_to_decimal(s),
+        })
+    }
+
+    fn validate(
+        max_rewards: &Uint64,
+        a: &StdDecimal,
+        p: &StdDecimal,
+        s: &StdDecimal,
+    ) -> Result<(), ContractError> {
+        // validate `max_rewards`
+        if max_rewards.u64() > i64::MAX as u64 {
+            return Err(ContractError::ParameterRange(
+                "max_rewards",
+                uint64_to_std_decimal(max_rewards),
+            ));
         }
+
+        // validate `a`
+        if &StdDecimal::zero() > a || &StdDecimal::from_ratio(4u128, 1u128) < a {
+            return Err(ContractError::ParameterRange("a", *a));
+        }
+
+        // validate `p`
+        if &StdDecimal::zero() > p || &StdDecimal::one() < p {
+            return Err(ContractError::ParameterRange("p", *p));
+        }
+
+        // validate `s`
+        if &StdDecimal::zero() > s || &StdDecimal::one() < s {
+            return Err(ContractError::ParameterRange("s", *s));
+        }
+        Ok(())
     }
 }
 
@@ -193,12 +258,6 @@ impl PoEFunction for AlgebraicSigmoid {
         // Rejects u64 values larger than 2^63, which become negative in Decimal
         if left.is_sign_negative() || right.is_sign_negative() {
             return Err(ContractError::WeightOverflow {});
-        }
-
-        let r_max = Decimal::new(self.max_rewards as i64, 0);
-        // Late check of `r_max` range / validity
-        if r_max.is_sign_negative() {
-            return Err(ContractError::RewardOverflow {});
         }
 
         // x = s * (reward * engagement)^p
@@ -215,7 +274,7 @@ impl PoEFunction for AlgebraicSigmoid {
                 .ok_or(ContractError::ComputationOverflow("mul"))?;
 
         // reward = r_max * x / sqrt(a + x^2)
-        let reward = r_max * x
+        let reward = self.max_rewards * x
             / (self.a
                 + x.checked_powu(2)
                     .ok_or(ContractError::ComputationOverflow("powu"))?)
@@ -232,7 +291,7 @@ mod tests {
 
     #[test]
     fn mixer_geometric_works() {
-        let geometric = GeometricMean::new();
+        let geometric = GeometricMean::new().unwrap();
 
         // either 0 -> 0
         assert_eq!(geometric.rewards(0, 123456).unwrap(), 0);
@@ -255,7 +314,8 @@ mod tests {
             Uint64::new(1000),
             StdDecimal::from_ratio(68u128, 100u128),
             StdDecimal::from_ratio(3u128, 100000u128),
-        );
+        )
+        .unwrap();
 
         // either 0 -> 0
         assert_eq!(sigmoid.rewards(0, 123456).unwrap(), 0);
@@ -294,7 +354,8 @@ mod tests {
             Uint64::new(1000),
             StdDecimal::from_ratio(5u128, 10u128),
             StdDecimal::from_ratio(3u128, 10000u128),
-        );
+        )
+        .unwrap();
 
         // either 0 -> 0
         assert_eq!(sigmoid.rewards(0, 123456).unwrap(), 0);
@@ -325,7 +386,8 @@ mod tests {
 
     #[test]
     fn mixer_sigmoid_sqrt_works() {
-        let sigmoid = SigmoidSqrt::new(Uint64::new(1000), StdDecimal::from_ratio(3u128, 10000u128));
+        let sigmoid =
+            SigmoidSqrt::new(Uint64::new(1000), StdDecimal::from_ratio(3u128, 10000u128)).unwrap();
 
         // either 0 -> 0
         assert_eq!(sigmoid.rewards(0, 123456).unwrap(), 0);
@@ -357,7 +419,8 @@ mod tests {
             StdDecimal::from_ratio(371872u128, 100000u128),
             StdDecimal::from_ratio(68u128, 100u128),
             StdDecimal::from_ratio(3u128, 100000u128),
-        );
+        )
+        .unwrap();
 
         // either 0 -> 0
         assert_eq!(algebraic_sigmoid.rewards(0, 123456).unwrap(), 0);

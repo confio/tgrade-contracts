@@ -4,6 +4,7 @@ use serde::{Deserialize, Serialize};
 use cosmwasm_std::{Decimal as StdDecimal, Uint64};
 use tg4::{Member, MemberChangedHookMsg};
 
+use crate::error::ContractError;
 use crate::functions::{AlgebraicSigmoid, GeometricMean, PoEFunction, Sigmoid, SigmoidSqrt};
 
 #[derive(Serialize, Deserialize, Clone, PartialEq, JsonSchema, Debug)]
@@ -46,21 +47,21 @@ pub enum PoEFunctionType {
 }
 
 impl PoEFunctionType {
-    pub fn to_poe_fn(&self) -> Box<dyn PoEFunction> {
+    pub fn to_poe_fn(&self) -> Result<Box<dyn PoEFunction>, ContractError> {
         match self.clone() {
-            PoEFunctionType::GeometricMean {} => Box::new(GeometricMean::new()),
+            PoEFunctionType::GeometricMean {} => Ok(Box::new(GeometricMean::new()?)),
             PoEFunctionType::Sigmoid { max_rewards, p, s } => {
-                Box::new(Sigmoid::new(max_rewards, p, s))
+                Ok(Box::new(Sigmoid::new(max_rewards, p, s)?))
             }
             PoEFunctionType::SigmoidSqrt { max_rewards, s } => {
-                Box::new(SigmoidSqrt::new(max_rewards, s))
+                Ok(Box::new(SigmoidSqrt::new(max_rewards, s)?))
             }
             PoEFunctionType::AlgebraicSigmoid {
                 max_rewards,
                 a,
                 p,
                 s,
-            } => Box::new(AlgebraicSigmoid::new(max_rewards, a, p, s)),
+            } => Ok(Box::new(AlgebraicSigmoid::new(max_rewards, a, p, s)?)),
         }
     }
 }

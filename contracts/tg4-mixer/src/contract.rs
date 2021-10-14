@@ -54,7 +54,7 @@ pub fn instantiate(
         .add_submessage(groups.right.add_hook(&env.contract.address)?);
 
     // Instantiate PoE function
-    let poe_function = msg.function_type.to_poe_fn();
+    let poe_function = msg.function_type.to_poe_fn()?;
 
     // calculate initial state from current members on both sides
     initialize_members(deps, groups, &*poe_function, env.block.height)?;
@@ -131,7 +131,7 @@ pub fn execute_member_changed(
 
     // authorization check
     let diff = if info.sender == groups.left.addr() {
-        let poe_function = POE_FUNCTION_TYPE.load(deps.storage)?.to_poe_fn();
+        let poe_function = POE_FUNCTION_TYPE.load(deps.storage)?.to_poe_fn()?;
         update_members(
             deps.branch(),
             env.block.height,
@@ -140,7 +140,7 @@ pub fn execute_member_changed(
             &*poe_function,
         )
     } else if info.sender == groups.right.addr() {
-        let poe_function = POE_FUNCTION_TYPE.load(deps.storage)?.to_poe_fn();
+        let poe_function = POE_FUNCTION_TYPE.load(deps.storage)?.to_poe_fn()?;
         update_members(
             deps.branch(),
             env.block.height,
