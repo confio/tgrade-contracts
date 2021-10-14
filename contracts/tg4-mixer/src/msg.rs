@@ -103,6 +103,13 @@ pub enum QueryMsg {
     Groups {},
     /// Return the current number of preauths. Returns PreauthResponse.
     Preauths {},
+    /// Rewards of a PoE function (used for benchmarking).
+    /// Returns RewardsResponse.
+    RewardFunction {
+        stake: Uint64,
+        engagement: Uint64,
+        poe_function: Option<PoEFunctionType>,
+    },
 }
 
 /// Return the two groups we are listening to
@@ -115,4 +122,9 @@ pub struct GroupsResponse {
 #[derive(Serialize, Deserialize, Clone, PartialEq, JsonSchema, Debug)]
 pub struct PreauthResponse {
     pub preauths: u64,
+}
+
+#[derive(Serialize, Deserialize, Clone, PartialEq, JsonSchema, Debug)]
+pub struct RewardFunctionResponse {
+    pub reward: u64,
 }
