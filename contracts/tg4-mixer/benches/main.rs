@@ -34,12 +34,12 @@ fn main() {
 
     println!();
     for (poe_fn_name, poe_fn, result, gas) in [
-        ("GeometricMean", GeometricMean {}, 22360, 5895900000),
+        ("GeometricMean", GeometricMean {}, 22360, 5893350000),
         (
             "Sigmoid",
             Sigmoid { max_rewards, p, s },
             MAX_REWARDS,
-            91798500000,
+            91848300000,
         ),
         (
             "SigmoidSqrt",
@@ -48,7 +48,7 @@ fn main() {
                 s: s_sqrt,
             },
             997,
-            21113100000,
+            21120000000,
         ),
         (
             "AlgebraicSigmoid",
@@ -59,7 +59,7 @@ fn main() {
                 s,
             },
             996,
-            86530050000,
+            86607900000,
         ),
     ] {
         let benchmark_msg = QueryMsg::RewardFunction {
@@ -80,11 +80,11 @@ fn main() {
         );
 
         assert_eq!(
-            res,
             RewardFunctionResponse { reward: result },
+            res,
             "{} result",
             poe_fn_name
         );
-        assert_eq!(gas_used, gas, "{} gas", poe_fn_name);
+        assert_eq!(gas, gas_used, "{} gas", poe_fn_name);
     }
 }
