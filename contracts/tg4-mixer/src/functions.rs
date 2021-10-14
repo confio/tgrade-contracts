@@ -74,12 +74,12 @@ impl Sigmoid {
         }
 
         // validate `p`
-        if &StdDecimal::zero() > p || &StdDecimal::one() < p {
+        if !(StdDecimal::zero()..=StdDecimal::one()).contains(p) {
             return Err(ContractError::ParameterRange("p", *p));
         }
 
         // validate `s`
-        if &StdDecimal::zero() > s || &StdDecimal::one() < s {
+        if !(StdDecimal::zero()..=StdDecimal::one()).contains(s) {
             return Err(ContractError::ParameterRange("s", *s));
         }
         Ok(())
@@ -159,7 +159,7 @@ impl SigmoidSqrt {
         }
 
         // validate `s`
-        if &StdDecimal::zero() > s || &StdDecimal::one() < s {
+        if !(StdDecimal::zero()..=StdDecimal::one()).contains(s) {
             return Err(ContractError::ParameterRange("s", *s));
         }
         Ok(())
@@ -192,7 +192,7 @@ impl PoEFunction for SigmoidSqrt {
 /// Algebraic sigmoid. `f(x) = x / sqrt(1 + x^2)`.
 /// Fitting the sigmoid-like function from the PoE whitepaper.
 /// `p` and `s` are just equivalent to the `Sigmoid` parameters.
-/// `a` is an adjustment / fitting parameter (`1 <= a < 4`), to better match the
+/// `a` is an adjustment / fitting parameter (`1 <= a < 5`), to better match the
 /// two curves differing slopes.
 pub struct AlgebraicSigmoid {
     pub max_rewards: Decimal,
@@ -232,17 +232,17 @@ impl AlgebraicSigmoid {
         }
 
         // validate `a`
-        if &StdDecimal::zero() > a || &StdDecimal::from_ratio(4u128, 1u128) < a {
+        if !(StdDecimal::zero()..=StdDecimal::from_ratio(5u8, 1u8)).contains(a) {
             return Err(ContractError::ParameterRange("a", *a));
         }
 
         // validate `p`
-        if &StdDecimal::zero() > p || &StdDecimal::one() < p {
+        if !(StdDecimal::zero()..=StdDecimal::one()).contains(p) {
             return Err(ContractError::ParameterRange("p", *p));
         }
 
         // validate `s`
-        if &StdDecimal::zero() > s || &StdDecimal::one() < s {
+        if !(StdDecimal::zero()..=StdDecimal::one()).contains(s) {
             return Err(ContractError::ParameterRange("s", *s));
         }
         Ok(())
