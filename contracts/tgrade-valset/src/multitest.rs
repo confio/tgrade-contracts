@@ -4,3 +4,5 @@ mod contract;
 mod suite;
 // Utility functions
 mod helpers;
+// Tests for jailing
+mod jailing;

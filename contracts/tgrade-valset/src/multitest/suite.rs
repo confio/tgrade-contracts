@@ -3,7 +3,7 @@ use crate::state::Config;
 use crate::{msg::*, state::ValidatorInfo};
 use anyhow::{bail, Result as AnyResult};
 use cosmwasm_std::{coin, Addr, Binary, Coin, CosmosMsg, Decimal, StdResult, Timestamp};
-use cw_multi_test::{AppResponse, Contract, ContractWrapper, CosmosRouter, Executor};
+use cw_multi_test::{next_block, AppResponse, Contract, ContractWrapper, CosmosRouter, Executor};
 use derivative::Derivative;
 use tg4::Member;
 use tg_bindings::{Pubkey, TgradeMsg, ValidatorDiff};
@@ -304,8 +304,22 @@ impl Suite {
         &mut self.app
     }
 
+    pub fn next_block(&mut self) -> AnyResult<Option<ValidatorDiff>> {
+        self.app.update_block(next_block);
+        let (_, diff) = self.app.end_block()?;
+        self.app.begin_block(vec![])?;
+        Ok(diff)
+    }
+
     pub fn advance_epoch(&mut self) -> AnyResult<Option<ValidatorDiff>> {
         self.app.advance_seconds(self.epoch_length);
+        let (_, diff) = self.app.end_block()?;
+        self.app.begin_block(vec![])?;
+        Ok(diff)
+    }
+
+    pub fn advance_seconds(&mut self, seconds: u64) -> AnyResult<Option<ValidatorDiff>> {
+        self.app.advance_seconds(seconds);
         let (_, diff) = self.app.end_block()?;
         self.app.begin_block(vec![])?;
         Ok(diff)
