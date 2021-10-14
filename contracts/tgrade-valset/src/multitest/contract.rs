@@ -58,7 +58,7 @@ fn initialization() {
 
     // Validators should be set on genesis processing block
     assert_active_validators(
-        suite.list_active_validators().unwrap(),
+        &suite.list_active_validators().unwrap(),
         &[(&members[2], 5), (&members[3], 8)],
     );
 
@@ -82,13 +82,13 @@ fn simulate_validators() {
         .with_min_weight(5)
         .build();
 
-    assert_operators(
+    assert_active_validators(
         &suite.simulate_active_validators().unwrap(),
         &[(&members[4], 13), (&members[5], 21)],
     );
 
     assert_active_validators(
-        suite.list_active_validators().unwrap(),
+        &suite.list_active_validators().unwrap(),
         &[(&members[4], 13), (&members[5], 21)],
     );
 }
@@ -157,5 +157,76 @@ fn update_metadata() {
             .unwrap_err()
             .downcast()
             .unwrap(),
+    );
+}
+
+#[test]
+fn list_validators() {
+    let members = vec!["member1", "member2", "member3", "member4"];
+
+    let suite = SuiteBuilder::new()
+        .with_operators(&members_init(&members, &[2, 3, 5, 8, 13, 21]), &[])
+        .with_min_weight(5)
+        .build();
+
+    assert_operators(
+        &suite.list_validators(None, None).unwrap(),
+        &[
+            (members[0], None),
+            (members[1], None),
+            (members[2], None),
+            (members[3], None),
+        ],
+    );
+}
+
+#[test]
+fn list_validators_paginated() {
+    let members = vec!["member1", "member2", "member3", "member4", "member5"];
+
+    let suite = SuiteBuilder::new()
+        .with_operators(&members_init(&members, &[2, 3, 5, 8, 13, 21]), &[])
+        .with_min_weight(5)
+        .build();
+
+    let page1 = suite.list_validators(None, 2).unwrap();
+    assert_eq!(
+        page1.len(),
+        2,
+        "Invalid page length, 2 expected, got page: {:?}",
+        page1
+    );
+    let page2 = suite
+        .list_validators(Some(page1.last().unwrap().operator.clone()), 2)
+        .unwrap();
+    assert_eq!(
+        page2.len(),
+        2,
+        "Invalid page length, 2 expected, got page: {:?}",
+        page2
+    );
+    let page3 = suite
+        .list_validators(Some(page2.last().unwrap().operator.clone()), 2)
+        .unwrap();
+    assert_eq!(
+        page3.len(),
+        1,
+        "Invalid page length, 1 expected, got page: {:?}",
+        page3
+    );
+    let page4 = suite
+        .list_validators(Some(page3.last().unwrap().operator.clone()), 2)
+        .unwrap();
+    assert_eq!(page4, vec![]);
+
+    assert_operators(
+        &[page1, page2, page3, page4].concat(),
+        &[
+            (members[0], None),
+            (members[1], None),
+            (members[2], None),
+            (members[3], None),
+            (members[4], None),
+        ],
     );
 }
