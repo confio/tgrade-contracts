@@ -205,7 +205,7 @@ const WHITELIST_TYPE: &str = "whitelisted";
 const REMOVE_TYPE: &str = "removed";
 const PROPOSAL_KEY: &str = "proposal";
 const MEMBER_KEY: &str = "member";
-const TRADING_PAIR_KEY: &str = "trading_pair";
+const CONTRACT_ADDR_KEY: &str = "contract_addr";
 
 /// Call when the batch is ready to become voters (all paid or expiration hit).
 /// This checks all members if they have paid up, and if so makes them full voters.
@@ -398,16 +398,15 @@ pub fn validate_proposal(
             if add.is_empty() && remove.is_empty() {
                 return Err(ContractError::NoMembers {});
             }
-            validate_addresses(deps.api, add)?;
-            validate_addresses(deps.api, remove)
-            // FIXME: Check that addresses don't belong to a contract
+            validate_human_addresses(&deps, add)?;
+            validate_human_addresses(&deps, remove)
         }
         ProposalContent::AddVotingMembers { voters } => {
             if voters.is_empty() {
                 return Err(ContractError::NoMembers {});
             }
-            validate_addresses(deps.api, voters)
-            // FIXME: Check that addresses don't belong to a contract
+            validate_human_addresses(&deps, voters)?;
+            validate_human_addresses(&deps, voters)
         }
         ProposalContent::PunishMembers(punishments) => {
             if punishments.is_empty() {
@@ -415,19 +414,41 @@ pub fn validate_proposal(
             }
             punishments.iter().try_for_each(|p| p.validate(&deps))
         }
-        ProposalContent::WhitelistTradingPair(addr) | ProposalContent::RemoveTradingPair(addr) => {
-            validate_addresses(deps.api, &[addr.into()])
-            // FIXME: Check that address belongs to a contract
+        ProposalContent::WhitelistContract(addr) | ProposalContent::RemoveContract(addr) => {
+            validate_contract_address(&deps, addr.clone())
         }
     }
 }
 
-pub fn validate_addresses(api: &dyn Api, addrs: &[String]) -> Result<(), ContractError> {
-    addrs
+pub fn validate_addresses(api: &dyn Api, addrs: &[String]) -> StdResult<Vec<Addr>> {
+    addrs.iter().map(|addr| api.addr_validate(addr)).collect()
+}
+
+pub fn validate_human_addresses(deps: &Deps, addrs: &[String]) -> Result<(), ContractError> {
+    validate_addresses(deps.api, addrs)?
         .iter()
-        .map(|addr| api.addr_validate(addr))
-        .collect::<StdResult<Vec<_>>>()?;
+        .map(|a| Ok((a, is_contract(&deps.querier, a)?)))
+        .collect::<StdResult<Vec<_>>>()?
+        .iter()
+        .map(|&(addr, c)| {
+            if c {
+                Err(ContractError::NotAHuman(addr.clone()))
+            } else {
+                Ok(())
+            }
+        })
+        .collect::<Result<Vec<_>, ContractError>>()?;
     Ok(())
+}
+
+pub fn validate_contract_address(deps: &Deps, addr: String) -> Result<(), ContractError> {
+    match validate_human_addresses(deps, &[addr.clone()]) {
+        Err(e) => match e {
+            ContractError::NotAHuman { .. } => Ok(()),
+            _ => Err(e),
+        },
+        Ok(()) => Err(ContractError::NotAContract(addr)),
+    }
 }
 
 pub fn execute_vote(
@@ -816,10 +837,10 @@ pub fn proposal_execute(
         ProposalContent::PunishMembers(punishments) => {
             proposal_punish_members(deps, env, proposal_id, &punishments)
         }
-        ProposalContent::WhitelistTradingPair(addr) => {
-            proposal_whitelist_trading_pair(deps, env, &addr)
+        ProposalContent::WhitelistContract(addr) => {
+            proposal_whitelist_contract_addr(deps, env, &addr)
         }
-        ProposalContent::RemoveTradingPair(addr) => proposal_remove_trading_pair(deps, env, &addr),
+        ProposalContent::RemoveContract(addr) => proposal_remove_contract_addr(deps, env, &addr),
     }
 }
 
@@ -903,29 +924,29 @@ pub fn proposal_add_voting_members(
     Ok(res)
 }
 
-pub fn proposal_whitelist_trading_pair(
+pub fn proposal_whitelist_contract_addr(
     deps: DepsMut,
     env: Env,
     addr: &str,
 ) -> Result<Response, ContractError> {
     let res = Response::new()
-        .add_attribute("proposal", "whitelist_trading_pair")
-        .add_attribute("trading_pair", addr);
+        .add_attribute("proposal", "whitelist_contract_addr")
+        .add_attribute("addr", addr);
 
-    let ev = whitelist_trading_pair(deps, env.block.height, addr)?;
+    let ev = whitelist_contract_addr(deps, env.block.height, addr)?;
     Ok(res.add_events(ev))
 }
 
-pub fn proposal_remove_trading_pair(
+pub fn proposal_remove_contract_addr(
     deps: DepsMut,
     env: Env,
     addr: &str,
 ) -> Result<Response, ContractError> {
     let res = Response::new()
-        .add_attribute("proposal", "remove_trading_pair")
-        .add_attribute("trading_pair", addr);
+        .add_attribute("proposal", "remove_contract_addr")
+        .add_attribute("addr", addr);
 
-    let ev = remove_trading_pair(deps, env.block.height, addr)?;
+    let ev = remove_contract_addr(deps, env.block.height, addr)?;
     Ok(res.add_events(ev))
 }
 
@@ -1086,24 +1107,24 @@ pub fn proposal_punish_members(
     Ok(res)
 }
 
-pub fn whitelist_trading_pair(
+pub fn whitelist_contract_addr(
     deps: DepsMut,
     height: u64,
     addr: &str,
 ) -> Result<Vec<Event>, ContractError> {
-    let ev = Event::new(WHITELIST_TYPE).add_attribute(TRADING_PAIR_KEY, addr);
+    let ev = Event::new(WHITELIST_TYPE).add_attribute(CONTRACT_ADDR_KEY, addr);
 
     add_remove_non_voting_members(deps, height, vec![addr.into()], vec![])?;
 
     Ok(vec![ev])
 }
 
-pub fn remove_trading_pair(
+pub fn remove_contract_addr(
     deps: DepsMut,
     height: u64,
     addr: &str,
 ) -> Result<Vec<Event>, ContractError> {
-    let ev = Event::new(REMOVE_TYPE).add_attribute(TRADING_PAIR_KEY, addr);
+    let ev = Event::new(REMOVE_TYPE).add_attribute(CONTRACT_ADDR_KEY, addr);
 
     add_remove_non_voting_members(deps, height, vec![], vec![addr.into()])?;
 
@@ -1123,9 +1144,11 @@ pub fn remove_trading_pair(
 // no error returned on QueryRaw: https://github.com/CosmWasm/wasmd/blob/6a471a4a16730e371863067b27858f60a3996c91/x/wasm/keeper/keeper.go#L612-L620
 pub fn is_contract(querier: &QuerierWrapper, addr: &Addr) -> StdResult<bool> {
     // see cw2.CONTRACT
-    match querier.query_wasm_raw(addr, b"contract_info")? {
-        Some(data) if !data.is_empty() => Ok(true),
-        _ => Ok(false),
+    match querier.query_wasm_raw(addr, b"contract_info") {
+        Ok(Some(data)) if !data.is_empty() => Ok(true),
+        Ok(_) => Ok(false),
+        Err(StdError::GenericErr { msg, .. }) if msg.contains("No such contract") => Ok(false),
+        Err(err) => Err(err),
     }
 }
 
