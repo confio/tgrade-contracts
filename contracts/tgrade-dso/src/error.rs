@@ -97,7 +97,7 @@ pub enum ContractError {
     NotAContract(String),
 
     #[error("Address {0} does not belong to a human")]
-    NotAHuman(Addr),
+    NotAHuman(String),
 
     #[error("Error occured while converting from UTF-8")]
     FromUtf8(#[from] std::string::FromUtf8Error),
