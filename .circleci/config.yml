@@ -26,6 +26,12 @@ workflows:
              only: /^v[0-9]+\.[0-9]+\.[0-9]+.*/
            branches:
              ignore: /.*/
+      - build_and_upload_schemas:
+          filters:
+           tags:
+             only: /^v[0-9]+\.[0-9]+\.[0-9]+.*/
+           branches:
+             ignore: /.*/
 
 jobs:
   contract_tg4_engagement:
@@ -455,3 +461,47 @@ jobs:
               -n "$TITLE" -b "$BODY" \
               -delete \
               "$TAG" ./artifacts/
+
+  build_and_upload_schemas:
+    docker:
+      - image: rust:1.53.0
+    working_directory: ~/project
+    steps:
+      - checkout:
+          path: ~/project
+      - run:
+          name: Create schemas directory
+          command: mkdir -p schemas
+      - run:
+          name: Build and run schema generator for packages
+          command: |
+            for P in ./packages/*/schema/..
+            do
+              echo "Generating schema for `dirname $P`..."
+              (cd $P && cargo schema --locked)
+              cp -a $P/schema/*.json ./schemas
+            done
+      - run:
+          name: Build and run schema generator for contracts
+          command: |
+            for C in ./contracts/*/
+            do
+              echo "Generating schema for `dirname $C`..."
+              (cd $C && cargo schema --locked)
+              cp -a $C/schema/*.json ./schemas
+            done
+      - run:
+          name: Show data
+          command: ls -l ./schemas
+      - run:
+          name: Publish schemas on GitHub
+          command: |
+            TAG="$CIRCLE_TAG"
+            TITLE="$TAG"
+            BODY="Attached there are some schemas generated at this tag."
+            ghr -t "$GITHUB_TOKEN" \
+              -u "$CIRCLE_PROJECT_USERNAME" -r "$CIRCLE_PROJECT_REPONAME" \
+              -c "$CIRCLE_SHA1" \
+              -n "$TITLE" -b "$BODY" \
+              -delete \
+              "$TAG" ./schemas/
