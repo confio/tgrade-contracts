@@ -11,13 +11,20 @@ use cosmwasm_std::{coin, Decimal};
 fn initialization() {
     let members = vec!["member1", "member2", "member3", "member4"];
 
-    let suite = SuiteBuilder::new()
+    let mut suite = SuiteBuilder::new()
         .with_operators(&members_init(&members, &[2, 3, 5, 8]), &[])
+        .with_funds(members[1], 1)
+        .with_funds(members[2], 1)
+        .with_funds(members[3], 1)
         .with_epoch_reward(coin(100, "eth"))
         .with_max_validators(10)
         .with_min_weight(5)
         .with_epoch_length(3600)
         .build();
+
+    for member in &members[1..] {
+        suite.bond_stake(member, 1).unwrap();
+    }
 
     let config = suite.config().unwrap();
     assert_eq!(

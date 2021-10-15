@@ -45,6 +45,7 @@ cosmwasm-schema = { version = "1.0.0-beta" }
 cw-multi-test = { version = "0.10.0" }
 tg4-engagement = { path = "../tg4-engagement", version = "0.5.0-alpha" }
 tg4-stake = { path = "../tg4-stake", version = "0.5.0-alpha" }
+tg4-mixer = { path = "../tg4-mixer", version = "0.5.0-alpha" }
 # we enable multitest feature only for tests
 tg-bindings-test = { path = "../../packages/bindings-test", version = "0.5.0-alpha" }
 derivative = "2"

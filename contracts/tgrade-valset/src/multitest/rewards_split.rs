@@ -40,6 +40,8 @@ fn no_fees_invidivisible_reward() {
     let members = vec!["member1", "member2"];
     let mut suite = SuiteBuilder::new()
         .with_operators(&[(members[0], 2), (members[1], 3)], &[])
+        .with_funds(members[0], 1)
+        .with_funds(members[1], 1)
         .with_epoch_reward(coin(1009, "usdc"))
         .with_distribution(
             Decimal::percent(60),
@@ -47,6 +49,9 @@ fn no_fees_invidivisible_reward() {
             None,
         )
         .build();
+
+    suite.bond_stake(members[0], 1).unwrap();
+    suite.bond_stake(members[1], 1).unwrap();
 
     suite.advance_epoch().unwrap();
 

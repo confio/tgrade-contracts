@@ -55,8 +55,16 @@ fn admin_can_unjail_anyone() {
     let members = vec!["member1", "member2", "member3", "member4"];
     let mut suite = SuiteBuilder::new()
         .with_operators(&members_init(&members, &[2, 3, 5, 8]), &[])
+        .with_funds(members[0], 1)
+        .with_funds(members[1], 1)
+        .with_funds(members[2], 1)
+        .with_funds(members[3], 1)
         .build();
     let admin = suite.admin().to_owned();
+
+    for member in &members {
+        suite.bond_stake(member, 1).unwrap();
+    }
 
     // Jailing some operators to have someone to unjail
     suite.jail(&admin, members[1], None).unwrap();
@@ -263,9 +271,17 @@ fn enb_block_ignores_jailed_validators() {
     let members = vec!["member1", "member2", "member3", "member4"];
     let mut suite = SuiteBuilder::new()
         .with_operators(&members_init(&members, &[2, 3, 5, 8]), &[])
+        .with_funds(members[0], 1)
+        .with_funds(members[1], 1)
+        .with_funds(members[2], 1)
+        .with_funds(members[3], 1)
         .build();
 
     let admin = suite.admin().to_owned();
+
+    for member in &members {
+        suite.bond_stake(member, 1).unwrap();
+    }
 
     // Jailing some operators to begin with
     suite.jail(&admin, members[0], Duration::new(3600)).unwrap();

@@ -1,11 +1,14 @@
+use std::collections::HashMap;
+
 use super::helpers::{mock_metadata, mock_pubkey};
 use crate::state::Config;
 use crate::{msg::*, state::ValidatorInfo};
 use anyhow::{bail, Result as AnyResult};
-use cosmwasm_std::{coin, Addr, Coin, CosmosMsg, Decimal, StdResult, Timestamp};
+use cosmwasm_std::{coin, coins, Addr, Coin, CosmosMsg, Decimal, StdResult, Timestamp};
 use cw_multi_test::{next_block, AppResponse, Contract, ContractWrapper, CosmosRouter, Executor};
 use derivative::Derivative;
 use tg4::Member;
+use tg4_mixer::msg::PoEFunctionType;
 use tg_bindings::{TgradeMsg, ValidatorDiff};
 use tg_bindings_test::TgradeApp;
 use tg_utils::Duration;
@@ -17,6 +20,25 @@ pub fn contract_engagement() -> Box<dyn Contract<TgradeMsg>> {
         tg4_engagement::contract::execute,
         tg4_engagement::contract::instantiate,
         tg4_engagement::contract::query,
+    );
+    Box::new(contract)
+}
+
+pub fn contract_stake() -> Box<dyn Contract<TgradeMsg>> {
+    let contract = ContractWrapper::new(
+        tg4_stake::contract::execute,
+        tg4_stake::contract::instantiate,
+        tg4_stake::contract::query,
+    )
+    .with_sudo(tg4_stake::contract::sudo);
+    Box::new(contract)
+}
+
+pub fn contract_mixer() -> Box<dyn Contract<TgradeMsg>> {
+    let contract = ContractWrapper::new(
+        tg4_mixer::contract::execute,
+        tg4_mixer::contract::instantiate,
+        tg4_mixer::contract::query,
     );
     Box::new(contract)
 }
@@ -70,9 +92,28 @@ pub struct SuiteBuilder {
     validators_reward_ratio: Decimal,
     /// Configuration of `distribution_contract` if any
     distribution_config: Option<DistributionConfig>,
+    /// Tokens per stake weight
+    #[derivative(Default(value = "1"))]
+    tokens_per_weight: u128,
+    /// Minimum tokens bond for staking
+    min_bond: u128,
+    /// Unbonding time in seconds
+    unbonding_period: u64,
+    /// Maximum number of auto-returned claims by stake
+    auto_return_limit: u64,
+    /// PoE Function to be used by the contract
+    #[derivative(Default(value = "PoEFunctionType::GeometricMean {}"))]
+    function_type: PoEFunctionType,
+    /// Initial amounts of reward tokens
+    initial_funds: HashMap<String, u128>,
 }
 
 impl SuiteBuilder {
+    pub fn with_funds(mut self, addr: &str, amount: u128) -> Self {
+        *self.initial_funds.entry(addr.to_owned()).or_default() += amount;
+        self
+    }
+
     pub fn with_operators(mut self, members: &[(&str, u64)], non_members: &[&str]) -> Self {
         let members = members
             .iter()
@@ -136,6 +177,142 @@ impl SuiteBuilder {
         self
     }
 
+    fn instantiate_group(
+        app: &mut TgradeApp,
+        engagement_id: u64,
+        admin: &Addr,
+        members: &[Member],
+        token: &str,
+    ) -> Addr {
+        app.instantiate_contract(
+            engagement_id,
+            admin.clone(),
+            &tg4_engagement::msg::InstantiateMsg {
+                admin: Some(admin.to_string()),
+                members: members.to_vec(),
+                preauths: Some(1),
+                halflife: None,
+                token: token.to_owned(),
+            },
+            &[],
+            "group",
+            Some(admin.to_string()),
+        )
+        .unwrap()
+    }
+
+    fn instantiate_distribution(
+        app: &mut TgradeApp,
+        engagement_id: u64,
+        admin: &Addr,
+        config: DistributionConfig,
+        token: &str,
+    ) -> Addr {
+        app.instantiate_contract(
+            engagement_id,
+            admin.clone(),
+            &tg4_engagement::msg::InstantiateMsg {
+                admin: Some(admin.to_string()),
+                members: config.members,
+                preauths: None,
+                halflife: config.halflife,
+                token: token.to_owned(),
+            },
+            &[],
+            "distribution",
+            Some(admin.to_string()),
+        )
+        .unwrap()
+    }
+
+    fn instantiate_valset(
+        self,
+        app: &mut TgradeApp,
+        valset_id: u64,
+        admin: &Addr,
+        membership: &Addr,
+        operators: Vec<OperatorInitInfo>,
+        distribution_contract: &Option<Addr>,
+        engagement_id: u64,
+    ) -> Addr {
+        app.instantiate_contract(
+            valset_id,
+            admin.clone(),
+            &InstantiateMsg {
+                admin: Some(admin.to_string()),
+                membership: membership.to_string(),
+                min_weight: self.min_weight,
+                max_validators: self.max_validators,
+                epoch_length: self.epoch_length,
+                epoch_reward: self.epoch_reward,
+                initial_keys: operators,
+                scaling: self.scaling,
+                fee_percentage: self.fee_percentage,
+                auto_unjail: self.auto_unjail,
+                validators_reward_ratio: self.validators_reward_ratio,
+                distribution_contract: distribution_contract.as_ref().map(|addr| addr.to_string()),
+                rewards_code_id: engagement_id,
+            },
+            &[],
+            "valset",
+            Some(admin.to_string()),
+        )
+        .unwrap()
+    }
+
+    fn instantiate_stake(
+        app: &mut TgradeApp,
+        stake_id: u64,
+        admin: &Addr,
+        token: &str,
+        tokens_per_weight: u128,
+        min_bond: u128,
+        unbonding_period: u64,
+        auto_return_limit: u64,
+    ) -> Addr {
+        app.instantiate_contract(
+            stake_id,
+            admin.clone(),
+            &tg4_stake::msg::InstantiateMsg {
+                denom: token.to_owned(),
+                tokens_per_weight: tokens_per_weight.into(),
+                min_bond: min_bond.into(),
+                unbonding_period,
+                admin: Some(admin.to_string()),
+                preauths: Some(1),
+                auto_return_limit,
+            },
+            &[],
+            "stake",
+            Some(admin.to_string()),
+        )
+        .unwrap()
+    }
+
+    pub fn instantiate_mixer(
+        app: &mut TgradeApp,
+        mixer_id: u64,
+        admin: &Addr,
+        group: &Addr,
+        stake: &Addr,
+        function_type: PoEFunctionType,
+    ) -> Addr {
+        app.instantiate_contract(
+            mixer_id,
+            admin.clone(),
+            &tg4_mixer::msg::InstantiateMsg {
+                left_group: group.to_string(),
+                right_group: stake.to_string(),
+                preauths: None,
+                function_type,
+            },
+            &[],
+            "mixer",
+            Some(admin.to_string()),
+        )
+        .unwrap()
+    }
+
     pub fn build(mut self) -> Suite {
         self.member_operators.sort();
         self.member_operators.dedup();
@@ -145,7 +322,8 @@ impl SuiteBuilder {
 
         let members: Vec<_> = self
             .member_operators
-            .into_iter()
+            .iter()
+            .cloned()
             .map(|(addr, weight)| Member { addr, weight })
             .collect();
 
@@ -176,72 +354,72 @@ impl SuiteBuilder {
         app.back_to_genesis();
 
         let engagement_id = app.store_code(contract_engagement());
-        let group = app
-            .instantiate_contract(
-                engagement_id,
-                admin.clone(),
-                &tg4_engagement::msg::InstantiateMsg {
-                    admin: Some(admin.to_string()),
-                    members: members.clone(),
-                    preauths: None,
-                    halflife: None,
-                    token: token.clone(),
-                },
-                &[],
-                "group",
-                Some(admin.to_string()),
-            )
-            .unwrap();
+        let group = Self::instantiate_group(&mut app, engagement_id, &admin, &members, &token);
 
-        let distribution_config = self.distribution_config;
+        let distribution_config = self.distribution_config.clone();
         let distribution_contract = distribution_config.map(|config| {
-            app.instantiate_contract(
-                engagement_id,
-                admin.clone(),
-                &tg4_engagement::msg::InstantiateMsg {
-                    admin: Some(admin.to_string()),
-                    members: config.members,
-                    preauths: None,
-                    halflife: config.halflife,
-                    token: token.clone(),
-                },
-                &[],
-                "distribution",
-                Some(admin.to_string()),
-            )
-            .unwrap()
+            Self::instantiate_distribution(&mut app, engagement_id, &admin, config, &token)
         });
 
-        let valset_id = app.store_code(contract_valset());
-        let valset = app
-            .instantiate_contract(
-                valset_id,
-                admin.clone(),
-                &InstantiateMsg {
-                    admin: Some(admin.to_string()),
-                    membership: group.to_string(),
-                    min_weight: self.min_weight,
-                    max_validators: self.max_validators,
-                    epoch_length: self.epoch_length,
-                    epoch_reward: self.epoch_reward,
-                    initial_keys: operators,
-                    scaling: self.scaling,
-                    fee_percentage: self.fee_percentage,
-                    auto_unjail: self.auto_unjail,
-                    validators_reward_ratio: self.validators_reward_ratio,
-                    distribution_contract: distribution_contract
-                        .as_ref()
-                        .map(|addr| addr.to_string()),
-                    rewards_code_id: engagement_id,
-                },
-                &[],
-                "valset",
-                Some(admin.to_string()),
-            )
-            .unwrap();
+        let stake_id = app.store_code(contract_stake());
+        let stake = Self::instantiate_stake(
+            &mut app,
+            stake_id,
+            &admin,
+            &token,
+            self.tokens_per_weight,
+            self.min_bond,
+            self.unbonding_period,
+            self.auto_return_limit,
+        );
 
-        // promote the valset contract
+        let mixer_id = app.store_code(contract_mixer());
+        let mixer = Self::instantiate_mixer(
+            &mut app,
+            mixer_id,
+            &admin,
+            &group,
+            &stake,
+            self.function_type.clone(),
+        );
+
+        let non_member_operators = self.non_member_operators.clone();
+        let epoch_length = self.epoch_length;
+        let initial_funds = self.initial_funds.clone();
+
+        let valset_id = app.store_code(contract_valset());
+        let valset = self.instantiate_valset(
+            &mut app,
+            valset_id,
+            &admin,
+            &mixer,
+            operators,
+            &distribution_contract,
+            engagement_id,
+        );
+
+        // promote relevant contracts
+        app.promote(admin.as_str(), stake.as_str()).unwrap();
         app.promote(admin.as_str(), valset.as_str()).unwrap();
+
+        let block_info = app.block_info();
+        for (addr, amount) in initial_funds {
+            app.init_modules(|router, api, storage| {
+                router.execute(
+                    api,
+                    storage,
+                    &block_info,
+                    admin.clone(),
+                    CosmosMsg::Custom(TgradeMsg::MintTokens {
+                        denom: token.clone(),
+                        amount: amount.into(),
+                        recipient: addr,
+                    })
+                    .into(),
+                )
+            })
+            .unwrap();
+        }
 
         // process initial genesis block
         app.next_block().unwrap();
@@ -254,12 +432,13 @@ impl SuiteBuilder {
 
         Suite {
             app,
+            stake,
             valset,
             distribution_contract,
             admin: admin.to_string(),
             member_operators: members,
-            non_member_operators: self.non_member_operators,
-            epoch_length: self.epoch_length,
+            non_member_operators,
+            epoch_length,
             token,
             rewards_contract: resp.rewards_contract,
         }
@@ -276,6 +455,8 @@ pub struct Suite {
     valset: Addr,
     /// tg4-engagement contract for engagement distribution
     distribution_contract: Option<Addr>,
+    /// tg4-stake contract for stake management
+    stake: Addr,
     /// Admin used for any administrative messages, but also admin of tgrade-valset contract
     admin: String,
     /// Valset operators pairs, members of cw4 group
@@ -418,6 +599,16 @@ impl Suite {
                 .into(),
             )
         })
+    }
+
+    /// Bonds funds on stake by given address
+    pub fn bond_stake(&mut self, addr: &str, amount: u128) -> AnyResult<AppResponse> {
+        self.app.execute_contract(
+            Addr::unchecked(addr),
+            self.stake.clone(),
+            &tg4_stake::msg::ExecuteMsg::Bond {},
+            &coins(amount, &self.token),
+        )
     }
 
     pub fn list_validators(
