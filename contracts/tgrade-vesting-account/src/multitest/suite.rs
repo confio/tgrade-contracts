@@ -56,6 +56,22 @@ impl SuiteBuilder {
         self
     }
 
+    pub fn with_vesting_plan_in_seconds(mut self, start_at: Option<u64>, end_at: u64) -> Self {
+        let block_info = self.app.block_info();
+        self.vesting_plan = match start_at {
+            Some(start_at) => {
+                let start_at = Expiration::at_timestamp(block_info.time.plus_seconds(start_at));
+                let end_at = Expiration::at_timestamp(block_info.time.plus_seconds(end_at));
+                VestingPlan::Continuous { start_at, end_at }
+            }
+            None => {
+                let release_at = Expiration::at_timestamp(block_info.time.plus_seconds(end_at));
+                VestingPlan::Discrete { release_at }
+            }
+        };
+        self
+    }
+
     #[track_caller]
     pub fn build(mut self) -> Suite {
         let owner = Addr::unchecked(self.owner.clone());
@@ -97,7 +113,7 @@ impl SuiteBuilder {
                     oversight: oversight.clone(),
                     vesting_plan: self.vesting_plan,
                 },
-                &[coin(self.initial_tokens, denom.clone())],
+                &[coin(self.initial_tokens, denom)],
                 "vesting",
                 Some(owner.to_string()),
             )
@@ -129,27 +145,24 @@ pub struct Suite {
 }
 
 impl Suite {
-    // pub fn new_vesting_plan(&mut self, start_at: Option<Timestamp>, end_at: Timestamp) {
-    //     self.vesting_plan = match start_at {
-    //         Some(start_at) => {
-    //             VestingPlan::Continuous {
-    //                 start_at: Expiration::at_timestamp(start_at),
-    //                 end_at: Expiration::at_timestamp(end_at)
-    //             }
-    //         },
-    //         None => VestingPlan::Discrete { release_at: Expiration::at_timestamp(end_at) }
-    //     };
-    // }
-
-    pub fn freeze_tokens(
-        &mut self,
-        sender: Addr,
-        amount: Option<Uint128>,
-    ) -> AnyResult<AppResponse> {
+    pub fn release_tokens(&mut self, sender: Addr, amount: Option<u128>) -> AnyResult<AppResponse> {
         self.app.execute_contract(
             sender,
             self.contract.clone(),
-            &ExecuteMsg::FreezeTokens { amount },
+            &ExecuteMsg::ReleaseTokens {
+                amount: amount.map(Uint128::new),
+            },
+            &[],
+        )
+    }
+
+    pub fn freeze_tokens(&mut self, sender: Addr, amount: Option<u128>) -> AnyResult<AppResponse> {
+        self.app.execute_contract(
+            sender,
+            self.contract.clone(),
+            &ExecuteMsg::FreezeTokens {
+                amount: amount.map(Uint128::new),
+            },
             &[],
         )
     }
@@ -157,12 +170,14 @@ impl Suite {
     pub fn unfreeze_tokens(
         &mut self,
         sender: Addr,
-        amount: Option<Uint128>,
+        amount: Option<u128>,
     ) -> AnyResult<AppResponse> {
         self.app.execute_contract(
             sender,
             self.contract.clone(),
-            &ExecuteMsg::UnfreezeTokens { amount },
+            &ExecuteMsg::UnfreezeTokens {
+                amount: amount.map(Uint128::new),
+            },
             &[],
         )
     }
