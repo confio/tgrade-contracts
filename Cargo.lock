@@ -1631,15 +1631,19 @@ dependencies = [
 name = "tgrade-vesting-account"
 version = "0.4.0"
 dependencies = [
+ "anyhow",
  "assert_matches",
  "cosmwasm-schema",
  "cosmwasm-std",
+ "cw-multi-test",
  "cw-storage-plus",
  "cw0",
  "cw2",
+ "derivative",
  "schemars",
  "serde",
  "tg-bindings",
+ "tg-bindings-test",
  "tg-utils",
  "thiserror",
 ]
