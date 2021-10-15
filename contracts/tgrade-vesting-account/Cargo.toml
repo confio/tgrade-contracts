@@ -23,7 +23,7 @@ schemars = "0.8.1"
 serde = { version = "1.0.103", default-features = false, features = ["derive"] }
 tg-bindings = { version = "0.4.0", path = "../../packages/bindings" }
 tg-utils = { version = "0.4.0", path = "../../packages/utils" }
-thiserror = "1.0.21"
+thiserror = "1"
 
 [dev-dependencies]
 anyhow = "1"

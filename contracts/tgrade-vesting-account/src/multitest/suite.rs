@@ -22,13 +22,13 @@ pub fn vesting_contract() -> Box<dyn Contract<TgradeMsg>> {
 #[derive(Derivative)]
 #[derivative(Default = "new")]
 pub struct SuiteBuilder {
-    #[derivative(Default(value = "String::from(\"RECIPIENT\")"))]
+    #[derivative(Default(value = "\"RECIPIENT\".to_owned()"))]
     recipient: String,
-    #[derivative(Default(value = "String::from(\"OPERATOR\")"))]
+    #[derivative(Default(value = "\"OPERATOR\".to_owned()"))]
     operator: String,
-    #[derivative(Default(value = "String::from(\"OVERSIGHT\")"))]
+    #[derivative(Default(value = "\"OVERSIGHT\".to_owned()"))]
     oversight: String,
-    #[derivative(Default(value = "String::from(\"VESTING\")"))]
+    #[derivative(Default(value = "\"VESTING\".to_owned()"))]
     denom: String,
     // create any vesting plan, just to decrease boilerplate code
     // in a lot of cases it's not needed
