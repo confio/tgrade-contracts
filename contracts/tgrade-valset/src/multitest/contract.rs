@@ -110,15 +110,8 @@ fn update_metadata() {
 
     suite.update_metadata(members[0], &meta).unwrap();
 
-    assert_eq!(
-        suite
-            .validator(members[0])
-            .unwrap()
-            .validator
-            .unwrap()
-            .metadata,
-        meta
-    );
+    let resp = suite.validator(members[0]).unwrap();
+    assert_eq!(resp.validator.unwrap().metadata, meta);
 
     let invalid_meta = ValidatorMetadata {
         moniker: "".to_owned(),
@@ -129,35 +122,18 @@ fn update_metadata() {
     };
 
     // Update with invalid meta (empty moniker) fails
-    assert_eq!(
-        ContractError::InvalidMoniker {},
-        suite
-            .update_metadata(members[0], &invalid_meta)
-            .unwrap_err()
-            .downcast()
-            .unwrap(),
-    );
+    let resp = suite
+        .update_metadata(members[0], &invalid_meta)
+        .unwrap_err();
+    assert_eq!(ContractError::InvalidMoniker {}, resp.downcast().unwrap());
 
     // Ensure no metadata changed
-    assert_eq!(
-        suite
-            .validator(members[0])
-            .unwrap()
-            .validator
-            .unwrap()
-            .metadata,
-        meta
-    );
+    let resp = suite.validator(members[0]).unwrap();
+    assert_eq!(resp.validator.unwrap().metadata, meta);
 
     // Update with valid meta on non-member always fail
-    assert_eq!(
-        ContractError::Unauthorized {},
-        suite
-            .update_metadata("invalid", &meta)
-            .unwrap_err()
-            .downcast()
-            .unwrap(),
-    );
+    let resp = suite.update_metadata("invalid", &meta).unwrap_err();
+    assert_eq!(ContractError::Unauthorized {}, resp.downcast().unwrap());
 }
 
 #[test]
