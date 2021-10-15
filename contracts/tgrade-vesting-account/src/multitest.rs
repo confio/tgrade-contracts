@@ -77,3 +77,34 @@ fn discrete_vesting_account_with_frozen_tokens_release() {
     assert_eq!(token_info.frozen, Uint128::zero());
     assert_eq!(token_info.released, token_info.initial);
 }
+
+#[test]
+fn continuous_vesting_account_releasing_over_year() {
+    let expected_month_release = 10000;
+    let month_in_seconds = 60 * 60 * 24 * 30;
+    let mut suite = SuiteBuilder::new()
+        .with_tokens(expected_month_release * 12)
+        .with_vesting_plan_in_seconds(Some(0), month_in_seconds * 12)
+        .build();
+
+    let token_info = suite.token_info().unwrap();
+    assert_eq!(token_info.released, Uint128::zero());
+
+    // advance time a month
+    suite.app.advance_seconds(month_in_seconds);
+    for m in 1..13 {
+        // release all available tokens
+        suite.release_tokens(suite.operator.clone(), None).unwrap();
+
+        let token_info = suite.token_info().unwrap();
+        // linear release of available tokens each month
+        assert_eq!(
+            token_info.released,
+            Uint128::new(m * expected_month_release)
+        );
+        suite.app.advance_seconds(month_in_seconds);
+    }
+
+    let token_info = suite.token_info().unwrap();
+    assert_eq!(token_info.released, token_info.initial);
+}
