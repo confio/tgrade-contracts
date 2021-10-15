@@ -19,83 +19,95 @@ pub fn vesting_contract() -> Box<dyn Contract<TgradeMsg>> {
     Box::new(contract)
 }
 
-#[derive(Derivative)]
-#[derivative(Default = "new")]
 pub struct SuiteBuilder {
-    #[derivative(Default(value = "\"RECIPIENT\".to_owned()"))]
     recipient: String,
-    #[derivative(Default(value = "\"OPERATOR\".to_owned()"))]
     operator: String,
-    #[derivative(Default(value = "\"OVERSIGHT\".to_owned()"))]
     oversight: String,
-    #[derivative(Default(value = "\"VESTING\".to_owned()"))]
     denom: String,
-    // create any vesting plan, just to decrease boilerplate code
-    // in a lot of cases it's not needed
-    #[derivative(Default(value = "VestingPlan::Discrete {
-        release_at: Expiration::at_timestamp(Timestamp::from_seconds(1))
-    }"))]
     vesting_plan: VestingPlan,
     initial_tokens: u128,
+    owner: String,
+    app: TgradeApp,
 }
 
 impl SuiteBuilder {
+    pub fn new() -> SuiteBuilder {
+        let default_owner = "owner";
+        let mut app = TgradeApp::new(default_owner);
+        app.back_to_genesis();
+        SuiteBuilder {
+            recipient: "RECIPIENT".to_owned(),
+            operator: "OPERATOR".to_owned(),
+            oversight: "OVERSIGHT".to_owned(),
+            denom: "DENOM".to_owned(),
+            // create any vesting plan, just to decrease boilerplate code
+            // in a lot of cases it's not needed
+            vesting_plan: VestingPlan::Discrete {
+                release_at: Expiration::at_timestamp(Timestamp::from_seconds(1)),
+            },
+            initial_tokens: 0u128,
+            owner: default_owner.to_owned(),
+            app,
+        }
+    }
+
     pub fn with_tokens(mut self, amount: u128) -> Self {
         self.initial_tokens = amount;
         self
     }
 
     #[track_caller]
-    pub fn build(self) -> Suite {
-        let owner = Addr::unchecked("owner");
+    pub fn build(mut self) -> Suite {
+        let owner = Addr::unchecked(self.owner.clone());
+        let denom = self.denom;
+        let amount = Uint128::new(self.initial_tokens);
 
-        let mut app = TgradeApp::new(owner.as_str());
-        app.back_to_genesis();
+        let block_info = self.app.block_info();
+        self.app
+            .init_modules(|router, api, storage| -> AnyResult<()> {
+                router.execute(
+                    api,
+                    storage,
+                    &block_info,
+                    owner.clone(),
+                    CosmosMsg::Custom(TgradeMsg::MintTokens {
+                        denom: denom.clone(),
+                        amount,
+                        recipient: owner.to_string(),
+                    })
+                    .into(),
+                )?;
+                Ok(())
+            })
+            .unwrap();
 
-        let block_info = app.block_info();
-        app.init_modules(|router, api, storage| -> AnyResult<()> {
-            router.execute(
-                api,
-                storage,
-                &block_info,
-                owner.clone(),
-                CosmosMsg::Custom(TgradeMsg::MintTokens {
-                    denom: self.denom.to_owned(),
-                    amount: self.initial_tokens.into(),
-                    recipient: owner.to_string(),
-                })
-                .into(),
-            )?;
-            Ok(())
-        })
-        .unwrap();
-
-        let contract_id = app.store_code(vesting_contract());
+        let contract_id = self.app.store_code(vesting_contract());
         let recipient = Addr::unchecked(self.recipient);
         let operator = Addr::unchecked(self.operator);
         let oversight = Addr::unchecked(self.oversight);
-        let contract = app
+        let contract = self
+            .app
             .instantiate_contract(
                 contract_id,
                 owner.clone(),
                 &InstantiateMsg {
-                    denom: self.denom.to_owned(),
+                    denom: denom.clone(),
                     recipient: recipient.clone(),
                     operator: operator.clone(),
                     oversight: oversight.clone(),
                     vesting_plan: self.vesting_plan,
                 },
-                &[coin(self.initial_tokens, self.denom)],
+                &[coin(self.initial_tokens, denom.clone())],
                 "vesting",
                 Some(owner.to_string()),
             )
             .unwrap();
 
         // process initial genesis block
-        app.next_block().unwrap();
+        self.app.next_block().unwrap();
 
         Suite {
-            app,
+            app: self.app,
             contract,
             recipient,
             operator,
@@ -117,6 +129,18 @@ pub struct Suite {
 }
 
 impl Suite {
+    // pub fn new_vesting_plan(&mut self, start_at: Option<Timestamp>, end_at: Timestamp) {
+    //     self.vesting_plan = match start_at {
+    //         Some(start_at) => {
+    //             VestingPlan::Continuous {
+    //                 start_at: Expiration::at_timestamp(start_at),
+    //                 end_at: Expiration::at_timestamp(end_at)
+    //             }
+    //         },
+    //         None => VestingPlan::Discrete { release_at: Expiration::at_timestamp(end_at) }
+    //     };
+    // }
+
     pub fn freeze_tokens(
         &mut self,
         sender: Addr,
