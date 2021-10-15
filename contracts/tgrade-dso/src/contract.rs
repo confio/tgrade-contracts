@@ -1,7 +1,7 @@
 #[cfg(not(feature = "library"))]
 use cosmwasm_std::entry_point;
 use cosmwasm_std::{
-    coin, to_binary, Addr, Api, BankMsg, Binary, BlockInfo, Deps, DepsMut, Env, Event, MessageInfo,
+    coin, to_binary, Addr, BankMsg, Binary, BlockInfo, Deps, DepsMut, Env, Event, MessageInfo,
     Order, QuerierWrapper, Response, StdError, StdResult, Storage, Uint128,
 };
 use cw0::{maybe_addr, Expiration};
@@ -415,39 +415,26 @@ pub fn validate_proposal(
             punishments.iter().try_for_each(|p| p.validate(&deps))
         }
         ProposalContent::WhitelistContract(addr) | ProposalContent::RemoveContract(addr) => {
-            validate_contract_address(&deps, addr.clone())
+            validate_contract_address(&deps, addr)
         }
     }
 }
 
-pub fn validate_addresses(api: &dyn Api, addrs: &[String]) -> StdResult<Vec<Addr>> {
-    addrs.iter().map(|addr| api.addr_validate(addr)).collect()
-}
-
 pub fn validate_human_addresses(deps: &Deps, addrs: &[String]) -> Result<(), ContractError> {
-    validate_addresses(deps.api, addrs)?
+    addrs
         .iter()
-        .map(|a| Ok((a, is_contract(&deps.querier, a)?)))
-        .collect::<StdResult<Vec<_>>>()?
-        .iter()
-        .map(|&(addr, c)| {
-            if c {
-                Err(ContractError::NotAHuman(addr.clone()))
-            } else {
-                Ok(())
-            }
+        .try_for_each(|a| match validate_contract_address(deps, a) {
+            Ok(_) => Err(ContractError::NotAHuman(a.clone())),
+            Err(ContractError::NotAContract(_)) => Ok(()),
+            Err(err) => Err(err),
         })
-        .collect::<Result<Vec<_>, ContractError>>()?;
-    Ok(())
 }
 
-pub fn validate_contract_address(deps: &Deps, addr: String) -> Result<(), ContractError> {
-    match validate_human_addresses(deps, &[addr.clone()]) {
-        Err(e) => match e {
-            ContractError::NotAHuman { .. } => Ok(()),
-            _ => Err(e),
-        },
-        Ok(()) => Err(ContractError::NotAContract(addr)),
+pub fn validate_contract_address(deps: &Deps, addr: &str) -> Result<(), ContractError> {
+    if is_contract(&deps.querier, &deps.api.addr_validate(addr)?)? {
+        Ok(())
+    } else {
+        Err(ContractError::NotAContract(addr.to_string()))
     }
 }
 
