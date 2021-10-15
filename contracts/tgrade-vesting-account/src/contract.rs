@@ -106,7 +106,10 @@ fn hand_over_completed(account: &VestingAccount) -> Result<(), ContractError> {
 fn allowed_release(deps: Deps, env: &Env, plan: &VestingPlan) -> Result<Uint128, ContractError> {
     let token_info = token_info(deps)?;
 
-    let all_available_tokens = token_info.initial - token_info.frozen - token_info.released;
+    let current = deps
+        .querier
+        .query_balance(&env.contract.address, token_info.denom)?;
+    let all_available_tokens = current.amount - token_info.frozen - token_info.released;
     match plan {
         VestingPlan::Discrete {
             release_at: release,
@@ -350,6 +353,7 @@ fn token_info(deps: Deps) -> StdResult<TokenInfoResponse> {
     let account = VESTING_ACCOUNT.load(deps.storage)?;
 
     let info = TokenInfoResponse {
+        denom: account.denom,
         initial: account.initial_tokens,
         frozen: account.frozen_tokens,
         released: account.paid_tokens,
@@ -922,6 +926,7 @@ mod tests {
             assert_eq!(
                 token_info(suite.deps.as_ref()),
                 Ok(TokenInfoResponse {
+                    denom: VESTING_DENOM.to_string(),
                     initial: Uint128::new(100),
                     frozen: Uint128::new(10),
                     released: Uint128::zero(),
@@ -980,6 +985,7 @@ mod tests {
             assert_eq!(
                 token_info(suite.deps.as_ref()),
                 Ok(TokenInfoResponse {
+                    denom: VESTING_DENOM.to_string(),
                     initial: Uint128::new(100),
                     frozen: Uint128::new(10),
                     released: Uint128::zero(),
@@ -1055,6 +1061,7 @@ mod tests {
         assert_eq!(
             token_info(suite.deps.as_ref()),
             Ok(TokenInfoResponse {
+                denom: VESTING_DENOM.to_string(),
                 initial: Uint128::new(100),
                 frozen: Uint128::zero(),
                 released: Uint128::zero(),
@@ -1076,6 +1083,7 @@ mod tests {
         assert_eq!(
             token_info(suite.deps.as_ref()),
             Ok(TokenInfoResponse {
+                denom: VESTING_DENOM.to_string(),
                 initial: Uint128::new(100),
                 frozen: Uint128::new(100),
                 released: Uint128::zero(),
@@ -1098,6 +1106,7 @@ mod tests {
         assert_eq!(
             token_info(suite.deps.as_ref()),
             Ok(TokenInfoResponse {
+                denom: VESTING_DENOM.to_string(),
                 initial: Uint128::new(100),
                 frozen: Uint128::new(100),
                 released: Uint128::zero(),
@@ -1113,6 +1122,7 @@ mod tests {
         assert_eq!(
             token_info(suite.deps.as_ref()),
             Ok(TokenInfoResponse {
+                denom: VESTING_DENOM.to_string(),
                 initial: Uint128::new(100),
                 frozen: Uint128::new(50),
                 released: Uint128::zero(),
@@ -1129,6 +1139,7 @@ mod tests {
         assert_eq!(
             token_info(suite.deps.as_ref()),
             Ok(TokenInfoResponse {
+                denom: VESTING_DENOM.to_string(),
                 initial: Uint128::new(100),
                 frozen: Uint128::zero(),
                 released: Uint128::zero(),

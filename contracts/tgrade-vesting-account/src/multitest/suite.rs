@@ -75,10 +75,11 @@ impl SuiteBuilder {
     #[track_caller]
     pub fn build(mut self) -> Suite {
         let owner = Addr::unchecked(self.owner.clone());
-        let denom = self.denom;
-        let amount = Uint128::new(self.initial_tokens);
 
         let block_info = self.app.block_info();
+        let denom = self.denom.clone();
+        let amount = Uint128::new(self.initial_tokens);
+
         self.app
             .init_modules(|router, api, storage| -> AnyResult<()> {
                 router.execute(
@@ -105,7 +106,7 @@ impl SuiteBuilder {
             .app
             .instantiate_contract(
                 contract_id,
-                owner.clone(),
+                Addr::unchecked(owner.clone()),
                 &InstantiateMsg {
                     denom: denom.clone(),
                     recipient: recipient.clone(),
@@ -113,7 +114,7 @@ impl SuiteBuilder {
                     oversight: oversight.clone(),
                     vesting_plan: self.vesting_plan,
                 },
-                &[coin(self.initial_tokens, denom)],
+                &[coin(self.initial_tokens, denom.clone())],
                 "vesting",
                 Some(owner.to_string()),
             )
@@ -123,11 +124,13 @@ impl SuiteBuilder {
         self.app.next_block().unwrap();
 
         Suite {
+            owner,
             app: self.app,
             contract,
             recipient,
             operator,
             oversight,
+            denom,
         }
     }
 }
@@ -137,14 +140,39 @@ impl SuiteBuilder {
 pub struct Suite {
     #[derivative(Debug = "ignore")]
     pub app: TgradeApp,
+    pub owner: Addr,
     /// Vesting contract address,
     pub contract: Addr,
     pub recipient: Addr,
     pub operator: Addr,
     pub oversight: Addr,
+    pub denom: String,
 }
 
 impl Suite {
+    pub fn mint_tokens(&mut self, amount: u128) -> AnyResult<()> {
+        let block_info = self.app.block_info();
+        let denom = self.denom.clone();
+        let owner = self.owner.to_string();
+
+        self.app
+            .init_modules(|router, api, storage| -> AnyResult<()> {
+                router.execute(
+                    api,
+                    storage,
+                    &block_info,
+                    Addr::unchecked(owner.clone()),
+                    CosmosMsg::Custom(TgradeMsg::MintTokens {
+                        denom,
+                        amount: Uint128::new(amount),
+                        recipient: owner,
+                    })
+                    .into(),
+                )?;
+                Ok(())
+            })
+    }
+
     pub fn release_tokens(&mut self, sender: Addr, amount: Option<u128>) -> AnyResult<AppResponse> {
         self.app.execute_contract(
             sender,

@@ -91,6 +91,7 @@ pub struct AccountInfoResponse {
 /// Response for TokenInfo query
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct TokenInfoResponse {
+    pub denom: String,
     /// Initial amount of vested tokens
     pub initial: Uint128,
     /// Amount of currently frozen tokens

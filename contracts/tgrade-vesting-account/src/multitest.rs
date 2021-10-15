@@ -3,7 +3,8 @@ mod suite;
 use crate::error::ContractError;
 use suite::SuiteBuilder;
 
-use cosmwasm_std::Uint128;
+use cosmwasm_std::{coins, BankMsg, Uint128};
+use cw_multi_test::Executor;
 
 #[test]
 fn all_initial_tokens_frozen_and_unfrozen() {
@@ -113,8 +114,8 @@ fn continuous_vesting_account_releasing_over_year() {
 #[test]
 fn continuous_vesting_account_releasing_over_year_with_tokens_frozen_at_some_point() {
     let month_in_seconds = 60 * 60 * 24 * 30;
-    // 12 months schedule, total 400.000 tokens.
     let mut suite = SuiteBuilder::new()
+        // 12 months schedule, total 400.000 tokens.
         .with_tokens(400_000)
         .with_vesting_plan_in_seconds(Some(0), month_in_seconds * 12)
         .build();
@@ -122,49 +123,66 @@ fn continuous_vesting_account_releasing_over_year_with_tokens_frozen_at_some_poi
     let token_info = suite.token_info().unwrap();
     assert_eq!(token_info.released, Uint128::zero());
 
+    // Month 2: Accidentally send 50.000 tokens to the contract, but they don't affect schedule.
+    suite.app.advance_seconds(month_in_seconds * 2);
+    // mint extra 50_000 tokens
+    let accidental_transfer = 50_000;
+    suite.mint_tokens(accidental_transfer).unwrap();
+    suite
+        .app
+        .execute(
+            suite.owner.clone(),
+            BankMsg::Send {
+                to_address: suite.contract.to_string(),
+                amount: coins(accidental_transfer, suite.denom.clone()),
+            }
+            .into(),
+        )
+        .unwrap();
+
     // Month 3: 100.000 are released. (all that were vested from original 400.000)
-    suite.app.advance_seconds(month_in_seconds * 3);
+    suite.app.advance_seconds(month_in_seconds);
     let first_release = 100_000;
-    suite.release_tokens(suite.operator.clone(), Some(first_release)).unwrap();
+    suite
+        .release_tokens(suite.operator.clone(), Some(first_release))
+        .unwrap();
     let token_info = suite.token_info().unwrap();
-    assert_eq!(
-        token_info.released,
-        Uint128::new(first_release)
-    );
+    assert_eq!(token_info.released, Uint128::new(first_release));
 
     // Month 5: freeze 200.000 for misbehaviour
     suite.app.advance_seconds(month_in_seconds * 2);
-    suite.freeze_tokens(suite.oversight.clone(), Some(200_000)).unwrap();
+    suite
+        .freeze_tokens(suite.oversight.clone(), Some(200_000))
+        .unwrap();
     let token_info = suite.token_info().unwrap();
     assert_eq!(token_info.frozen, Uint128::new(200_000));
 
     // Month 6: No tokens can be released (200.000 - 100.000 - 200.000)
     suite.app.advance_seconds(month_in_seconds);
-    let err = suite.release_tokens(suite.operator.clone(), None).unwrap_err();
-    assert_eq!(
-        ContractError::ZeroTokensNotAllowed,
-        err.downcast().unwrap()
-    );
+    let err = suite
+        .release_tokens(suite.operator.clone(), None)
+        .unwrap_err();
+    assert_eq!(ContractError::ZeroTokensNotAllowed, err.downcast().unwrap());
 
     // Month 10: 25.000 tokens are released (out of 333.333 - 100.000 - 200.000 = 33.333)
     suite.app.advance_seconds(month_in_seconds * 4);
     let second_release = 25_000;
-    suite.release_tokens(suite.operator.clone(), Some(second_release)).unwrap();
+    suite
+        .release_tokens(suite.operator.clone(), Some(second_release))
+        .unwrap();
     let token_info = suite.token_info().unwrap();
     assert_eq!(
         token_info.released,
         Uint128::new(first_release + second_release)
     );
 
-    // Month 12: All remaining tokens are released, that is Balance of 325.000 - 200.000 frozen = 125.000
-    // (this is the 75.000 that finished vesting as well as the 50.000 that got sent but locked until
-    // end of schedule
+    // Month 12: All remaining tokens are released, that is Balance of 275.000 - 200.000 frozen = 75.000
+    // (this is the 75.000 that finished vesting)
     suite.app.advance_seconds(month_in_seconds * 4);
-    let second_release = 25_000;
     suite.release_tokens(suite.operator.clone(), None).unwrap();
     let token_info = suite.token_info().unwrap();
     assert_eq!(
         token_info.released,
-        Uint128::new(first_release + second_release + 125_000)
+        Uint128::new(first_release + second_release + 75_000 + accidental_transfer)
     );
 }
