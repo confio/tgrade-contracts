@@ -475,8 +475,9 @@ jobs:
       - run:
           name: Build and run schema generator for packages
           command: |
-            for P in ./packages/*/schema/..
+            for S in ./packages/*/examples/schema.rs
             do
+              P=$(dirname $S)/..
               echo "Generating schema for `dirname $P`..."
               (cd $P && cargo schema --locked)
               cp -a $P/schema/*.json ./schemas
