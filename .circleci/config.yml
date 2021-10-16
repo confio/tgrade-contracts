@@ -26,6 +26,12 @@ workflows:
              only: /^v[0-9]+\.[0-9]+\.[0-9]+.*/
            branches:
              ignore: /.*/
+      - build_and_upload_schemas:
+          filters:
+           tags:
+             only: /^v[0-9]+\.[0-9]+\.[0-9]+.*/
+           branches:
+             ignore: /.*/
 
 jobs:
   contract_tg4_engagement:
@@ -49,15 +55,6 @@ jobs:
       - run:
           name: Build and run schema generator
           command: cargo schema --locked
-      - run:
-          name: Ensure checked-in schemas are up-to-date
-          command: |
-            CHANGES_IN_REPO=$(git status --porcelain)
-            if [[ -n "$CHANGES_IN_REPO" ]]; then
-              echo "Repository is dirty. Showing 'git status' and 'git --no-pager diff' for debugging now:"
-              git status && git --no-pager diff
-              exit 1
-            fi
       - save_cache:
           paths:
             - /usr/local/cargo/registry
@@ -85,15 +82,6 @@ jobs:
       - run:
           name: Build and run schema generator
           command: cargo schema --locked
-      - run:
-          name: Ensure checked-in schemas are up-to-date
-          command: |
-            CHANGES_IN_REPO=$(git status --porcelain)
-            if [[ -n "$CHANGES_IN_REPO" ]]; then
-              echo "Repository is dirty. Showing 'git status' and 'git --no-pager diff' for debugging now:"
-              git status && git --no-pager diff
-              exit 1
-            fi
       - save_cache:
           paths:
             - /usr/local/cargo/registry
@@ -121,15 +109,6 @@ jobs:
       - run:
           name: Build and run schema generator
           command: cargo schema --locked
-      - run:
-          name: Ensure checked-in schemas are up-to-date
-          command: |
-            CHANGES_IN_REPO=$(git status --porcelain)
-            if [[ -n "$CHANGES_IN_REPO" ]]; then
-              echo "Repository is dirty. Showing 'git status' and 'git --no-pager diff' for debugging now:"
-              git status && git --no-pager diff
-              exit 1
-            fi
       - save_cache:
           paths:
             - /usr/local/cargo/registry
@@ -157,15 +136,6 @@ jobs:
       - run:
           name: Build and run schema generator
           command: cargo schema --locked
-      - run:
-          name: Ensure checked-in schemas are up-to-date
-          command: |
-            CHANGES_IN_REPO=$(git status --porcelain)
-            if [[ -n "$CHANGES_IN_REPO" ]]; then
-              echo "Repository is dirty. Showing 'git status' and 'git --no-pager diff' for debugging now:"
-              git status && git --no-pager diff
-              exit 1
-            fi
       - save_cache:
           paths:
             - /usr/local/cargo/registry
@@ -193,15 +163,6 @@ jobs:
       - run:
           name: Build and run schema generator
           command: cargo schema --locked
-      - run:
-          name: Ensure checked-in schemas are up-to-date
-          command: |
-            CHANGES_IN_REPO=$(git status --porcelain)
-            if [[ -n "$CHANGES_IN_REPO" ]]; then
-              echo "Repository is dirty. Showing 'git status' and 'git --no-pager diff' for debugging now:"
-              git status && git --no-pager diff
-              exit 1
-            fi
       - save_cache:
           paths:
             - /usr/local/cargo/registry
@@ -229,15 +190,6 @@ jobs:
       - run:
           name: Build and run schema generator
           command: cargo schema --locked
-      - run:
-          name: Ensure checked-in schemas are up-to-date
-          command: |
-            CHANGES_IN_REPO=$(git status --porcelain)
-            if [[ -n "$CHANGES_IN_REPO" ]]; then
-              echo "Repository is dirty. Showing 'git status' and 'git --no-pager diff' for debugging now:"
-              git status && git --no-pager diff
-              exit 1
-            fi
       - save_cache:
           paths:
             - /usr/local/cargo/registry
@@ -302,15 +254,6 @@ jobs:
       - run:
           name: Build and run schema generator
           command: cargo schema --locked
-      - run:
-          name: Ensure checked-in schemas are up-to-date
-          command: |
-            CHANGES_IN_REPO=$(git status --porcelain)
-            if [[ -n "$CHANGES_IN_REPO" ]]; then
-              echo "Repository is dirty. Showing 'git status' and 'git --no-pager diff' for debugging now:"
-              git status && git --no-pager diff
-              exit 1
-            fi
       - save_cache:
           paths:
             - /usr/local/cargo/registry
@@ -390,15 +333,6 @@ jobs:
       - run:
           name: Build and run schema generator
           command: cargo schema --locked
-      - run:
-          name: Ensure checked-in schemas are up-to-date
-          command: |
-            CHANGES_IN_REPO=$(git status --porcelain)
-            if [[ -n "$CHANGES_IN_REPO" ]]; then
-              echo "Repository is dirty. Showing 'git status' and 'git --no-pager diff' for debugging now:"
-              git status && git --no-pager diff
-              exit 1
-            fi
       - save_cache:
           paths:
             - /usr/local/cargo/registry
@@ -461,7 +395,7 @@ jobs:
           command: |
             for C in ./contracts/*/
             do
-              echo "Compiling `basename $C`..."
+              echo "Compiling $(basename $C) ..."
               (cd $C && cargo build --release --target wasm32-unknown-unknown --locked)
             done
       - run:
@@ -478,7 +412,7 @@ jobs:
           command: |
             for W in ./target/wasm32-unknown-unknown/release/*.wasm
             do
-              echo -n "Checking `basename $W`... "
+              echo -n "Checking $(basename $W) ... "
               check_contract $W
             done
 
@@ -527,3 +461,49 @@ jobs:
               -n "$TITLE" -b "$BODY" \
               -delete \
               "$TAG" ./artifacts/
+
+  build_and_upload_schemas:
+    docker:
+      - image: rust:1.53.0
+    working_directory: ~/project
+    steps:
+      - checkout:
+          path: ~/project
+      - run:
+          name: Create schemas directory
+          command: mkdir -p schemas
+      - run:
+          name: Install ghr
+          command: wget https://github.com/tcnksm/ghr/releases/download/v0.14.0/ghr_v0.14.0_linux_amd64.tar.gz -O - | tar -zxvf - -C /usr/local/bin --wildcards --strip-components 1 */ghr
+      - run:
+          name: Build and run schema generator for packages
+          command: |
+            for S in ./packages/*/examples/schema.rs
+            do
+              P=$(dirname $S)/..
+              echo "Generating schema for $P ..."
+              (cd $P && cargo schema --locked && tar -zcf ~/project/schemas/$(basename $(pwd))_schema.tar.gz ./schema)
+            done
+      - run:
+          name: Build and run schema generator for contracts
+          command: |
+            for C in ./contracts/*/
+            do
+              echo "Generating schema for $C ..."
+              (cd $C && cargo schema --locked && tar -zcf ~/project/schemas/$(basename $(pwd))_schema.tar.gz ./schema)
+            done
+      - run:
+          name: Show data
+          command: ls -l ./schemas
+      - run:
+          name: Publish schemas on GitHub
+          command: |
+            TAG="$CIRCLE_TAG"
+            TITLE="$TAG"
+            BODY="Attached there are some schemas generated at this tag."
+            ghr -t "$GITHUB_TOKEN" \
+              -u "$CIRCLE_PROJECT_USERNAME" -r "$CIRCLE_PROJECT_REPONAME" \
+              -c "$CIRCLE_SHA1" \
+              -n "$TITLE" -b "$BODY" \
+              -delete \
+              "$TAG" ./schemas/
