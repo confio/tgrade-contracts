@@ -479,7 +479,7 @@ jobs:
             do
               P=$(dirname $S)/..
               echo "Generating schema for $P ..."
-              (cd $P && cargo schema --locked && zip -r ~/project/schemas/$(basename $(pwd)).zip ./schema)
+              (cd $P && cargo schema --locked && tar -cvf ~/project/schemas/$(basename $(pwd)).tar ./schema)
             done
       - run:
           name: Build and run schema generator for contracts
@@ -487,7 +487,7 @@ jobs:
             for C in ./contracts/*/
             do
               echo "Generating schema for $C ..."
-              (cd $C && cargo schema --locked && zip -r ~/project/schemas/$(basename $(pwd)).zip ./schema)
+              (cd $C && cargo schema --locked && tar -cvf ~/project/schemas/$(basename $(pwd)).tar ./schema)
             done
       - run:
           name: Show data
