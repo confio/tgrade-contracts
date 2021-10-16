@@ -473,6 +473,9 @@ jobs:
           name: Create schemas directory
           command: mkdir -p schemas
       - run:
+          name: Install ghr
+          command: wget https://github.com/tcnksm/ghr/releases/download/v0.14.0/ghr_v0.14.0_linux_amd64.tar.gz -O - | tar -zxvf - -C /usr/local/bin --wildcards --strip-components 1 */ghr
+      - run:
           name: Build and run schema generator for packages
           command: |
             for S in ./packages/*/examples/schema.rs
