@@ -395,7 +395,7 @@ jobs:
           command: |
             for C in ./contracts/*/
             do
-              echo "Compiling `basename $C`..."
+              echo "Compiling $(basename $C) ..."
               (cd $C && cargo build --release --target wasm32-unknown-unknown --locked)
             done
       - run:
@@ -412,7 +412,7 @@ jobs:
           command: |
             for W in ./target/wasm32-unknown-unknown/release/*.wasm
             do
-              echo -n "Checking `basename $W`... "
+              echo -n "Checking $(basename $W) ... "
               check_contract $W
             done
 
@@ -478,18 +478,16 @@ jobs:
             for S in ./packages/*/examples/schema.rs
             do
               P=$(dirname $S)/..
-              echo "Generating schema for `dirname $P`..."
-              (cd $P && cargo schema --locked)
-              cp -a $P/schema/*.json ./schemas
+              echo "Generating schema for $P ..."
+              (cd $P && cargo schema --locked && zip -r ~/project/schemas/$(basename $(pwd)).zip ./schema)
             done
       - run:
           name: Build and run schema generator for contracts
           command: |
             for C in ./contracts/*/
             do
-              echo "Generating schema for `dirname $C`..."
-              (cd $C && cargo schema --locked)
-              cp -a $C/schema/*.json ./schemas
+              echo "Generating schema for $C ..."
+              (cd $C && cargo schema --locked && zip -r ~/project/schemas/$(basename $(pwd)).zip ./schema)
             done
       - run:
           name: Show data
