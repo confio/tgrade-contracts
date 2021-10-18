@@ -109,14 +109,15 @@ fn allowed_release(deps: Deps, env: &Env, plan: &VestingPlan) -> Result<Uint128,
     // In order to allow releasing any extra tokens sent to the account AFTER vesting
     // account has been initialized, correct amount is calculated by doing query of
     // contract's balance.
-    let current = deps
-        .querier
-        .query_balance(&env.contract.address, token_info.denom)?;
+
     match plan {
         VestingPlan::Discrete {
             release_at: release,
         } => {
             if release.is_expired(&env.block) {
+                let current = deps
+                        .querier
+                        .query_balance(&env.contract.address, token_info.denom)?;
                 // If end_at timestamp is already met, release all available tokens
                 Ok(current.amount - token_info.frozen)
             } else {
@@ -128,6 +129,9 @@ fn allowed_release(deps: Deps, env: &Env, plan: &VestingPlan) -> Result<Uint128,
                 // If start_at timestamp is not met, release nothing
                 Ok(Uint128::zero())
             } else if end_at.is_expired(&env.block) {
+                let current = deps
+                        .querier
+                        .query_balance(&env.contract.address, token_info.denom)?;
                 // If end_at timestamp is already met, release all available tokens
                 Ok(current.amount - token_info.frozen)
             } else {
