@@ -5,7 +5,7 @@ use std::fmt;
 use crate::error::ContractError;
 use crate::state::MemberStatus::NonVoting;
 use cosmwasm_std::{
-    attr, Addr, Attribute, BlockInfo, Decimal, Deps, Env, Event, StdError, StdResult, Storage,
+    attr, Addr, Api, Attribute, BlockInfo, Decimal, Deps, Env, Event, StdError, StdResult, Storage,
     Timestamp, Uint128,
 };
 use cw0::Expiration;
@@ -88,6 +88,8 @@ pub struct TrustedCircleAdjustments {
     pub threshold: Option<Decimal>,
     /// If true, and absolute threshold and quorum are met, we can end before voting period finished
     pub allow_end_early: Option<bool>,
+    /// Address of cw4 contract behaving as deny list for this one
+    pub deny_list: Option<String>,
 }
 
 impl TrustedCircle {
@@ -114,6 +116,7 @@ impl TrustedCircle {
 
     pub fn apply_adjustments(
         &mut self,
+        api: &dyn Api,
         env: Env,
         proposal_id: u64,
         adjustments: TrustedCircleAdjustments,
@@ -147,6 +150,9 @@ impl TrustedCircle {
         }
         if let Some(allow_end_early) = adjustments.allow_end_early {
             self.rules.allow_end_early = allow_end_early;
+        }
+        if let Some(deny_list) = adjustments.deny_list {
+            self.deny_list = Some(api.addr_validate(&deny_list)?);
         }
         Ok(())
     }

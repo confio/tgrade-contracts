@@ -194,6 +194,7 @@ fn edit_trusted_circle_proposal(escrow_funds: u128) -> ExecuteMsg {
         quorum: None,
         threshold: None,
         allow_end_early: None,
+        deny_list: None,
     });
     ExecuteMsg::Propose {
         title: "Triple Escrow Amount Proposal".to_string(),

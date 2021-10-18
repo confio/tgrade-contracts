@@ -409,6 +409,7 @@ pub fn validate_proposal(
         ProposalContent::EditTrustedCircle(trusted_circle_adjustments) => {
             let mut trusted_circle = TRUSTED_CIRCLE.load(deps.storage)?;
             trusted_circle.apply_adjustments(
+                deps.api,
                 env,
                 u64::MAX, // Dummy proposal id
                 trusted_circle_adjustments.clone(),
@@ -892,8 +893,9 @@ pub fn proposal_edit_trusted_circle(
         .add_attributes(adjustments.as_attributes())
         .add_attribute("proposal", "edit_trusted_circle");
 
+    let api = deps.api;
     TRUSTED_CIRCLE.update::<_, ContractError>(deps.storage, |mut trusted_circle| {
-        trusted_circle.apply_adjustments(env, proposal_id, adjustments)?;
+        trusted_circle.apply_adjustments(api, env, proposal_id, adjustments)?;
         Ok(trusted_circle)
     })?;
 

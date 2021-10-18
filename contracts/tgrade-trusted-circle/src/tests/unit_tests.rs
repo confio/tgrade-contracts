@@ -168,6 +168,7 @@ fn test_proposal_validation() {
                 quorum: None,
                 threshold: None,
                 allow_end_early: None,
+                deny_list: None,
             }),
             ContractError::InvalidPendingEscrow(Uint128::zero()),
         ),
@@ -868,6 +869,7 @@ fn propose_new_voting_rules() {
         quorum: None,
         threshold: Some(Decimal::percent(51)),
         allow_end_early: Some(true),
+        deny_list: Some("New deny".to_owned()),
     });
     let msg = ExecuteMsg::Propose {
         title: "Streamline voting process".to_string(),
@@ -947,6 +949,7 @@ fn propose_new_voting_rules_validation() {
         quorum: None,
         threshold: None,
         allow_end_early: None,
+        deny_list: None,
     });
     let msg = ExecuteMsg::Propose {
         title: "Streamline voting process".to_string(),
