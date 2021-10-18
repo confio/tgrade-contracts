@@ -27,91 +27,73 @@ fn all_initial_tokens_frozen_and_unfrozen() {
     assert_eq!(token_info.frozen, Uint128::zero());
 }
 
-#[test]
-fn discrete_vesting_account_with_frozen_tokens_release() {
-    let release_at_seconds = 1000u64;
-    let mut suite = SuiteBuilder::new()
-        .with_tokens(10000)
-        .with_vesting_plan_in_seconds_from_start(None, release_at_seconds)
-        .build();
+mod release_tokens {
+    use super::*;
 
-    let oversight = suite.oversight.clone();
+    #[test]
+    fn discrete() {
+        let mut suite = SuiteBuilder::new()
+            .with_tokens(100)
+            .with_vesting_plan_in_seconds_from_start(None, 100)
+            .build();
 
-    // freeze half of available tokens
-    suite.freeze_tokens(oversight.clone(), Some(5000)).unwrap();
+        suite.app.advance_seconds(150);
+        suite.release_tokens(suite.operator.clone(), None).unwrap();
+        let token_info = suite.token_info().unwrap();
+        assert_eq!(token_info.released, token_info.initial);
+    }
 
-    // advance time to allow release
-    suite.app.advance_seconds(release_at_seconds);
+    #[test]
+    fn discrete_vesting_account_with_frozen_tokens_release() {
+        let release_at_seconds = 1000u64;
+        let mut suite = SuiteBuilder::new()
+            .with_tokens(10000)
+            .with_vesting_plan_in_seconds_from_start(None, release_at_seconds)
+            .build();
 
-    // release all available tokens
-    suite.release_tokens(suite.operator.clone(), None).unwrap();
+        let oversight = suite.oversight.clone();
 
-    let token_info = suite.token_info().unwrap();
-    assert_eq!(token_info.frozen, Uint128::new(5000));
-    assert_eq!(token_info.released, Uint128::new(5000));
+        // freeze half of available tokens
+        suite.freeze_tokens(oversight.clone(), Some(5000)).unwrap();
 
-    // unfreeze and release some tokens
-    suite
-        .unfreeze_tokens(oversight.clone(), Some(2500))
-        .unwrap();
-    suite
-        .release_tokens(suite.operator.clone(), Some(1000))
-        .unwrap();
-    let token_info = suite.token_info().unwrap();
-    assert_eq!(token_info.frozen, Uint128::new(2500));
-    assert_eq!(token_info.released, Uint128::new(6000));
+        // advance time to allow release
+        suite.app.advance_seconds(release_at_seconds);
 
-    // try to release more token then available
-    // 10000 initial - 2500 still frozen - 6000 released = 1500 available
-    let err = suite
-        .release_tokens(suite.operator.clone(), Some(2000))
-        .unwrap_err();
-    assert_eq!(
-        ContractError::NotEnoughTokensAvailable,
-        err.downcast().unwrap()
-    );
-
-    // unfreeze and release all tokens
-    suite.unfreeze_tokens(oversight, None).unwrap();
-    suite.release_tokens(suite.operator.clone(), None).unwrap();
-    let token_info = suite.token_info().unwrap();
-    assert_eq!(token_info.frozen, Uint128::zero());
-    assert_eq!(token_info.released, token_info.initial);
-}
-
-#[test]
-fn continuous_vesting_account_releasing_over_year() {
-    let expected_month_release = 10000;
-    let month_in_seconds = 60 * 60 * 24 * 30;
-    let mut suite = SuiteBuilder::new()
-        .with_tokens(expected_month_release * 12)
-        .with_vesting_plan_in_seconds_from_start(Some(0), month_in_seconds * 12)
-        .build();
-
-    let token_info = suite.token_info().unwrap();
-    assert_eq!(token_info.released, Uint128::zero());
-
-    // advance time a month
-    suite.app.advance_seconds(month_in_seconds + 1);
-    for m in 1..13 {
         // release all available tokens
         suite.release_tokens(suite.operator.clone(), None).unwrap();
 
         let token_info = suite.token_info().unwrap();
-        // linear release of available tokens each month
+        assert_eq!(token_info.frozen, Uint128::new(5000));
+        assert_eq!(token_info.released, Uint128::new(5000));
+
+        // unfreeze and release some tokens
+        suite
+            .unfreeze_tokens(oversight.clone(), Some(2500))
+            .unwrap();
+        suite
+            .release_tokens(suite.operator.clone(), Some(1000))
+            .unwrap();
+        let token_info = suite.token_info().unwrap();
+        assert_eq!(token_info.frozen, Uint128::new(2500));
+        assert_eq!(token_info.released, Uint128::new(6000));
+
+        // try to release more token then available
+        // 10000 initial - 2500 still frozen - 6000 released = 1500 available
+        let err = suite
+            .release_tokens(suite.operator.clone(), Some(2000))
+            .unwrap_err();
         assert_eq!(
-            token_info.released,
-            Uint128::new(m * expected_month_release)
+            ContractError::NotEnoughTokensAvailable,
+            err.downcast().unwrap()
         );
-        suite.app.advance_seconds(month_in_seconds);
+
+        // unfreeze and release all tokens
+        suite.unfreeze_tokens(oversight, None).unwrap();
+        suite.release_tokens(suite.operator.clone(), None).unwrap();
+        let token_info = suite.token_info().unwrap();
+        assert_eq!(token_info.frozen, Uint128::zero());
+        assert_eq!(token_info.released, token_info.initial);
     }
-
-    let token_info = suite.token_info().unwrap();
-    assert_eq!(token_info.released, token_info.initial);
-}
-
-mod allowed_release {
-    use super::*;
 
     #[test]
     fn discrete_after_expiration() {
@@ -129,23 +111,7 @@ mod allowed_release {
     }
 
     #[test]
-    fn continuous_after_expiration() {
-        let mut suite = SuiteBuilder::new()
-            .with_tokens(100)
-            // plan starts 100s from genesis block and ends after additional 200s
-            .with_vesting_plan_in_seconds_from_start(Some(100), 300)
-            .build();
-
-        // 1 second after release_at expire
-        suite.app.advance_seconds(301);
-
-        suite.release_tokens(suite.operator.clone(), None).unwrap();
-        let token_info = suite.token_info().unwrap();
-        assert_eq!(token_info.released, Uint128::new(100));
-    }
-
-    #[test]
-    fn continuous_in_between() {
+    fn continuous() {
         let mut suite = SuiteBuilder::new()
             .with_tokens(100)
             // plan starts 100s from genesis block and ends after additional 200s
@@ -179,27 +145,57 @@ mod allowed_release {
         let token_info = suite.token_info().unwrap();
         assert_eq!(token_info.released, token_info.initial);
     }
-}
-
-mod release_tokens {
-    use super::*;
 
     #[test]
-    fn discrete() {
+    fn continuous_after_expiration() {
         let mut suite = SuiteBuilder::new()
             .with_tokens(100)
-            .with_vesting_plan_in_seconds_from_start(None, 100)
+            // plan starts 100s from genesis block and ends after additional 200s
+            .with_vesting_plan_in_seconds_from_start(Some(100), 300)
             .build();
 
-        suite.app.advance_seconds(150);
+        // 1 second after release_at expire
+        suite.app.advance_seconds(301);
+
         suite.release_tokens(suite.operator.clone(), None).unwrap();
+        let token_info = suite.token_info().unwrap();
+        assert_eq!(token_info.released, Uint128::new(100));
+    }
+
+    #[test]
+    fn continuous_vesting_account_releasing_over_year() {
+        let expected_month_release = 10000;
+        let month_in_seconds = 60 * 60 * 24 * 30;
+        let mut suite = SuiteBuilder::new()
+            .with_tokens(expected_month_release * 12)
+            .with_vesting_plan_in_seconds_from_start(Some(0), month_in_seconds * 12)
+            .build();
+
+        let token_info = suite.token_info().unwrap();
+        assert_eq!(token_info.released, Uint128::zero());
+
+        // advance time a month
+        suite.app.advance_seconds(month_in_seconds + 1);
+        for m in 1..13 {
+            // release all available tokens
+            suite.release_tokens(suite.operator.clone(), None).unwrap();
+
+            let token_info = suite.token_info().unwrap();
+            // linear release of available tokens each month
+            assert_eq!(
+                token_info.released,
+                Uint128::new(m * expected_month_release)
+            );
+            suite.app.advance_seconds(month_in_seconds);
+        }
+
         let token_info = suite.token_info().unwrap();
         assert_eq!(token_info.released, token_info.initial);
     }
 
     // example from readme
     #[test]
-    fn continuously() {
+    fn continuously_with_frozen_tokens() {
         let month_in_seconds = 60 * 60 * 24 * 30;
         let mut suite = SuiteBuilder::new()
             // 12 months schedule, total 400.000 tokens.
