@@ -106,17 +106,19 @@ fn hand_over_completed(account: &VestingAccount) -> Result<(), ContractError> {
 fn allowed_release(deps: Deps, env: &Env, plan: &VestingPlan) -> Result<Uint128, ContractError> {
     let token_info = token_info(deps)?;
 
+    // In order to allow releasing any extra tokens sent to the account AFTER vesting
+    // account has been initialized, correct amount is calculated by doing query of
+    // contract's balance.
     let current = deps
         .querier
         .query_balance(&env.contract.address, token_info.denom)?;
-    let all_available_tokens = current.amount - token_info.frozen;
     match plan {
         VestingPlan::Discrete {
             release_at: release,
         } => {
             if release.is_expired(&env.block) {
                 // If end_at timestamp is already met, release all available tokens
-                Ok(all_available_tokens)
+                Ok(current.amount - token_info.frozen)
             } else {
                 Ok(Uint128::zero())
             }
@@ -127,7 +129,7 @@ fn allowed_release(deps: Deps, env: &Env, plan: &VestingPlan) -> Result<Uint128,
                 Ok(Uint128::zero())
             } else if end_at.is_expired(&env.block) {
                 // If end_at timestamp is already met, release all available tokens
-                Ok(all_available_tokens)
+                Ok(current.amount - token_info.frozen)
             } else {
                 // If current timestamp is in between start_at and end_at, relase
                 // tokens by linear ratio: tokens * ((current_time - start_time) / (end_time - start_time))
