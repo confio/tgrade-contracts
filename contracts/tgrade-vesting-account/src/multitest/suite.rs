@@ -183,23 +183,31 @@ impl Suite {
             })
     }
 
-    pub fn release_tokens(&mut self, sender: Addr, amount: Option<u128>) -> AnyResult<AppResponse> {
+    pub fn release_tokens(
+        &mut self,
+        sender: Addr,
+        amount: impl Into<Option<u128>>,
+    ) -> AnyResult<AppResponse> {
         self.app.execute_contract(
             sender,
             self.contract.clone(),
             &ExecuteMsg::ReleaseTokens {
-                amount: amount.map(Uint128::new),
+                amount: amount.into().map(Uint128::new),
             },
             &[],
         )
     }
 
-    pub fn freeze_tokens(&mut self, sender: Addr, amount: Option<u128>) -> AnyResult<AppResponse> {
+    pub fn freeze_tokens(
+        &mut self,
+        sender: Addr,
+        amount: impl Into<Option<u128>>,
+    ) -> AnyResult<AppResponse> {
         self.app.execute_contract(
             sender,
             self.contract.clone(),
             &ExecuteMsg::FreezeTokens {
-                amount: amount.map(Uint128::new),
+                amount: amount.into().map(Uint128::new),
             },
             &[],
         )
@@ -208,13 +216,13 @@ impl Suite {
     pub fn unfreeze_tokens(
         &mut self,
         sender: Addr,
-        amount: Option<u128>,
+        amount: impl Into<Option<u128>>,
     ) -> AnyResult<AppResponse> {
         self.app.execute_contract(
             sender,
             self.contract.clone(),
             &ExecuteMsg::UnfreezeTokens {
-                amount: amount.map(Uint128::new),
+                amount: amount.into().map(Uint128::new),
             },
             &[],
         )
@@ -244,9 +252,7 @@ impl Suite {
     pub fn assert_is_handed_over(&self, is_handed_over: bool) {
         assert_eq!(
             self.is_handed_over().unwrap(),
-            IsHandedOverResponse {
-                is_handed_over,
-            }
+            IsHandedOverResponse { is_handed_over }
         );
     }
 }

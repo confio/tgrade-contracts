@@ -54,7 +54,7 @@ mod release_tokens {
         let oversight = suite.oversight.clone();
 
         // freeze half of available tokens
-        suite.freeze_tokens(oversight.clone(), Some(5000)).unwrap();
+        suite.freeze_tokens(oversight.clone(), 5000).unwrap();
 
         // advance time to allow release
         suite.app.advance_seconds(release_at_seconds);
@@ -70,9 +70,7 @@ mod release_tokens {
         suite
             .unfreeze_tokens(oversight.clone(), Some(2500))
             .unwrap();
-        suite
-            .release_tokens(suite.operator.clone(), Some(1000))
-            .unwrap();
+        suite.release_tokens(suite.operator.clone(), 1000).unwrap();
         let token_info = suite.token_info().unwrap();
         assert_eq!(token_info.frozen, Uint128::new(2500));
         assert_eq!(token_info.released, Uint128::new(6000));
@@ -80,7 +78,7 @@ mod release_tokens {
         // try to release more token then available
         // 10000 initial - 2500 still frozen - 6000 released = 1500 available
         let err = suite
-            .release_tokens(suite.operator.clone(), Some(2000))
+            .release_tokens(suite.operator.clone(), 2000)
             .unwrap_err();
         assert_eq!(
             ContractError::NotEnoughTokensAvailable,
