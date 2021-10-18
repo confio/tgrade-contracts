@@ -173,7 +173,6 @@ fn release_tokens(
     requested_amount: Option<Uint128>,
 ) -> Result<Response, ContractError> {
     let mut account = VESTING_ACCOUNT.load(deps.storage)?;
-    hand_over_completed(&account)?;
     require_operator(&sender, &account)?;
 
     let allowed_to_release = allowed_release(deps.as_ref(), &env, &account.vesting_plan)?;
@@ -692,11 +691,6 @@ mod tests {
 
         assert_eq!(
             suite.change_operator(OVERSIGHT, RECIPIENT),
-            Err(ContractError::HandOverCompleted)
-        );
-
-        assert_eq!(
-            suite.release_tokens(OPERATOR, None),
             Err(ContractError::HandOverCompleted)
         );
     }
