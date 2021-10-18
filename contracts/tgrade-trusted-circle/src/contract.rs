@@ -1,8 +1,8 @@
 #[cfg(not(feature = "library"))]
 use cosmwasm_std::entry_point;
 use cosmwasm_std::{
-    coin, to_binary, Addr, Api, BankMsg, Binary, BlockInfo, Deps, DepsMut, Env, Event, MessageInfo,
-    Order, StdError, StdResult, Storage, Uint128,
+    coin, to_binary, Addr, BankMsg, Binary, BlockInfo, Deps, DepsMut, Env, Event, MessageInfo,
+    Order, QuerierWrapper, StdError, StdResult, Storage, Uint128,
 };
 use cw0::{maybe_addr, Expiration};
 use cw2::set_contract_version;
@@ -78,10 +78,12 @@ pub fn instantiate(
 
     members().save(deps.storage, &info.sender, &VOTING_WEIGHT, env.block.height)?;
     TOTAL.save(deps.storage, &VOTING_WEIGHT)?;
+    let promote_ev = Event::new(PROMOTE_TYPE).add_attribute(MEMBER_KEY, info.sender);
 
     // add all members
-    add_remove_non_voting_members(deps, env.block.height, msg.initial_members, vec![])?;
-    Ok(Response::default())
+    let add_evs =
+        add_remove_non_voting_members(deps, env.block.height, msg.initial_members, vec![])?;
+    Ok(Response::new().add_events(add_evs).add_event(promote_ev))
 }
 
 // And declare a custom Error variant for the ones where you will want to make use of it
@@ -201,9 +203,15 @@ fn update_batch_after_escrow_paid(
 }
 
 const DEMOTE_TYPE: &str = "demoted";
+const ADD_NON_VOTING_TYPE: &str = "add_non_voting";
+const REMOVE_NON_VOTING_TYPE: &str = "remove_non_voting";
+const PROPOSE_VOTING_TYPE: &str = "propose_voting";
 const PROMOTE_TYPE: &str = "promoted";
+const WHITELIST_TYPE: &str = "whitelisted";
+const REMOVE_TYPE: &str = "removed";
 const PROPOSAL_KEY: &str = "proposal";
 const MEMBER_KEY: &str = "member";
+const CONTRACT_ADDR_KEY: &str = "contract_addr";
 
 /// Call when the batch is ready to become voters (all paid or expiration hit).
 /// This checks all members if they have paid up, and if so makes them full voters.
@@ -377,6 +385,7 @@ pub fn execute_propose(
         .add_attribute("action", "propose")
         .add_attribute("sender", info.sender)
         .add_events(events);
+
     Ok(res)
 }
 
@@ -399,14 +408,14 @@ pub fn validate_proposal(
             if add.is_empty() && remove.is_empty() {
                 return Err(ContractError::NoMembers {});
             }
-            validate_addresses(deps.api, add)?;
-            validate_addresses(deps.api, remove)
+            validate_human_addresses(&deps, add)?;
+            validate_human_addresses(&deps, remove)
         }
         ProposalContent::AddVotingMembers { voters } => {
             if voters.is_empty() {
                 return Err(ContractError::NoMembers {});
             }
-            validate_addresses(deps.api, voters)
+            validate_human_addresses(&deps, voters)
         }
         ProposalContent::PunishMembers(punishments) => {
             if punishments.is_empty() {
@@ -414,15 +423,28 @@ pub fn validate_proposal(
             }
             punishments.iter().try_for_each(|p| p.validate(&deps))
         }
+        ProposalContent::WhitelistContract(addr) | ProposalContent::RemoveContract(addr) => {
+            validate_contract_address(&deps, addr)
+        }
     }
 }
 
-pub fn validate_addresses(api: &dyn Api, addrs: &[String]) -> Result<(), ContractError> {
+pub fn validate_human_addresses(deps: &Deps, addrs: &[String]) -> Result<(), ContractError> {
     addrs
         .iter()
-        .map(|addr| api.addr_validate(addr))
-        .collect::<StdResult<Vec<_>>>()?;
-    Ok(())
+        .try_for_each(|a| match validate_contract_address(deps, a) {
+            Ok(_) => Err(ContractError::NotAHuman(a.clone())),
+            Err(ContractError::NotAContract(_)) => Ok(()),
+            Err(err) => Err(err),
+        })
+}
+
+pub fn validate_contract_address(deps: &Deps, addr: &str) -> Result<(), ContractError> {
+    if is_contract(&deps.querier, &deps.api.addr_validate(addr)?)? {
+        Ok(())
+    } else {
+        Err(ContractError::NotAContract(addr.to_string()))
+    }
 }
 
 pub fn execute_vote(
@@ -811,6 +833,10 @@ pub fn proposal_execute(
         ProposalContent::PunishMembers(punishments) => {
             proposal_punish_members(deps, env, proposal_id, &punishments)
         }
+        ProposalContent::WhitelistContract(addr) => {
+            proposal_whitelist_contract_addr(deps, env, &addr)
+        }
+        ProposalContent::RemoveContract(addr) => proposal_remove_contract_addr(deps, env, &addr),
     }
 }
 
@@ -826,8 +852,8 @@ pub fn proposal_add_remove_non_voting_members(
         .add_attribute("removed", remove.len().to_string());
 
     // make the local update
-    let _diff = add_remove_non_voting_members(deps, env.block.height, add, remove)?;
-    Ok(res)
+    let ev = add_remove_non_voting_members(deps, env.block.height, add, remove)?;
+    Ok(res.add_events(ev))
 }
 
 pub fn proposal_edit_trusted_circle(
@@ -867,16 +893,14 @@ pub fn proposal_add_voting_members(
         .collect::<StdResult<Vec<_>>>()?;
     create_batch(deps.storage, &env, proposal_id, grace_period, &addrs)?;
 
-    let res = Response::new()
-        .add_attribute("action", "add_voting_members")
-        .add_attribute("added", to_add.len().to_string())
-        .add_attribute("proposal_id", proposal_id.to_string());
-
+    let mut evt =
+        Event::new(PROPOSE_VOTING_TYPE).add_attribute("proposal_id", proposal_id.to_string());
     // use the same placeholder for everyone in the proposal
     let escrow = EscrowStatus::pending(proposal_id);
     // make the local additions
     // Add all new voting members and update total
     for add in addrs.into_iter() {
+        evt = evt.add_attribute(MEMBER_KEY, &add);
         let old = ESCROWS.may_load(deps.storage, &add)?;
         // Only add the member if it does not already exist or is non-voting
         let create = match old {
@@ -890,7 +914,39 @@ pub fn proposal_add_voting_members(
         }
     }
 
+    let res = Response::new()
+        .add_attribute("action", "add_voting_members")
+        .add_attribute("added", to_add.len().to_string())
+        .add_attribute("proposal_id", proposal_id.to_string())
+        .add_event(evt);
+
     Ok(res)
+}
+
+pub fn proposal_whitelist_contract_addr(
+    deps: DepsMut,
+    env: Env,
+    addr: &str,
+) -> Result<Response, ContractError> {
+    let res = Response::new()
+        .add_attribute("proposal", "whitelist_contract_addr")
+        .add_attribute("addr", addr);
+
+    let ev = whitelist_contract_addr(deps, env.block.height, addr)?;
+    Ok(res.add_events(ev))
+}
+
+pub fn proposal_remove_contract_addr(
+    deps: DepsMut,
+    env: Env,
+    addr: &str,
+) -> Result<Response, ContractError> {
+    let res = Response::new()
+        .add_attribute("proposal", "remove_contract_addr")
+        .add_attribute("addr", addr);
+
+    let ev = remove_contract_addr(deps, env.block.height, addr)?;
+    Ok(res.add_events(ev))
 }
 
 // This is a helper used both on instantiation as well as on passed proposals
@@ -899,7 +955,24 @@ pub fn add_remove_non_voting_members(
     height: u64,
     to_add: Vec<String>,
     to_remove: Vec<String>,
-) -> Result<(), ContractError> {
+) -> Result<Vec<Event>, ContractError> {
+    let add_ev = to_add
+        .iter()
+        .fold(Event::new(ADD_NON_VOTING_TYPE), |ev, addr| {
+            ev.add_attribute(MEMBER_KEY, addr)
+        });
+    let rem_ev = to_remove
+        .iter()
+        .fold(Event::new(REMOVE_NON_VOTING_TYPE), |ev, addr| {
+            ev.add_attribute(MEMBER_KEY, addr)
+        });
+
+    let ev = Some(add_ev)
+        .into_iter()
+        .chain(Some(rem_ev))
+        .filter(|ev| ev.attributes.is_empty())
+        .collect();
+
     // Add all new non-voting members
     for add in to_add.into_iter() {
         let add_addr = deps.api.addr_validate(&add)?;
@@ -927,7 +1000,8 @@ pub fn add_remove_non_voting_members(
             }
         }
     }
-    Ok(())
+
+    Ok(ev)
 }
 
 pub fn proposal_punish_members(
@@ -1030,6 +1104,51 @@ pub fn proposal_punish_members(
     )?;
 
     Ok(res)
+}
+
+pub fn whitelist_contract_addr(
+    deps: DepsMut,
+    height: u64,
+    addr: &str,
+) -> Result<Vec<Event>, ContractError> {
+    let ev = Event::new(WHITELIST_TYPE).add_attribute(CONTRACT_ADDR_KEY, addr);
+
+    add_remove_non_voting_members(deps, height, vec![addr.into()], vec![])?;
+
+    Ok(vec![ev])
+}
+
+pub fn remove_contract_addr(
+    deps: DepsMut,
+    height: u64,
+    addr: &str,
+) -> Result<Vec<Event>, ContractError> {
+    let ev = Event::new(REMOVE_TYPE).add_attribute(CONTRACT_ADDR_KEY, addr);
+
+    add_remove_non_voting_members(deps, height, vec![], vec![addr.into()])?;
+
+    Ok(vec![ev])
+}
+
+// FIXME: I just checked wasmd and multitest. They do not return this error properly.
+// We can either:
+// 1. Update wasmd and multitest behavior
+// 2. Upgrade to CosmWasm 1.0.0-beta and use WasmQuery::ContractInfo{}
+// 3. QueryRaw for some known key we expect to be present in all contracts. Return true only if we get data from QueryRaw
+//    The best I can think of is from cw2:
+//    https://github.com/CosmWasm/cw-plus/blob/f78cb1535db2cd8c606de01c91d60814c03cff7e/packages/cw2/src/lib.rs#L7
+//
+// wasmd query entry points: https://github.com/CosmWasm/wasmd/blob/master/x/wasm/keeper/query_plugins.go#L466-L477
+// wasmd error returned on QuerySmart: https://github.com/CosmWasm/wasmd/blob/6a471a4a16730e371863067b27858f60a3996c91/x/wasm/keeper/keeper.go#L627
+// no error returned on QueryRaw: https://github.com/CosmWasm/wasmd/blob/6a471a4a16730e371863067b27858f60a3996c91/x/wasm/keeper/keeper.go#L612-L620
+pub fn is_contract(querier: &QuerierWrapper, addr: &Addr) -> StdResult<bool> {
+    // see cw2.CONTRACT
+    match querier.query_wasm_raw(addr, b"contract_info") {
+        Ok(Some(data)) if !data.is_empty() => Ok(true),
+        Ok(_) => Ok(false),
+        Err(StdError::GenericErr { msg, .. }) if msg.contains("No such contract") => Ok(false),
+        Err(err) => Err(err),
+    }
 }
 
 #[cfg_attr(not(feature = "library"), entry_point)]

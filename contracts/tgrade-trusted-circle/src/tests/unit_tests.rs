@@ -1,11 +1,83 @@
 #![cfg(test)]
 use super::*;
-use cosmwasm_std::{Addr, Deps, StdError, SubMsg};
+use std::marker::PhantomData;
+
+use cosmwasm_std::testing::{MockApi, MockStorage};
+use cosmwasm_std::{
+    Addr, Binary, ContractResult, Deps, Empty, QuerierResult, QueryRequest, StdError, SubMsg,
+    SystemError, SystemResult, WasmQuery,
+};
+use cw_storage_plus::Item;
 
 use crate::state::{EscrowStatus, Punishment};
 use crate::tests::bdd_tests::{
     propose_add_voting_members_and_execute, PROPOSAL_ID_1, PROPOSAL_ID_2,
 };
+
+// Used for the whitelisting test
+pub const TOKEN_CONTRACT: Item<String> = Item::new("contract_info");
+
+struct TokenQuerier {
+    contract: String,
+    storage: MockStorage,
+}
+
+impl TokenQuerier {
+    pub fn new(contract: &Addr, token_version: &str) -> Self {
+        let mut storage = MockStorage::new();
+        TOKEN_CONTRACT
+            .save(&mut storage, &token_version.to_string())
+            .unwrap();
+
+        TokenQuerier {
+            contract: contract.to_string(),
+            storage,
+        }
+    }
+
+    fn handle_query(&self, request: QueryRequest<Empty>) -> QuerierResult {
+        match request {
+            QueryRequest::Wasm(WasmQuery::Raw { contract_addr, key }) => {
+                self.query_wasm(contract_addr, key)
+            }
+            QueryRequest::Wasm(WasmQuery::Smart { .. }) => {
+                SystemResult::Err(SystemError::UnsupportedRequest {
+                    kind: "WasmQuery::Smart".to_string(),
+                })
+            }
+            _ => SystemResult::Err(SystemError::UnsupportedRequest {
+                kind: "not wasm".to_string(),
+            }),
+        }
+    }
+
+    // TODO: we should be able to add a custom wasm handler to MockQuerier from cosmwasm_std::mock
+    fn query_wasm(&self, contract_addr: String, key: Binary) -> QuerierResult {
+        if contract_addr != self.contract {
+            SystemResult::Err(SystemError::NoSuchContract {
+                addr: contract_addr,
+            })
+        } else {
+            let bin = self.storage.get(&key).unwrap_or_default();
+            SystemResult::Ok(ContractResult::Ok(bin.into()))
+        }
+    }
+}
+
+impl Querier for TokenQuerier {
+    fn raw_query(&self, bin_request: &[u8]) -> QuerierResult {
+        let request: QueryRequest<Empty> = match from_slice(bin_request) {
+            Ok(v) => v,
+            Err(e) => {
+                return SystemResult::Err(SystemError::InvalidRequest {
+                    error: format!("Parsing query request: {:?}", e),
+                    request: bin_request.into(),
+                })
+            }
+        };
+        self.handle_query(request)
+    }
+}
 
 #[test]
 fn instantiation_no_funds() {
@@ -672,6 +744,102 @@ fn test_update_nonvoting_members() {
             weight: 1
         }
     );
+}
+
+#[test]
+fn test_whitelist_contract() {
+    // Set and honour our local data
+    let querier = TokenQuerier::new(&Addr::unchecked(TOKEN_ADDR), "0.1");
+
+    let mut deps = OwnedDeps {
+        storage: MockStorage::default(),
+        api: MockApi::default(),
+        querier,
+        custom_query_type: PhantomData::<Empty>,
+    };
+
+    let info = mock_info(INIT_ADMIN, &escrow_funds());
+    do_instantiate(deps.as_mut(), info, vec![]).unwrap();
+
+    // check token address is not there
+    let token_addr = query_member(deps.as_ref(), TOKEN_ADDR.into(), None).unwrap();
+    assert_eq!(token_addr.weight, None);
+
+    // make a new proposal
+    let prop = ProposalContent::WhitelistContract(TOKEN_ADDR.into());
+    let msg = ExecuteMsg::Propose {
+        title: "Whitelist token address".to_string(),
+        description: "This is my trusted token".to_string(),
+        proposal: prop,
+    };
+    let mut env = mock_env();
+    env.block.height += 10;
+    let res = execute(deps.as_mut(), env.clone(), mock_info(INIT_ADMIN, &[]), msg).unwrap();
+    let proposal_id = parse_prop_id(&res.attributes);
+
+    // ensure it passed (already via principal voter)
+    let raw = query(
+        deps.as_ref(),
+        env.clone(),
+        QueryMsg::Proposal { proposal_id },
+    )
+    .unwrap();
+    let prop: ProposalResponse = from_slice(&raw).unwrap();
+    assert_eq!(prop.total_weight, 1);
+    assert_eq!(prop.status, Status::Passed);
+    assert_eq!(prop.id, 1);
+
+    // anyone can execute it
+    env.block.height += 1;
+    execute(
+        deps.as_mut(),
+        env,
+        mock_info(NONVOTING1, &[]),
+        ExecuteMsg::Execute { proposal_id },
+    )
+    .unwrap();
+
+    // check token address added as non-voting member
+    let token_addr = query_member(deps.as_ref(), TOKEN_ADDR.into(), None).unwrap();
+    assert_eq!(token_addr.weight, Some(0));
+
+    // now remove it
+    let prop = ProposalContent::RemoveContract(TOKEN_ADDR.into());
+    let msg = ExecuteMsg::Propose {
+        title: "Remove token address".to_string(),
+        description: "This was a trusted token".to_string(),
+        proposal: prop,
+    };
+    let mut env = mock_env();
+    env.block.height += 10;
+    let res = execute(deps.as_mut(), env.clone(), mock_info(INIT_ADMIN, &[]), msg).unwrap();
+    let proposal_id = parse_prop_id(&res.attributes);
+
+    // ensure it passed (already via principal voter)
+    let raw = query(
+        deps.as_ref(),
+        env.clone(),
+        QueryMsg::Proposal { proposal_id },
+    )
+    .unwrap();
+    let prop: ProposalResponse = from_slice(&raw).unwrap();
+    assert_eq!(prop.total_weight, 1);
+    assert_eq!(prop.status, Status::Passed);
+    assert_eq!(prop.id, 2);
+
+    // anyone can execute it
+    env.block.height += 1;
+    execute(
+        deps.as_mut(),
+        env,
+        mock_info(NONVOTING1, &[]),
+        ExecuteMsg::Execute { proposal_id },
+    )
+    .unwrap();
+
+    // check token address removed
+    let token_addr = query_member(deps.as_ref(), TOKEN_ADDR.into(), None).unwrap();
+    assert_eq!(token_addr.weight, None);
 }
 
 #[test]

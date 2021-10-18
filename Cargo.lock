@@ -109,9 +109,9 @@ checksum = "591ff76ca0691bd91c1b0b5b987e5cf93b21ec810ad96665c5a569c60846dd93"
 
 [[package]]
 name = "const-oid"
-version = "0.6.1"
+version = "0.6.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "fdab415d6744056100f40250a66bc430c1a46f7a02e20bc11c94c79a0f0464df"
+checksum = "9d6f2aa4d0537bcc1c74df8755072bd31c1ef1a3a1b85a68e8404a8c353b7b8b"
 
 [[package]]
 name = "cosmwasm-crypto"
@@ -322,9 +322,9 @@ checksum = "7a81dae078cea95a014a339291cec439d2f232ebe854a9d672b796c6afafa9b7"
 
 [[package]]
 name = "crypto-bigint"
-version = "0.2.10"
+version = "0.2.11"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "d12477e115c0d570c12a2dfd859f80b55b60ddb5075df210d3af06d133a69f45"
+checksum = "f83bd3bb4314701c568e340cd8cf78c975aa0ca79e03d3f6d1677d5b0c9c0c03"
 dependencies = [
  "generic-array",
  "rand_core 0.6.3",
@@ -798,9 +798,9 @@ checksum = "884e2677b40cc8c339eaefcb701c32ef1fd2493d71118dc0ca4b6a736c93bd67"
 
 [[package]]
 name = "libc"
-version = "0.2.103"
+version = "0.2.104"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "dd8f7255a17a627354f321ef0055d63b898c6fb27eff628af4d1b66b7331edf6"
+checksum = "7b2f96d100e1cf1929e7719b7edb3b90ab5298072638fccd77be9ce942ecdfce"
 
 [[package]]
 name = "libloading"
@@ -960,9 +960,9 @@ dependencies = [
 
 [[package]]
 name = "ppv-lite86"
-version = "0.2.10"
+version = "0.2.14"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "ac74c624d6b2d21f425f752262f42188365d7b8ff1aff74c82e45136510a4857"
+checksum = "c3ca011bd0129ff4ae15cd04c4eef202cadf6c51c21e47aba319b4e0501db741"
 
 [[package]]
 name = "proc-macro-error"
@@ -990,9 +990,9 @@ dependencies = [
 
 [[package]]
 name = "proc-macro2"
-version = "1.0.29"
+version = "1.0.30"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "b9f5105d4fdaab20335ca9565e106a5d9b82b6219b5ba735731124ac6711d23d"
+checksum = "edc3358ebc67bc8b7fa0c007f945b0b18226f78437d61bec735a9eb96b61ee70"
 dependencies = [
  "unicode-xid",
 ]
@@ -1451,7 +1451,7 @@ dependencies = [
 
 [[package]]
 name = "tg-bindings"
-version = "0.4.0"
+version = "0.4.1"
 dependencies = [
  "base64",
  "cosmwasm-schema",
@@ -1464,7 +1464,7 @@ dependencies = [
 
 [[package]]
 name = "tg-bindings-test"
-version = "0.4.0"
+version = "0.4.1"
 dependencies = [
  "anyhow",
  "cosmwasm-std",
@@ -1478,7 +1478,7 @@ dependencies = [
 
 [[package]]
 name = "tg-utils"
-version = "0.4.0"
+version = "0.4.1"
 dependencies = [
  "cosmwasm-std",
  "cw-controllers",
@@ -1493,7 +1493,7 @@ dependencies = [
 
 [[package]]
 name = "tg4"
-version = "0.4.0"
+version = "0.4.1"
 dependencies = [
  "cosmwasm-schema",
  "cosmwasm-std",
@@ -1504,7 +1504,7 @@ dependencies = [
 
 [[package]]
 name = "tg4-engagement"
-version = "0.4.0"
+version = "0.4.1"
 dependencies = [
  "anyhow",
  "cosmwasm-schema",
@@ -1527,7 +1527,7 @@ dependencies = [
 
 [[package]]
 name = "tg4-mixer"
-version = "0.4.0"
+version = "0.4.1"
 dependencies = [
  "cosmwasm-schema",
  "cosmwasm-std",
@@ -1552,7 +1552,7 @@ dependencies = [
 
 [[package]]
 name = "tg4-stake"
-version = "0.4.0"
+version = "0.4.1"
 dependencies = [
  "cosmwasm-schema",
  "cosmwasm-std",
@@ -1571,7 +1571,7 @@ dependencies = [
 
 [[package]]
 name = "tgrade-gov-reflect"
-version = "0.4.0"
+version = "0.4.1"
 dependencies = [
  "cosmwasm-schema",
  "cosmwasm-std",
@@ -1584,7 +1584,7 @@ dependencies = [
 
 [[package]]
 name = "tgrade-trusted-circle"
-version = "0.4.0"
+version = "0.4.1"
 dependencies = [
  "cosmwasm-schema",
  "cosmwasm-std",
@@ -1603,7 +1603,7 @@ dependencies = [
 
 [[package]]
 name = "tgrade-valset"
-version = "0.4.0"
+version = "0.4.1"
 dependencies = [
  "anyhow",
  "assert_matches",
@@ -1630,7 +1630,7 @@ dependencies = [
 
 [[package]]
 name = "tgrade-vesting-account"
-version = "0.4.0"
+version = "0.4.1"
 dependencies = [
  "anyhow",
  "assert_matches",
