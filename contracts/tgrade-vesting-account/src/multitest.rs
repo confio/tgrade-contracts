@@ -301,3 +301,26 @@ mod release_tokens {
         assert_eq!(token_info.released, Uint128::zero());
     }
 }
+
+mod handover {
+    use super::*;
+
+    #[test]
+    fn with_tokens_burned() {
+        let mut suite = SuiteBuilder::new()
+            .with_tokens(100)
+            .with_vesting_plan_in_seconds_from_start(None, 100)
+            .build();
+
+        suite.freeze_tokens(suite.oversight.clone(), None).unwrap();
+        let token_info = suite.token_info().unwrap();
+        assert_eq!(token_info.frozen, token_info.initial);
+        suite.assert_is_handed_over(false);
+
+        suite.app.advance_seconds(101);
+        suite.handover(suite.recipient.clone()).unwrap();
+        let token_info = suite.token_info().unwrap();
+        assert_eq!(token_info.frozen, Uint128::zero());
+        suite.assert_is_handed_over(true);
+    }
+}

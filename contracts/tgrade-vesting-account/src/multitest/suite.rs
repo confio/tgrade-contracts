@@ -220,11 +220,33 @@ impl Suite {
         )
     }
 
+    pub fn handover(&mut self, sender: Addr) -> AnyResult<AppResponse> {
+        self.app
+            .execute_contract(sender, self.contract.clone(), &ExecuteMsg::HandOver {}, &[])
+    }
+
     pub fn token_info(&self) -> Result<TokenInfoResponse, ContractError> {
         let resp: TokenInfoResponse = self
             .app
             .wrap()
             .query_wasm_smart(self.contract.clone(), &QueryMsg::TokenInfo {})?;
         Ok(resp)
+    }
+
+    fn is_handed_over(&self) -> Result<IsHandedOverResponse, ContractError> {
+        let resp: IsHandedOverResponse = self
+            .app
+            .wrap()
+            .query_wasm_smart(self.contract.clone(), &QueryMsg::IsHandedOver {})?;
+        Ok(resp)
+    }
+
+    pub fn assert_is_handed_over(&self, is_handed_over: bool) {
+        assert_eq!(
+            self.is_handed_over().unwrap(),
+            IsHandedOverResponse {
+                is_handed_over,
+            }
+        );
     }
 }
