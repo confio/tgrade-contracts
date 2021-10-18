@@ -116,8 +116,8 @@ fn allowed_release(deps: Deps, env: &Env, plan: &VestingPlan) -> Result<Uint128,
         } => {
             if release.is_expired(&env.block) {
                 let current = deps
-                        .querier
-                        .query_balance(&env.contract.address, token_info.denom)?;
+                    .querier
+                    .query_balance(&env.contract.address, token_info.denom)?;
                 // If end_at timestamp is already met, release all available tokens
                 Ok(current.amount - token_info.frozen)
             } else {
@@ -130,8 +130,8 @@ fn allowed_release(deps: Deps, env: &Env, plan: &VestingPlan) -> Result<Uint128,
                 Ok(Uint128::zero())
             } else if end_at.is_expired(&env.block) {
                 let current = deps
-                        .querier
-                        .query_balance(&env.contract.address, token_info.denom)?;
+                    .querier
+                    .query_balance(&env.contract.address, token_info.denom)?;
                 // If end_at timestamp is already met, release all available tokens
                 Ok(current.amount - token_info.frozen)
             } else {
@@ -846,7 +846,7 @@ mod tests {
                 .add_attribute("sender", Addr::unchecked(OVERSIGHT)))
         );
         let info = suite.query_token_info().unwrap();
-        assert_eq!(info.frozen, Uint128::new(100),);
+        assert_eq!(info.frozen, Uint128::new(100));
     }
 
     #[test]
@@ -862,7 +862,7 @@ mod tests {
                 .add_attribute("sender", Addr::unchecked(OVERSIGHT)))
         );
         let info = suite.query_token_info().unwrap();
-        assert_eq!(info.frozen, Uint128::new(100),);
+        assert_eq!(info.frozen, Uint128::new(100));
     }
 
     #[test]

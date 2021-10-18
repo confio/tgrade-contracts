@@ -70,7 +70,7 @@ mod release_tokens {
         assert_eq!(token_info.released, Uint128::new(5000));
 
         // unfreeze and release some tokens
-        suite.unfreeze_tokens(&oversight, Some(2500)).unwrap();
+        suite.unfreeze_tokens(&oversight, 2500).unwrap();
         suite.release_tokens(&operator, 1000).unwrap();
         let token_info = suite.token_info().unwrap();
         assert_eq!(token_info.frozen, Uint128::new(2500));
@@ -237,6 +237,12 @@ mod release_tokens {
         suite.release_tokens(&operator, first_release).unwrap();
         let token_info = suite.token_info().unwrap();
         assert_eq!(token_info.released, Uint128::new(first_release));
+        // Prove that no more tokens can be released
+        let err = suite.release_tokens(&operator, 10).unwrap_err();
+        assert_eq!(
+            ContractError::NotEnoughTokensAvailable,
+            err.downcast().unwrap()
+        );
 
         // Month 5: freeze 200.000 for misbehaviour
         suite.app.advance_seconds(month_in_seconds * 2);
@@ -262,13 +268,12 @@ mod release_tokens {
         // Month 12: All remaining tokens are released, that is Balance of 325.000 - 200.000 frozen = 125.000
         // (this is the 75.000 that finished vesting and extra 50.000 sent by accident)
         suite.app.advance_seconds(month_in_seconds * 2);
-        let finished_vesting = 75_000;
         // None releases all awailable
         suite.release_tokens(&operator, None).unwrap();
         let token_info = suite.token_info().unwrap();
         assert_eq!(
             token_info.released,
-            Uint128::new(first_release + second_release + finished_vesting + accidental_transfer)
+            Uint128::new(400_000 - 200_000 + 50_000)
         );
     }
 
