@@ -415,7 +415,6 @@ pub fn validate_proposal(
             if voters.is_empty() {
                 return Err(ContractError::NoMembers {});
             }
-            validate_human_addresses(&deps, voters)?;
             validate_human_addresses(&deps, voters)
         }
         ProposalContent::PunishMembers(punishments) => {
