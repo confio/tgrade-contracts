@@ -56,7 +56,11 @@ impl SuiteBuilder {
         self
     }
 
-    pub fn with_vesting_plan_in_seconds(mut self, start_at: Option<u64>, end_at: u64) -> Self {
+    pub fn with_vesting_plan_in_seconds_from_start(
+        mut self,
+        start_at: Option<u64>,
+        end_at: u64,
+    ) -> Self {
         // processing initial block in build() later adds 5 seconds to current block time,
         // so add them extra during initialization to even the calculations
         let initial_time = 5;

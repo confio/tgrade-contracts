@@ -32,7 +32,7 @@ fn discrete_vesting_account_with_frozen_tokens_release() {
     let release_at_seconds = 1000u64;
     let mut suite = SuiteBuilder::new()
         .with_tokens(10000)
-        .with_vesting_plan_in_seconds(None, release_at_seconds)
+        .with_vesting_plan_in_seconds_from_start(None, release_at_seconds)
         .build();
 
     let oversight = suite.oversight.clone();
@@ -85,7 +85,7 @@ fn continuous_vesting_account_releasing_over_year() {
     let month_in_seconds = 60 * 60 * 24 * 30;
     let mut suite = SuiteBuilder::new()
         .with_tokens(expected_month_release * 12)
-        .with_vesting_plan_in_seconds(Some(0), month_in_seconds * 12)
+        .with_vesting_plan_in_seconds_from_start(Some(0), month_in_seconds * 12)
         .build();
 
     let token_info = suite.token_info().unwrap();
@@ -117,7 +117,7 @@ mod allowed_release {
     fn discrete_after_expiration() {
         let mut suite = SuiteBuilder::new()
             .with_tokens(100)
-            .with_vesting_plan_in_seconds(None, 100)
+            .with_vesting_plan_in_seconds_from_start(None, 100)
             .build();
 
         // 1 second after release_at expire
@@ -133,7 +133,7 @@ mod allowed_release {
         let mut suite = SuiteBuilder::new()
             .with_tokens(100)
             // plan starts 100s from genesis block and ends after additional 200s
-            .with_vesting_plan_in_seconds(Some(100), 300)
+            .with_vesting_plan_in_seconds_from_start(Some(100), 300)
             .build();
 
         // 1 second after release_at expire
@@ -149,7 +149,7 @@ mod allowed_release {
         let mut suite = SuiteBuilder::new()
             .with_tokens(100)
             // plan starts 100s from genesis block and ends after additional 200s
-            .with_vesting_plan_in_seconds(Some(100), 300)
+            .with_vesting_plan_in_seconds_from_start(Some(100), 300)
             .build();
 
         // 50 seconds after start, another 150 towards end
@@ -188,7 +188,7 @@ mod release_tokens {
     fn discrete() {
         let mut suite = SuiteBuilder::new()
             .with_tokens(100)
-            .with_vesting_plan_in_seconds(None, 100)
+            .with_vesting_plan_in_seconds_from_start(None, 100)
             .build();
 
         suite.app.advance_seconds(150);
@@ -204,7 +204,7 @@ mod release_tokens {
         let mut suite = SuiteBuilder::new()
             // 12 months schedule, total 400.000 tokens.
             .with_tokens(400_000)
-            .with_vesting_plan_in_seconds(Some(0), month_in_seconds * 12)
+            .with_vesting_plan_in_seconds_from_start(Some(0), month_in_seconds * 12)
             .build();
 
         let token_info = suite.token_info().unwrap();
@@ -280,7 +280,7 @@ mod release_tokens {
     fn continuously_with_negative_amount_results_in_zero_released() {
         let mut suite = SuiteBuilder::new()
             .with_tokens(100)
-            .with_vesting_plan_in_seconds(Some(100), 300)
+            .with_vesting_plan_in_seconds_from_start(Some(100), 300)
             .build();
 
         suite
