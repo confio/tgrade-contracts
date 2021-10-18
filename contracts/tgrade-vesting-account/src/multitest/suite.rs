@@ -185,11 +185,11 @@ impl Suite {
 
     pub fn release_tokens(
         &mut self,
-        sender: Addr,
+        sender: &Addr,
         amount: impl Into<Option<u128>>,
     ) -> AnyResult<AppResponse> {
         self.app.execute_contract(
-            sender,
+            sender.clone(),
             self.contract.clone(),
             &ExecuteMsg::ReleaseTokens {
                 amount: amount.into().map(Uint128::new),
@@ -200,11 +200,11 @@ impl Suite {
 
     pub fn freeze_tokens(
         &mut self,
-        sender: Addr,
+        sender: &Addr,
         amount: impl Into<Option<u128>>,
     ) -> AnyResult<AppResponse> {
         self.app.execute_contract(
-            sender,
+            sender.clone(),
             self.contract.clone(),
             &ExecuteMsg::FreezeTokens {
                 amount: amount.into().map(Uint128::new),
@@ -215,11 +215,11 @@ impl Suite {
 
     pub fn unfreeze_tokens(
         &mut self,
-        sender: Addr,
+        sender: &Addr,
         amount: impl Into<Option<u128>>,
     ) -> AnyResult<AppResponse> {
         self.app.execute_contract(
-            sender,
+            sender.clone(),
             self.contract.clone(),
             &ExecuteMsg::UnfreezeTokens {
                 amount: amount.into().map(Uint128::new),
@@ -228,9 +228,13 @@ impl Suite {
         )
     }
 
-    pub fn handover(&mut self, sender: Addr) -> AnyResult<AppResponse> {
-        self.app
-            .execute_contract(sender, self.contract.clone(), &ExecuteMsg::HandOver {}, &[])
+    pub fn handover(&mut self, sender: &Addr) -> AnyResult<AppResponse> {
+        self.app.execute_contract(
+            sender.clone(),
+            self.contract.clone(),
+            &ExecuteMsg::HandOver {},
+            &[],
+        )
     }
 
     pub fn token_info(&self) -> Result<TokenInfoResponse, ContractError> {
