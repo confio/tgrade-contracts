@@ -5,7 +5,7 @@ command -v shellcheck > /dev/null && shellcheck "$0"
 function print_usage() {
   echo "Usage: $0 NEW_VERSION"
   echo ""
-  echo "e.g. $0 0.2.1"
+  echo "e.g. $0 0.5.0"
 }
 
 if [ "$#" -ne 1 ]; then
