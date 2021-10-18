@@ -123,6 +123,7 @@ fn continuous_vesting_account_releasing_over_year_with_tokens_frozen_at_some_poi
     let token_info = suite.token_info().unwrap();
     assert_eq!(token_info.released, Uint128::zero());
 
+    println!("month 2");
     // Month 2: Accidentally send 50.000 tokens to the contract, but they don't affect schedule.
     suite.app.advance_seconds(month_in_seconds * 2);
     // mint extra 50_000 tokens
@@ -140,6 +141,7 @@ fn continuous_vesting_account_releasing_over_year_with_tokens_frozen_at_some_poi
         )
         .unwrap();
 
+    println!("month 3");
     // Month 3: 100.000 are released. (all that were vested from original 400.000)
     suite.app.advance_seconds(month_in_seconds);
     let first_release = 100_000;
@@ -149,6 +151,7 @@ fn continuous_vesting_account_releasing_over_year_with_tokens_frozen_at_some_poi
     let token_info = suite.token_info().unwrap();
     assert_eq!(token_info.released, Uint128::new(first_release));
 
+    println!("month 5");
     // Month 5: freeze 200.000 for misbehaviour
     suite.app.advance_seconds(month_in_seconds * 2);
     suite
@@ -157,6 +160,7 @@ fn continuous_vesting_account_releasing_over_year_with_tokens_frozen_at_some_poi
     let token_info = suite.token_info().unwrap();
     assert_eq!(token_info.frozen, Uint128::new(200_000));
 
+    println!("month 6");
     // Month 6: No tokens can be released (200.000 - 100.000 - 200.000)
     suite.app.advance_seconds(month_in_seconds);
     let err = suite
@@ -164,6 +168,7 @@ fn continuous_vesting_account_releasing_over_year_with_tokens_frozen_at_some_poi
         .unwrap_err();
     assert_eq!(ContractError::ZeroTokensNotAllowed, err.downcast().unwrap());
 
+    println!("month 10");
     // Month 10: 25.000 tokens are released (out of 333.333 - 100.000 - 200.000 = 33.333)
     suite.app.advance_seconds(month_in_seconds * 4);
     let second_release = 25_000;
@@ -176,13 +181,16 @@ fn continuous_vesting_account_releasing_over_year_with_tokens_frozen_at_some_poi
         Uint128::new(first_release + second_release)
     );
 
-    // Month 12: All remaining tokens are released, that is Balance of 275.000 - 200.000 frozen = 75.000
-    // (this is the 75.000 that finished vesting)
-    suite.app.advance_seconds(month_in_seconds * 4);
+    println!("month 12");
+    // Month 12: All remaining tokens are released, that is Balance of 325.000 - 200.000 frozen = 125.000
+    // (this is the 75.000 that finished vesting and extra 50.000 sent by accident)
+    suite.app.advance_seconds(month_in_seconds * 2);
+    let finished_vesting = 75_000;
+    // None releases all awailable
     suite.release_tokens(suite.operator.clone(), None).unwrap();
     let token_info = suite.token_info().unwrap();
     assert_eq!(
         token_info.released,
-        Uint128::new(first_release + second_release + 75_000 + accidental_transfer)
+        Uint128::new(first_release + second_release + finished_vesting + accidental_transfer)
     );
 }

@@ -109,7 +109,7 @@ fn allowed_release(deps: Deps, env: &Env, plan: &VestingPlan) -> Result<Uint128,
     let current = deps
         .querier
         .query_balance(&env.contract.address, token_info.denom)?;
-    let all_available_tokens = current.amount - token_info.frozen - token_info.released;
+    let all_available_tokens = current.amount - token_info.frozen;
     match plan {
         VestingPlan::Discrete {
             release_at: release,
