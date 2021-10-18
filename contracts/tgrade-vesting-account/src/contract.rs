@@ -250,12 +250,12 @@ fn hand_over(deps: DepsMut, env: Env, sender: Addr) -> Result<Response, Contract
     account.frozen_tokens = Uint128::zero();
     account.handed_over = true;
     account.oversight = account.recipient.clone();
+    account.operator = account.recipient.clone();
     VESTING_ACCOUNT.save(deps.storage, &account)?;
 
     Ok(Response::new()
         .add_attribute("action", "hand_over")
         .add_attribute("burnt_tokens", frozen_tokens.to_string())
-        .add_attribute("new_oversight", account.oversight.to_string())
         .add_attribute("sender", sender)
         .add_message(msg))
 }
@@ -940,7 +940,6 @@ mod tests {
                 Ok(Response::new()
                     .add_attribute("action", "hand_over")
                     .add_attribute("burnt_tokens", tokens_to_burn.to_string())
-                    .add_attribute("new_oversight", RECIPIENT.to_string())
                     .add_attribute("sender", OVERSIGHT.to_string())
                     .add_message(BankMsg::Burn {
                         amount: coins(tokens_to_burn, VESTING_DENOM)
