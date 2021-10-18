@@ -92,7 +92,7 @@ fn continuous_vesting_account_releasing_over_year() {
     assert_eq!(token_info.released, Uint128::zero());
 
     // advance time a month
-    suite.app.advance_seconds(month_in_seconds);
+    suite.app.advance_seconds(month_in_seconds + 1);
     for m in 1..13 {
         // release all available tokens
         suite.release_tokens(suite.operator.clone(), None).unwrap();
@@ -110,87 +110,198 @@ fn continuous_vesting_account_releasing_over_year() {
     assert_eq!(token_info.released, token_info.initial);
 }
 
-// example from readme
-#[test]
-fn continuous_vesting_account_releasing_over_year_with_tokens_frozen_at_some_point() {
-    let month_in_seconds = 60 * 60 * 24 * 30;
-    let mut suite = SuiteBuilder::new()
-        // 12 months schedule, total 400.000 tokens.
-        .with_tokens(400_000)
-        .with_vesting_plan_in_seconds(Some(0), month_in_seconds * 12)
-        .build();
+mod allowed_release {
+    use super::*;
 
-    let token_info = suite.token_info().unwrap();
-    assert_eq!(token_info.released, Uint128::zero());
+    #[test]
+    fn discrete_after_expiration() {
+        let mut suite = SuiteBuilder::new()
+            .with_tokens(100)
+            .with_vesting_plan_in_seconds(None, 100)
+            .build();
 
-    println!("month 2");
-    // Month 2: Accidentally send 50.000 tokens to the contract, but they don't affect schedule.
-    suite.app.advance_seconds(month_in_seconds * 2);
-    // mint extra 50_000 tokens
-    let accidental_transfer = 50_000;
-    suite.mint_tokens(accidental_transfer).unwrap();
-    suite
-        .app
-        .execute(
-            suite.owner.clone(),
-            BankMsg::Send {
-                to_address: suite.contract.to_string(),
-                amount: coins(accidental_transfer, suite.denom.clone()),
-            }
-            .into(),
-        )
-        .unwrap();
+        // 1 second after release_at expire
+        suite.app.advance_seconds(101);
 
-    println!("month 3");
-    // Month 3: 100.000 are released. (all that were vested from original 400.000)
-    suite.app.advance_seconds(month_in_seconds);
-    let first_release = 100_000;
-    suite
-        .release_tokens(suite.operator.clone(), Some(first_release))
-        .unwrap();
-    let token_info = suite.token_info().unwrap();
-    assert_eq!(token_info.released, Uint128::new(first_release));
+        suite.release_tokens(suite.operator.clone(), None).unwrap();
+        let token_info = suite.token_info().unwrap();
+        assert_eq!(token_info.released, Uint128::new(100));
+    }
 
-    println!("month 5");
-    // Month 5: freeze 200.000 for misbehaviour
-    suite.app.advance_seconds(month_in_seconds * 2);
-    suite
-        .freeze_tokens(suite.oversight.clone(), Some(200_000))
-        .unwrap();
-    let token_info = suite.token_info().unwrap();
-    assert_eq!(token_info.frozen, Uint128::new(200_000));
+    #[test]
+    fn continuous_after_expiration() {
+        let mut suite = SuiteBuilder::new()
+            .with_tokens(100)
+            // plan starts 100s from genesis block and ends after additional 200s
+            .with_vesting_plan_in_seconds(Some(100), 300)
+            .build();
 
-    println!("month 6");
-    // Month 6: No tokens can be released (200.000 - 100.000 - 200.000)
-    suite.app.advance_seconds(month_in_seconds);
-    let err = suite
-        .release_tokens(suite.operator.clone(), None)
-        .unwrap_err();
-    assert_eq!(ContractError::ZeroTokensNotAllowed, err.downcast().unwrap());
+        // 1 second after release_at expire
+        suite.app.advance_seconds(301);
 
-    println!("month 10");
-    // Month 10: 25.000 tokens are released (out of 333.333 - 100.000 - 200.000 = 33.333)
-    suite.app.advance_seconds(month_in_seconds * 4);
-    let second_release = 25_000;
-    suite
-        .release_tokens(suite.operator.clone(), Some(second_release))
-        .unwrap();
-    let token_info = suite.token_info().unwrap();
-    assert_eq!(
-        token_info.released,
-        Uint128::new(first_release + second_release)
-    );
+        suite.release_tokens(suite.operator.clone(), None).unwrap();
+        let token_info = suite.token_info().unwrap();
+        assert_eq!(token_info.released, Uint128::new(100));
+    }
 
-    println!("month 12");
-    // Month 12: All remaining tokens are released, that is Balance of 325.000 - 200.000 frozen = 125.000
-    // (this is the 75.000 that finished vesting and extra 50.000 sent by accident)
-    suite.app.advance_seconds(month_in_seconds * 2);
-    let finished_vesting = 75_000;
-    // None releases all awailable
-    suite.release_tokens(suite.operator.clone(), None).unwrap();
-    let token_info = suite.token_info().unwrap();
-    assert_eq!(
-        token_info.released,
-        Uint128::new(first_release + second_release + finished_vesting + accidental_transfer)
-    );
+    #[test]
+    fn continuous_in_between() {
+        let mut suite = SuiteBuilder::new()
+            .with_tokens(100)
+            // plan starts 100s from genesis block and ends after additional 200s
+            .with_vesting_plan_in_seconds(Some(100), 300)
+            .build();
+
+        // 50 seconds after start, another 150 towards end
+        suite.app.advance_seconds(150);
+        suite.release_tokens(suite.operator.clone(), None).unwrap();
+        let token_info = suite.token_info().unwrap();
+        // 100 * (50 / 200) = 25
+        assert_eq!(token_info.released, Uint128::new(25));
+
+        // 108 seconds after start, another 92 towards end
+        suite.app.advance_seconds(58);
+        suite.release_tokens(suite.operator.clone(), None).unwrap();
+        let token_info = suite.token_info().unwrap();
+        // 100 * (108 / 200) = 54
+        assert_eq!(token_info.released, Uint128::new(54));
+
+        // 199 seconds after start, 1 towards end
+        suite.app.advance_seconds(91);
+        suite.release_tokens(suite.operator.clone(), None).unwrap();
+        let token_info = suite.token_info().unwrap();
+        // 100 * (199 / 200) = 99.5
+        assert_eq!(token_info.released, Uint128::new(99));
+
+        // 200 seconds after start - end_at timestamp is met
+        suite.app.advance_seconds(1);
+        suite.release_tokens(suite.operator.clone(), None).unwrap();
+        let token_info = suite.token_info().unwrap();
+        assert_eq!(token_info.released, token_info.initial);
+    }
+}
+
+mod release_tokens {
+    use super::*;
+
+    #[test]
+    fn discrete() {
+        let mut suite = SuiteBuilder::new()
+            .with_tokens(100)
+            .with_vesting_plan_in_seconds(None, 100)
+            .build();
+
+        suite.app.advance_seconds(150);
+        suite.release_tokens(suite.operator.clone(), None).unwrap();
+        let token_info = suite.token_info().unwrap();
+        assert_eq!(token_info.released, token_info.initial);
+    }
+
+    // example from readme
+    #[test]
+    fn continuously() {
+        let month_in_seconds = 60 * 60 * 24 * 30;
+        let mut suite = SuiteBuilder::new()
+            // 12 months schedule, total 400.000 tokens.
+            .with_tokens(400_000)
+            .with_vesting_plan_in_seconds(Some(0), month_in_seconds * 12)
+            .build();
+
+        let token_info = suite.token_info().unwrap();
+        assert_eq!(token_info.released, Uint128::zero());
+
+        // Month 2: Accidentally send 50.000 tokens to the contract, but they don't affect schedule.
+        suite.app.advance_seconds(month_in_seconds * 2);
+        // mint extra 50_000 tokens
+        let accidental_transfer = 50_000;
+        suite.mint_tokens(accidental_transfer).unwrap();
+        suite
+            .app
+            .execute(
+                suite.owner.clone(),
+                BankMsg::Send {
+                    to_address: suite.contract.to_string(),
+                    amount: coins(accidental_transfer, suite.denom.clone()),
+                }
+                .into(),
+            )
+            .unwrap();
+
+        // Month 3: 100.000 are released. (all that were vested from original 400.000)
+        suite.app.advance_seconds(month_in_seconds);
+        let first_release = 100_000;
+        suite
+            .release_tokens(suite.operator.clone(), Some(first_release))
+            .unwrap();
+        let token_info = suite.token_info().unwrap();
+        assert_eq!(token_info.released, Uint128::new(first_release));
+
+        // Month 5: freeze 200.000 for misbehaviour
+        suite.app.advance_seconds(month_in_seconds * 2);
+        suite
+            .freeze_tokens(suite.oversight.clone(), Some(200_000))
+            .unwrap();
+        let token_info = suite.token_info().unwrap();
+        assert_eq!(token_info.frozen, Uint128::new(200_000));
+
+        // Month 6: No tokens can be released (200.000 - 100.000 - 200.000)
+        suite.app.advance_seconds(month_in_seconds);
+        let err = suite
+            .release_tokens(suite.operator.clone(), None)
+            .unwrap_err();
+        assert_eq!(ContractError::ZeroTokensNotAllowed, err.downcast().unwrap());
+
+        // Month 10: 25.000 tokens are released (out of 333.333 - 100.000 - 200.000 = 33.333)
+        suite.app.advance_seconds(month_in_seconds * 4);
+        let second_release = 25_000;
+        suite
+            .release_tokens(suite.operator.clone(), Some(second_release))
+            .unwrap();
+        let token_info = suite.token_info().unwrap();
+        assert_eq!(
+            token_info.released,
+            Uint128::new(first_release + second_release)
+        );
+
+        // Month 12: All remaining tokens are released, that is Balance of 325.000 - 200.000 frozen = 125.000
+        // (this is the 75.000 that finished vesting and extra 50.000 sent by accident)
+        suite.app.advance_seconds(month_in_seconds * 2);
+        let finished_vesting = 75_000;
+        // None releases all awailable
+        suite.release_tokens(suite.operator.clone(), None).unwrap();
+        let token_info = suite.token_info().unwrap();
+        assert_eq!(
+            token_info.released,
+            Uint128::new(first_release + second_release + finished_vesting + accidental_transfer)
+        );
+    }
+
+    #[test]
+    fn continuously_with_negative_amount_results_in_zero_released() {
+        let mut suite = SuiteBuilder::new()
+            .with_tokens(100)
+            .with_vesting_plan_in_seconds(Some(100), 300)
+            .build();
+
+        suite
+            .freeze_tokens(suite.oversight.clone(), Some(10))
+            .unwrap();
+        let token_info = suite.token_info().unwrap();
+        assert_eq!(token_info.frozen, Uint128::new(10));
+
+        // 5 seconds after start
+        // 2 tokens are allowed to release, but we have 10 tokens frozen
+        // without proper protection allowed amount could return negative value (-8)
+        // In that case, zero tokens are released
+        suite.app.advance_seconds(105);
+        let err = suite
+            .release_tokens(suite.operator.clone(), Some(2))
+            .unwrap_err();
+        assert_eq!(
+            ContractError::NotEnoughTokensAvailable,
+            err.downcast().unwrap()
+        );
+        let token_info = suite.token_info().unwrap();
+        assert_eq!(token_info.released, Uint128::zero());
+    }
 }

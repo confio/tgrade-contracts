@@ -57,15 +57,21 @@ impl SuiteBuilder {
     }
 
     pub fn with_vesting_plan_in_seconds(mut self, start_at: Option<u64>, end_at: u64) -> Self {
+        // processing initial block in build() later adds 5 seconds to current block time,
+        // so add them extra during initialization to even the calculations
+        let initial_time = 5;
         let block_info = self.app.block_info();
         self.vesting_plan = match start_at {
             Some(start_at) => {
-                let start_at = Expiration::at_timestamp(block_info.time.plus_seconds(start_at));
-                let end_at = Expiration::at_timestamp(block_info.time.plus_seconds(end_at));
+                let start_at =
+                    Expiration::at_timestamp(block_info.time.plus_seconds(start_at + initial_time));
+                let end_at =
+                    Expiration::at_timestamp(block_info.time.plus_seconds(end_at + initial_time));
                 VestingPlan::Continuous { start_at, end_at }
             }
             None => {
-                let release_at = Expiration::at_timestamp(block_info.time.plus_seconds(end_at));
+                let release_at =
+                    Expiration::at_timestamp(block_info.time.plus_seconds(end_at + initial_time));
                 VestingPlan::Discrete { release_at }
             }
         };

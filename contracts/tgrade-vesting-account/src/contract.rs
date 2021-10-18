@@ -698,21 +698,6 @@ mod tests {
         }
 
         #[test]
-        fn discrete_after_expiration() {
-            let mut suite = SuiteBuilder::default().build();
-
-            let account = account_info(suite.deps.as_ref()).unwrap();
-
-            // 1 second after release_at expire
-            suite.env.block.time = suite.env.block.time.plus_seconds(101);
-
-            assert_eq!(
-                allowed_release(suite.deps.as_ref(), &suite.env, &account.vesting_plan),
-                Ok(Uint128::new(100))
-            );
-        }
-
-        #[test]
         fn continuous_before_expiration() {
             let suite = SuiteBuilder::default()
                 .with_continuous_vesting_plan(DEFAULT_RELEASE, DEFAULT_RELEASE + 200)
@@ -725,96 +710,10 @@ mod tests {
                 Ok(Uint128::zero())
             );
         }
-
-        #[test]
-        fn continuous_after_expiration() {
-            let mut suite = SuiteBuilder::default()
-                // Plan starts 100s from mock_env() default timestamp and ends after 300s
-                .with_continuous_vesting_plan(DEFAULT_RELEASE, DEFAULT_RELEASE + 200)
-                .build();
-
-            let account = account_info(suite.deps.as_ref()).unwrap();
-
-            // 1 second after release_at expire
-            suite.env.block.time = suite.env.block.time.plus_seconds(301);
-
-            assert_eq!(
-                allowed_release(suite.deps.as_ref(), &suite.env, &account.vesting_plan),
-                Ok(Uint128::new(100))
-            );
-        }
-
-        #[test]
-        fn continuous_in_between() {
-            let mut suite = SuiteBuilder::default()
-                .with_continuous_vesting_plan(DEFAULT_RELEASE, DEFAULT_RELEASE + 200)
-                .build();
-
-            let account = account_info(suite.deps.as_ref()).unwrap();
-
-            // 50 seconds after start, another 150 towards end
-            suite.env.block.time = Timestamp::from_seconds(DEFAULT_RELEASE).plus_seconds(50);
-            assert_eq!(
-                allowed_release(suite.deps.as_ref(), &suite.env, &account.vesting_plan),
-                // 100 * (50 / 200) = 25
-                Ok(Uint128::new(25))
-            );
-
-            // 108 seconds after start, another 92 towards end
-            suite.env.block.time = Timestamp::from_seconds(DEFAULT_RELEASE).plus_seconds(108);
-            assert_eq!(
-                allowed_release(suite.deps.as_ref(), &suite.env, &account.vesting_plan),
-                // 100 * (108 / 200) = 54
-                Ok(Uint128::new(54))
-            );
-
-            // 199 seconds after start, 1 towards end
-            suite.env.block.time = Timestamp::from_seconds(DEFAULT_RELEASE).plus_seconds(199);
-            assert_eq!(
-                allowed_release(suite.deps.as_ref(), &suite.env, &account.vesting_plan),
-                // 100 * (199 / 200) = 99.5
-                Ok(Uint128::new(99))
-            );
-
-            // 200 seconds after start - end_at timestamp is met
-            suite.env.block.time = Timestamp::from_seconds(DEFAULT_RELEASE).plus_seconds(200);
-            assert_eq!(
-                allowed_release(suite.deps.as_ref(), &suite.env, &account.vesting_plan),
-                Ok(Uint128::new(100))
-            );
-        }
     }
 
     mod release_tokens {
         use super::*;
-
-        #[test]
-        fn discrete() {
-            let mut suite = SuiteBuilder::default().build();
-
-            suite.env.block.time = suite.env.block.time.plus_seconds(150);
-
-            let amount_to_release = 100;
-            assert_eq!(
-                // passing None will release all available tokens
-                suite.release_tokens(OPERATOR, None),
-                Ok(Response::new()
-                    .add_attribute("action", "release_tokens")
-                    .add_attribute("tokens", amount_to_release.to_string())
-                    .add_attribute("sender", OPERATOR.to_string())
-                    .add_message(BankMsg::Send {
-                        to_address: RECIPIENT.to_string(),
-                        amount: coins(amount_to_release, VESTING_DENOM)
-                    }))
-            );
-            assert_matches!(
-                token_info(suite.deps.as_ref()),
-                Ok(TokenInfoResponse {
-                    released,
-                    ..
-                }) if released == amount_to_release.into()
-            );
-        }
 
         #[test]
         fn discrete_before_expiration() {
@@ -834,66 +733,6 @@ mod tests {
         }
 
         #[test]
-        fn continuously() {
-            let mut suite = SuiteBuilder::default()
-                .with_continuous_vesting_plan(DEFAULT_RELEASE, DEFAULT_RELEASE + 200)
-                .build();
-
-            // 50 seconds after start, another 150 towards end
-            // 25 tokens are allowed to release
-            suite.env.block.time = Timestamp::from_seconds(DEFAULT_RELEASE).plus_seconds(50);
-            let first_amount_released = 25;
-            assert_eq!(
-                suite.release_tokens(OPERATOR, Some(first_amount_released)),
-                Ok(Response::new()
-                    .add_attribute("action", "release_tokens")
-                    .add_attribute("tokens", first_amount_released.to_string())
-                    .add_attribute("sender", OPERATOR.to_string())
-                    .add_message(BankMsg::Send {
-                        to_address: RECIPIENT.to_string(),
-                        amount: coins(first_amount_released, VESTING_DENOM),
-                    }))
-            );
-            assert_matches!(
-                token_info(suite.deps.as_ref()),
-                Ok(TokenInfoResponse {
-                    released,
-                    ..
-                }) if released == first_amount_released.into()
-            );
-
-            // 130 seconds after start, another 70 towards end
-            // 65 tokens are allowed to release, 25 were already released previously
-            suite.env.block.time = Timestamp::from_seconds(DEFAULT_RELEASE).plus_seconds(130);
-            let second_amount_released = 40;
-            suite
-                .release_tokens(OPERATOR, Some(second_amount_released))
-                .unwrap();
-            assert_matches!(
-                token_info(suite.deps.as_ref()),
-                Ok(TokenInfoResponse {
-                    released,
-                    ..
-                }) if released == (first_amount_released + second_amount_released).into()
-            );
-
-            // 200 seconds after start
-            // 100 tokens are allowed to release, 65 were already released previously
-            suite.env.block.time = Timestamp::from_seconds(DEFAULT_RELEASE).plus_seconds(200);
-            let third_amount_released = 35;
-            suite
-                .release_tokens(OPERATOR, Some(third_amount_released))
-                .unwrap();
-            assert_matches!(
-                token_info(suite.deps.as_ref()),
-                Ok(TokenInfoResponse {
-                    released,
-                    ..
-                }) if released == (first_amount_released + second_amount_released + third_amount_released).into()
-            );
-        }
-
-        #[test]
         fn continuously_more_then_allowed() {
             let mut suite = SuiteBuilder::default()
                 .with_continuous_vesting_plan(DEFAULT_RELEASE, DEFAULT_RELEASE + 200)
@@ -905,100 +744,6 @@ mod tests {
             let amount_to_release = 30;
             assert_eq!(
                 suite.release_tokens(OPERATOR, Some(amount_to_release)),
-                Err(ContractError::NotEnoughTokensAvailable)
-            );
-            assert_matches!(
-                token_info(suite.deps.as_ref()),
-                Ok(TokenInfoResponse {
-                    released,
-                    ..
-                }) if released == Uint128::zero()
-            );
-        }
-
-        #[test]
-        fn continuously_with_tokens_frozen() {
-            let mut suite = SuiteBuilder::default()
-                .with_continuous_vesting_plan(DEFAULT_RELEASE, DEFAULT_RELEASE + 200)
-                .build();
-
-            suite.freeze_tokens(OVERSIGHT, Some(10)).unwrap();
-            assert_eq!(
-                token_info(suite.deps.as_ref()),
-                Ok(TokenInfoResponse {
-                    denom: VESTING_DENOM.to_string(),
-                    initial: Uint128::new(100),
-                    frozen: Uint128::new(10),
-                    released: Uint128::zero(),
-                })
-            );
-
-            // 50 seconds after start, another 150 towards end
-            // 25 tokens are allowed to release, but we have 10 tokens frozen
-            // so available are only 15 tokens
-            // taking 20 results in nothing
-            suite.env.block.time = Timestamp::from_seconds(DEFAULT_RELEASE).plus_seconds(50);
-            let amount_to_release = 20;
-            assert_eq!(
-                suite.release_tokens(OPERATOR, Some(amount_to_release)),
-                Err(ContractError::NotEnoughTokensAvailable)
-            );
-            assert_matches!(
-                token_info(suite.deps.as_ref()),
-                Ok(TokenInfoResponse {
-                    released,
-                    ..
-                }) if released == Uint128::zero()
-            );
-
-            // taking 15 tokens is okay though
-            let amount_to_release = 15;
-            assert_eq!(
-                // passing None will release all available
-                suite.release_tokens(OPERATOR, None),
-                Ok(Response::new()
-                    .add_attribute("action", "release_tokens")
-                    .add_attribute("tokens", amount_to_release.to_string())
-                    .add_attribute("sender", OPERATOR.to_string())
-                    .add_message(BankMsg::Send {
-                        to_address: RECIPIENT.to_string(),
-                        amount: coins(amount_to_release, VESTING_DENOM),
-                    }))
-            );
-            assert_matches!(
-                token_info(suite.deps.as_ref()),
-                Ok(TokenInfoResponse {
-                    released,
-                    frozen,
-                    ..
-                }) if released == amount_to_release.into() && frozen == Uint128::new(10)
-            );
-        }
-
-        #[test]
-        fn continuously_with_negative_amount_results_in_zero_released() {
-            let mut suite = SuiteBuilder::default()
-                .with_continuous_vesting_plan(DEFAULT_RELEASE, DEFAULT_RELEASE + 200)
-                .build();
-
-            suite.freeze_tokens(OVERSIGHT, Some(10)).unwrap();
-            assert_eq!(
-                token_info(suite.deps.as_ref()),
-                Ok(TokenInfoResponse {
-                    denom: VESTING_DENOM.to_string(),
-                    initial: Uint128::new(100),
-                    frozen: Uint128::new(10),
-                    released: Uint128::zero(),
-                })
-            );
-
-            // 5 seconds after start
-            // 2 tokens are allowed to release, but we have 10 tokens frozen
-            // without proper protection allowed amount could return negative value (-8)
-            // In that case, zero tokens are released
-            suite.env.block.time = Timestamp::from_seconds(DEFAULT_RELEASE).plus_seconds(5);
-            assert_eq!(
-                suite.release_tokens(OPERATOR, Some(2)),
                 Err(ContractError::NotEnoughTokensAvailable)
             );
             assert_matches!(
