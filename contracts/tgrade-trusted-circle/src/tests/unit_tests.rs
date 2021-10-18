@@ -1,16 +1,18 @@
 #![cfg(test)]
 use super::*;
+use std::marker::PhantomData;
+
+use cosmwasm_std::testing::{MockApi, MockStorage};
 use cosmwasm_std::{
     Addr, Binary, ContractResult, Deps, Empty, QuerierResult, QueryRequest, StdError, SubMsg,
     SystemError, SystemResult, WasmQuery,
 };
+use cw_storage_plus::Item;
 
 use crate::state::{EscrowStatus, Punishment};
 use crate::tests::bdd_tests::{
     propose_add_voting_members_and_execute, PROPOSAL_ID_1, PROPOSAL_ID_2,
 };
-use cosmwasm_std::testing::{MockApi, MockStorage};
-use cw_storage_plus::Item;
 
 // Used for the whitelisting test
 pub const TOKEN_CONTRACT: Item<String> = Item::new("contract_info");
@@ -753,6 +755,7 @@ fn test_whitelist_contract() {
         storage: MockStorage::default(),
         api: MockApi::default(),
         querier,
+        custom_query_type: PhantomData::<Empty>,
     };
 
     let info = mock_info(INIT_ADMIN, &escrow_funds());
