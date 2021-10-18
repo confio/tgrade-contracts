@@ -130,6 +130,7 @@ fn instantiation_enough_funds() {
             threshold: Decimal::percent(60),
             allow_end_early: true,
         },
+        deny_list: None,
     };
     let trusted_circle = query_trusted_circle(deps.as_ref()).unwrap();
     assert_eq!(trusted_circle, expected);
@@ -1033,6 +1034,7 @@ fn leaving_voter_cannot_vote_anymore() {
         threshold: Decimal::percent(60),
         allow_end_early: true,
         initial_members: vec![],
+        deny_list: None,
     };
     instantiate(deps.as_mut(), mock_env(), info, msg).unwrap();
 

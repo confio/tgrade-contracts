@@ -92,6 +92,7 @@ fn setup_bdd(mut deps: DepsMut) {
         threshold: Decimal::percent(60),
         allow_end_early: true,
         initial_members: vec![NON_VOTING.into()],
+        deny_list: None,
     };
     let info = mock_info(VOTING, &coins(VOTING_ESCROW, DENOM));
     instantiate(deps.branch(), start.clone(), info, msg).unwrap();

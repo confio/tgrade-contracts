@@ -56,6 +56,10 @@ pub fn instantiate(
             threshold: msg.threshold,
             allow_end_early: msg.allow_end_early,
         },
+        deny_list: msg
+            .deny_list
+            .map(|addr| deps.api.addr_validate(&addr))
+            .transpose()?,
     };
     trusted_circle.validate()?;
 
@@ -1215,12 +1219,14 @@ pub(crate) fn query_trusted_circle(deps: Deps) -> StdResult<TrustedCircleRespons
         escrow_amount,
         escrow_pending,
         rules,
+        deny_list,
     } = TRUSTED_CIRCLE.load(deps.storage)?;
     Ok(TrustedCircleResponse {
         name,
         escrow_amount,
         escrow_pending,
         rules,
+        deny_list,
     })
 }
 

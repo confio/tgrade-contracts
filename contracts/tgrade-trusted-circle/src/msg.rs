@@ -2,7 +2,7 @@ use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
 use crate::state::{EscrowStatus, PendingEscrow, ProposalContent, Votes, VotingRules};
-use cosmwasm_std::{Decimal, Uint128};
+use cosmwasm_std::{Addr, Decimal, Uint128};
 use cw0::Expiration;
 use cw3::{Status, Vote};
 
@@ -24,6 +24,8 @@ pub struct InstantiateMsg {
     pub allow_end_early: bool,
     /// List of non-voting members to be added to the TRUSTED_CIRCLE upon creation
     pub initial_members: Vec<String>,
+    /// cw4 contract with list of addresses denied to be part of TrustedCircle
+    pub deny_list: Option<String>,
 }
 
 #[allow(clippy::large_enum_variant)]
@@ -128,6 +130,7 @@ pub struct TrustedCircleResponse {
     /// The pending escrow amount, if any
     pub escrow_pending: Option<PendingEscrow>,
     pub rules: VotingRules,
+    pub deny_list: Option<Addr>,
 }
 
 #[derive(Serialize, Deserialize, Clone, PartialEq, JsonSchema, Debug)]

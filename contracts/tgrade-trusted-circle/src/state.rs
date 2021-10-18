@@ -22,6 +22,8 @@ pub struct TrustedCircle {
     pub escrow_amount: Uint128,
     pub escrow_pending: Option<PendingEscrow>,
     pub rules: VotingRules,
+    /// Other cw4 contract which lists addresses denied to be part of TrustedCircle
+    pub deny_list: Option<Addr>,
 }
 
 /// Pending escrow
