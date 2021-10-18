@@ -1,6 +1,6 @@
 [package]
 name = "tg-bindings-test"
-version = "0.4.0"
+version = "0.4.1"
 authors = ["Ethan Frey <ethanfrey@users.noreply.github.com>"]
 edition = "2018"
 description = "Multitest (and other test helpers) support for Tgrade-specific contracts"

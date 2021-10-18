@@ -36,6 +36,7 @@ const VOTING3: &str = "julian";
 const NONVOTING1: &str = "bill";
 const NONVOTING2: &str = "paul";
 const NONVOTING3: &str = "jimmy";
+const TOKEN_ADDR: &str = "token_addr";
 const SECOND1: &str = "more";
 const SECOND2: &str = "peeps";
 const NONMEMBER: &str = "external";

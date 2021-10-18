@@ -93,6 +93,12 @@ pub enum ContractError {
     #[error("Cannot close completed or passed proposals")]
     WrongCloseStatus {},
 
+    #[error("Address {0} does not belong to a contract")]
+    NotAContract(String),
+
+    #[error("Address {0} does not belong to a human")]
+    NotAHuman(String),
+
     #[error("Error occured while converting from UTF-8")]
     FromUtf8(#[from] std::string::FromUtf8Error),
 }
