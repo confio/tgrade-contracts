@@ -3,8 +3,9 @@ mod suite;
 use crate::error::ContractError;
 use suite::SuiteBuilder;
 
-use cosmwasm_std::{coins, BankMsg, Uint128};
+use cosmwasm_std::{coin, coins, BankMsg, CosmosMsg, Uint128};
 use cw_multi_test::Executor;
+use tg_bindings::TgradeMsg;
 
 #[test]
 fn all_initial_tokens_frozen_and_unfrozen() {
@@ -322,12 +323,60 @@ mod handover {
         suite.freeze_tokens(&oversight, None).unwrap();
         let token_info = suite.token_info().unwrap();
         assert_eq!(token_info.frozen, token_info.initial);
+        assert_eq!(token_info.balance, Uint128::new(100));
         suite.assert_is_handed_over(false);
 
         suite.app.advance_seconds(101);
         suite.handover(&recipient).unwrap();
         let token_info = suite.token_info().unwrap();
         assert_eq!(token_info.frozen, Uint128::zero());
+        assert_eq!(token_info.balance, Uint128::zero());
         suite.assert_is_handed_over(true);
+    }
+
+    #[test]
+    fn with_message_executed() {
+        let mut suite = SuiteBuilder::new()
+            .with_tokens(100)
+            .with_vesting_plan_in_seconds_from_start(None, 100)
+            .build();
+
+        let oversight = suite.oversight.clone();
+        let recipient = suite.recipient.clone();
+
+        // send bank transfer from recipient to oversight
+        // using vesting account as a proxy account
+        let transfer_msg = CosmosMsg::<TgradeMsg>::Bank(BankMsg::Send {
+            to_address: oversight.to_string(),
+            amount: vec![coin(50, suite.denom.clone())],
+        });
+
+        // falstart execute will fail
+        let err = suite.execute(&recipient, transfer_msg.clone()).unwrap_err();
+        assert_eq!(ContractError::HandOverNotCompleted, err.downcast().unwrap());
+
+        suite.app.advance_seconds(101);
+        // release tokens after completing hand over
+        suite.handover(&recipient).unwrap();
+        // use recipient instead of oversight as a sender,
+        // because after hand over he's becoming a new oversight
+        suite.release_tokens(&recipient, 25).unwrap();
+        let token_info = suite.token_info().unwrap();
+        assert_eq!(token_info.released, Uint128::new(25));
+        assert_eq!(token_info.balance, Uint128::new(75));
+        suite.assert_is_handed_over(true);
+
+        suite.execute(&recipient, transfer_msg).unwrap();
+        // after transfer, balance should be 75 - 50 = 25
+        let token_info = suite.token_info().unwrap();
+        assert_eq!(token_info.balance, Uint128::new(25));
+
+        // querry oversight's account balance to confirm he received tokens
+        let balance = suite
+            .app
+            .wrap()
+            .query_balance(oversight.as_str(), token_info.denom)
+            .unwrap();
+        assert_eq!(balance.amount, Uint128::new(50));
     }
 }

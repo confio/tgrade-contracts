@@ -237,6 +237,15 @@ impl Suite {
         )
     }
 
+    pub fn execute(&mut self, sender: &Addr, msg: CosmosMsg<TgradeMsg>) -> AnyResult<AppResponse> {
+        self.app.execute_contract(
+            sender.clone(),
+            self.contract.clone(),
+            &ExecuteMsg::Execute { msgs: vec![msg] },
+            &[],
+        )
+    }
+
     pub fn token_info(&self) -> Result<TokenInfoResponse, ContractError> {
         let resp: TokenInfoResponse = self
             .app
