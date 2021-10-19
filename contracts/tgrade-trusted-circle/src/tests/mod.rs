@@ -1,6 +1,8 @@
 #![cfg(test)]
 
 mod bdd_tests;
+mod deny_list;
+mod suite;
 mod unit_tests;
 
 use std::cmp::PartialEq;
@@ -80,6 +82,7 @@ fn do_instantiate(
         threshold: Decimal::percent(60),
         allow_end_early: true,
         initial_members,
+        deny_list: None,
     };
     instantiate(deps, mock_env(), info, msg)
 }

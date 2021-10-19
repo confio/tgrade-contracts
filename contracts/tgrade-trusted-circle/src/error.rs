@@ -101,6 +101,9 @@ pub enum ContractError {
 
     #[error("Error occured while converting from UTF-8")]
     FromUtf8(#[from] std::string::FromUtf8Error),
+
+    #[error("Address {addr} is member of deny list {deny_list}")]
+    DeniedAddress { addr: String, deny_list: Addr },
 }
 
 impl From<OverflowError> for ContractError {

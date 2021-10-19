@@ -8,7 +8,7 @@ use cw0::{maybe_addr, Expiration};
 use cw2::set_contract_version;
 use cw3::{Status, Vote};
 use cw_storage_plus::{Bound, PrimaryKey, U64Key};
-use tg4::{Member, MemberListResponse, MemberResponse, TotalWeightResponse};
+use tg4::{member_key, Member, MemberListResponse, MemberResponse, TotalWeightResponse};
 use tg_bindings::TgradeMsg;
 use tg_utils::{members, TOTAL};
 
@@ -56,6 +56,10 @@ pub fn instantiate(
             threshold: msg.threshold,
             allow_end_early: msg.allow_end_early,
         },
+        deny_list: msg
+            .deny_list
+            .map(|addr| deps.api.addr_validate(&addr))
+            .transpose()?,
     };
     trusted_circle.validate()?;
 
@@ -81,9 +85,16 @@ pub fn instantiate(
     let promote_ev = Event::new(PROMOTE_TYPE).add_attribute(MEMBER_KEY, info.sender);
 
     // add all members
-    let add_evs =
-        add_remove_non_voting_members(deps, env.block.height, msg.initial_members, vec![])?;
-    Ok(Response::new().add_events(add_evs).add_event(promote_ev))
+    let add_evs = add_remove_non_voting_members(
+        deps,
+        &trusted_circle,
+        env.block.height,
+        msg.initial_members,
+        vec![],
+    )?;
+    Ok(Response::default()
+        .add_events(add_evs)
+        .add_event(promote_ev))
 }
 
 // And declare a custom Error variant for the ones where you will want to make use of it
@@ -408,14 +419,14 @@ pub fn validate_proposal(
             if add.is_empty() && remove.is_empty() {
                 return Err(ContractError::NoMembers {});
             }
-            validate_human_addresses(&deps, add)?;
+            validate_addresses_with_deny_list(deps, add)?;
             validate_human_addresses(&deps, remove)
         }
         ProposalContent::AddVotingMembers { voters } => {
             if voters.is_empty() {
                 return Err(ContractError::NoMembers {});
             }
-            validate_human_addresses(&deps, voters)
+            validate_addresses_with_deny_list(deps, voters)
         }
         ProposalContent::PunishMembers(punishments) => {
             if punishments.is_empty() {
@@ -445,6 +456,20 @@ pub fn validate_contract_address(deps: &Deps, addr: &str) -> Result<(), Contract
     } else {
         Err(ContractError::NotAContract(addr.to_string()))
     }
+}
+
+pub fn validate_addresses_with_deny_list(
+    deps: Deps,
+    addrs: &[String],
+) -> Result<(), ContractError> {
+    let trusted_circle = TRUSTED_CIRCLE.load(deps.storage)?;
+
+    validate_human_addresses(&deps, addrs)?;
+    for addr in addrs {
+        ensure_not_denied(deps, &trusted_circle, addr)?;
+    }
+
+    Ok(())
 }
 
 pub fn execute_vote(
@@ -851,8 +876,9 @@ pub fn proposal_add_remove_non_voting_members(
         .add_attribute("added", add.len().to_string())
         .add_attribute("removed", remove.len().to_string());
 
+    let trusted_circle = TRUSTED_CIRCLE.load(deps.storage)?;
     // make the local update
-    let ev = add_remove_non_voting_members(deps, env.block.height, add, remove)?;
+    let ev = add_remove_non_voting_members(deps, &trusted_circle, env.block.height, add, remove)?;
     Ok(res.add_events(ev))
 }
 
@@ -880,6 +906,8 @@ pub fn proposal_add_voting_members(
     proposal_id: u64,
     to_add: Vec<String>,
 ) -> Result<Response, ContractError> {
+    let trusted_circle = TRUSTED_CIRCLE.load(deps.storage)?;
+
     let height = env.block.height;
     // grace period is defined as the voting period
     let grace_period = TRUSTED_CIRCLE
@@ -889,8 +917,8 @@ pub fn proposal_add_voting_members(
 
     let addrs = to_add
         .iter()
-        .map(|addr| deps.api.addr_validate(addr))
-        .collect::<StdResult<Vec<_>>>()?;
+        .map(|addr| ensure_not_denied(deps.as_ref(), &trusted_circle, addr))
+        .collect::<Result<Vec<_>, _>>()?;
     create_batch(deps.storage, &env, proposal_id, grace_period, &addrs)?;
 
     let mut evt =
@@ -949,9 +977,28 @@ pub fn proposal_remove_contract_addr(
     Ok(res.add_events(ev))
 }
 
+fn ensure_not_denied(
+    deps: Deps,
+    trusted_circle: &TrustedCircle,
+    addr: &str,
+) -> Result<Addr, ContractError> {
+    if let Some(deny_list) = &trusted_circle.deny_list {
+        let denied_entry = deps.querier.query_wasm_raw(deny_list, member_key(addr))?;
+        if denied_entry.is_some() {
+            return Err(ContractError::DeniedAddress {
+                addr: addr.to_owned(),
+                deny_list: deny_list.clone(),
+            });
+        }
+    }
+
+    deps.api.addr_validate(addr).map_err(ContractError::from)
+}
+
 // This is a helper used both on instantiation as well as on passed proposals
 pub fn add_remove_non_voting_members(
     deps: DepsMut,
+    config: &TrustedCircle,
     height: u64,
     to_add: Vec<String>,
     to_remove: Vec<String>,
@@ -975,7 +1022,7 @@ pub fn add_remove_non_voting_members(
 
     // Add all new non-voting members
     for add in to_add.into_iter() {
-        let add_addr = deps.api.addr_validate(&add)?;
+        let add_addr = ensure_not_denied(deps.as_ref(), config, &add)?;
         let old = members().may_load(deps.storage, &add_addr)?;
         // If the member already exists, the update for that member is ignored
         if old.is_none() {
@@ -1112,8 +1159,9 @@ pub fn whitelist_contract_addr(
     addr: &str,
 ) -> Result<Vec<Event>, ContractError> {
     let ev = Event::new(WHITELIST_TYPE).add_attribute(CONTRACT_ADDR_KEY, addr);
+    let trusted_circle = TRUSTED_CIRCLE.load(deps.storage)?;
 
-    add_remove_non_voting_members(deps, height, vec![addr.into()], vec![])?;
+    add_remove_non_voting_members(deps, &trusted_circle, height, vec![addr.into()], vec![])?;
 
     Ok(vec![ev])
 }
@@ -1124,8 +1172,9 @@ pub fn remove_contract_addr(
     addr: &str,
 ) -> Result<Vec<Event>, ContractError> {
     let ev = Event::new(REMOVE_TYPE).add_attribute(CONTRACT_ADDR_KEY, addr);
+    let trusted_circle = TRUSTED_CIRCLE.load(deps.storage)?;
 
-    add_remove_non_voting_members(deps, height, vec![], vec![addr.into()])?;
+    add_remove_non_voting_members(deps, &trusted_circle, height, vec![], vec![addr.into()])?;
 
     Ok(vec![ev])
 }
@@ -1215,12 +1264,14 @@ pub(crate) fn query_trusted_circle(deps: Deps) -> StdResult<TrustedCircleRespons
         escrow_amount,
         escrow_pending,
         rules,
+        deny_list,
     } = TRUSTED_CIRCLE.load(deps.storage)?;
     Ok(TrustedCircleResponse {
         name,
         escrow_amount,
         escrow_pending,
         rules,
+        deny_list,
     })
 }
 
