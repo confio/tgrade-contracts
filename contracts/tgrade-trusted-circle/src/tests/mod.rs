@@ -2,6 +2,7 @@
 
 mod bdd_tests;
 mod deny_list;
+mod suite;
 mod unit_tests;
 
 use std::cmp::PartialEq;
