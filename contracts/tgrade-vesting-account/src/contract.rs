@@ -189,7 +189,6 @@ fn freeze_tokens(
     requested_amount: Option<Uint128>,
 ) -> Result<Response, ContractError> {
     let mut account = VESTING_ACCOUNT.load(deps.storage)?;
-    hand_over_completed(&account)?;
     require_oversight(&sender, &account)?;
 
     let available_to_freeze = account.initial_tokens - account.frozen_tokens - account.paid_tokens;
@@ -207,7 +206,6 @@ fn unfreeze_tokens(
     requested_amount: Option<Uint128>,
 ) -> Result<Response, ContractError> {
     let mut account = VESTING_ACCOUNT.load(deps.storage)?;
-    hand_over_completed(&account)?;
     require_oversight(&sender, &account)?;
 
     if let Some(requested_amount) = requested_amount {
@@ -223,7 +221,6 @@ fn change_operator(
     new_operator: Addr,
 ) -> Result<Response, ContractError> {
     let mut account = VESTING_ACCOUNT.load(deps.storage)?;
-    hand_over_completed(&account)?;
     require_oversight(&sender, &account)?;
 
     account.operator = new_operator.clone();
@@ -670,29 +667,6 @@ mod tests {
                 Err(ContractError::RequireRecipientOrOversight)
             );
         }
-    }
-
-    #[test]
-    fn hand_over_completed_actions_not_accessible() {
-        let mut suite = SuiteBuilder::default().build();
-        suite.env.block.time = Timestamp::from_seconds(DEFAULT_RELEASE);
-
-        assert_matches!(suite.hand_over(OVERSIGHT), Ok(_));
-
-        assert_eq!(
-            suite.freeze_tokens(OVERSIGHT, None),
-            Err(ContractError::HandOverCompleted)
-        );
-
-        assert_eq!(
-            suite.unfreeze_tokens(OVERSIGHT, None),
-            Err(ContractError::HandOverCompleted)
-        );
-
-        assert_eq!(
-            suite.change_operator(OVERSIGHT, RECIPIENT),
-            Err(ContractError::HandOverCompleted)
-        );
     }
 
     mod allowed_release {

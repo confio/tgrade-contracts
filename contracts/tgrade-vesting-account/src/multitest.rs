@@ -353,10 +353,7 @@ mod handover {
 
         // falstart execute will fail
         let err = suite.execute(&recipient, transfer_msg.clone()).unwrap_err();
-        assert_eq!(
-            ContractError::HandOverNotCompleted,
-            err.downcast().unwrap()
-        );
+        assert_eq!(ContractError::HandOverNotCompleted, err.downcast().unwrap());
 
         suite.app.advance_seconds(101);
         // release tokens after completing hand over
