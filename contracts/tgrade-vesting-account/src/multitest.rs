@@ -16,13 +16,13 @@ fn all_initial_tokens_frozen_and_unfrozen() {
     let oversight = suite.oversight.clone();
 
     // passing None as amount will freeze all available tokens
-    suite.freeze_tokens(oversight.clone(), None).unwrap();
+    suite.freeze_tokens(&oversight, None).unwrap();
     let token_info = suite.token_info().unwrap();
     assert_eq!(token_info.initial, initial_amount);
     assert_eq!(token_info.frozen, initial_amount);
 
     // passing None as amount will unfreeze all available tokens
-    suite.unfreeze_tokens(oversight, None).unwrap();
+    suite.unfreeze_tokens(&oversight, None).unwrap();
     let token_info = suite.token_info().unwrap();
     assert_eq!(token_info.frozen, Uint128::zero());
 }
@@ -37,8 +37,10 @@ mod release_tokens {
             .with_vesting_plan_in_seconds_from_start(None, 100)
             .build();
 
+        let operator = suite.operator.clone();
+
         suite.app.advance_seconds(150);
-        suite.release_tokens(suite.operator.clone(), None).unwrap();
+        suite.release_tokens(&operator, None).unwrap();
         let token_info = suite.token_info().unwrap();
         assert_eq!(token_info.released, token_info.initial);
     }
@@ -52,44 +54,39 @@ mod release_tokens {
             .build();
 
         let oversight = suite.oversight.clone();
+        let operator = suite.operator.clone();
 
         // freeze half of available tokens
-        suite.freeze_tokens(oversight.clone(), Some(5000)).unwrap();
+        suite.freeze_tokens(&oversight, 5000).unwrap();
 
         // advance time to allow release
         suite.app.advance_seconds(release_at_seconds);
 
         // release all available tokens
-        suite.release_tokens(suite.operator.clone(), None).unwrap();
+        suite.release_tokens(&operator, None).unwrap();
 
         let token_info = suite.token_info().unwrap();
         assert_eq!(token_info.frozen, Uint128::new(5000));
         assert_eq!(token_info.released, Uint128::new(5000));
 
         // unfreeze and release some tokens
-        suite
-            .unfreeze_tokens(oversight.clone(), Some(2500))
-            .unwrap();
-        suite
-            .release_tokens(suite.operator.clone(), Some(1000))
-            .unwrap();
+        suite.unfreeze_tokens(&oversight, 2500).unwrap();
+        suite.release_tokens(&operator, 1000).unwrap();
         let token_info = suite.token_info().unwrap();
         assert_eq!(token_info.frozen, Uint128::new(2500));
         assert_eq!(token_info.released, Uint128::new(6000));
 
         // try to release more token then available
         // 10000 initial - 2500 still frozen - 6000 released = 1500 available
-        let err = suite
-            .release_tokens(suite.operator.clone(), Some(2000))
-            .unwrap_err();
+        let err = suite.release_tokens(&operator, 2000).unwrap_err();
         assert_eq!(
             ContractError::NotEnoughTokensAvailable,
             err.downcast().unwrap()
         );
 
         // unfreeze and release all tokens
-        suite.unfreeze_tokens(oversight, None).unwrap();
-        suite.release_tokens(suite.operator.clone(), None).unwrap();
+        suite.unfreeze_tokens(&oversight, None).unwrap();
+        suite.release_tokens(&operator, None).unwrap();
         let token_info = suite.token_info().unwrap();
         assert_eq!(token_info.frozen, Uint128::zero());
         assert_eq!(token_info.released, token_info.initial);
@@ -102,10 +99,12 @@ mod release_tokens {
             .with_vesting_plan_in_seconds_from_start(None, 100)
             .build();
 
+        let operator = suite.operator.clone();
+
         // 1 second after release_at expire
         suite.app.advance_seconds(101);
 
-        suite.release_tokens(suite.operator.clone(), None).unwrap();
+        suite.release_tokens(&operator, None).unwrap();
         let token_info = suite.token_info().unwrap();
         assert_eq!(token_info.released, Uint128::new(100));
     }
@@ -118,30 +117,32 @@ mod release_tokens {
             .with_vesting_plan_in_seconds_from_start(Some(100), 300)
             .build();
 
+        let operator = suite.operator.clone();
+
         // 50 seconds after start, another 150 towards end
         suite.app.advance_seconds(150);
-        suite.release_tokens(suite.operator.clone(), None).unwrap();
+        suite.release_tokens(&operator, None).unwrap();
         let token_info = suite.token_info().unwrap();
         // 100 * (50 / 200) = 25
         assert_eq!(token_info.released, Uint128::new(25));
 
         // 108 seconds after start, another 92 towards end
         suite.app.advance_seconds(58);
-        suite.release_tokens(suite.operator.clone(), None).unwrap();
+        suite.release_tokens(&operator, None).unwrap();
         let token_info = suite.token_info().unwrap();
         // 100 * (108 / 200) = 54
         assert_eq!(token_info.released, Uint128::new(54));
 
         // 199 seconds after start, 1 towards end
         suite.app.advance_seconds(91);
-        suite.release_tokens(suite.operator.clone(), None).unwrap();
+        suite.release_tokens(&operator, None).unwrap();
         let token_info = suite.token_info().unwrap();
         // 100 * (199 / 200) = 99.5
         assert_eq!(token_info.released, Uint128::new(99));
 
         // 200 seconds after start - end_at timestamp is met
         suite.app.advance_seconds(1);
-        suite.release_tokens(suite.operator.clone(), None).unwrap();
+        suite.release_tokens(&operator, None).unwrap();
         let token_info = suite.token_info().unwrap();
         assert_eq!(token_info.released, token_info.initial);
     }
@@ -154,10 +155,12 @@ mod release_tokens {
             .with_vesting_plan_in_seconds_from_start(Some(100), 300)
             .build();
 
+        let operator = suite.operator.clone();
+
         // 1 second after release_at expire
         suite.app.advance_seconds(301);
 
-        suite.release_tokens(suite.operator.clone(), None).unwrap();
+        suite.release_tokens(&operator, None).unwrap();
         let token_info = suite.token_info().unwrap();
         assert_eq!(token_info.released, Uint128::new(100));
     }
@@ -171,6 +174,8 @@ mod release_tokens {
             .with_vesting_plan_in_seconds_from_start(Some(0), month_in_seconds * 12)
             .build();
 
+        let operator = suite.operator.clone();
+
         let token_info = suite.token_info().unwrap();
         assert_eq!(token_info.released, Uint128::zero());
 
@@ -178,7 +183,7 @@ mod release_tokens {
         suite.app.advance_seconds(month_in_seconds + 1);
         for m in 1..13 {
             // release all available tokens
-            suite.release_tokens(suite.operator.clone(), None).unwrap();
+            suite.release_tokens(&operator, None).unwrap();
 
             let token_info = suite.token_info().unwrap();
             // linear release of available tokens each month
@@ -203,6 +208,9 @@ mod release_tokens {
             .with_vesting_plan_in_seconds_from_start(Some(0), month_in_seconds * 12)
             .build();
 
+        let operator = suite.operator.clone();
+        let oversight = suite.oversight.clone();
+
         let token_info = suite.token_info().unwrap();
         assert_eq!(token_info.released, Uint128::zero());
 
@@ -226,33 +234,31 @@ mod release_tokens {
         // Month 3: 100.000 are released. (all that were vested from original 400.000)
         suite.app.advance_seconds(month_in_seconds);
         let first_release = 100_000;
-        suite
-            .release_tokens(suite.operator.clone(), Some(first_release))
-            .unwrap();
+        suite.release_tokens(&operator, first_release).unwrap();
         let token_info = suite.token_info().unwrap();
         assert_eq!(token_info.released, Uint128::new(first_release));
+        // Prove that no more tokens can be released
+        let err = suite.release_tokens(&operator, 10).unwrap_err();
+        assert_eq!(
+            ContractError::NotEnoughTokensAvailable,
+            err.downcast().unwrap()
+        );
 
         // Month 5: freeze 200.000 for misbehaviour
         suite.app.advance_seconds(month_in_seconds * 2);
-        suite
-            .freeze_tokens(suite.oversight.clone(), Some(200_000))
-            .unwrap();
+        suite.freeze_tokens(&oversight, 200_000).unwrap();
         let token_info = suite.token_info().unwrap();
         assert_eq!(token_info.frozen, Uint128::new(200_000));
 
         // Month 6: No tokens can be released (200.000 - 100.000 - 200.000)
         suite.app.advance_seconds(month_in_seconds);
-        let err = suite
-            .release_tokens(suite.operator.clone(), None)
-            .unwrap_err();
+        let err = suite.release_tokens(&operator, None).unwrap_err();
         assert_eq!(ContractError::ZeroTokensNotAllowed, err.downcast().unwrap());
 
         // Month 10: 25.000 tokens are released (out of 333.333 - 100.000 - 200.000 = 33.333)
         suite.app.advance_seconds(month_in_seconds * 4);
         let second_release = 25_000;
-        suite
-            .release_tokens(suite.operator.clone(), Some(second_release))
-            .unwrap();
+        suite.release_tokens(&operator, second_release).unwrap();
         let token_info = suite.token_info().unwrap();
         assert_eq!(
             token_info.released,
@@ -262,13 +268,12 @@ mod release_tokens {
         // Month 12: All remaining tokens are released, that is Balance of 325.000 - 200.000 frozen = 125.000
         // (this is the 75.000 that finished vesting and extra 50.000 sent by accident)
         suite.app.advance_seconds(month_in_seconds * 2);
-        let finished_vesting = 75_000;
         // None releases all awailable
-        suite.release_tokens(suite.operator.clone(), None).unwrap();
+        suite.release_tokens(&operator, None).unwrap();
         let token_info = suite.token_info().unwrap();
         assert_eq!(
             token_info.released,
-            Uint128::new(first_release + second_release + finished_vesting + accidental_transfer)
+            Uint128::new(400_000 - 200_000 + 50_000)
         );
     }
 
@@ -279,9 +284,10 @@ mod release_tokens {
             .with_vesting_plan_in_seconds_from_start(Some(100), 300)
             .build();
 
-        suite
-            .freeze_tokens(suite.oversight.clone(), Some(10))
-            .unwrap();
+        let operator = suite.operator.clone();
+        let oversight = suite.oversight.clone();
+
+        suite.freeze_tokens(&oversight, 10).unwrap();
         let token_info = suite.token_info().unwrap();
         assert_eq!(token_info.frozen, Uint128::new(10));
 
@@ -290,14 +296,38 @@ mod release_tokens {
         // without proper protection allowed amount could return negative value (-8)
         // In that case, zero tokens are released
         suite.app.advance_seconds(105);
-        let err = suite
-            .release_tokens(suite.operator.clone(), Some(2))
-            .unwrap_err();
+        let err = suite.release_tokens(&operator, 2).unwrap_err();
         assert_eq!(
             ContractError::NotEnoughTokensAvailable,
             err.downcast().unwrap()
         );
         let token_info = suite.token_info().unwrap();
         assert_eq!(token_info.released, Uint128::zero());
+    }
+}
+
+mod handover {
+    use super::*;
+
+    #[test]
+    fn with_tokens_burned() {
+        let mut suite = SuiteBuilder::new()
+            .with_tokens(100)
+            .with_vesting_plan_in_seconds_from_start(None, 100)
+            .build();
+
+        let oversight = suite.oversight.clone();
+        let recipient = suite.recipient.clone();
+
+        suite.freeze_tokens(&oversight, None).unwrap();
+        let token_info = suite.token_info().unwrap();
+        assert_eq!(token_info.frozen, token_info.initial);
+        suite.assert_is_handed_over(false);
+
+        suite.app.advance_seconds(101);
+        suite.handover(&recipient).unwrap();
+        let token_info = suite.token_info().unwrap();
+        assert_eq!(token_info.frozen, Uint128::zero());
+        suite.assert_is_handed_over(true);
     }
 }

@@ -183,23 +183,31 @@ impl Suite {
             })
     }
 
-    pub fn release_tokens(&mut self, sender: Addr, amount: Option<u128>) -> AnyResult<AppResponse> {
+    pub fn release_tokens(
+        &mut self,
+        sender: &Addr,
+        amount: impl Into<Option<u128>>,
+    ) -> AnyResult<AppResponse> {
         self.app.execute_contract(
-            sender,
+            sender.clone(),
             self.contract.clone(),
             &ExecuteMsg::ReleaseTokens {
-                amount: amount.map(Uint128::new),
+                amount: amount.into().map(Uint128::new),
             },
             &[],
         )
     }
 
-    pub fn freeze_tokens(&mut self, sender: Addr, amount: Option<u128>) -> AnyResult<AppResponse> {
+    pub fn freeze_tokens(
+        &mut self,
+        sender: &Addr,
+        amount: impl Into<Option<u128>>,
+    ) -> AnyResult<AppResponse> {
         self.app.execute_contract(
-            sender,
+            sender.clone(),
             self.contract.clone(),
             &ExecuteMsg::FreezeTokens {
-                amount: amount.map(Uint128::new),
+                amount: amount.into().map(Uint128::new),
             },
             &[],
         )
@@ -207,15 +215,24 @@ impl Suite {
 
     pub fn unfreeze_tokens(
         &mut self,
-        sender: Addr,
-        amount: Option<u128>,
+        sender: &Addr,
+        amount: impl Into<Option<u128>>,
     ) -> AnyResult<AppResponse> {
         self.app.execute_contract(
-            sender,
+            sender.clone(),
             self.contract.clone(),
             &ExecuteMsg::UnfreezeTokens {
-                amount: amount.map(Uint128::new),
+                amount: amount.into().map(Uint128::new),
             },
+            &[],
+        )
+    }
+
+    pub fn handover(&mut self, sender: &Addr) -> AnyResult<AppResponse> {
+        self.app.execute_contract(
+            sender.clone(),
+            self.contract.clone(),
+            &ExecuteMsg::HandOver {},
             &[],
         )
     }
@@ -226,5 +243,20 @@ impl Suite {
             .wrap()
             .query_wasm_smart(self.contract.clone(), &QueryMsg::TokenInfo {})?;
         Ok(resp)
+    }
+
+    fn is_handed_over(&self) -> Result<IsHandedOverResponse, ContractError> {
+        let resp: IsHandedOverResponse = self
+            .app
+            .wrap()
+            .query_wasm_smart(self.contract.clone(), &QueryMsg::IsHandedOver {})?;
+        Ok(resp)
+    }
+
+    pub fn assert_is_handed_over(&self, is_handed_over: bool) {
+        assert_eq!(
+            self.is_handed_over().unwrap(),
+            IsHandedOverResponse { is_handed_over }
+        );
     }
 }

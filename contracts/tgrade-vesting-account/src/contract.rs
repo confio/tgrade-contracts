@@ -104,19 +104,20 @@ fn hand_over_completed(account: &VestingAccount) -> Result<(), ContractError> {
 
 /// Returns information about amount of tokens that is allowed to be released
 fn allowed_release(deps: Deps, env: &Env, plan: &VestingPlan) -> Result<Uint128, ContractError> {
-    let token_info = token_info(deps)?;
+    let token_info = token_info(deps, env)?;
 
     // In order to allow releasing any extra tokens sent to the account AFTER vesting
     // account has been initialized, correct amount is calculated by doing query of
     // contract's balance.
-    let current = deps
-        .querier
-        .query_balance(&env.contract.address, token_info.denom)?;
+
     match plan {
         VestingPlan::Discrete {
             release_at: release,
         } => {
             if release.is_expired(&env.block) {
+                let current = deps
+                    .querier
+                    .query_balance(&env.contract.address, token_info.denom)?;
                 // If end_at timestamp is already met, release all available tokens
                 Ok(current.amount - token_info.frozen)
             } else {
@@ -128,6 +129,9 @@ fn allowed_release(deps: Deps, env: &Env, plan: &VestingPlan) -> Result<Uint128,
                 // If start_at timestamp is not met, release nothing
                 Ok(Uint128::zero())
             } else if end_at.is_expired(&env.block) {
+                let current = deps
+                    .querier
+                    .query_balance(&env.contract.address, token_info.denom)?;
                 // If end_at timestamp is already met, release all available tokens
                 Ok(current.amount - token_info.frozen)
             } else {
@@ -250,12 +254,12 @@ fn hand_over(deps: DepsMut, env: Env, sender: Addr) -> Result<Response, Contract
     account.frozen_tokens = Uint128::zero();
     account.handed_over = true;
     account.oversight = account.recipient.clone();
+    account.operator = account.recipient.clone();
     VESTING_ACCOUNT.save(deps.storage, &account)?;
 
     Ok(Response::new()
         .add_attribute("action", "hand_over")
         .add_attribute("burnt_tokens", frozen_tokens.to_string())
-        .add_attribute("new_oversight", account.oversight.to_string())
         .add_attribute("sender", sender)
         .add_message(msg))
 }
@@ -330,10 +334,10 @@ mod helpers {
 }
 
 #[cfg_attr(not(feature = "library"), entry_point)]
-pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
+pub fn query(deps: Deps, env: Env, msg: QueryMsg) -> StdResult<Binary> {
     match msg {
         QueryMsg::AccountInfo {} => to_binary(&account_info(deps)?),
-        QueryMsg::TokenInfo {} => to_binary(&token_info(deps)?),
+        QueryMsg::TokenInfo {} => to_binary(&token_info(deps, &env)?),
         QueryMsg::IsHandedOver {} => to_binary(&is_handed_over(deps)?),
         QueryMsg::CanExecute { sender } => to_binary(&can_execute(deps, sender)?),
     }
@@ -351,14 +355,20 @@ fn account_info(deps: Deps) -> StdResult<AccountInfoResponse> {
     Ok(info)
 }
 
-fn token_info(deps: Deps) -> StdResult<TokenInfoResponse> {
+fn token_info(deps: Deps, env: &Env) -> StdResult<TokenInfoResponse> {
     let account = VESTING_ACCOUNT.load(deps.storage)?;
+    let denom = account.denom;
+    let balance = deps
+        .querier
+        .query_balance(&env.contract.address, denom.clone())?
+        .amount;
 
     let info = TokenInfoResponse {
-        denom: account.denom,
+        denom,
         initial: account.initial_tokens,
         frozen: account.frozen_tokens,
         released: account.paid_tokens,
+        balance,
     };
     Ok(info)
 }
@@ -390,7 +400,7 @@ mod tests {
     use cosmwasm_std::testing::{
         mock_dependencies, mock_env, mock_info, MockApi, MockQuerier, MockStorage,
     };
-    use cosmwasm_std::{Coin, MessageInfo, OwnedDeps, Timestamp};
+    use cosmwasm_std::{from_binary, Coin, MessageInfo, OwnedDeps, Timestamp};
     use tg_utils::Expiration;
 
     const OWNER: &str = "owner";
@@ -548,6 +558,12 @@ mod tests {
                     funds: vec![],
                 },
                 ExecuteMsg::HandOver {},
+            )
+        }
+
+        fn query_token_info(&self) -> StdResult<TokenInfoResponse> {
+            from_binary(
+                &query(self.deps.as_ref(), self.env.clone(), QueryMsg::TokenInfo {}).unwrap(),
             )
         }
     }
@@ -726,7 +742,7 @@ mod tests {
                 Err(ContractError::NotEnoughTokensAvailable)
             );
             assert_matches!(
-                token_info(suite.deps.as_ref()),
+                suite.query_token_info(),
                 Ok(TokenInfoResponse {
                     released,
                     ..
@@ -749,7 +765,7 @@ mod tests {
                 Err(ContractError::NotEnoughTokensAvailable)
             );
             assert_matches!(
-                token_info(suite.deps.as_ref()),
+                suite.query_token_info(),
                 Ok(TokenInfoResponse {
                     released,
                     ..
@@ -806,12 +822,14 @@ mod tests {
         let suite = SuiteBuilder::default().build();
 
         assert_eq!(
-            token_info(suite.deps.as_ref()),
+            suite.query_token_info(),
             Ok(TokenInfoResponse {
                 denom: VESTING_DENOM.to_string(),
                 initial: Uint128::new(100),
                 frozen: Uint128::zero(),
                 released: Uint128::zero(),
+                // because no tokens were actually sent in UT
+                balance: Uint128::zero(),
             })
         );
     }
@@ -827,15 +845,8 @@ mod tests {
                 .add_attribute("tokens", "100".to_string())
                 .add_attribute("sender", Addr::unchecked(OVERSIGHT)))
         );
-        assert_eq!(
-            token_info(suite.deps.as_ref()),
-            Ok(TokenInfoResponse {
-                denom: VESTING_DENOM.to_string(),
-                initial: Uint128::new(100),
-                frozen: Uint128::new(100),
-                released: Uint128::zero(),
-            })
-        );
+        let info = suite.query_token_info().unwrap();
+        assert_eq!(info.frozen, Uint128::new(100));
     }
 
     #[test]
@@ -850,15 +861,8 @@ mod tests {
                 .add_attribute("tokens", "100".to_string())
                 .add_attribute("sender", Addr::unchecked(OVERSIGHT)))
         );
-        assert_eq!(
-            token_info(suite.deps.as_ref()),
-            Ok(TokenInfoResponse {
-                denom: VESTING_DENOM.to_string(),
-                initial: Uint128::new(100),
-                frozen: Uint128::new(100),
-                released: Uint128::zero(),
-            })
-        );
+        let info = suite.query_token_info().unwrap();
+        assert_eq!(info.frozen, Uint128::new(100));
     }
 
     #[test]
@@ -866,15 +870,8 @@ mod tests {
         let mut suite = SuiteBuilder::default().build();
 
         suite.freeze_tokens(OVERSIGHT, Some(50)).unwrap();
-        assert_eq!(
-            token_info(suite.deps.as_ref()),
-            Ok(TokenInfoResponse {
-                denom: VESTING_DENOM.to_string(),
-                initial: Uint128::new(100),
-                frozen: Uint128::new(50),
-                released: Uint128::zero(),
-            })
-        );
+        let info = suite.query_token_info().unwrap();
+        assert_eq!(info.frozen, Uint128::new(50));
         assert_eq!(
             // passing None will unfreeze all available previously frozen tokens
             suite.unfreeze_tokens(OVERSIGHT, None),
@@ -883,15 +880,8 @@ mod tests {
                 .add_attribute("tokens", "50".to_string())
                 .add_attribute("sender", Addr::unchecked(OVERSIGHT)))
         );
-        assert_eq!(
-            token_info(suite.deps.as_ref()),
-            Ok(TokenInfoResponse {
-                denom: VESTING_DENOM.to_string(),
-                initial: Uint128::new(100),
-                frozen: Uint128::zero(),
-                released: Uint128::zero(),
-            })
-        );
+        let info = suite.query_token_info().unwrap();
+        assert_eq!(info.frozen, Uint128::zero());
     }
 
     #[test]
@@ -940,7 +930,6 @@ mod tests {
                 Ok(Response::new()
                     .add_attribute("action", "hand_over")
                     .add_attribute("burnt_tokens", tokens_to_burn.to_string())
-                    .add_attribute("new_oversight", RECIPIENT.to_string())
                     .add_attribute("sender", OVERSIGHT.to_string())
                     .add_message(BankMsg::Burn {
                         amount: coins(tokens_to_burn, VESTING_DENOM)
@@ -953,7 +942,7 @@ mod tests {
                 })
             );
             assert_matches!(
-                token_info(suite.deps.as_ref()),
+                suite.query_token_info(),
                 Ok(TokenInfoResponse {
                     frozen,
                     ..

@@ -98,6 +98,8 @@ pub struct TokenInfoResponse {
     pub frozen: Uint128,
     /// Amount of tokens that has been paid so far
     pub released: Uint128,
+    /// Amount of all tokens from current contract
+    pub balance: Uint128,
 }
 
 /// Response for IsLiberated query
