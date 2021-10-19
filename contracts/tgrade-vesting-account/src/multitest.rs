@@ -322,12 +322,14 @@ mod handover {
         suite.freeze_tokens(&oversight, None).unwrap();
         let token_info = suite.token_info().unwrap();
         assert_eq!(token_info.frozen, token_info.initial);
+        assert_eq!(token_info.balance, Uint128::new(100));
         suite.assert_is_handed_over(false);
 
         suite.app.advance_seconds(101);
         suite.handover(&recipient).unwrap();
         let token_info = suite.token_info().unwrap();
         assert_eq!(token_info.frozen, Uint128::zero());
+        assert_eq!(token_info.balance, Uint128::zero());
         suite.assert_is_handed_over(true);
     }
 }
