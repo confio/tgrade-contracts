@@ -1,10 +1,15 @@
-use cosmwasm_std::{Addr, Decimal, Uint128};
-use cw_multi_test::{Contract, ContractWrapper, Executor};
+use anyhow::Result as AnyResult;
+use assert_matches::assert_matches;
+use cosmwasm_std::{coins, Addr, CosmosMsg, Decimal, Uint128};
+use cw_multi_test::{AppResponse, Contract, ContractWrapper, CosmosRouter, Executor};
 use derivative::Derivative;
+use tg4::Member;
 use tg_bindings::TgradeMsg;
 use tg_bindings_test::TgradeApp;
 
-use crate::msg::InstantiateMsg;
+use crate::error::ContractError;
+use crate::msg::{ExecuteMsg, InstantiateMsg};
+use crate::state::ProposalContent;
 
 fn contract_trusted_circle() -> Box<dyn Contract<TgradeMsg>> {
     Box::new(ContractWrapper::new(
@@ -14,6 +19,17 @@ fn contract_trusted_circle() -> Box<dyn Contract<TgradeMsg>> {
     ))
 }
 
+fn contract_engagement() -> Box<dyn Contract<TgradeMsg>> {
+    Box::new(
+        ContractWrapper::new(
+            tg4_engagement::contract::execute,
+            tg4_engagement::contract::instantiate,
+            tg4_engagement::contract::query,
+        )
+        .with_sudo(tg4_engagement::contract::sudo),
+    )
+}
+
 #[derive(Derivative)]
 #[derivative(Debug)]
 struct Suite {
@@ -21,23 +37,72 @@ struct Suite {
     app: TgradeApp,
     deny_list: Addr,
     contract: Addr,
+    owner: Addr,
+}
+
+impl Suite {
+    pub fn owner(&self) -> String {
+        self.owner.to_string()
+    }
+
+    pub fn propose_modify_non_voting(
+        &mut self,
+        executor: &str,
+        title: &str,
+        description: &str,
+        add: &[&str],
+        remove: &[&str],
+    ) -> AnyResult<AppResponse> {
+        let add = add.iter().map(|addr| (*addr).to_owned()).collect();
+        let remove = remove.iter().map(|addr| (*addr).to_owned()).collect();
+
+        self.app.execute_contract(
+            Addr::unchecked(executor),
+            self.contract.clone(),
+            &ExecuteMsg::Propose {
+                title: title.to_owned(),
+                description: description.to_owned(),
+                proposal: ProposalContent::AddRemoveNonVotingMembers { add, remove },
+            },
+            &[],
+        )
+    }
+
+    pub fn propose_add_voting(
+        &mut self,
+        executor: &str,
+        title: &str,
+        description: &str,
+        add: &[&str],
+    ) -> AnyResult<AppResponse> {
+        let voters = add.iter().map(|addr| (*addr).to_owned()).collect();
+
+        self.app.execute_contract(
+            Addr::unchecked(executor),
+            self.contract.clone(),
+            &ExecuteMsg::Propose {
+                title: title.to_owned(),
+                description: description.to_owned(),
+                proposal: ProposalContent::AddVotingMembers { voters },
+            },
+            &[],
+        )
+    }
 }
 
 #[derive(Derivative)]
 #[derivative(Default = "new")]
 struct SuiteBuilder {
-    deny_list: Vec<String>,
+    deny_list: Vec<Member>,
     members: Vec<String>,
 }
 
 impl SuiteBuilder {
     pub fn with_denied(mut self, addr: &str) -> Self {
-        self.deny_list.push(addr.to_owned());
-        self
-    }
-
-    pub fn with_member(mut self, addr: &str) -> Self {
-        self.members.push(addr.to_owned());
+        self.deny_list.push(Member {
+            addr: addr.to_owned(),
+            weight: 1,
+        });
         self
     }
 
@@ -45,20 +110,35 @@ impl SuiteBuilder {
         let owner = Addr::unchecked("owner");
         let mut app = TgradeApp::new(owner.as_str());
 
-        let contract_id = app.store_code(contract_trusted_circle());
+        let block_info = app.block_info();
+        app.init_modules(|router, api, storage| -> AnyResult<()> {
+            router.execute(
+                api,
+                storage,
+                &block_info,
+                owner.clone(),
+                CosmosMsg::Custom(TgradeMsg::MintTokens {
+                    denom: "utgd".to_string(),
+                    amount: Uint128::new(1_000_000),
+                    recipient: owner.to_string(),
+                })
+                .into(),
+            )?;
+            Ok(())
+        })
+        .unwrap();
+
+        let engagement_id = app.store_code(contract_engagement());
         let deny_list = app
             .instantiate_contract(
-                contract_id,
+                engagement_id,
                 owner.clone(),
-                &InstantiateMsg {
-                    name: "Deny list".to_owned(),
-                    escrow_amount: Uint128::zero(),
-                    voting_period: 1,
-                    quorum: Decimal::percent(50),
-                    threshold: Decimal::zero(),
-                    allow_end_early: true,
-                    initial_members: self.deny_list,
-                    deny_list: None,
+                &tg4_engagement::msg::InstantiateMsg {
+                    admin: Some(owner.to_string()),
+                    members: self.deny_list,
+                    preauths: None,
+                    halflife: None,
+                    token: "utgd".to_owned(),
                 },
                 &[],
                 "deny-list",
@@ -66,21 +146,22 @@ impl SuiteBuilder {
             )
             .unwrap();
 
+        let contract_id = app.store_code(contract_trusted_circle());
         let contract = app
             .instantiate_contract(
                 contract_id,
                 owner.clone(),
                 &InstantiateMsg {
                     name: "Trusted Circle".to_owned(),
-                    escrow_amount: Uint128::zero(),
+                    escrow_amount: Uint128::new(1_000_000),
                     voting_period: 1,
                     quorum: Decimal::percent(50),
-                    threshold: Decimal::zero(),
+                    threshold: Decimal::percent(50),
                     allow_end_early: true,
                     initial_members: self.members,
                     deny_list: Some(deny_list.to_string()),
                 },
-                &[],
+                &coins(1_000_000, "utgd"),
                 "trusted-circle",
                 Some(owner.to_string()),
             )
@@ -90,6 +171,33 @@ impl SuiteBuilder {
             app,
             deny_list,
             contract,
+            owner,
         }
     }
+}
+
+#[test]
+fn cannot_propose_adding_denied_non_voting_member() {
+    let denied = "denied";
+    let mut suite = SuiteBuilder::new().with_denied(denied).build();
+    let owner = suite.owner();
+
+    let err = suite
+        .propose_modify_non_voting(&owner, "Add denied", "", &[denied], &[])
+        .unwrap_err();
+
+    assert_matches!(err.downcast().unwrap(), ContractError::DeniedAddress { addr, .. } if addr == denied);
+}
+
+#[test]
+fn cannot_propose_adding_denied_voting_member() {
+    let denied = "denied";
+    let mut suite = SuiteBuilder::new().with_denied(denied).build();
+    let owner = suite.owner();
+
+    let err = suite
+        .propose_add_voting(&owner, "Add denied", "", &[denied])
+        .unwrap_err();
+
+    assert_matches!(err.downcast().unwrap(), ContractError::DeniedAddress { addr, .. } if addr == denied);
 }
