@@ -419,16 +419,14 @@ pub fn validate_proposal(
             if add.is_empty() && remove.is_empty() {
                 return Err(ContractError::NoMembers {});
             }
-            let trusted_circle = TRUSTED_CIRCLE.load(deps.storage)?;
-            validate_addresses_with_deny_list(deps, &trusted_circle, add)?;
+            validate_addresses_with_deny_list(deps, add)?;
             validate_human_addresses(&deps, remove)
         }
         ProposalContent::AddVotingMembers { voters } => {
             if voters.is_empty() {
                 return Err(ContractError::NoMembers {});
             }
-            let trusted_circle = TRUSTED_CIRCLE.load(deps.storage)?;
-            validate_addresses_with_deny_list(deps, &trusted_circle, voters)
+            validate_addresses_with_deny_list(deps, voters)
         }
         ProposalContent::PunishMembers(punishments) => {
             if punishments.is_empty() {
@@ -462,12 +460,13 @@ pub fn validate_contract_address(deps: &Deps, addr: &str) -> Result<(), Contract
 
 pub fn validate_addresses_with_deny_list(
     deps: Deps,
-    trusted_circle: &TrustedCircle,
     addrs: &[String],
 ) -> Result<(), ContractError> {
+    let trusted_circle = TRUSTED_CIRCLE.load(deps.storage)?;
+
     validate_human_addresses(&deps, addrs)?;
     for addr in addrs {
-        ensure_not_denied(deps, trusted_circle, addr)?;
+        ensure_not_denied(deps, &trusted_circle, addr)?;
     }
 
     Ok(())
