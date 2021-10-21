@@ -8,8 +8,8 @@ use cw0::maybe_addr;
 use cw2::set_contract_version;
 use cw_storage_plus::{Bound, PrimaryKey, U64Key};
 use tg4::{
-    HooksResponse, LastHalflifeResponse, Member, MemberChangedHookMsg, MemberDiff,
-    MemberListResponse, MemberResponse, TotalWeightResponse,
+    HalflifeResponse, HooksResponse, LastHalflifeResponse, Member, MemberChangedHookMsg,
+    MemberDiff, MemberListResponse, MemberResponse, TotalWeightResponse,
 };
 
 use crate::error::ContractError;
@@ -634,6 +634,13 @@ fn query_last_halflife(deps: Deps) -> StdResult<LastHalflifeResponse> {
     Ok(LastHalflifeResponse { last_halflife })
 }
 
+fn query_halflife(deps: Deps) -> StdResult<HalflifeResponse> {
+    let halflife = HALFLIFE.load(deps.storage)?.halflife;
+    Ok(HalflifeResponse {
+        halflife: halflife.map(|d| d.seconds()),
+    })
+}
+
 // settings for pagination
 const MAX_LIMIT: u32 = 30;
 const DEFAULT_LIMIT: u32 = 10;
@@ -883,10 +890,17 @@ mod tests {
         let mut deps = mock_dependencies(&[]);
         do_instantiate(deps.as_mut());
 
+        // Last halflife occurence.
+
         let last_halflife = query_last_halflife(deps.as_ref()).unwrap().last_halflife;
+        // Timestamp value copied from cosmwasm_std::testing::mock_env
         let env_block_time = Timestamp::from_nanos(1_571_797_419_879_305_533);
 
         assert_eq!(last_halflife, env_block_time);
+
+        // Halflife duration.
+        let halflife = query_halflife(deps.as_ref()).unwrap().halflife;
+        assert_eq!(halflife, Some(HALFLIFE));
     }
 
     #[test]

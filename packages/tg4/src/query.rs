@@ -68,6 +68,11 @@ pub struct LastHalflifeResponse {
     pub last_halflife: Timestamp,
 }
 
+#[derive(Serialize, Deserialize, Clone, PartialEq, JsonSchema, Debug)]
+pub struct HalflifeResponse {
+    pub halflife: Option<u64>,
+}
+
 /// TOTAL_KEY is meant for raw queries
 pub const TOTAL_KEY: &str = "total";
 pub const MEMBERS_KEY: &str = "members";
