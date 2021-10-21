@@ -64,17 +64,9 @@ pub struct HooksResponse {
 }
 
 #[derive(Serialize, Deserialize, Clone, PartialEq, JsonSchema, Debug)]
-pub struct LastHalflifeResponse {
-    pub last_halflife: Timestamp,
-}
-
-#[derive(Serialize, Deserialize, Clone, PartialEq, JsonSchema, Debug)]
 pub struct HalflifeResponse {
+    pub last_halflife: Timestamp,
     pub halflife: Option<u64>,
-}
-
-#[derive(Serialize, Deserialize, Clone, PartialEq, JsonSchema, Debug)]
-pub struct NextHalflifeResponse {
     pub next_halflife: Option<Timestamp>,
 }
 

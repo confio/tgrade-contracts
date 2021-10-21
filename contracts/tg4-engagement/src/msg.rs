@@ -98,12 +98,9 @@ pub enum QueryMsg {
     UndistributedFunds {},
     /// Returns address allowed for withdrawal funds assigned to owner. Returns `DelegateResponse`
     Delegated { owner: String },
-    /// Returns the time of the last halflife event.
-    LastHalflife {},
-    /// Returns the halflife duration.
+    /// Returns information about the halflife, including the duration in seconds, the last
+    /// and the next occurence.
     Halflife {},
-    /// Returns the time of the next halflife event.
-    NextHalflife {},
 }
 
 #[derive(Serialize, Deserialize, Clone, PartialEq, JsonSchema, Debug)]

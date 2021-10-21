@@ -8,8 +8,8 @@ use cw0::maybe_addr;
 use cw2::set_contract_version;
 use cw_storage_plus::{Bound, PrimaryKey, U64Key};
 use tg4::{
-    HalflifeResponse, HooksResponse, LastHalflifeResponse, Member, MemberChangedHookMsg,
-    MemberDiff, MemberListResponse, MemberResponse, NextHalflifeResponse, TotalWeightResponse,
+    HalflifeResponse, HooksResponse, Member, MemberChangedHookMsg, MemberDiff, MemberListResponse,
+    MemberResponse, TotalWeightResponse,
 };
 
 use crate::error::ContractError;
@@ -569,9 +569,7 @@ pub fn query(deps: Deps, env: Env, msg: QueryMsg) -> StdResult<Binary> {
         QueryMsg::DistributedFunds {} => to_binary(&query_distributed_total(deps)?),
         QueryMsg::UndistributedFunds {} => to_binary(&query_undistributed_funds(deps, env)?),
         QueryMsg::Delegated { owner } => to_binary(&query_delegated(deps, owner)?),
-        QueryMsg::LastHalflife {} => to_binary(&query_last_halflife(deps)?),
         QueryMsg::Halflife {} => to_binary(&query_halflife(deps)?),
-        QueryMsg::NextHalflife {} => to_binary(&query_next_halflife(deps)?),
     }
 }
 
@@ -631,26 +629,18 @@ pub fn query_delegated(deps: Deps, owner: String) -> StdResult<DelegatedResponse
     Ok(DelegatedResponse { delegated })
 }
 
-fn query_last_halflife(deps: Deps) -> StdResult<LastHalflifeResponse> {
-    let last_halflife = HALFLIFE.load(deps.storage)?.last_applied;
-    Ok(LastHalflifeResponse { last_halflife })
-}
-
 fn query_halflife(deps: Deps) -> StdResult<HalflifeResponse> {
-    let halflife = HALFLIFE.load(deps.storage)?.halflife;
-    Ok(HalflifeResponse {
-        halflife: halflife.map(|d| d.seconds()),
-    })
-}
-
-fn query_next_halflife(deps: Deps) -> StdResult<NextHalflifeResponse> {
     let Halflife {
         halflife,
-        last_applied,
+        last_applied: last_halflife,
     } = HALFLIFE.load(deps.storage)?;
-    let next_halflife = halflife.map(|d| last_applied.plus_seconds(d.seconds()));
+    let next_halflife = halflife.map(|d| last_halflife.plus_seconds(d.seconds()));
 
-    Ok(NextHalflifeResponse { next_halflife })
+    Ok(HalflifeResponse {
+        last_halflife,
+        halflife: halflife.map(|d| d.seconds()),
+        next_halflife,
+    })
 }
 
 // settings for pagination
@@ -902,19 +892,22 @@ mod tests {
         let mut deps = mock_dependencies(&[]);
         do_instantiate(deps.as_mut());
 
+        let HalflifeResponse {
+            last_halflife,
+            halflife,
+            next_halflife,
+        } = query_halflife(deps.as_ref()).unwrap();
+
         // Last halflife event.
-        let last_halflife = query_last_halflife(deps.as_ref()).unwrap().last_halflife;
         // Timestamp value copied from cosmwasm_std::testing::mock_env
         let env_block_time = Timestamp::from_nanos(1_571_797_419_879_305_533);
         assert_eq!(last_halflife, env_block_time);
 
         // Halflife duration.
-        let halflife = query_halflife(deps.as_ref()).unwrap().halflife;
         assert_eq!(halflife, Some(HALFLIFE));
 
         // Next halflife event.
         let expected_next_halflife = Some(last_halflife.plus_seconds(halflife.unwrap()));
-        let next_halflife = query_next_halflife(deps.as_ref()).unwrap().next_halflife;
         assert_eq!(expected_next_halflife, next_halflife);
     }
 
