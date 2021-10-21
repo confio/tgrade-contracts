@@ -8,14 +8,14 @@ use cw0::maybe_addr;
 use cw2::set_contract_version;
 use cw_storage_plus::{Bound, PrimaryKey, U64Key};
 use tg4::{
-    HalflifeInfo, HalflifeResponse, HooksResponse, Member, MemberChangedHookMsg, MemberDiff,
-    MemberListResponse, MemberResponse, TotalWeightResponse,
+    HooksResponse, Member, MemberChangedHookMsg, MemberDiff, MemberListResponse, MemberResponse,
+    TotalWeightResponse,
 };
 
 use crate::error::ContractError;
 use crate::msg::{
-    DelegatedResponse, ExecuteMsg, FundsResponse, InstantiateMsg, PreauthResponse, QueryMsg,
-    SudoMsg,
+    DelegatedResponse, ExecuteMsg, FundsResponse, HalflifeInfo, HalflifeResponse, InstantiateMsg,
+    PreauthResponse, QueryMsg, SudoMsg,
 };
 use crate::state::{
     Distribution, Halflife, WithdrawAdjustment, DISTRIBUTION, HALFLIFE, POINTS_SHIFT,
@@ -641,7 +641,7 @@ fn query_halflife(deps: Deps) -> StdResult<HalflifeResponse> {
 
             HalflifeInfo {
                 last_halflife,
-                halflife: d.seconds(),
+                halflife: d,
                 next_halflife,
             }
         }),
@@ -912,10 +912,10 @@ mod tests {
         assert_eq!(last_halflife, env_block_time);
 
         // Halflife duration.
-        assert_eq!(halflife, HALFLIFE);
+        assert_eq!(halflife, Duration::new(HALFLIFE));
 
         // Next halflife event.
-        let expected_next_halflife = last_halflife.plus_seconds(halflife);
+        let expected_next_halflife = last_halflife.plus_seconds(halflife.seconds());
         assert_eq!(expected_next_halflife, next_halflife);
     }
 
