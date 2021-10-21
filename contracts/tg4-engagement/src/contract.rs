@@ -902,18 +902,17 @@ mod tests {
         let mut deps = mock_dependencies(&[]);
         do_instantiate(deps.as_mut());
 
-        // Last halflife occurence.
-
+        // Last halflife event.
         let last_halflife = query_last_halflife(deps.as_ref()).unwrap().last_halflife;
         // Timestamp value copied from cosmwasm_std::testing::mock_env
         let env_block_time = Timestamp::from_nanos(1_571_797_419_879_305_533);
-
         assert_eq!(last_halflife, env_block_time);
 
         // Halflife duration.
         let halflife = query_halflife(deps.as_ref()).unwrap().halflife;
         assert_eq!(halflife, Some(HALFLIFE));
 
+        // Next halflife event.
         let expected_next_halflife = Some(last_halflife.plus_seconds(halflife.unwrap()));
         let next_halflife = query_next_halflife(deps.as_ref()).unwrap().next_halflife;
         assert_eq!(expected_next_halflife, next_halflife);
