@@ -9,7 +9,7 @@ use cw2::set_contract_version;
 use cw_storage_plus::{Bound, PrimaryKey, U64Key};
 use tg4::{
     HalflifeResponse, HooksResponse, LastHalflifeResponse, Member, MemberChangedHookMsg,
-    MemberDiff, MemberListResponse, MemberResponse, TotalWeightResponse,
+    MemberDiff, MemberListResponse, MemberResponse, NextHalflifeResponse, TotalWeightResponse,
 };
 
 use crate::error::ContractError;
@@ -570,6 +570,8 @@ pub fn query(deps: Deps, env: Env, msg: QueryMsg) -> StdResult<Binary> {
         QueryMsg::UndistributedFunds {} => to_binary(&query_undistributed_funds(deps, env)?),
         QueryMsg::Delegated { owner } => to_binary(&query_delegated(deps, owner)?),
         QueryMsg::LastHalflife {} => to_binary(&query_last_halflife(deps)?),
+        QueryMsg::Halflife {} => to_binary(&query_halflife(deps)?),
+        QueryMsg::NextHalflife {} => to_binary(&query_next_halflife(deps)?),
     }
 }
 
@@ -639,6 +641,16 @@ fn query_halflife(deps: Deps) -> StdResult<HalflifeResponse> {
     Ok(HalflifeResponse {
         halflife: halflife.map(|d| d.seconds()),
     })
+}
+
+fn query_next_halflife(deps: Deps) -> StdResult<NextHalflifeResponse> {
+    let Halflife {
+        halflife,
+        last_applied,
+    } = HALFLIFE.load(deps.storage)?;
+    let next_halflife = halflife.map(|d| last_applied.plus_seconds(d.seconds()));
+
+    Ok(NextHalflifeResponse { next_halflife })
 }
 
 // settings for pagination
@@ -901,6 +913,10 @@ mod tests {
         // Halflife duration.
         let halflife = query_halflife(deps.as_ref()).unwrap().halflife;
         assert_eq!(halflife, Some(HALFLIFE));
+
+        let expected_next_halflife = Some(last_halflife.plus_seconds(halflife.unwrap()));
+        let next_halflife = query_next_halflife(deps.as_ref()).unwrap().next_halflife;
+        assert_eq!(expected_next_halflife, next_halflife);
     }
 
     #[test]
