@@ -959,7 +959,7 @@ fn rules_can_be_frozen_on_instantiation() {
     };
     let mut env = mock_env();
     env.block.height += 10;
-    let res = execute(deps.as_mut(), env.clone(), mock_info(INIT_ADMIN, &[]), msg);
+    let res = execute(deps.as_mut(), env, mock_info(INIT_ADMIN, &[]), msg);
     assert_eq!(res, Err(ContractError::FrozenRules));
 }
 
@@ -1031,7 +1031,7 @@ fn rules_can_be_frozen_with_adjustment() {
     };
     let mut env = mock_env();
     env.block.height += 10;
-    let res = execute(deps.as_mut(), env.clone(), mock_info(INIT_ADMIN, &[]), msg);
+    let res = execute(deps.as_mut(), env, mock_info(INIT_ADMIN, &[]), msg);
     assert_eq!(res, Err(ContractError::FrozenRules));
 
     // Proposals that don't attemp to edit rules should still work.
@@ -1051,12 +1051,7 @@ fn rules_can_be_frozen_with_adjustment() {
     let proposal_id = parse_prop_id(&res.attributes);
 
     // ensure it passed (already via principal voter)
-    let raw = query(
-        deps.as_ref(),
-        env.clone(),
-        QueryMsg::Proposal { proposal_id },
-    )
-    .unwrap();
+    let raw = query(deps.as_ref(), env, QueryMsg::Proposal { proposal_id }).unwrap();
     let prop: ProposalResponse = from_slice(&raw).unwrap();
     assert_eq!(prop.status, Status::Passed);
 }
