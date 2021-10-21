@@ -8,8 +8,8 @@ use cw0::maybe_addr;
 use cw2::set_contract_version;
 use cw_storage_plus::{Bound, PrimaryKey, U64Key};
 use tg4::{
-    HooksResponse, Member, MemberChangedHookMsg, MemberDiff, MemberListResponse, MemberResponse,
-    TotalWeightResponse,
+    HooksResponse, LastHalflifeResponse, Member, MemberChangedHookMsg, MemberDiff,
+    MemberListResponse, MemberResponse, TotalWeightResponse,
 };
 
 use crate::error::ContractError;
@@ -569,6 +569,7 @@ pub fn query(deps: Deps, env: Env, msg: QueryMsg) -> StdResult<Binary> {
         QueryMsg::DistributedFunds {} => to_binary(&query_distributed_total(deps)?),
         QueryMsg::UndistributedFunds {} => to_binary(&query_undistributed_funds(deps, env)?),
         QueryMsg::Delegated { owner } => to_binary(&query_delegated(deps, owner)?),
+        QueryMsg::LastHalflife {} => to_binary(&query_last_halflife(deps)?),
     }
 }
 
@@ -626,6 +627,11 @@ pub fn query_delegated(deps: Deps, owner: String) -> StdResult<DelegatedResponse
         .map_or(owner, |data| data.delegated);
 
     Ok(DelegatedResponse { delegated })
+}
+
+fn query_last_halflife(deps: Deps) -> StdResult<LastHalflifeResponse> {
+    let last_halflife = HALFLIFE.load(deps.storage)?.last_applied;
+    Ok(LastHalflifeResponse { last_halflife })
 }
 
 // settings for pagination
@@ -870,6 +876,17 @@ mod tests {
             .unwrap()
             .members;
         assert_eq!(members.len(), 0);
+    }
+
+    #[test]
+    fn try_halflife_queries() {
+        let mut deps = mock_dependencies(&[]);
+        do_instantiate(deps.as_mut());
+
+        let last_halflife = query_last_halflife(deps.as_ref()).unwrap().last_halflife;
+        let env_block_time = Timestamp::from_nanos(1_571_797_419_879_305_533);
+
+        assert_eq!(last_halflife, env_block_time);
     }
 
     #[test]

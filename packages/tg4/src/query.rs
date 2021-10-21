@@ -1,3 +1,4 @@
+use cosmwasm_std::Timestamp;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
@@ -60,6 +61,11 @@ pub struct TotalWeightResponse {
 #[derive(Serialize, Deserialize, Clone, PartialEq, JsonSchema, Debug)]
 pub struct HooksResponse {
     pub hooks: Vec<String>,
+}
+
+#[derive(Serialize, Deserialize, Clone, PartialEq, JsonSchema, Debug)]
+pub struct LastHalflifeResponse {
+    pub last_halflife: Timestamp,
 }
 
 /// TOTAL_KEY is meant for raw queries
