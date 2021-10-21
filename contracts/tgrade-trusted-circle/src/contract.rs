@@ -409,6 +409,11 @@ pub fn validate_proposal(
     match proposal {
         ProposalContent::EditTrustedCircle(trusted_circle_adjustments) => {
             let mut trusted_circle = TRUSTED_CIRCLE.load(deps.storage)?;
+
+            if trusted_circle.disable_edit_rules {
+                return Err(ContractError::FrozenRules);
+            }
+
             trusted_circle.apply_adjustments(
                 env,
                 u64::MAX, // Dummy proposal id
@@ -543,6 +548,14 @@ pub fn execute_execute(
 
     // anyone can trigger this if the vote passed
     let mut prop = PROPOSALS.load(deps.storage, proposal_id.into())?;
+
+    if let ProposalContent::EditTrustedCircle(..) = prop.proposal {
+        let trusted_circle = TRUSTED_CIRCLE.load(deps.storage)?;
+
+        if trusted_circle.disable_edit_rules {
+            return Err(ContractError::FrozenRules);
+        }
+    }
 
     // we allow execution even after the proposal "expiration" as long as all vote come in before
     // that point. If it was approved on time, it can be executed any time.

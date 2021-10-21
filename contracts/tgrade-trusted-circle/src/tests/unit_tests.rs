@@ -926,6 +926,142 @@ fn propose_new_voting_rules() {
 }
 
 #[test]
+fn rules_can_be_frozen_on_instantiation() {
+    let mut deps = mock_dependencies(&[]);
+    let info = mock_info(INIT_ADMIN, &escrow_funds());
+    do_instantiate(deps.as_mut(), info, vec![], true).unwrap();
+
+    let rules = query_trusted_circle(deps.as_ref()).unwrap().rules;
+    assert_eq!(
+        rules,
+        VotingRules {
+            voting_period: 14,
+            quorum: Decimal::percent(40),
+            threshold: Decimal::percent(60),
+            allow_end_early: true,
+        }
+    );
+
+    // make a new proposal
+    let prop = ProposalContent::EditTrustedCircle(TrustedCircleAdjustments {
+        name: Some("New Name!".into()),
+        escrow_amount: Some(Uint128::new(ESCROW_FUNDS * 2)),
+        voting_period: Some(7),
+        quorum: None,
+        threshold: Some(Decimal::percent(51)),
+        allow_end_early: Some(true),
+        disable_edit_rules: Some(true),
+    });
+    let msg = ExecuteMsg::Propose {
+        title: "Streamline voting process".to_string(),
+        description: "Make some adjustments".to_string(),
+        proposal: prop,
+    };
+    let mut env = mock_env();
+    env.block.height += 10;
+    let res = execute(deps.as_mut(), env.clone(), mock_info(INIT_ADMIN, &[]), msg);
+    assert_eq!(res, Err(ContractError::FrozenRules));
+}
+
+#[test]
+fn rules_can_be_frozen_with_adjustment() {
+    let mut deps = mock_dependencies(&[]);
+    let info = mock_info(INIT_ADMIN, &escrow_funds());
+    do_instantiate(deps.as_mut(), info, vec![], false).unwrap();
+
+    let rules = query_trusted_circle(deps.as_ref()).unwrap().rules;
+    assert_eq!(
+        rules,
+        VotingRules {
+            voting_period: 14,
+            quorum: Decimal::percent(40),
+            threshold: Decimal::percent(60),
+            allow_end_early: true,
+        }
+    );
+
+    // make a new proposal
+    let prop = ProposalContent::EditTrustedCircle(TrustedCircleAdjustments {
+        name: Some("New Name!".into()),
+        escrow_amount: Some(Uint128::new(ESCROW_FUNDS * 2)),
+        voting_period: Some(7),
+        quorum: None,
+        threshold: Some(Decimal::percent(51)),
+        allow_end_early: Some(true),
+        disable_edit_rules: Some(true),
+    });
+    let msg = ExecuteMsg::Propose {
+        title: "Streamline voting process".to_string(),
+        description: "Make some adjustments".to_string(),
+        proposal: prop,
+    };
+    let mut env = mock_env();
+    env.block.height += 10;
+    let res = execute(deps.as_mut(), env.clone(), mock_info(INIT_ADMIN, &[]), msg).unwrap();
+    let proposal_id = parse_prop_id(&res.attributes);
+
+    // ensure it passed (already via principal voter)
+    let prop = query_proposal(deps.as_ref(), env.clone(), proposal_id).unwrap();
+    assert_eq!(prop.status, Status::Passed);
+
+    // execute it
+    execute(
+        deps.as_mut(),
+        env,
+        mock_info(NONVOTING1, &[]),
+        ExecuteMsg::Execute { proposal_id },
+    )
+    .unwrap();
+
+    // New proposal that shouldn't pass because rules are frozen.
+    // make a new proposal
+    let prop = ProposalContent::EditTrustedCircle(TrustedCircleAdjustments {
+        name: Some("New Name!".into()),
+        escrow_amount: None,
+        voting_period: Some(6),
+        quorum: None,
+        threshold: Some(Decimal::percent(41)),
+        allow_end_early: None,
+        disable_edit_rules: None,
+    });
+    let msg = ExecuteMsg::Propose {
+        title: "Streamline voting process".to_string(),
+        description: "Make some adjustments".to_string(),
+        proposal: prop,
+    };
+    let mut env = mock_env();
+    env.block.height += 10;
+    let res = execute(deps.as_mut(), env.clone(), mock_info(INIT_ADMIN, &[]), msg);
+    assert_eq!(res, Err(ContractError::FrozenRules));
+
+    // Proposals that don't attemp to edit rules should still work.
+    // make a new proposal
+    let prop = ProposalContent::AddRemoveNonVotingMembers {
+        add: vec![NONVOTING1.into(), NONVOTING2.into()],
+        remove: vec![],
+    };
+    let msg = ExecuteMsg::Propose {
+        title: "Add participants".to_string(),
+        description: "These are my friends, KYC done".to_string(),
+        proposal: prop,
+    };
+    let mut env = mock_env();
+    env.block.height += 10;
+    let res = execute(deps.as_mut(), env.clone(), mock_info(INIT_ADMIN, &[]), msg).unwrap();
+    let proposal_id = parse_prop_id(&res.attributes);
+
+    // ensure it passed (already via principal voter)
+    let raw = query(
+        deps.as_ref(),
+        env.clone(),
+        QueryMsg::Proposal { proposal_id },
+    )
+    .unwrap();
+    let prop: ProposalResponse = from_slice(&raw).unwrap();
+    assert_eq!(prop.status, Status::Passed);
+}
+
+#[test]
 fn propose_new_voting_rules_validation() {
     let mut deps = mock_dependencies(&[]);
     let info = mock_info(INIT_ADMIN, &escrow_funds());
