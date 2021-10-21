@@ -919,6 +919,32 @@ mod tests {
     }
 
     #[test]
+    fn try_halflife_query_when_no_halflife() {
+        let mut deps = mock_dependencies(&[]);
+        let msg = InstantiateMsg {
+            admin: Some(INIT_ADMIN.into()),
+            members: vec![
+                Member {
+                    addr: USER1.into(),
+                    weight: USER1_WEIGHT,
+                },
+                Member {
+                    addr: USER2.into(),
+                    weight: USER2_WEIGHT,
+                },
+            ],
+            preauths: Some(1),
+            halflife: None,
+            token: "usdc".to_owned(),
+        };
+        let info = mock_info("creator", &[]);
+
+        instantiate(deps.as_mut(), mock_env(), info, msg).unwrap();
+
+        assert_eq!(query_halflife(deps.as_ref()).unwrap().halflife_info, None);
+    }
+
+    #[test]
     fn handle_non_utf8_in_members_list() {
         let mut deps = mock_dependencies(&[]);
         do_instantiate(deps.as_mut());
