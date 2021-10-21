@@ -907,7 +907,6 @@ mod tests {
             .unwrap();
 
         // Last halflife event.
-        // Timestamp value copied from cosmwasm_std::testing::mock_env
         let env_block_time = mock_env().block.time;
         assert_eq!(last_halflife, env_block_time);
 
