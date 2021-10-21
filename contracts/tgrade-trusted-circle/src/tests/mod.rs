@@ -73,6 +73,7 @@ fn do_instantiate(
     deps: DepsMut,
     info: MessageInfo,
     initial_members: Vec<String>,
+    disable_edit_rules: bool,
 ) -> Result<Response, ContractError> {
     let msg = InstantiateMsg {
         name: TRUSTED_CIRCLE_NAME.to_string(),
@@ -83,6 +84,7 @@ fn do_instantiate(
         allow_end_early: true,
         initial_members,
         deny_list: None,
+        disable_edit_rules,
     };
     instantiate(deps, mock_env(), info, msg)
 }

@@ -60,6 +60,7 @@ pub fn instantiate(
             .deny_list
             .map(|addr| deps.api.addr_validate(&addr))
             .transpose()?,
+        disable_edit_rules: msg.disable_edit_rules,
     };
     trusted_circle.validate()?;
 
@@ -1265,6 +1266,7 @@ pub(crate) fn query_trusted_circle(deps: Deps) -> StdResult<TrustedCircleRespons
         escrow_pending,
         rules,
         deny_list,
+        disable_edit_rules,
     } = TRUSTED_CIRCLE.load(deps.storage)?;
     Ok(TrustedCircleResponse {
         name,
@@ -1272,6 +1274,7 @@ pub(crate) fn query_trusted_circle(deps: Deps) -> StdResult<TrustedCircleRespons
         escrow_pending,
         rules,
         deny_list,
+        disable_edit_rules,
     })
 }
 
