@@ -8,8 +8,8 @@ use cw0::maybe_addr;
 use cw2::set_contract_version;
 use cw_storage_plus::{Bound, PrimaryKey, U64Key};
 use tg4::{
-    HalflifeResponse, HooksResponse, Member, MemberChangedHookMsg, MemberDiff, MemberListResponse,
-    MemberResponse, TotalWeightResponse,
+    HalflifeInfo, HalflifeResponse, HooksResponse, Member, MemberChangedHookMsg, MemberDiff,
+    MemberListResponse, MemberResponse, TotalWeightResponse,
 };
 
 use crate::error::ContractError;
@@ -634,12 +634,17 @@ fn query_halflife(deps: Deps) -> StdResult<HalflifeResponse> {
         halflife,
         last_applied: last_halflife,
     } = HALFLIFE.load(deps.storage)?;
-    let next_halflife = halflife.map(|d| last_halflife.plus_seconds(d.seconds()));
 
     Ok(HalflifeResponse {
-        last_halflife,
-        halflife: halflife.map(|d| d.seconds()),
-        next_halflife,
+        halflife_info: halflife.map(|d| {
+            let next_halflife = last_halflife.plus_seconds(d.seconds());
+
+            HalflifeInfo {
+                last_halflife,
+                halflife: d.seconds(),
+                next_halflife,
+            }
+        }),
     })
 }
 
@@ -892,11 +897,14 @@ mod tests {
         let mut deps = mock_dependencies(&[]);
         do_instantiate(deps.as_mut());
 
-        let HalflifeResponse {
+        let HalflifeInfo {
             last_halflife,
             halflife,
             next_halflife,
-        } = query_halflife(deps.as_ref()).unwrap();
+        } = query_halflife(deps.as_ref())
+            .unwrap()
+            .halflife_info
+            .unwrap();
 
         // Last halflife event.
         // Timestamp value copied from cosmwasm_std::testing::mock_env
@@ -904,10 +912,10 @@ mod tests {
         assert_eq!(last_halflife, env_block_time);
 
         // Halflife duration.
-        assert_eq!(halflife, Some(HALFLIFE));
+        assert_eq!(halflife, HALFLIFE);
 
         // Next halflife event.
-        let expected_next_halflife = Some(last_halflife.plus_seconds(halflife.unwrap()));
+        let expected_next_halflife = last_halflife.plus_seconds(halflife);
         assert_eq!(expected_next_halflife, next_halflife);
     }
 

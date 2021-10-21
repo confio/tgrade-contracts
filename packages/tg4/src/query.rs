@@ -65,9 +65,15 @@ pub struct HooksResponse {
 
 #[derive(Serialize, Deserialize, Clone, PartialEq, JsonSchema, Debug)]
 pub struct HalflifeResponse {
+    // `None` means the halflife functionality is disabled for this instance.
+    pub halflife_info: Option<HalflifeInfo>,
+}
+
+#[derive(Serialize, Deserialize, Clone, PartialEq, JsonSchema, Debug)]
+pub struct HalflifeInfo {
     pub last_halflife: Timestamp,
-    pub halflife: Option<u64>,
-    pub next_halflife: Option<Timestamp>,
+    pub halflife: u64,
+    pub next_halflife: Timestamp,
 }
 
 /// TOTAL_KEY is meant for raw queries
