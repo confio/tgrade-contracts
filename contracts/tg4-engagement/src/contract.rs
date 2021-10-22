@@ -14,8 +14,8 @@ use tg4::{
 
 use crate::error::ContractError;
 use crate::msg::{
-    DelegatedResponse, ExecuteMsg, FundsResponse, InstantiateMsg, PreauthResponse, QueryMsg,
-    SudoMsg,
+    DelegatedResponse, ExecuteMsg, FundsResponse, HalflifeInfo, HalflifeResponse, InstantiateMsg,
+    PreauthResponse, QueryMsg, SudoMsg,
 };
 use crate::state::{
     Distribution, Halflife, WithdrawAdjustment, DISTRIBUTION, HALFLIFE, POINTS_SHIFT,
@@ -569,6 +569,7 @@ pub fn query(deps: Deps, env: Env, msg: QueryMsg) -> StdResult<Binary> {
         QueryMsg::DistributedFunds {} => to_binary(&query_distributed_total(deps)?),
         QueryMsg::UndistributedFunds {} => to_binary(&query_undistributed_funds(deps, env)?),
         QueryMsg::Delegated { owner } => to_binary(&query_delegated(deps, owner)?),
+        QueryMsg::Halflife {} => to_binary(&query_halflife(deps)?),
     }
 }
 
@@ -626,6 +627,25 @@ pub fn query_delegated(deps: Deps, owner: String) -> StdResult<DelegatedResponse
         .map_or(owner, |data| data.delegated);
 
     Ok(DelegatedResponse { delegated })
+}
+
+fn query_halflife(deps: Deps) -> StdResult<HalflifeResponse> {
+    let Halflife {
+        halflife,
+        last_applied: last_halflife,
+    } = HALFLIFE.load(deps.storage)?;
+
+    Ok(HalflifeResponse {
+        halflife_info: halflife.map(|d| {
+            let next_halflife = last_halflife.plus_seconds(d.seconds());
+
+            HalflifeInfo {
+                last_halflife,
+                halflife: d,
+                next_halflife,
+            }
+        }),
+    })
 }
 
 // settings for pagination
@@ -870,6 +890,58 @@ mod tests {
             .unwrap()
             .members;
         assert_eq!(members.len(), 0);
+    }
+
+    #[test]
+    fn try_halflife_queries() {
+        let mut deps = mock_dependencies(&[]);
+        do_instantiate(deps.as_mut());
+
+        let HalflifeInfo {
+            last_halflife,
+            halflife,
+            next_halflife,
+        } = query_halflife(deps.as_ref())
+            .unwrap()
+            .halflife_info
+            .unwrap();
+
+        // Last halflife event.
+        let env_block_time = mock_env().block.time;
+        assert_eq!(last_halflife, env_block_time);
+
+        // Halflife duration.
+        assert_eq!(halflife, Duration::new(HALFLIFE));
+
+        // Next halflife event.
+        let expected_next_halflife = last_halflife.plus_seconds(halflife.seconds());
+        assert_eq!(expected_next_halflife, next_halflife);
+    }
+
+    #[test]
+    fn try_halflife_query_when_no_halflife() {
+        let mut deps = mock_dependencies(&[]);
+        let msg = InstantiateMsg {
+            admin: Some(INIT_ADMIN.into()),
+            members: vec![
+                Member {
+                    addr: USER1.into(),
+                    weight: USER1_WEIGHT,
+                },
+                Member {
+                    addr: USER2.into(),
+                    weight: USER2_WEIGHT,
+                },
+            ],
+            preauths: Some(1),
+            halflife: None,
+            token: "usdc".to_owned(),
+        };
+        let info = mock_info("creator", &[]);
+
+        instantiate(deps.as_mut(), mock_env(), info, msg).unwrap();
+
+        assert_eq!(query_halflife(deps.as_ref()).unwrap().halflife_info, None);
     }
 
     #[test]

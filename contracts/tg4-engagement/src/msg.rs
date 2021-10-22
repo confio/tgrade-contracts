@@ -1,4 +1,4 @@
-use cosmwasm_std::{Addr, Coin};
+use cosmwasm_std::{Addr, Coin, Timestamp};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
@@ -98,6 +98,9 @@ pub enum QueryMsg {
     UndistributedFunds {},
     /// Returns address allowed for withdrawal funds assigned to owner. Returns `DelegateResponse`
     Delegated { owner: String },
+    /// Returns information about the halflife, including the duration in seconds, the last
+    /// and the next occurence.
+    Halflife {},
 }
 
 #[derive(Serialize, Deserialize, Clone, PartialEq, JsonSchema, Debug)]
@@ -136,6 +139,19 @@ pub struct FundsResponse {
 #[derive(Serialize, Deserialize, Clone, PartialEq, JsonSchema, Debug)]
 pub struct DelegatedResponse {
     pub delegated: Addr,
+}
+
+#[derive(Serialize, Deserialize, Clone, PartialEq, JsonSchema, Debug)]
+pub struct HalflifeResponse {
+    // `None` means the halflife functionality is disabled for this instance.
+    pub halflife_info: Option<HalflifeInfo>,
+}
+
+#[derive(Serialize, Deserialize, Clone, PartialEq, JsonSchema, Debug)]
+pub struct HalflifeInfo {
+    pub last_halflife: Timestamp,
+    pub halflife: Duration,
+    pub next_halflife: Timestamp,
 }
 
 #[cfg(test)]
