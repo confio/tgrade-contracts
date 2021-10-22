@@ -500,7 +500,7 @@ jobs:
           command: |
             TAG="$CIRCLE_TAG"
             TITLE="$TAG"
-            BODY="Attached there are some schemas generated at this tag."
+            BODY="Attached there are some schemas and build artifacts generated at this tag. Those are for development purposes only! Please use crates.io to find the packages of this release."
             ghr -t "$GITHUB_TOKEN" \
               -u "$CIRCLE_PROJECT_USERNAME" -r "$CIRCLE_PROJECT_REPONAME" \
               -c "$CIRCLE_SHA1" \
