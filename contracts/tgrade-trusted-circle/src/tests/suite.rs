@@ -158,7 +158,7 @@ impl SuiteBuilder {
                     allow_end_early: true,
                     initial_members: self.members,
                     deny_list: Some(deny_list.to_string()),
-                    disable_edit_rules: false,
+                    edit_trusted_circle_disabled: false,
                 },
                 &coins(1_000_000, "utgd"),
                 "trusted-circle",

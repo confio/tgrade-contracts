@@ -93,7 +93,7 @@ fn setup_bdd(mut deps: DepsMut) {
         allow_end_early: true,
         initial_members: vec![NON_VOTING.into()],
         deny_list: None,
-        disable_edit_rules: false,
+        edit_trusted_circle_disabled: false,
     };
     let info = mock_info(VOTING, &coins(VOTING_ESCROW, DENOM));
     instantiate(deps.branch(), start.clone(), info, msg).unwrap();
@@ -195,7 +195,7 @@ fn edit_trusted_circle_proposal(escrow_funds: u128) -> ExecuteMsg {
         quorum: None,
         threshold: None,
         allow_end_early: None,
-        disable_edit_rules: None,
+        edit_trusted_circle_disabled: None,
     });
     ExecuteMsg::Propose {
         title: "Triple Escrow Amount Proposal".to_string(),

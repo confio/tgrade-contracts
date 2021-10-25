@@ -60,7 +60,7 @@ pub fn instantiate(
             .deny_list
             .map(|addr| deps.api.addr_validate(&addr))
             .transpose()?,
-        disable_edit_rules: msg.disable_edit_rules,
+        edit_trusted_circle_disabled: msg.edit_trusted_circle_disabled,
     };
     trusted_circle.validate()?;
 
@@ -410,7 +410,7 @@ pub fn validate_proposal(
         ProposalContent::EditTrustedCircle(trusted_circle_adjustments) => {
             let mut trusted_circle = TRUSTED_CIRCLE.load(deps.storage)?;
 
-            if trusted_circle.disable_edit_rules {
+            if trusted_circle.edit_trusted_circle_disabled {
                 return Err(ContractError::FrozenRules);
             }
 
@@ -552,7 +552,7 @@ pub fn execute_execute(
     if let ProposalContent::EditTrustedCircle(..) = prop.proposal {
         let trusted_circle = TRUSTED_CIRCLE.load(deps.storage)?;
 
-        if trusted_circle.disable_edit_rules {
+        if trusted_circle.edit_trusted_circle_disabled {
             return Err(ContractError::FrozenRules);
         }
     }
@@ -1279,7 +1279,7 @@ pub(crate) fn query_trusted_circle(deps: Deps) -> StdResult<TrustedCircleRespons
         escrow_pending,
         rules,
         deny_list,
-        disable_edit_rules,
+        edit_trusted_circle_disabled,
     } = TRUSTED_CIRCLE.load(deps.storage)?;
     Ok(TrustedCircleResponse {
         name,
@@ -1287,7 +1287,7 @@ pub(crate) fn query_trusted_circle(deps: Deps) -> StdResult<TrustedCircleRespons
         escrow_pending,
         rules,
         deny_list,
-        disable_edit_rules,
+        edit_trusted_circle_disabled,
     })
 }
 

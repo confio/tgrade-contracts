@@ -131,7 +131,7 @@ fn instantiation_enough_funds() {
             allow_end_early: true,
         },
         deny_list: None,
-        disable_edit_rules: false,
+        edit_trusted_circle_disabled: false,
     };
     let trusted_circle = query_trusted_circle(deps.as_ref()).unwrap();
     assert_eq!(trusted_circle, expected);
@@ -169,7 +169,7 @@ fn test_proposal_validation() {
                 quorum: None,
                 threshold: None,
                 allow_end_early: None,
-                disable_edit_rules: None,
+                edit_trusted_circle_disabled: None,
             }),
             ContractError::InvalidPendingEscrow(Uint128::zero()),
         ),
@@ -870,7 +870,7 @@ fn propose_new_voting_rules() {
         quorum: None,
         threshold: Some(Decimal::percent(51)),
         allow_end_early: Some(true),
-        disable_edit_rules: None,
+        edit_trusted_circle_disabled: None,
     });
     let msg = ExecuteMsg::Propose {
         title: "Streamline voting process".to_string(),
@@ -950,7 +950,7 @@ fn rules_can_be_frozen_on_instantiation() {
         quorum: None,
         threshold: Some(Decimal::percent(51)),
         allow_end_early: Some(true),
-        disable_edit_rules: Some(true),
+        edit_trusted_circle_disabled: Some(true),
     });
     let msg = ExecuteMsg::Propose {
         title: "Streamline voting process".to_string(),
@@ -988,7 +988,7 @@ fn rules_can_be_frozen_with_adjustment() {
         quorum: None,
         threshold: Some(Decimal::percent(51)),
         allow_end_early: Some(true),
-        disable_edit_rules: Some(true),
+        edit_trusted_circle_disabled: Some(true),
     });
     let msg = ExecuteMsg::Propose {
         title: "Streamline voting process".to_string(),
@@ -1022,7 +1022,7 @@ fn rules_can_be_frozen_with_adjustment() {
         quorum: None,
         threshold: Some(Decimal::percent(41)),
         allow_end_early: None,
-        disable_edit_rules: None,
+        edit_trusted_circle_disabled: None,
     });
     let msg = ExecuteMsg::Propose {
         title: "Streamline voting process".to_string(),
@@ -1081,7 +1081,7 @@ fn propose_new_voting_rules_validation() {
         quorum: None,
         threshold: None,
         allow_end_early: None,
-        disable_edit_rules: None,
+        edit_trusted_circle_disabled: None,
     });
     let msg = ExecuteMsg::Propose {
         title: "Streamline voting process".to_string(),
@@ -1170,7 +1170,7 @@ fn leaving_voter_cannot_vote_anymore() {
         allow_end_early: true,
         initial_members: vec![],
         deny_list: None,
-        disable_edit_rules: false,
+        edit_trusted_circle_disabled: false,
     };
     instantiate(deps.as_mut(), mock_env(), info, msg).unwrap();
 
