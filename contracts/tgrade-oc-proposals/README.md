@@ -1,4 +1,4 @@
-# CW3 Fixed Multisig
+# Tgrade Oversight Community Proposals
 
 This is a simple implementation of the [cw3 spec](../../packages/cw3/README.md).
 It is a multisig with a fixed set of addresses created upon instatiation.
@@ -56,7 +56,7 @@ Once you are happy with the content, you can compile it to wasm via:
 
 ```
 RUSTFLAGS='-C link-arg=-s' cargo wasm
-cp ../../target/wasm32-unknown-unknown/release/cw3_fixed_multisig.wasm .
+cp ../../target/wasm32-unknown-unknown/release/tgrate-oc-proposals.wasm .
 ls -l cw3_fixed_multisig.wasm
 sha256sum cw3_fixed_multisig.wasm
 ```
