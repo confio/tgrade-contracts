@@ -26,6 +26,8 @@ pub struct InstantiateMsg {
     pub initial_members: Vec<String>,
     /// cw4 contract with list of addresses denied to be part of TrustedCircle
     pub deny_list: Option<String>,
+    /// If true, no further adjustments may happen.
+    pub edit_trusted_circle_disabled: bool,
 }
 
 #[allow(clippy::large_enum_variant)]
@@ -131,6 +133,7 @@ pub struct TrustedCircleResponse {
     pub escrow_pending: Option<PendingEscrow>,
     pub rules: VotingRules,
     pub deny_list: Option<Addr>,
+    pub edit_trusted_circle_disabled: bool,
 }
 
 #[derive(Serialize, Deserialize, Clone, PartialEq, JsonSchema, Debug)]
