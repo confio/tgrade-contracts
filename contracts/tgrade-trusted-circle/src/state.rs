@@ -24,6 +24,8 @@ pub struct TrustedCircle {
     pub rules: VotingRules,
     /// Other cw4 contract which lists addresses denied to be part of TrustedCircle
     pub deny_list: Option<Addr>,
+    /// If true, no further adjustments may happen.
+    pub edit_trusted_circle_disabled: bool,
 }
 
 /// Pending escrow
@@ -88,6 +90,8 @@ pub struct TrustedCircleAdjustments {
     pub threshold: Option<Decimal>,
     /// If true, and absolute threshold and quorum are met, we can end before voting period finished
     pub allow_end_early: Option<bool>,
+    /// If true, no further adjustments may happen.
+    pub edit_trusted_circle_disabled: Option<bool>,
 }
 
 impl TrustedCircle {
@@ -147,6 +151,9 @@ impl TrustedCircle {
         }
         if let Some(allow_end_early) = adjustments.allow_end_early {
             self.rules.allow_end_early = allow_end_early;
+        }
+        if let Some(edit_trusted_circle_disabled) = adjustments.edit_trusted_circle_disabled {
+            self.edit_trusted_circle_disabled = edit_trusted_circle_disabled;
         }
         Ok(())
     }

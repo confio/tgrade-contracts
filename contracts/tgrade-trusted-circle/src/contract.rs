@@ -60,6 +60,7 @@ pub fn instantiate(
             .deny_list
             .map(|addr| deps.api.addr_validate(&addr))
             .transpose()?,
+        edit_trusted_circle_disabled: msg.edit_trusted_circle_disabled,
     };
     trusted_circle.validate()?;
 
@@ -408,6 +409,11 @@ pub fn validate_proposal(
     match proposal {
         ProposalContent::EditTrustedCircle(trusted_circle_adjustments) => {
             let mut trusted_circle = TRUSTED_CIRCLE.load(deps.storage)?;
+
+            if trusted_circle.edit_trusted_circle_disabled {
+                return Err(ContractError::FrozenRules);
+            }
+
             trusted_circle.apply_adjustments(
                 env,
                 u64::MAX, // Dummy proposal id
@@ -542,6 +548,14 @@ pub fn execute_execute(
 
     // anyone can trigger this if the vote passed
     let mut prop = PROPOSALS.load(deps.storage, proposal_id.into())?;
+
+    if let ProposalContent::EditTrustedCircle(..) = prop.proposal {
+        let trusted_circle = TRUSTED_CIRCLE.load(deps.storage)?;
+
+        if trusted_circle.edit_trusted_circle_disabled {
+            return Err(ContractError::FrozenRules);
+        }
+    }
 
     // we allow execution even after the proposal "expiration" as long as all vote come in before
     // that point. If it was approved on time, it can be executed any time.
@@ -1265,6 +1279,7 @@ pub(crate) fn query_trusted_circle(deps: Deps) -> StdResult<TrustedCircleRespons
         escrow_pending,
         rules,
         deny_list,
+        edit_trusted_circle_disabled,
     } = TRUSTED_CIRCLE.load(deps.storage)?;
     Ok(TrustedCircleResponse {
         name,
@@ -1272,6 +1287,7 @@ pub(crate) fn query_trusted_circle(deps: Deps) -> StdResult<TrustedCircleRespons
         escrow_pending,
         rules,
         deny_list,
+        edit_trusted_circle_disabled,
     })
 }
 
