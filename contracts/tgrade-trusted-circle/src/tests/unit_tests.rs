@@ -83,7 +83,7 @@ impl Querier for TokenQuerier {
 fn instantiation_no_funds() {
     let mut deps = mock_dependencies(&[]);
     let info = mock_info(INIT_ADMIN, &[]);
-    let res = do_instantiate(deps.as_mut(), info, vec![]);
+    let res = do_instantiate(deps.as_mut(), info, vec![], false);
 
     // should fail (no funds)
     assert!(res.is_err());
@@ -98,7 +98,7 @@ fn instantiation_some_funds() {
     let mut deps = mock_dependencies(&[]);
     let info = mock_info(INIT_ADMIN, &[coin(1u128, "utgd")]);
 
-    let res = do_instantiate(deps.as_mut(), info, vec![]);
+    let res = do_instantiate(deps.as_mut(), info, vec![], false);
 
     // should fail (not enough funds)
     assert!(res.is_err());
@@ -113,7 +113,7 @@ fn instantiation_enough_funds() {
     let mut deps = mock_dependencies(&[]);
     let info = mock_info(INIT_ADMIN, &escrow_funds());
 
-    do_instantiate(deps.as_mut(), info, vec![]).unwrap();
+    do_instantiate(deps.as_mut(), info, vec![], false).unwrap();
 
     // succeeds, weight = 1
     let total = query_total_weight(deps.as_ref()).unwrap();
@@ -131,6 +131,7 @@ fn instantiation_enough_funds() {
             allow_end_early: true,
         },
         deny_list: None,
+        edit_trusted_circle_disabled: false,
     };
     let trusted_circle = query_trusted_circle(deps.as_ref()).unwrap();
     assert_eq!(trusted_circle, expected);
@@ -142,7 +143,7 @@ fn test_proposal_validation() {
     let info = mock_info(INIT_ADMIN, &escrow_funds());
     let env = mock_env();
 
-    do_instantiate(deps.as_mut(), info, vec![]).unwrap();
+    do_instantiate(deps.as_mut(), info, vec![], false).unwrap();
 
     // Make an invalid proposal of each type
     for (prop, err) in &[
@@ -168,6 +169,7 @@ fn test_proposal_validation() {
                 quorum: None,
                 threshold: None,
                 allow_end_early: None,
+                edit_trusted_circle_disabled: None,
             }),
             ContractError::InvalidPendingEscrow(Uint128::zero()),
         ),
@@ -187,7 +189,7 @@ fn test_proposal_validation() {
 fn add_voting_members_validation() {
     let mut deps = mock_dependencies(&[]);
     let info = mock_info(INIT_ADMIN, &escrow_funds());
-    do_instantiate(deps.as_mut(), info, vec![]).unwrap();
+    do_instantiate(deps.as_mut(), info, vec![], false).unwrap();
 
     // Make an invalid proposal (empty members)
     let prop = ProposalContent::AddVotingMembers { voters: vec![] };
@@ -208,7 +210,7 @@ fn test_add_voting_members_overlapping_batches() {
     let mut deps = mock_dependencies(&[]);
     // use different admin, so we have 4 available slots for queries
     let info = mock_info(INIT_ADMIN, &escrow_funds());
-    do_instantiate(deps.as_mut(), info, vec![]).unwrap();
+    do_instantiate(deps.as_mut(), info, vec![], false).unwrap();
 
     let batch1 = vec![VOTING1.into(), VOTING2.into(), VOTING3.into()];
     let batch2 = vec![SECOND1.into(), SECOND2.into()];
@@ -278,7 +280,7 @@ fn test_add_voting_members_overlapping_batches() {
 fn test_escrows() {
     let mut deps = mock_dependencies(&[]);
     let info = mock_info(INIT_ADMIN, &escrow_funds());
-    do_instantiate(deps.as_mut(), info, vec![]).unwrap();
+    do_instantiate(deps.as_mut(), info, vec![], false).unwrap();
 
     let voting_status = MemberStatus::Voting {};
     let paid_status = MemberStatus::PendingPaid {
@@ -605,7 +607,7 @@ fn test_initial_nonvoting_members() {
     let info = mock_info(INIT_ADMIN, &escrow_funds());
     // even handle duplicates ignoring the copy
     let initial = vec![NONVOTING1.into(), NONVOTING3.into(), NONVOTING1.into()];
-    do_instantiate(deps.as_mut(), info, initial).unwrap();
+    do_instantiate(deps.as_mut(), info, initial, false).unwrap();
     assert_nonvoting(&deps, Some(0), None, Some(0), None);
 }
 
@@ -613,7 +615,7 @@ fn test_initial_nonvoting_members() {
 fn update_non_voting_members_validation() {
     let mut deps = mock_dependencies(&[]);
     let info = mock_info(INIT_ADMIN, &escrow_funds());
-    do_instantiate(deps.as_mut(), info, vec![]).unwrap();
+    do_instantiate(deps.as_mut(), info, vec![], false).unwrap();
 
     // Make an invalid proposal (empty members)
     let prop = ProposalContent::AddRemoveNonVotingMembers {
@@ -636,7 +638,7 @@ fn update_non_voting_members_validation() {
 fn test_update_nonvoting_members() {
     let mut deps = mock_dependencies(&[]);
     let info = mock_info(INIT_ADMIN, &escrow_funds());
-    do_instantiate(deps.as_mut(), info, vec![]).unwrap();
+    do_instantiate(deps.as_mut(), info, vec![], false).unwrap();
 
     // assert the non-voting set is proper
     assert_nonvoting(&deps, None, None, None, None);
@@ -760,7 +762,7 @@ fn test_whitelist_contract() {
     };
 
     let info = mock_info(INIT_ADMIN, &escrow_funds());
-    do_instantiate(deps.as_mut(), info, vec![]).unwrap();
+    do_instantiate(deps.as_mut(), info, vec![], false).unwrap();
 
     // check token address is not there
     let token_addr = query_member(deps.as_ref(), TOKEN_ADDR.into(), None).unwrap();
@@ -847,7 +849,7 @@ fn test_whitelist_contract() {
 fn propose_new_voting_rules() {
     let mut deps = mock_dependencies(&[]);
     let info = mock_info(INIT_ADMIN, &escrow_funds());
-    do_instantiate(deps.as_mut(), info, vec![]).unwrap();
+    do_instantiate(deps.as_mut(), info, vec![], false).unwrap();
 
     let rules = query_trusted_circle(deps.as_ref()).unwrap().rules;
     assert_eq!(
@@ -868,6 +870,7 @@ fn propose_new_voting_rules() {
         quorum: None,
         threshold: Some(Decimal::percent(51)),
         allow_end_early: Some(true),
+        edit_trusted_circle_disabled: None,
     });
     let msg = ExecuteMsg::Propose {
         title: "Streamline voting process".to_string(),
@@ -923,10 +926,141 @@ fn propose_new_voting_rules() {
 }
 
 #[test]
+fn rules_can_be_frozen_on_instantiation() {
+    let mut deps = mock_dependencies(&[]);
+    let info = mock_info(INIT_ADMIN, &escrow_funds());
+    do_instantiate(deps.as_mut(), info, vec![], true).unwrap();
+
+    let rules = query_trusted_circle(deps.as_ref()).unwrap().rules;
+    assert_eq!(
+        rules,
+        VotingRules {
+            voting_period: 14,
+            quorum: Decimal::percent(40),
+            threshold: Decimal::percent(60),
+            allow_end_early: true,
+        }
+    );
+
+    // make a new proposal
+    let prop = ProposalContent::EditTrustedCircle(TrustedCircleAdjustments {
+        name: Some("New Name!".into()),
+        escrow_amount: Some(Uint128::new(ESCROW_FUNDS * 2)),
+        voting_period: Some(7),
+        quorum: None,
+        threshold: Some(Decimal::percent(51)),
+        allow_end_early: Some(true),
+        edit_trusted_circle_disabled: Some(true),
+    });
+    let msg = ExecuteMsg::Propose {
+        title: "Streamline voting process".to_string(),
+        description: "Make some adjustments".to_string(),
+        proposal: prop,
+    };
+    let mut env = mock_env();
+    env.block.height += 10;
+    let res = execute(deps.as_mut(), env, mock_info(INIT_ADMIN, &[]), msg);
+    assert_eq!(res, Err(ContractError::FrozenRules));
+}
+
+#[test]
+fn rules_can_be_frozen_with_adjustment() {
+    let mut deps = mock_dependencies(&[]);
+    let info = mock_info(INIT_ADMIN, &escrow_funds());
+    do_instantiate(deps.as_mut(), info, vec![], false).unwrap();
+
+    let rules = query_trusted_circle(deps.as_ref()).unwrap().rules;
+    assert_eq!(
+        rules,
+        VotingRules {
+            voting_period: 14,
+            quorum: Decimal::percent(40),
+            threshold: Decimal::percent(60),
+            allow_end_early: true,
+        }
+    );
+
+    // make a new proposal
+    let prop = ProposalContent::EditTrustedCircle(TrustedCircleAdjustments {
+        name: Some("New Name!".into()),
+        escrow_amount: Some(Uint128::new(ESCROW_FUNDS * 2)),
+        voting_period: Some(7),
+        quorum: None,
+        threshold: Some(Decimal::percent(51)),
+        allow_end_early: Some(true),
+        edit_trusted_circle_disabled: Some(true),
+    });
+    let msg = ExecuteMsg::Propose {
+        title: "Streamline voting process".to_string(),
+        description: "Make some adjustments".to_string(),
+        proposal: prop,
+    };
+    let mut env = mock_env();
+    env.block.height += 10;
+    let res = execute(deps.as_mut(), env.clone(), mock_info(INIT_ADMIN, &[]), msg).unwrap();
+    let proposal_id = parse_prop_id(&res.attributes);
+
+    // ensure it passed (already via principal voter)
+    let prop = query_proposal(deps.as_ref(), env.clone(), proposal_id).unwrap();
+    assert_eq!(prop.status, Status::Passed);
+
+    // execute it
+    execute(
+        deps.as_mut(),
+        env,
+        mock_info(NONVOTING1, &[]),
+        ExecuteMsg::Execute { proposal_id },
+    )
+    .unwrap();
+
+    // New proposal that shouldn't pass because rules are frozen.
+    // make a new proposal
+    let prop = ProposalContent::EditTrustedCircle(TrustedCircleAdjustments {
+        name: Some("New Name!".into()),
+        escrow_amount: None,
+        voting_period: Some(6),
+        quorum: None,
+        threshold: Some(Decimal::percent(41)),
+        allow_end_early: None,
+        edit_trusted_circle_disabled: None,
+    });
+    let msg = ExecuteMsg::Propose {
+        title: "Streamline voting process".to_string(),
+        description: "Make some adjustments".to_string(),
+        proposal: prop,
+    };
+    let mut env = mock_env();
+    env.block.height += 10;
+    let res = execute(deps.as_mut(), env, mock_info(INIT_ADMIN, &[]), msg);
+    assert_eq!(res, Err(ContractError::FrozenRules));
+
+    // Proposals that don't attemp to edit rules should still work.
+    // make a new proposal
+    let prop = ProposalContent::AddRemoveNonVotingMembers {
+        add: vec![NONVOTING1.into(), NONVOTING2.into()],
+        remove: vec![],
+    };
+    let msg = ExecuteMsg::Propose {
+        title: "Add participants".to_string(),
+        description: "These are my friends, KYC done".to_string(),
+        proposal: prop,
+    };
+    let mut env = mock_env();
+    env.block.height += 10;
+    let res = execute(deps.as_mut(), env.clone(), mock_info(INIT_ADMIN, &[]), msg).unwrap();
+    let proposal_id = parse_prop_id(&res.attributes);
+
+    // ensure it passed (already via principal voter)
+    let raw = query(deps.as_ref(), env, QueryMsg::Proposal { proposal_id }).unwrap();
+    let prop: ProposalResponse = from_slice(&raw).unwrap();
+    assert_eq!(prop.status, Status::Passed);
+}
+
+#[test]
 fn propose_new_voting_rules_validation() {
     let mut deps = mock_dependencies(&[]);
     let info = mock_info(INIT_ADMIN, &escrow_funds());
-    do_instantiate(deps.as_mut(), info, vec![]).unwrap();
+    do_instantiate(deps.as_mut(), info, vec![], false).unwrap();
 
     let rules = query_trusted_circle(deps.as_ref()).unwrap().rules;
     assert_eq!(
@@ -947,6 +1081,7 @@ fn propose_new_voting_rules_validation() {
         quorum: None,
         threshold: None,
         allow_end_early: None,
+        edit_trusted_circle_disabled: None,
     });
     let msg = ExecuteMsg::Propose {
         title: "Streamline voting process".to_string(),
@@ -964,7 +1099,7 @@ fn propose_new_voting_rules_validation() {
 fn raw_queries_work() {
     let info = mock_info(INIT_ADMIN, &escrow_funds());
     let mut deps = mock_dependencies(&[]);
-    do_instantiate(deps.as_mut(), info, vec![]).unwrap();
+    do_instantiate(deps.as_mut(), info, vec![], false).unwrap();
 
     // get total from raw key
     let total_raw = deps.storage.get(TOTAL_KEY.as_bytes()).unwrap();
@@ -1035,6 +1170,7 @@ fn leaving_voter_cannot_vote_anymore() {
         allow_end_early: true,
         initial_members: vec![],
         deny_list: None,
+        edit_trusted_circle_disabled: false,
     };
     instantiate(deps.as_mut(), mock_env(), info, msg).unwrap();
 
@@ -1179,6 +1315,7 @@ fn propose_punish_members_distribution() {
         deps.as_mut(),
         info,
         vec![VOTING1.into(), VOTING2.into(), VOTING3.into()],
+        false,
     )
     .unwrap();
 
@@ -1311,6 +1448,7 @@ fn propose_punish_members_burn() {
         deps.as_mut(),
         info,
         vec![VOTING1.into(), VOTING2.into(), VOTING3.into()],
+        false,
     )
     .unwrap();
 
@@ -1426,6 +1564,7 @@ fn punish_members_validation() {
         deps.as_mut(),
         info,
         vec![VOTING1.into(), VOTING2.into(), VOTING3.into()],
+        false,
     )
     .unwrap();
 
@@ -1543,6 +1682,7 @@ fn propose_punish_members_kick_out() {
         deps.as_mut(),
         info,
         vec![VOTING1.into(), VOTING2.into(), VOTING3.into()],
+        false,
     )
     .unwrap();
     let delay1 = 10; // [seconds]
@@ -1683,6 +1823,7 @@ fn propose_punish_multiple_members() {
         deps.as_mut(),
         info,
         vec![VOTING1.into(), VOTING2.into(), VOTING3.into()],
+        false,
     )
     .unwrap();
 
