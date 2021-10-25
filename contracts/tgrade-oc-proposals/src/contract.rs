@@ -10,15 +10,17 @@ use cosmwasm_std::{
 use cw0::Expiration;
 use cw2::set_contract_version;
 use cw3::{
-    ProposalListResponse, ProposalResponse, Status, ThresholdResponse, Vote, VoteInfo,
-    VoteListResponse, VoteResponse, VoterDetail, VoterListResponse, VoterResponse,
+    Status, Vote, VoteInfo, VoteListResponse, VoteResponse, VoterDetail, VoterListResponse,
+    VoterResponse,
 };
 use cw_storage_plus::Bound;
+use tg4::TotalWeightResponse;
 
 use crate::error::ContractError;
-use crate::msg::{ExecuteMsg, InstantiateMsg, QueryMsg};
+use crate::msg::{ExecuteMsg, InstantiateMsg, ProposalListResponse, ProposalResponse, QueryMsg};
 use crate::state::{
-    next_id, parse_id, Ballot, Config, Proposal, BALLOTS, CONFIG, PROPOSALS, VOTERS,
+    next_id, parse_id, Ballot, Config, Proposal, Votes, VotingRules, BALLOTS, CONFIG, PROPOSALS,
+    VOTERS,
 };
 
 // version info for migration info
@@ -32,25 +34,23 @@ pub fn instantiate(
     _info: MessageInfo,
     msg: InstantiateMsg,
 ) -> Result<Response, ContractError> {
-    if msg.required_weight == 0 {
-        return Err(ContractError::ZeroWeight {});
-    }
     if msg.voters.is_empty() {
         return Err(ContractError::NoVoters {});
     }
     let total_weight = msg.voters.iter().map(|v| v.weight).sum();
 
-    if total_weight < msg.required_weight {
-        return Err(ContractError::UnreachableWeight {});
-    }
-
     set_contract_version(deps.storage, CONTRACT_NAME, CONTRACT_VERSION)?;
 
     let cfg = Config {
-        required_weight: msg.required_weight,
         total_weight,
         max_voting_period: msg.max_voting_period,
+        voting_rules: VotingRules {
+            quorum: msg.quorum,
+            threshold: msg.threshold,
+            allow_end_early: msg.allow_end_early,
+        },
     };
+    cfg.voting_rules.validate()?;
     CONFIG.save(deps.storage, &cfg)?;
 
     // add all voters
@@ -94,7 +94,10 @@ pub fn execute_propose(
     // only members of the multisig can create a proposal
     let vote_power = VOTERS
         .may_load(deps.storage, &info.sender)?
-        .ok_or(ContractError::Unauthorized {})?;
+        .unwrap_or_default();
+    if vote_power == 0 {
+        return Err(ContractError::Unauthorized {});
+    }
 
     let cfg = CONFIG.load(deps.storage)?;
 
@@ -108,21 +111,16 @@ pub fn execute_propose(
         return Err(ContractError::WrongExpiration {});
     }
 
-    let status = if vote_power < cfg.required_weight {
-        Status::Open
-    } else {
-        Status::Passed
-    };
-
     // create a proposal
     let prop = Proposal {
         title,
         description,
         expires,
         msgs,
-        status,
-        yes_weight: vote_power,
-        required_weight: cfg.required_weight,
+        status: Status::Open,
+        votes: Votes::yes(vote_power),
+        rules: cfg.voting_rules,
+        total_weight: cfg.total_weight,
     };
     let id = next_id(deps.storage)?;
     PROPOSALS.save(deps.storage, id.into(), &prop)?;
@@ -148,11 +146,6 @@ pub fn execute_vote(
     proposal_id: u64,
     vote: Vote,
 ) -> Result<Response<Empty>, ContractError> {
-    // only members of the multisig can vote
-    let vote_power = VOTERS
-        .may_load(deps.storage, &info.sender)?
-        .ok_or(ContractError::Unauthorized {})?;
-
     // ensure proposal exists and can be voted on
     let mut prop = PROPOSALS.load(deps.storage, proposal_id.into())?;
     if prop.status != Status::Open {
@@ -160,6 +153,15 @@ pub fn execute_vote(
     }
     if prop.expires.is_expired(&env.block) {
         return Err(ContractError::Expired {});
+    }
+
+    // only members of the multisig can vote
+    // use a snapshot of "start of proposal"
+    let vote_power = VOTERS
+        .may_load(deps.storage, &info.sender)?
+        .unwrap_or_default();
+    if vote_power == 0 {
+        return Err(ContractError::Unauthorized {});
     }
 
     // cast vote if no vote previously cast
@@ -175,15 +177,9 @@ pub fn execute_vote(
         },
     )?;
 
-    // if yes vote, update tally
-    if vote == Vote::Yes {
-        prop.yes_weight += vote_power;
-        // update status when the passing vote comes in
-        if prop.yes_weight >= prop.required_weight {
-            prop.status = Status::Passed;
-        }
-        PROPOSALS.save(deps.storage, proposal_id.into(), &prop)?;
-    }
+    prop.votes.add_vote(vote, vote_power);
+    prop.update_status(&env.block);
+    PROPOSALS.save(deps.storage, proposal_id.into(), &prop)?;
 
     Ok(Response::new()
         .add_attribute("action", "vote")
@@ -251,16 +247,21 @@ pub fn execute_close(
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn query(deps: Deps, env: Env, msg: QueryMsg) -> StdResult<Binary> {
     match msg {
-        QueryMsg::Threshold {} => to_binary(&query_threshold(deps)?),
+        QueryMsg::TotalWeight {} => to_binary(&query_total_weight(deps)?),
+        QueryMsg::VotingRules {} => to_binary(&query_voting_rules(deps)?),
         QueryMsg::Proposal { proposal_id } => to_binary(&query_proposal(deps, env, proposal_id)?),
         QueryMsg::Vote { proposal_id, voter } => to_binary(&query_vote(deps, proposal_id, voter)?),
-        QueryMsg::ListProposals { start_after, limit } => {
-            to_binary(&list_proposals(deps, env, start_after, limit)?)
-        }
-        QueryMsg::ReverseProposals {
-            start_before,
+        QueryMsg::ListProposals {
+            start_after,
             limit,
-        } => to_binary(&reverse_proposals(deps, env, start_before, limit)?),
+            reverse,
+        } => to_binary(&list_proposals(
+            deps,
+            env,
+            start_after,
+            limit,
+            reverse.unwrap_or(false),
+        )?),
         QueryMsg::ListVotes {
             proposal_id,
             start_after,
@@ -273,12 +274,16 @@ pub fn query(deps: Deps, env: Env, msg: QueryMsg) -> StdResult<Binary> {
     }
 }
 
-fn query_threshold(deps: Deps) -> StdResult<ThresholdResponse> {
+fn query_total_weight(deps: Deps) -> StdResult<TotalWeightResponse> {
     let cfg = CONFIG.load(deps.storage)?;
-    Ok(ThresholdResponse::AbsoluteCount {
-        weight: cfg.required_weight,
-        total_weight: cfg.total_weight,
+    Ok(TotalWeightResponse {
+        weight: cfg.total_weight,
     })
+}
+
+fn query_voting_rules(deps: Deps) -> StdResult<VotingRules> {
+    let cfg = CONFIG.load(deps.storage)?;
+    Ok(cfg.voting_rules)
 }
 
 fn query_proposal(deps: Deps, env: Env, id: u64) -> StdResult<ProposalResponse> {
@@ -286,10 +291,10 @@ fn query_proposal(deps: Deps, env: Env, id: u64) -> StdResult<ProposalResponse> 
     let status = prop.current_status(&env.block);
 
     let cfg = CONFIG.load(deps.storage)?;
-    let threshold = ThresholdResponse::AbsoluteCount {
-        weight: cfg.required_weight,
-        total_weight: cfg.total_weight,
-    };
+    // let threshold = ThresholdResponse::AbsoluteCount {
+    //     weight: cfg.required_weight,
+    //     total_weight: cfg.total_weight,
+    // };
     Ok(ProposalResponse {
         id,
         title: prop.title,
@@ -297,7 +302,9 @@ fn query_proposal(deps: Deps, env: Env, id: u64) -> StdResult<ProposalResponse> 
         msgs: prop.msgs,
         status,
         expires: prop.expires,
-        threshold,
+        rules: prop.rules,
+        total_weight: prop.total_weight,
+        votes: prop.votes,
     })
 }
 
@@ -305,47 +312,23 @@ fn query_proposal(deps: Deps, env: Env, id: u64) -> StdResult<ProposalResponse> 
 const MAX_LIMIT: u32 = 30;
 const DEFAULT_LIMIT: u32 = 10;
 
-fn list_proposals(
+pub(crate) fn list_proposals(
     deps: Deps,
     env: Env,
     start_after: Option<u64>,
     limit: Option<u32>,
+    reverse: bool,
 ) -> StdResult<ProposalListResponse> {
-    let cfg = CONFIG.load(deps.storage)?;
-    let threshold = ThresholdResponse::AbsoluteCount {
-        weight: cfg.required_weight,
-        total_weight: cfg.total_weight,
-    };
-
     let limit = limit.unwrap_or(DEFAULT_LIMIT).min(MAX_LIMIT) as usize;
     let start = start_after.map(Bound::exclusive_int);
-    let props: StdResult<Vec<_>> = PROPOSALS
-        .range(deps.storage, start, None, Order::Ascending)
-        .take(limit)
-        .map(|p| map_proposal(&env.block, &threshold, p))
-        .collect();
-
-    Ok(ProposalListResponse { proposals: props? })
-}
-
-fn reverse_proposals(
-    deps: Deps,
-    env: Env,
-    start_before: Option<u64>,
-    limit: Option<u32>,
-) -> StdResult<ProposalListResponse> {
-    let cfg = CONFIG.load(deps.storage)?;
-    let threshold = ThresholdResponse::AbsoluteCount {
-        weight: cfg.required_weight,
-        total_weight: cfg.total_weight,
+    let range = if reverse {
+        PROPOSALS.range(deps.storage, None, start, Order::Descending)
+    } else {
+        PROPOSALS.range(deps.storage, start, None, Order::Ascending)
     };
-
-    let limit = limit.unwrap_or(DEFAULT_LIMIT).min(MAX_LIMIT) as usize;
-    let end = start_before.map(Bound::exclusive_int);
-    let props: StdResult<Vec<_>> = PROPOSALS
-        .range(deps.storage, None, end, Order::Descending)
+    let props: StdResult<Vec<_>> = range
         .take(limit)
-        .map(|p| map_proposal(&env.block, &threshold, p))
+        .map(|p| map_proposal(&env.block, p))
         .collect();
 
     Ok(ProposalListResponse { proposals: props? })
@@ -353,7 +336,6 @@ fn reverse_proposals(
 
 fn map_proposal(
     block: &BlockInfo,
-    threshold: &ThresholdResponse,
     item: StdResult<(Vec<u8>, Proposal)>,
 ) -> StdResult<ProposalResponse> {
     let (key, prop) = item?;
@@ -365,7 +347,9 @@ fn map_proposal(
         msgs: prop.msgs,
         status,
         expires: prop.expires,
-        threshold: threshold.clone(),
+        rules: prop.rules,
+        total_weight: prop.total_weight,
+        votes: prop.votes,
     })
 }
 
@@ -438,7 +422,7 @@ fn list_voters(
 #[cfg(test)]
 mod tests {
     use cosmwasm_std::testing::{mock_dependencies, mock_env, mock_info};
-    use cosmwasm_std::{coin, from_binary, BankMsg};
+    use cosmwasm_std::{coin, from_binary, BankMsg, Decimal};
 
     use cw0::Duration;
     use cw2::{get_contract_version, ContractVersion};
@@ -478,7 +462,8 @@ mod tests {
     fn setup_test_case(
         deps: DepsMut,
         info: MessageInfo,
-        required_weight: u64,
+        threshold: Decimal,
+        quorum: Decimal,
         max_voting_period: Duration,
     ) -> Result<Response<Empty>, ContractError> {
         // Instantiate a contract with voters
@@ -493,8 +478,10 @@ mod tests {
 
         let instantiate_msg = InstantiateMsg {
             voters,
-            required_weight,
+            threshold,
+            quorum,
             max_voting_period,
+            allow_end_early: true,
         };
         instantiate(deps, mock_env(), info, instantiate_msg)
     }

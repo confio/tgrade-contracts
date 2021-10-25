@@ -1,16 +1,10 @@
-use cosmwasm_std::StdError;
+use cosmwasm_std::{Decimal, StdError};
 use thiserror::Error;
 
 #[derive(Error, Debug, PartialEq)]
 pub enum ContractError {
     #[error("{0}")]
     Std(#[from] StdError),
-
-    #[error("Required weight cannot be zero")]
-    ZeroWeight {},
-
-    #[error("Not possible to reach required (passing) weight")]
-    UnreachableWeight {},
 
     #[error("No voters")]
     NoVoters {},
@@ -38,4 +32,10 @@ pub enum ContractError {
 
     #[error("Cannot close completed or passed proposals")]
     WrongCloseStatus {},
+
+    #[error("Invalid voting quorum percentage, must be 0.01-1.0: {0}")]
+    InvalidQuorum(Decimal),
+
+    #[error("Invalid voting threshold percentage, must be 0.5-1.0: {0}")]
+    InvalidThreshold(Decimal),
 }

@@ -2,18 +2,49 @@ use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use std::convert::TryInto;
 
-use cosmwasm_std::{Addr, BlockInfo, CosmosMsg, Empty, StdError, StdResult, Storage};
+use cosmwasm_std::{
+    Addr, BlockInfo, CosmosMsg, Decimal, Empty, StdError, StdResult, Storage, Uint128,
+};
 
 use cw0::{Duration, Expiration};
 use cw3::{Status, Vote};
 use cw_storage_plus::{Item, Map, U64Key};
 
+use crate::ContractError;
+
 #[derive(Serialize, Deserialize, Clone, PartialEq, JsonSchema, Debug)]
 pub struct Config {
-    pub required_weight: u64,
     pub total_weight: u64,
+    pub voting_rules: VotingRules,
     pub max_voting_period: Duration,
 }
+
+#[derive(Serialize, Deserialize, Clone, PartialEq, JsonSchema, Debug)]
+pub struct VotingRules {
+    /// quorum requirement (0.0-1.0)
+    pub quorum: Decimal,
+    /// threshold requirement (0.5-1.0)
+    pub threshold: Decimal,
+    /// If true, and absolute threshold and quorum are met, we can end before voting period finished
+    pub allow_end_early: bool,
+}
+
+impl VotingRules {
+    pub fn validate(&self) -> Result<(), ContractError> {
+        if self.quorum == Decimal::zero() || self.quorum > Decimal::one() {
+            return Err(ContractError::InvalidQuorum(self.quorum));
+        }
+
+        if self.threshold < Decimal::percent(50) || self.threshold > Decimal::one() {
+            return Err(ContractError::InvalidThreshold(self.threshold));
+        }
+        Ok(())
+    }
+}
+
+// we multiply by this when calculating needed_votes in order to round up properly
+// Note: `10u128.pow(9)` fails as "u128::pow` is not yet stable as a const fn"
+const PRECISION_FACTOR: u128 = 1_000_000_000;
 
 #[derive(Serialize, Deserialize, Clone, PartialEq, JsonSchema, Debug)]
 pub struct Proposal {
@@ -22,18 +53,57 @@ pub struct Proposal {
     pub expires: Expiration,
     pub msgs: Vec<CosmosMsg<Empty>>,
     pub status: Status,
-    /// how many votes have already said yes
-    pub yes_weight: u64,
-    /// how many votes needed to pass
-    pub required_weight: u64,
+    /// pass requirements
+    pub rules: VotingRules,
+    // the total weight when the proposal started (used to calculate percentages)
+    pub total_weight: u64,
+    // summary of existing votes
+    pub votes: Votes,
+}
+
+// weight of votes for each option
+#[derive(Serialize, Deserialize, Clone, PartialEq, JsonSchema, Debug)]
+pub struct Votes {
+    pub yes: u64,
+    pub no: u64,
+    pub abstain: u64,
+    pub veto: u64,
+}
+
+impl Votes {
+    /// sum of all votes
+    pub fn total(&self) -> u64 {
+        self.yes + self.no + self.abstain + self.veto
+    }
+
+    /// create it with a yes vote for this much
+    pub fn yes(init_weight: u64) -> Self {
+        Votes {
+            yes: init_weight,
+            no: 0,
+            abstain: 0,
+            veto: 0,
+        }
+    }
+
+    pub fn add_vote(&mut self, vote: Vote, weight: u64) {
+        match vote {
+            Vote::Yes => self.yes += weight,
+            Vote::Abstain => self.abstain += weight,
+            Vote::No => self.no += weight,
+            Vote::Veto => self.veto += weight,
+        }
+    }
 }
 
 impl Proposal {
+    /// current_status is non-mutable and returns what the status should be.
+    /// (designed for queries)
     pub fn current_status(&self, block: &BlockInfo) -> Status {
         let mut status = self.status;
 
         // if open, check if voting is passed or timed out
-        if status == Status::Open && self.yes_weight >= self.required_weight {
+        if status == Status::Open && self.is_passed(block) {
             status = Status::Passed;
         }
         if status == Status::Open && self.expires.is_expired(block) {
@@ -42,6 +112,48 @@ impl Proposal {
 
         status
     }
+
+    /// update_status sets the status of the proposal to current_status.
+    /// (designed for handler logic)
+    pub fn update_status(&mut self, block: &BlockInfo) {
+        self.status = self.current_status(block);
+    }
+
+    // returns true iff this proposal is sure to pass (even before expiration if no future
+    // sequence of possible votes can cause it to fail)
+    pub fn is_passed(&self, block: &BlockInfo) -> bool {
+        let VotingRules {
+            quorum,
+            threshold,
+            allow_end_early,
+            ..
+        } = self.rules;
+
+        // we always require the quorum
+        if self.votes.total() < votes_needed(self.total_weight, quorum) {
+            return false;
+        }
+        if self.expires.is_expired(block) {
+            // If expired, we compare Yes votes against the total number of votes (minus abstain).
+            let opinions = self.votes.total() - self.votes.abstain;
+            self.votes.yes >= votes_needed(opinions, threshold)
+        } else if allow_end_early {
+            // If not expired, we must assume all non-votes will be cast as No.
+            // We compare threshold against the total weight (minus abstain).
+            let possible_opinions = self.total_weight - self.votes.abstain;
+            self.votes.yes >= votes_needed(possible_opinions, threshold)
+        } else {
+            false
+        }
+    }
+}
+
+// this is a helper function so Decimal works with u64 rather than Uint128
+// also, we must *round up* here, as we need 8, not 7 votes to reach 50% of 15 total
+fn votes_needed(weight: u64, percentage: Decimal) -> u64 {
+    let applied = percentage * Uint128::new(PRECISION_FACTOR * weight as u128);
+    // Divide by PRECISION_FACTOR, rounding up to the nearest integer
+    ((applied.u128() + PRECISION_FACTOR - 1) / PRECISION_FACTOR) as u64
 }
 
 // we cast a ballot with our chosen vote and a given weight

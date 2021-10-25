@@ -1613,6 +1613,7 @@ dependencies = [
  "cw3",
  "schemars",
  "serde",
+ "tg4",
  "thiserror",
 ]
 
