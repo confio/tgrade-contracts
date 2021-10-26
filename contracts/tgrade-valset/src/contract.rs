@@ -21,7 +21,7 @@ use tg_utils::Duration;
 
 use crate::error::ContractError;
 use crate::msg::{
-    ConfigResponse, EpochResponse, ExecuteMsg, InstantiateMsg, JailingPeriod,
+    ConfigResponse, EpochResponse, ExecuteMsg, InstantiateMsg, InstantiateResponse, JailingPeriod,
     ListActiveValidatorsResponse, ListValidatorResponse, OperatorResponse, QueryMsg,
     RewardsDistribution, RewardsInstantiateMsg, ValidatorMetadata, ValidatorResponse,
 };
@@ -634,9 +634,9 @@ pub fn rewards_instantiate_reply(deps: DepsMut, msg: Reply) -> Result<Response, 
         Ok(config)
     })?;
 
-    let resp = Response::new()
-        .add_attribute("action", "tgrade-valset_instantiation")
-        .add_attribute("rewards_contract", res.get_contract_address());
+    let resp = Response::new().set_data(InstantiateResponse {
+        rewards_contract: res.get_contract_address(),
+    });
 
     Ok(resp)
 }
