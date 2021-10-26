@@ -20,7 +20,7 @@ use crate::msg::{
     ClaimsResponse, ExecuteMsg, InstantiateMsg, PreauthResponse, QueryMsg, StakedResponse,
     UnbondingPeriodResponse,
 };
-use crate::state::{claims, Config, CONFIG, STAKE};
+use crate::state::{claims, Config, CONFIG, PREAUTH_SLASHING, SLASHERS, STAKE};
 
 pub type Response = cosmwasm_std::Response<TgradeMsg>;
 pub type SubMsg = cosmwasm_std::SubMsg<TgradeMsg>;
@@ -43,6 +43,7 @@ pub fn instantiate(
     ADMIN.set(deps.branch(), maybe_addr(api, msg.admin)?)?;
 
     PREAUTH.set_auth(deps.storage, msg.preauths.unwrap_or_default())?;
+    PREAUTH_SLASHING.set_auth(deps.storage, msg.preauths.unwrap_or_default())?;
 
     // min_bond is at least 1, so 0 stake -> non-membership
     let min_bond = if msg.min_bond == Uint128::zero() {
@@ -82,6 +83,8 @@ pub fn execute(
         ExecuteMsg::Bond {} => execute_bond(deps, env, info),
         ExecuteMsg::Unbond { tokens: amount } => execute_unbond(deps, env, info, amount),
         ExecuteMsg::Claim {} => execute_claim(deps, env, info),
+        ExecuteMsg::AddSlasher { addr } => execute_add_slasher(deps, info, addr),
+        ExecuteMsg::RemoveSlasher { addr } => execute_remove_slasher(deps, info, addr),
     }
 }
 
@@ -175,6 +178,49 @@ pub fn execute_unbond(
         .add_attribute("completion_time", completion.time().nanos().to_string());
     res.messages = update_membership(deps.storage, info.sender, new_stake, &cfg, env.block.height)?;
 
+    Ok(res)
+}
+
+pub fn execute_add_slasher(
+    deps: DepsMut,
+    info: MessageInfo,
+    slasher: String,
+) -> Result<Response, ContractError> {
+    // custom guard: using a preauth OR being admin
+    if !ADMIN.is_admin(deps.as_ref(), &info.sender)? {
+        PREAUTH_SLASHING.use_auth(deps.storage)?;
+    }
+
+    // add the hook
+    SLASHERS.add_slasher(deps.storage, deps.api.addr_validate(&slasher)?)?;
+
+    // response
+    let res = Response::new()
+        .add_attribute("action", "add_slasher")
+        .add_attribute("slasher", slasher)
+        .add_attribute("sender", info.sender);
+    Ok(res)
+}
+
+pub fn execute_remove_slasher(
+    deps: DepsMut,
+    info: MessageInfo,
+    slasher: String,
+) -> Result<Response, ContractError> {
+    // custom guard: self-removal OR being admin
+    let slasher_addr = deps.api.addr_validate(&slasher)?;
+    if info.sender != slasher_addr && !ADMIN.is_admin(deps.as_ref(), &info.sender)? {
+        return Err(ContractError::Unauthorized {});
+    }
+
+    // remove the hook
+    SLASHERS.remove_slasher(deps.storage, slasher_addr)?;
+
+    // response
+    let res = Response::new()
+        .add_attribute("action", "remove_slasher")
+        .add_attribute("slasher", slasher)
+        .add_attribute("sender", info.sender);
     Ok(res)
 }
 
@@ -483,6 +529,7 @@ mod tests {
             unbonding_period,
             admin: Some(INIT_ADMIN.into()),
             preauths: Some(1),
+            preauths_slashing: Some(1),
             auto_return_limit,
         };
         let info = mock_info("creator", &[]);
@@ -1111,6 +1158,85 @@ mod tests {
         execute(deps.as_mut(), mock_env(), contract_info, remove_msg2).unwrap();
         let hooks = HOOKS.list_hooks(&deps.storage).unwrap();
         assert_eq!(hooks, Vec::<String>::new());
+    }
+
+    #[test]
+    fn add_remove_slashers() {
+        // add will over-write and remove have no effect
+        let mut deps = mock_dependencies(&[]);
+        default_instantiate(deps.as_mut());
+
+        let slashers = SLASHERS.list_slashers(&deps.storage).unwrap();
+        assert!(slashers.is_empty());
+
+        let contract1 = String::from("slasher1");
+        let contract2 = String::from("slasher2");
+
+        let add_msg = ExecuteMsg::AddSlasher {
+            addr: contract1.clone(),
+        };
+
+        // anyone can add the first one, until preauth is consume
+        assert_eq!(1, PREAUTH_SLASHING.get_auth(&deps.storage).unwrap());
+        let user_info = mock_info(USER1, &[]);
+        let _ = execute(deps.as_mut(), mock_env(), user_info, add_msg.clone()).unwrap();
+        let slashers = SLASHERS.list_slashers(&deps.storage).unwrap();
+        assert_eq!(slashers, vec![contract1.clone()]);
+
+        // non-admin cannot add slasher without preauth
+        assert_eq!(0, PREAUTH_SLASHING.get_auth(&deps.storage).unwrap());
+        let user_info = mock_info(USER1, &[]);
+        let err = execute(
+            deps.as_mut(),
+            mock_env(),
+            user_info.clone(),
+            add_msg.clone(),
+        )
+        .unwrap_err();
+        assert_eq!(err, PreauthError::NoPreauth {}.into());
+
+        // cannot remove a non-registered contract
+        let admin_info = mock_info(INIT_ADMIN, &[]);
+        let remove_msg = ExecuteMsg::RemoveSlasher {
+            addr: contract2.clone(),
+        };
+        let err = execute(deps.as_mut(), mock_env(), admin_info.clone(), remove_msg).unwrap_err();
+        assert_eq!(
+            err,
+            ContractError::SlasherNotRegistered(contract2.clone()).into()
+        );
+
+        // admin can second contract, and it appears in the query
+        let add_msg2 = ExecuteMsg::AddSlasher {
+            addr: contract2.clone(),
+        };
+        execute(deps.as_mut(), mock_env(), admin_info.clone(), add_msg2).unwrap();
+        let slashers = SLASHERS.list_slashers(&deps.storage).unwrap();
+        assert_eq!(slashers, vec![contract1.clone(), contract2.clone()]);
+
+        // cannot re-add an existing contract
+        let err = execute(deps.as_mut(), mock_env(), admin_info.clone(), add_msg).unwrap_err();
+        assert_eq!(
+            err,
+            ContractError::SlasherAlreadyRegistered(contract1.clone()).into()
+        );
+
+        // non-admin cannot remove
+        let remove_msg = ExecuteMsg::RemoveSlasher { addr: contract1 };
+        let err = execute(deps.as_mut(), mock_env(), user_info, remove_msg.clone()).unwrap_err();
+        assert_eq!(err, ContractError::Unauthorized {});
+
+        // remove the original
+        execute(deps.as_mut(), mock_env(), admin_info, remove_msg).unwrap();
+        let slashers = SLASHERS.list_slashers(&deps.storage).unwrap();
+        assert_eq!(slashers, vec![contract2.clone()]);
+
+        // contract can self-remove
+        let contract_info = mock_info(&contract2, &[]);
+        let remove_msg2 = ExecuteMsg::RemoveSlasher { addr: contract2 };
+        execute(deps.as_mut(), mock_env(), contract_info, remove_msg2).unwrap();
+        let slashers = SLASHERS.list_slashers(&deps.storage).unwrap();
+        assert_eq!(slashers, Vec::<String>::new());
     }
 
     #[test]

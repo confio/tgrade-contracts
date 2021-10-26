@@ -44,4 +44,10 @@ pub enum ContractError {
 
     #[error("Cw20 coins release functionality is in progress")]
     Cw20CoinsRelease {},
+
+    #[error("Attempt to add slasher {0}, which is already registered")]
+    SlasherAlreadyRegistered(String),
+
+    #[error("Attempt to remove slasher {0}, which is not registered")]
+    SlasherNotRegistered(String),
 }
