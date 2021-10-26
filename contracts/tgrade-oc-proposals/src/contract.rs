@@ -92,12 +92,12 @@ pub fn execute_propose(
     latest: Option<Expiration>,
 ) -> Result<Response<Empty>, ContractError> {
     // only members of the multisig can create a proposal
-    let vote_power = VOTERS
-        .may_load(deps.storage, &info.sender)?
-        .unwrap_or_default();
-    if vote_power == 0 {
+    let voter = VOTERS.may_load(deps.storage, &info.sender)?;
+    if voter.is_none() {
         return Err(ContractError::Unauthorized {});
     }
+
+    let vote_power = voter.unwrap();
 
     let cfg = CONFIG.load(deps.storage)?;
 
@@ -509,37 +509,48 @@ mod tests {
         // No voters fails
         let instantiate_msg = InstantiateMsg {
             voters: vec![],
-            required_weight: 1,
             max_voting_period,
+            threshold: Decimal::percent(50),
+            quorum: Decimal::percent(1),
+            allow_end_early: true,
         };
         let err =
             instantiate(deps.as_mut(), mock_env(), info.clone(), instantiate_msg).unwrap_err();
         assert_eq!(err, ContractError::NoVoters {});
 
-        // Zero required weight fails
+        // Zero threshold fails
         let instantiate_msg = InstantiateMsg {
             voters: vec![voter(OWNER, 1)],
-            required_weight: 0,
+            threshold: Decimal::zero(),
+            quorum: Decimal::percent(1),
+            allow_end_early: true,
             max_voting_period,
         };
         let err =
             instantiate(deps.as_mut(), mock_env(), info.clone(), instantiate_msg).unwrap_err();
-        assert_eq!(err, ContractError::ZeroWeight {});
+        assert_eq!(err, ContractError::InvalidThreshold(Decimal::zero()));
 
-        // Total weight less than required weight not allowed
-        let required_weight = 100;
-        let err = setup_test_case(
-            deps.as_mut(),
-            info.clone(),
-            required_weight,
+        // Zero quorum fails
+        let instantiate_msg = InstantiateMsg {
+            voters: vec![voter(OWNER, 1)],
+            threshold: Decimal::percent(50),
+            quorum: Decimal::percent(0),
+            allow_end_early: true,
             max_voting_period,
-        )
-        .unwrap_err();
-        assert_eq!(err, ContractError::UnreachableWeight {});
+        };
+        let err =
+            instantiate(deps.as_mut(), mock_env(), info.clone(), instantiate_msg).unwrap_err();
+        assert_eq!(err, ContractError::InvalidQuorum(Decimal::zero()));
 
         // All valid
-        let required_weight = 1;
-        setup_test_case(deps.as_mut(), info, required_weight, max_voting_period).unwrap();
+        setup_test_case(
+            deps.as_mut(),
+            info,
+            Decimal::percent(50),
+            Decimal::percent(60),
+            max_voting_period,
+        )
+        .unwrap();
 
         // Verify
         assert_eq!(
@@ -557,11 +568,17 @@ mod tests {
     fn test_propose_works() {
         let mut deps = mock_dependencies(&[]);
 
-        let required_weight = 4;
         let voting_period = Duration::Time(2000000);
 
         let info = mock_info(OWNER, &[]);
-        setup_test_case(deps.as_mut(), info, required_weight, voting_period).unwrap();
+        setup_test_case(
+            deps.as_mut(),
+            info,
+            Decimal::percent(50),
+            Decimal::percent(1),
+            voting_period,
+        )
+        .unwrap();
 
         let bank_msg = BankMsg::Send {
             to_address: SOMEBODY.into(),
@@ -616,7 +633,7 @@ mod tests {
                 .add_attribute("action", "propose")
                 .add_attribute("sender", VOTER4)
                 .add_attribute("proposal_id", 2.to_string())
-                .add_attribute("status", "Passed")
+                .add_attribute("status", "Open")
         );
     }
 
@@ -624,11 +641,17 @@ mod tests {
     fn test_vote_works() {
         let mut deps = mock_dependencies(&[]);
 
-        let required_weight = 3;
         let voting_period = Duration::Time(2000000);
 
         let info = mock_info(OWNER, &[]);
-        setup_test_case(deps.as_mut(), info.clone(), required_weight, voting_period).unwrap();
+        setup_test_case(
+            deps.as_mut(),
+            info.clone(),
+            Decimal::percent(60),
+            Decimal::percent(1),
+            voting_period,
+        )
+        .unwrap();
 
         // Propose
         let bank_msg = BankMsg::Send {
@@ -647,13 +670,10 @@ mod tests {
         // Get the proposal id from the logs
         let proposal_id: u64 = res.attributes[2].value.parse().unwrap();
 
-        // Owner cannot vote (again)
         let yes_vote = ExecuteMsg::Vote {
             proposal_id,
             vote: Vote::Yes,
         };
-        let err = execute(deps.as_mut(), mock_env(), info, yes_vote.clone()).unwrap_err();
-        assert_eq!(err, ContractError::AlreadyVoted {});
 
         // Only voters can vote
         let info = mock_info(SOMEBODY, &[]);
@@ -661,15 +681,19 @@ mod tests {
         assert_eq!(err, ContractError::Unauthorized {});
 
         // But voter1 can
-        let info = mock_info(VOTER1, &[]);
-        let res = execute(deps.as_mut(), mock_env(), info, yes_vote.clone()).unwrap();
+        let info = mock_info(VOTER4, &[]);
+        let res = execute(deps.as_mut(), mock_env(), info.clone(), yes_vote.clone()).unwrap();
+
+        // Cannot vote twice
+        let err = execute(deps.as_mut(), mock_env(), info, yes_vote.clone()).unwrap_err();
+        assert_eq!(err, ContractError::AlreadyVoted {});
 
         // Verify
         assert_eq!(
             res,
             Response::new()
                 .add_attribute("action", "vote")
-                .add_attribute("sender", VOTER1)
+                .add_attribute("sender", VOTER4)
                 .add_attribute("proposal_id", proposal_id.to_string())
                 .add_attribute("status", "Open")
         );
@@ -686,7 +710,7 @@ mod tests {
             proposal_id,
             vote: Vote::No,
         };
-        let info = mock_info(VOTER2, &[]);
+        let info = mock_info(VOTER1, &[]);
         execute(deps.as_mut(), mock_env(), info, no_vote.clone()).unwrap();
 
         // Cast a Veto vote
@@ -694,7 +718,7 @@ mod tests {
             proposal_id,
             vote: Vote::Veto,
         };
-        let info = mock_info(VOTER3, &[]);
+        let info = mock_info(VOTER2, &[]);
         execute(deps.as_mut(), mock_env(), info.clone(), veto_vote).unwrap();
 
         // Verify
@@ -714,7 +738,7 @@ mod tests {
         assert_eq!(err, ContractError::Expired {});
 
         // Vote it again, so it passes
-        let info = mock_info(VOTER4, &[]);
+        let info = mock_info(VOTER5, &[]);
         let res = execute(deps.as_mut(), mock_env(), info, yes_vote.clone()).unwrap();
 
         // Verify
@@ -722,7 +746,7 @@ mod tests {
             res,
             Response::new()
                 .add_attribute("action", "vote")
-                .add_attribute("sender", VOTER4)
+                .add_attribute("sender", VOTER5)
                 .add_attribute("proposal_id", proposal_id.to_string())
                 .add_attribute("status", "Passed")
         );
@@ -737,11 +761,17 @@ mod tests {
     fn test_execute_works() {
         let mut deps = mock_dependencies(&[]);
 
-        let required_weight = 3;
         let voting_period = Duration::Time(2000000);
 
         let info = mock_info(OWNER, &[]);
-        setup_test_case(deps.as_mut(), info.clone(), required_weight, voting_period).unwrap();
+        setup_test_case(
+            deps.as_mut(),
+            info.clone(),
+            Decimal::percent(30),
+            Decimal::percent(1),
+            voting_period,
+        )
+        .unwrap();
 
         // Propose
         let bank_msg = BankMsg::Send {
@@ -770,7 +800,7 @@ mod tests {
             proposal_id,
             vote: Vote::Yes,
         };
-        let info = mock_info(VOTER3, &[]);
+        let info = mock_info(VOTER5, &[]);
         let res = execute(deps.as_mut(), mock_env(), info.clone(), vote).unwrap();
 
         // Verify
@@ -778,7 +808,7 @@ mod tests {
             res,
             Response::new()
                 .add_attribute("action", "vote")
-                .add_attribute("sender", VOTER3)
+                .add_attribute("sender", VOTER5)
                 .add_attribute("proposal_id", proposal_id.to_string())
                 .add_attribute("status", "Passed")
         );
@@ -812,11 +842,17 @@ mod tests {
     fn test_close_works() {
         let mut deps = mock_dependencies(&[]);
 
-        let required_weight = 3;
         let voting_period = Duration::Height(2000000);
 
         let info = mock_info(OWNER, &[]);
-        setup_test_case(deps.as_mut(), info.clone(), required_weight, voting_period).unwrap();
+        setup_test_case(
+            deps.as_mut(),
+            info.clone(),
+            Decimal::percent(20),
+            Decimal::percent(1),
+            voting_period,
+        )
+        .unwrap();
 
         // Propose
         let bank_msg = BankMsg::Send {

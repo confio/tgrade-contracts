@@ -36,6 +36,6 @@ pub enum ContractError {
     #[error("Invalid voting quorum percentage, must be 0.01-1.0: {0}")]
     InvalidQuorum(Decimal),
 
-    #[error("Invalid voting threshold percentage, must be 0.5-1.0: {0}")]
+    #[error("Invalid voting threshold percentage, must be 0.01-1.0: {0}")]
     InvalidThreshold(Decimal),
 }

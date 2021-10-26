@@ -35,7 +35,7 @@ impl VotingRules {
             return Err(ContractError::InvalidQuorum(self.quorum));
         }
 
-        if self.threshold < Decimal::percent(50) || self.threshold > Decimal::one() {
+        if self.threshold == Decimal::zero() || self.threshold > Decimal::one() {
             return Err(ContractError::InvalidThreshold(self.threshold));
         }
         Ok(())
