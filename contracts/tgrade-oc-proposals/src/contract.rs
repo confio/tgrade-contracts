@@ -290,11 +290,6 @@ fn query_proposal(deps: Deps, env: Env, id: u64) -> StdResult<ProposalResponse> 
     let prop = PROPOSALS.load(deps.storage, id.into())?;
     let status = prop.current_status(&env.block);
 
-    let cfg = CONFIG.load(deps.storage)?;
-    // let threshold = ThresholdResponse::AbsoluteCount {
-    //     weight: cfg.required_weight,
-    //     total_weight: cfg.total_weight,
-    // };
     Ok(ProposalResponse {
         id,
         title: prop.title,
