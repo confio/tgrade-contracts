@@ -322,8 +322,8 @@ pub enum RewardsDistribution {
 
 #[derive(Serialize, Deserialize, Clone, PartialEq, JsonSchema, Debug)]
 #[serde(rename_all = "snake_case")]
-struct InstantiateResponse {
-    rewards_contract: Addr,
+pub struct InstantiateResponse {
+    pub rewards_contract: Addr,
 }
 
 #[cfg(test)]

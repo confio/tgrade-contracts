@@ -634,9 +634,9 @@ pub fn rewards_instantiate_reply(deps: DepsMut, msg: Reply) -> Result<Response, 
         Ok(config)
     })?;
 
-    let resp = Response::new().set_data(InstantiateResponse {
-        rewards_contract: res.get_contract_address(),
-    });
+    let resp = Response::new().set_data(to_binary(&InstantiateResponse {
+        rewards_contract: Addr::unchecked(res.get_contract_address()),
+    })?);
 
     Ok(resp)
 }
