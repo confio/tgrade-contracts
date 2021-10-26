@@ -55,6 +55,11 @@ impl<'a> Slashers<'a> {
         Ok(self.0.save(storage, &slashers)?)
     }
 
+    pub fn is_slasher(&self, storage: &dyn Storage, addr: &Addr) -> Result<bool, ContractError> {
+        let slashers = self.0.load(storage)?;
+        Ok(slashers.iter().any(|s| s == addr))
+    }
+
     pub fn list_slashers(&self, storage: &dyn Storage) -> StdResult<Vec<String>> {
         let slashers = self.0.may_load(storage)?.unwrap_or_default();
         Ok(slashers.into_iter().map(String::from).collect())

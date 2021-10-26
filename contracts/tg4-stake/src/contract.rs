@@ -1,8 +1,8 @@
 #[cfg(not(feature = "library"))]
 use cosmwasm_std::entry_point;
 use cosmwasm_std::{
-    coin, coins, to_binary, Addr, BankMsg, Binary, Coin, Deps, DepsMut, Env, MessageInfo, Order,
-    StdResult, Storage, Uint128,
+    coin, coins, to_binary, Addr, BankMsg, Binary, Coin, Decimal, Deps, DepsMut, Env, MessageInfo,
+    Order, StdResult, Storage, Uint128,
 };
 
 use cw0::maybe_addr;
@@ -85,6 +85,7 @@ pub fn execute(
         ExecuteMsg::Claim {} => execute_claim(deps, env, info),
         ExecuteMsg::AddSlasher { addr } => execute_add_slasher(deps, info, addr),
         ExecuteMsg::RemoveSlasher { addr } => execute_remove_slasher(deps, info, addr),
+        ExecuteMsg::Slash { addr, portion } => execute_slash(deps, env, info, addr, portion),
     }
 }
 
@@ -191,7 +192,7 @@ pub fn execute_add_slasher(
         PREAUTH_SLASHING.use_auth(deps.storage)?;
     }
 
-    // add the hook
+    // add the slasher
     SLASHERS.add_slasher(deps.storage, deps.api.addr_validate(&slasher)?)?;
 
     // response
@@ -213,7 +214,7 @@ pub fn execute_remove_slasher(
         return Err(ContractError::Unauthorized {});
     }
 
-    // remove the hook
+    // remove the slasher
     SLASHERS.remove_slasher(deps.storage, slasher_addr)?;
 
     // response
@@ -221,6 +222,45 @@ pub fn execute_remove_slasher(
         .add_attribute("action", "remove_slasher")
         .add_attribute("slasher", slasher)
         .add_attribute("sender", info.sender);
+    Ok(res)
+}
+
+pub fn execute_slash(
+    deps: DepsMut,
+    env: Env,
+    info: MessageInfo,
+    addr: String,
+    portion: Decimal,
+) -> Result<Response, ContractError> {
+    if !SLASHERS.is_slasher(deps.storage, &info.sender)?
+        && !ADMIN.is_admin(deps.as_ref(), &info.sender)?
+    {
+        return Err(ContractError::Unauthorized {});
+    }
+
+    let cfg = CONFIG.load(deps.storage)?;
+    let addr = deps.api.addr_validate(&addr)?;
+
+    // update the addr's stake
+    let stake = STAKE.load(deps.storage, &info.sender)?;
+    let slashed = stake * portion;
+    let new_stake = STAKE.update(deps.storage, &info.sender, |stake| -> StdResult<_> {
+        Ok(stake.unwrap_or_default().checked_sub(slashed).unwrap())
+    })?;
+
+    // burn the tokens
+    let burn_msg = BankMsg::Burn {
+        amount: coins(slashed.u128(), &cfg.denom),
+    };
+
+    // response
+    let mut res = Response::new()
+        .add_attribute("action", "slash")
+        .add_attribute("addr", &addr)
+        .add_attribute("sender", info.sender)
+        .add_message(burn_msg);
+    res.messages = update_membership(deps.storage, addr, new_stake, &cfg, env.block.height)?;
+
     Ok(res)
 }
 

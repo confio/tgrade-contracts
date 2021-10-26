@@ -1,4 +1,4 @@
-use cosmwasm_std::{Coin, Uint128};
+use cosmwasm_std::{Coin, Decimal, Uint128};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use tg_utils::{Duration, Expiration};
@@ -54,6 +54,11 @@ pub enum ExecuteMsg {
     AddSlasher { addr: String },
     /// Remove a slasher. Must be called by Admin
     RemoveSlasher { addr: String },
+    Slash {
+        addr: String,
+        // between (0.0, 1.0]
+        portion: Decimal,
+    },
 }
 
 #[derive(Serialize, Deserialize, Clone, PartialEq, JsonSchema, Debug)]
