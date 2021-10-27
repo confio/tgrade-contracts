@@ -411,12 +411,11 @@ fn list_voters(
 
 #[cfg(test)]
 mod tests {
-    use cosmwasm_std::{coin, coins, Addr, BankMsg, Coin, Decimal, Timestamp};
+    use cosmwasm_std::{coin, coins, Addr, Coin, Decimal, Timestamp, Uint128};
 
     use cw0::Duration;
     use cw2::{query_contract_info, ContractVersion};
     use cw4::{Cw4ExecuteMsg, Member};
-    use cw4_group::helpers::Cw4GroupContract;
     use cw_multi_test::{next_block, App, AppBuilder, Contract, ContractWrapper, Executor};
 
     use super::*;
@@ -541,56 +540,14 @@ mod tests {
         (flex_addr, group_addr)
     }
 
-    struct MockRulesBuilder {
-        pub voting_period: u32,
-        pub quorum: Decimal,
-        pub threshold: Decimal,
-        pub allow_end_early: bool,
-    }
-
-    impl MockRulesBuilder {
-        fn new() -> Self {
-            Self {
-                voting_period: 14,
-                quorum: Decimal::percent(1),
-                threshold: Decimal::percent(50),
-                allow_end_early: true,
-            }
-        }
-
-        fn quorum(&mut self, quorum: impl Into<Decimal>) -> &mut Self {
-            self.quorum = quorum.into();
-            self
-        }
-
-        fn threshold(&mut self, threshold: impl Into<Decimal>) -> &mut Self {
-            self.threshold = threshold.into();
-            self
-        }
-
-        fn build(&self) -> VotingRules {
-            VotingRules {
-                voting_period: self.voting_period,
-                quorum: self.quorum,
-                threshold: self.threshold,
-                allow_end_early: self.allow_end_early,
-            }
-        }
-    }
-
-    fn mock_rules() -> MockRulesBuilder {
-        MockRulesBuilder::new()
-    }
-
     fn proposal_info() -> (Vec<OversightProposal>, String, String) {
-        let bank_msg = BankMsg::Send {
-            to_address: SOMEBODY.into(),
-            amount: coins(1, "BTC"),
-        };
-        let msgs = vec![bank_msg.into()];
+        let proposals = vec![OversightProposal::GrantEngagement {
+            user: Addr::unchecked(SOMEBODY),
+            points: Uint128::new(1),
+        }];
         let title = "Pay somebody".to_string();
         let description = "Do I pay her?".to_string();
-        (msgs, title, description)
+        (proposals, title, description)
     }
 
     fn pay_somebody_proposal() -> ExecuteMsg {
@@ -599,6 +556,7 @@ mod tests {
             title,
             description,
             proposals,
+            latest: None,
         }
     }
 
@@ -694,6 +652,27 @@ mod tests {
             .execute_contract(Addr::unchecked(SOMEBODY), flex_addr.clone(), &proposal, &[])
             .unwrap_err();
         assert_eq!(ContractError::Unauthorized {}, err.downcast().unwrap());
+
+        // Wrong expiration option fails
+        let proposals = match proposal.clone() {
+            ExecuteMsg::Propose { proposals, .. } => proposals,
+            _ => panic!("Wrong variant"),
+        };
+        let proposal_wrong_exp = ExecuteMsg::Propose {
+            title: "Rewarding somebody".to_string(),
+            description: "Do we reward her?".to_string(),
+            proposals,
+            latest: Some(Expiration::AtHeight(123456)),
+        };
+        let err = app
+            .execute_contract(
+                Addr::unchecked(OWNER),
+                flex_addr.clone(),
+                &proposal_wrong_exp,
+                &[],
+            )
+            .unwrap_err();
+        assert_eq!(ContractError::WrongExpiration {}, err.downcast().unwrap());
 
         // Proposal from voter works
         let res = app
@@ -822,11 +801,11 @@ mod tests {
         assert_eq!(expected_info, info);
 
         // ensure the common features are set
-        let (expected_msgs, expected_title, expected_description) = proposal_info();
+        let (expected_proposals, expected_title, expected_description) = proposal_info();
         for prop in res.proposals {
             assert_eq!(prop.title, expected_title);
             assert_eq!(prop.description, expected_description);
-            assert_eq!(prop.msgs, expected_msgs);
+            assert_eq!(prop.proposals, expected_proposals);
         }
 
         // reverse query can get just proposal_id3
@@ -840,12 +819,12 @@ mod tests {
             .unwrap();
         assert_eq!(1, res.proposals.len());
 
-        let (msgs, title, description) = proposal_info();
+        let (proposals, title, description) = proposal_info();
         let expected = ProposalResponse {
             id: proposal_id3,
             title,
             description,
-            msgs,
+            proposals,
             expires: voting_period.after(&proposed_at),
             status: Status::Open,
             rules,
@@ -1229,121 +1208,6 @@ mod tests {
         app.execute_contract(Addr::unchecked(VOTER3), flex_addr.clone(), &yes_vote, &[])
             .unwrap();
         assert_eq!(prop_status(&app, proposal_id), Status::Passed);
-    }
-
-    // uses the power from the beginning of the voting period
-    // similar to above - simpler case, but shows that one proposals can
-    // trigger the action
-    #[test]
-    fn execute_group_changes_from_proposal() {
-        let init_funds = coins(10, "BTC");
-        let mut app = mock_app(&init_funds);
-
-        let rules = mock_rules().threshold(Decimal::percent(25)).build();
-        let (flex_addr, group_addr) = setup_test_case_fixed(&mut app, rules, init_funds, true);
-
-        // Start a proposal to remove VOTER3 from the set
-        let update_msg = Cw4GroupContract::new(group_addr)
-            .update_members(vec![VOTER3.into()], vec![])
-            .unwrap();
-        let update_proposal = ExecuteMsg::Propose {
-            title: "Kick out VOTER3".to_string(),
-            description: "He's trying to steal our money".to_string(),
-            msgs: vec![update_msg],
-        };
-        let res = app
-            .execute_contract(
-                Addr::unchecked(VOTER1),
-                flex_addr.clone(),
-                &update_proposal,
-                &[],
-            )
-            .unwrap();
-        // Get the proposal id from the logs
-        let update_proposal_id: u64 = res.custom_attrs(1)[2].value.parse().unwrap();
-
-        // next block...
-        app.update_block(|b| b.height += 1);
-
-        // VOTER1 starts a proposal to send some tokens
-        let cash_proposal = pay_somebody_proposal();
-        let res = app
-            .execute_contract(
-                Addr::unchecked(VOTER1),
-                flex_addr.clone(),
-                &cash_proposal,
-                &[],
-            )
-            .unwrap();
-        // Get the proposal id from the logs
-        let cash_proposal_id: u64 = res.custom_attrs(1)[2].value.parse().unwrap();
-        assert_ne!(cash_proposal_id, update_proposal_id);
-
-        // query proposal state
-        let prop_status = |app: &App, proposal_id: u64| -> Status {
-            let query_prop = QueryMsg::Proposal { proposal_id };
-            let prop: ProposalResponse = app
-                .wrap()
-                .query_wasm_smart(&flex_addr, &query_prop)
-                .unwrap();
-            prop.status
-        };
-        assert_eq!(prop_status(&app, cash_proposal_id), Status::Open);
-        assert_eq!(prop_status(&app, update_proposal_id), Status::Open);
-
-        // next block...
-        app.update_block(|b| b.height += 1);
-
-        // Pass and execute first proposal
-        let yes_vote = ExecuteMsg::Vote {
-            proposal_id: update_proposal_id,
-            vote: Vote::Yes,
-        };
-        app.execute_contract(Addr::unchecked(VOTER4), flex_addr.clone(), &yes_vote, &[])
-            .unwrap();
-        let execution = ExecuteMsg::Execute {
-            proposal_id: update_proposal_id,
-        };
-        app.execute_contract(Addr::unchecked(VOTER4), flex_addr.clone(), &execution, &[])
-            .unwrap();
-
-        // ensure that the update_proposal is executed, but the other unchanged
-        assert_eq!(prop_status(&app, update_proposal_id), Status::Executed);
-        assert_eq!(prop_status(&app, cash_proposal_id), Status::Open);
-
-        // next block...
-        app.update_block(|b| b.height += 1);
-
-        // VOTER3 can still pass the cash proposal
-        // voting on it fails
-        let yes_vote = ExecuteMsg::Vote {
-            proposal_id: cash_proposal_id,
-            vote: Vote::Yes,
-        };
-        app.execute_contract(Addr::unchecked(VOTER3), flex_addr.clone(), &yes_vote, &[])
-            .unwrap();
-        assert_eq!(prop_status(&app, cash_proposal_id), Status::Passed);
-
-        // but cannot open a new one
-        let cash_proposal = pay_somebody_proposal();
-        let err = app
-            .execute_contract(
-                Addr::unchecked(VOTER3),
-                flex_addr.clone(),
-                &cash_proposal,
-                &[],
-            )
-            .unwrap_err();
-        assert_eq!(ContractError::Unauthorized {}, err.downcast().unwrap());
-
-        // extra: ensure no one else can call the hook
-        let hook_hack = ExecuteMsg::MemberChangedHook(MemberChangedHookMsg {
-            diffs: vec![MemberDiff::new(VOTER1, Some(1), None)],
-        });
-        let err = app
-            .execute_contract(Addr::unchecked(VOTER2), flex_addr.clone(), &hook_hack, &[])
-            .unwrap_err();
-        assert_eq!(ContractError::Unauthorized {}, err.downcast().unwrap());
     }
 
     // uses the power from the beginning of the voting period

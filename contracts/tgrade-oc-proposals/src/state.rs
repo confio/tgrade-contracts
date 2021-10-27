@@ -270,7 +270,7 @@ mod test {
             description: "Info".to_string(),
             start_height: 100,
             expires,
-            msgs: vec![],
+            proposals: vec![],
             status: Status::Open,
             rules,
             total_weight,

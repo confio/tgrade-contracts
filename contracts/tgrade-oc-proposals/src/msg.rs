@@ -43,7 +43,7 @@ pub enum ExecuteMsg {
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 #[serde(rename_all = "snake_case")]
 pub enum OversightProposal {
-    GrantEngagement { user: Addr, point: Uint128 },
+    GrantEngagement { user: Addr, points: Uint128 },
 }
 
 // We can also add this as a cw3 extension
