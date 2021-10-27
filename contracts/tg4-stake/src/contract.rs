@@ -233,9 +233,7 @@ pub fn execute_slash(
     addr: String,
     portion: Decimal,
 ) -> Result<Response, ContractError> {
-    if !SLASHERS.is_slasher(deps.storage, &info.sender)?
-        && !ADMIN.is_admin(deps.as_ref(), &info.sender)?
-    {
+    if !SLASHERS.is_slasher(deps.storage, &info.sender)? {
         return Err(ContractError::Unauthorized {});
     }
 
@@ -1212,7 +1210,6 @@ mod tests {
 
     #[test]
     fn add_remove_slashers() {
-        // add will over-write and remove have no effect
         let mut deps = mock_dependencies(&[]);
         default_instantiate(deps.as_mut());
 
@@ -1245,7 +1242,7 @@ mod tests {
         .unwrap_err();
         assert_eq!(err, PreauthError::NoPreauth {}.into());
 
-        // cannot remove a non-registered contract
+        // cannot remove a non-registered slasher
         let admin_info = mock_info(INIT_ADMIN, &[]);
         let remove_msg = ExecuteMsg::RemoveSlasher {
             addr: contract2.clone(),
@@ -1256,7 +1253,7 @@ mod tests {
             ContractError::Slasher(SlasherError::SlasherNotRegistered(contract2.clone())).into()
         );
 
-        // admin can second contract, and it appears in the query
+        // admin can add a second slasher, and it appears in the query
         let add_msg2 = ExecuteMsg::AddSlasher {
             addr: contract2.clone(),
         };
@@ -1326,9 +1323,8 @@ mod tests {
         bond(deps.as_mut(), 12_000, 7_500, 4_000, 1);
         assert_stake(deps.as_ref(), 12_000, 7_500, 4_000);
 
-        // Contract admin can slash
-        let res1 = slash(deps.as_mut(), INIT_ADMIN, USER1, Decimal::percent(20)).unwrap();
         // The slasher we added can slash
+        let res1 = slash(deps.as_mut(), &slasher, USER1, Decimal::percent(20)).unwrap();
         let res2 = slash(deps.as_mut(), &slasher, USER3, Decimal::percent(50)).unwrap();
         assert_stake(deps.as_ref(), 9_600, 7_500, 2_000);
 
@@ -1353,6 +1349,20 @@ mod tests {
         assert_stake(deps.as_ref(), 12_000, 7_500, 4_000);
 
         let res = slash(deps.as_mut(), USER2, USER1, Decimal::percent(20));
+        assert_eq!(res, Err(ContractError::Unauthorized {}));
+        assert_stake(deps.as_ref(), 12_000, 7_500, 4_000);
+    }
+
+    #[test]
+    fn admin_cannot_slash() {
+        let mut deps = mock_dependencies(&[]);
+        default_instantiate(deps.as_mut());
+        let _slasher = add_slasher(deps.as_mut());
+
+        bond(deps.as_mut(), 12_000, 7_500, 4_000, 1);
+        assert_stake(deps.as_ref(), 12_000, 7_500, 4_000);
+
+        let res = slash(deps.as_mut(), INIT_ADMIN, USER1, Decimal::percent(20));
         assert_eq!(res, Err(ContractError::Unauthorized {}));
         assert_stake(deps.as_ref(), 12_000, 7_500, 4_000);
     }
