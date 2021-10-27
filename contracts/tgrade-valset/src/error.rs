@@ -12,6 +12,9 @@ pub enum ContractError {
     #[error("{0}")]
     AdminError(#[from] AdminError),
 
+    #[error("{0}")]
+    Proto(String),
+
     #[error("Operator is already registered, cannot change Tendermint pubkey")]
     OperatorRegistered {},
 

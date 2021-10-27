@@ -603,14 +603,18 @@ fn calculate_diff(
 }
 
 #[cfg_attr(not(feature = "library"), entry_point)]
-pub fn reply(deps: DepsMut, _env: Env, msg: Reply) -> Result<Response, ContractError> {
+pub fn reply(deps: DepsMut, env: Env, msg: Reply) -> Result<Response, ContractError> {
     match msg.id {
-        REWARDS_INIT_REPLY_ID => rewards_instantiate_reply(deps, msg),
+        REWARDS_INIT_REPLY_ID => rewards_instantiate_reply(deps, env, msg),
         _ => Err(ContractError::UnrecognisedReply(msg.id)),
     }
 }
 
-pub fn rewards_instantiate_reply(deps: DepsMut, msg: Reply) -> Result<Response, ContractError> {
+pub fn rewards_instantiate_reply(
+    deps: DepsMut,
+    env: Env,
+    msg: Reply,
+) -> Result<Response, ContractError> {
     let id = msg.id;
     let res: MsgInstantiateContractResponse = Message::parse_from_bytes(
         msg.result
@@ -634,9 +638,18 @@ pub fn rewards_instantiate_reply(deps: DepsMut, msg: Reply) -> Result<Response, 
         Ok(config)
     })?;
 
-    let resp = Response::new().set_data(to_binary(&InstantiateResponse {
+    let response = InstantiateResponse {
         rewards_contract: Addr::unchecked(res.get_contract_address()),
-    })?);
+    };
+
+    let mut resp = MsgInstantiateContractResponse::new();
+    resp.set_contract_address(env.contract.address.to_string());
+    resp.set_data(to_binary(&response)?.to_vec());
+
+    let resp = Response::new().set_data(
+        resp.write_to_bytes()
+            .map_err(|err| ContractError::Proto(err.to_string()))?,
+    );
 
     Ok(resp)
 }
