@@ -1,6 +1,6 @@
 use thiserror::Error;
 
-use cosmwasm_std::{Addr, StdError, StdResult, Storage, SubMsg};
+use cosmwasm_std::{Addr, StdError, StdResult, Storage};
 use cw_storage_plus::Item;
 
 // store all slasher addresses in one item.
@@ -43,19 +43,6 @@ impl<'a> Slashers<'a> {
     pub fn list_slashers(&self, storage: &dyn Storage) -> StdResult<Vec<String>> {
         let slashers = self.0.may_load(storage)?.unwrap_or_default();
         Ok(slashers.into_iter().map(String::from).collect())
-    }
-
-    pub fn prepare_slashers<F: Fn(Addr) -> StdResult<SubMsg>>(
-        &self,
-        storage: &dyn Storage,
-        prep: F,
-    ) -> StdResult<Vec<SubMsg>> {
-        self.0
-            .may_load(storage)?
-            .unwrap_or_default()
-            .into_iter()
-            .map(prep)
-            .collect()
     }
 }
 
