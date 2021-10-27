@@ -1,25 +1,6 @@
-# CW3 Flexible Multisig
+# Tgrade Oversight Community Proposals
 
-This builds on [cw3-fixed-multisig](../cw3-fixed-multisig) with a more
-powerful implementation of the [cw3 spec](../../packages/cw3/README.md).
-It is a multisig contract that is backed by a
-[cw4 (group)](../../packages/cw4/README.md) contract, which independently
-maintains the voter set.
-
-This provides 2 main advantages:
-
-* You can create two different multisigs with different voting thresholds
-  backed by the same group. Thus, you can have a 50% vote, and a 67% vote
-  that always use the same voter set, but can take other actions.
-* TODO: It allows dynamic multisig groups. Since the group can change,
-  we can set one of the multisigs as the admin of the group contract,
-  and the
-
-
-In addition to the dynamic voting set, the main difference with the native
-Cosmos SDK multisig, is that it aggregates the signatures on chain, with
-visible proposals (like `x/gov` in the Cosmos SDK), rather than requiring
-signers to share signatures off chain.
+TODO: Fill up later
 
 ## Instantiation
 
@@ -80,9 +61,9 @@ Once you are happy with the content, you can compile it to wasm via:
 
 ```
 RUSTFLAGS='-C link-arg=-s' cargo wasm
-cp ../../target/wasm32-unknown-unknown/release/cw3_fixed_multisig.wasm .
-ls -l cw3_fixed_multisig.wasm
-sha256sum cw3_fixed_multisig.wasm
+cp ../../target/wasm32-unknown-unknown/release/tgrade_oc_proposals.wasm .
+ls -l tgrade_oc_proposals.wasm
+sha256sum tgrade_oc_proposals.wasm
 ```
 
 Or for a production-ready (optimized) build, run a build command in
