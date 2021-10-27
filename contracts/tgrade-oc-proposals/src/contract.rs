@@ -465,6 +465,15 @@ mod tests {
         Box::new(contract)
     }
 
+    pub fn contract_engagement() -> Box<dyn Contract<Empty>> {
+        let contract = ContractWrapper::new(
+            tg4_engagement::contract::execute,
+            tg4_engagement::contract::instantiate,
+            tg4_engagement::contract::query,
+        );
+        Box::new(contract)
+    }
+
     fn mock_app(init_funds: &[Coin]) -> App {
         AppBuilder::new().build(|router, _, storage| {
             router
@@ -485,11 +494,40 @@ mod tests {
             .unwrap()
     }
 
-    fn instantiate_flex(app: &mut App, group: Addr, rules: VotingRules) -> Addr {
+    // uploads code and returns address of engagement contract
+    fn instantiate_engagement(app: &mut App, members: Vec<tg4::Member>) -> Addr {
+        let engagement_id = app.store_code(contract_engagement());
+        let msg = tg4_engagement::msg::InstantiateMsg {
+            admin: Some(OWNER.into()),
+            members,
+            preauths: None,
+            halflife: None,
+            token: "ENG_POINTS".to_owned(),
+        };
+        app.instantiate_contract(
+            engagement_id,
+            Addr::unchecked(OWNER),
+            &msg,
+            &[],
+            "group",
+            None,
+        )
+        .unwrap()
+    }
+
+    fn instantiate_flex(
+        app: &mut App,
+        group: Addr,
+        engagement_contract: Addr,
+        threshold: Threshold,
+        max_voting_period: Duration,
+    ) -> Addr {
         let flex_id = app.store_code(contract_flex());
         let msg = crate::msg::InstantiateMsg {
             group_addr: group.to_string(),
-            rules,
+            threshold,
+            max_voting_period,
+            engagement_contract: engagement_contract.to_string(),
         };
         app.instantiate_contract(flex_id, Addr::unchecked(OWNER), &msg, &[], "flex", None)
             .unwrap()
@@ -523,10 +561,17 @@ mod tests {
             member(VOTER5, 5),
         ];
         let group_addr = instantiate_group(app, members);
+        let engagement_addr = instantiate_group(&mut app, vec![member(SOMEBODY, 1)]);
         app.update_block(next_block);
 
         // 2. Set up Multisig backed by this group
-        let flex_addr = instantiate_flex(app, group_addr.clone(), rules);
+        let flex_addr = instantiate_flex(
+            app,
+            group_addr.clone(),
+            engagement_addr.clone(),
+            threshold,
+            max_voting_period,
+        );
         app.update_block(next_block);
 
         // 3. (Optional) Set the multisig as the group owner
@@ -578,12 +623,14 @@ mod tests {
 
         // make a simple group
         let group_addr = instantiate_group(&mut app, vec![member(OWNER, 1)]);
+        let engagement_addr = instantiate_group(&mut app, vec![member(SOMEBODY, 1)]);
         let flex_id = app.store_code(contract_flex());
 
         // Zero threshold fails
         let instantiate_msg = InstantiateMsg {
             group_addr: group_addr.to_string(),
             rules: mock_rules().threshold(Decimal::zero()).build(),
+            engagement_contract: engagement_addr.to_string(),
         };
         let err = app
             .instantiate_contract(
@@ -592,6 +639,25 @@ mod tests {
                 &instantiate_msg,
                 &[],
                 "zero required weight",
+                None,
+            )
+            .unwrap_err();
+        assert_eq!(ContractError::ZeroThreshold {}, err.downcast().unwrap());
+
+        // Total weight less than required weight not allowed
+        let instantiate_msg = InstantiateMsg {
+            group_addr: group_addr.to_string(),
+            threshold: Threshold::AbsoluteCount { weight: 100 },
+            max_voting_period,
+            engagement_contract: engagement_addr.to_string(),
+        };
+        let err = app
+            .instantiate_contract(
+                flex_id,
+                Addr::unchecked(OWNER),
+                &instantiate_msg,
+                &[],
+                "high required weight",
                 None,
             )
             .unwrap_err();
@@ -604,6 +670,7 @@ mod tests {
         let instantiate_msg = InstantiateMsg {
             group_addr: group_addr.to_string(),
             rules: mock_rules().build(),
+            engagement_contract: engagement_addr.to_string(),
         };
         let flex_addr = app
             .instantiate_contract(

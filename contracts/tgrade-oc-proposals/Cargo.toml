@@ -29,3 +29,4 @@ thiserror = { version = "1" }
 cosmwasm-schema = "1.0.0-beta"
 cw4-group = "0.10.1"
 cw-multi-test = "0.10.1"
+tg4-engagement = { path = "../tg4-engagement", version = "0.5.0-alpha" }
