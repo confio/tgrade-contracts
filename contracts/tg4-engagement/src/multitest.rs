@@ -547,4 +547,12 @@ mod funds_distribution {
         assert_eq!(suite.token_balance(&members[1]).unwrap(), 0);
         assert_eq!(suite.token_balance(&members[2]).unwrap(), 0);
     }
+
+    #[test]
+    fn querying_unknown_address() {
+        let suite = SuiteBuilder::new().with_token("usdc").build();
+
+        let resp = suite.withdrawable_funds("unknown").unwrap();
+        assert_eq!(resp, coin(0, "usdc"))
+    }
 }

@@ -592,7 +592,14 @@ pub fn query_withdrawable_funds(deps: Deps, owner: String) -> StdResult<FundsRes
     // `withdrawable_funds` would return error itself.
     let owner = Addr::unchecked(&owner);
     let distribution = DISTRIBUTION.load(deps.storage)?;
-    let adjustment = WITHDRAW_ADJUSTMENT.load(deps.storage, &owner)?;
+    let adjustment = if let Some(adj) = WITHDRAW_ADJUSTMENT.may_load(deps.storage, &owner)? {
+        adj
+    } else {
+        return Ok(FundsResponse {
+            funds: coin(0, distribution.token),
+        });
+    };
+
     let token = withdrawable_funds(deps, &owner, &distribution, &adjustment)?;
     Ok(FundsResponse { funds: token })
 }

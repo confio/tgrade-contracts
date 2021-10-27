@@ -36,6 +36,8 @@ pub struct SuiteBuilder {
     members: Vec<Member>,
     funds: Vec<(Addr, u128)>,
     halflife: Option<Duration>,
+    #[derivative(Default(value = "\"usdc\".to_owned()"))]
+    token: String,
 }
 
 impl SuiteBuilder {
@@ -58,12 +60,16 @@ impl SuiteBuilder {
         self
     }
 
+    pub fn with_token(mut self, token: &str) -> Self {
+        self.token = token.to_owned();
+        self
+    }
+
     #[track_caller]
     pub fn build(self) -> Suite {
         let funds = self.funds;
 
         let owner = Addr::unchecked("owner");
-        let token = "usdc".to_owned();
 
         let mut app = TgradeApp::new(owner.as_str());
 
@@ -71,6 +77,8 @@ impl SuiteBuilder {
         app.back_to_genesis();
 
         let block_info = app.block_info();
+        let token = self.token;
+
         app.init_modules(|router, api, storage| -> AnyResult<()> {
             for (addr, amount) in funds {
                 router.execute(
