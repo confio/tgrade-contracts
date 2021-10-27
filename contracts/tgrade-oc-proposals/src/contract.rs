@@ -428,8 +428,9 @@ mod tests {
     use cw0::Duration;
     use cw2::{query_contract_info, ContractVersion};
     use cw4::{Cw4ExecuteMsg, Member};
+    use cw_multi_test::{next_block, Contract, ContractWrapper, Executor};
     use tg_bindings::TgradeMsg;
-    use cw_multi_test::{next_block, App, BasicAppBuilder, Contract, ContractWrapper, Executor, BasicApp};
+    use tg_bindings_test::TgradeApp;
 
     use super::*;
 
@@ -475,17 +476,19 @@ mod tests {
         Box::new(contract)
     }
 
-    fn mock_app(init_funds: &[Coin]) -> BasicApp<TgradeMsg> {
-        BasicAppBuilder::new().build(|router, _, storage| {
+    fn mock_app(init_funds: &[Coin]) -> TgradeApp {
+        let mut app = TgradeApp::new(OWNER);
+        app.init_modules(|router, _, storage| {
             router
                 .bank
                 .init_balance(storage, &Addr::unchecked(OWNER), init_funds.to_vec())
                 .unwrap();
-        })
+        });
+        app
     }
 
     // uploads code and returns address of group contract
-    fn instantiate_group(app: &mut BasicApp, members: Vec<Member>) -> Addr {
+    fn instantiate_group(app: &mut TgradeApp, members: Vec<Member>) -> Addr {
         let group_id = app.store_code(contract_group());
         let msg = cw4_group::msg::InstantiateMsg {
             admin: Some(OWNER.into()),
@@ -496,7 +499,7 @@ mod tests {
     }
 
     // uploads code and returns address of engagement contract
-    fn instantiate_engagement(app: &mut BasicApp<TgradeMsg>, members: Vec<tg4::Member>) -> Addr {
+    fn instantiate_engagement(app: &mut TgradeApp, members: Vec<tg4::Member>) -> Addr {
         let engagement_id = app.store_code(contract_engagement());
         let msg = tg4_engagement::msg::InstantiateMsg {
             admin: Some(OWNER.into()),
@@ -517,7 +520,7 @@ mod tests {
     }
 
     fn instantiate_flex(
-        app: &mut BasicApp,
+        app: &mut TgradeApp,
         group: Addr,
         engagement_contract: Addr,
         threshold: Threshold,
@@ -538,8 +541,8 @@ mod tests {
     // all voters defined above, and the multisig pointing to it and given threshold criteria.
     // Returns (multisig address, group address).
     fn setup_test_case_fixed(
+        app: &mut TgradeApp,
         rules: VotingRules,
-        app: &mut BasicApp,
         init_funds: Vec<Coin>,
         multisig_as_group_admin: bool,
     ) -> (Addr, Addr) {
@@ -547,7 +550,7 @@ mod tests {
     }
 
     fn setup_test_case(
-        app: &mut BasicApp,
+        app: &mut TgradeApp,
         rules: VotingRules,
         init_funds: Vec<Coin>,
         multisig_as_group_admin: bool,
@@ -562,10 +565,13 @@ mod tests {
             member(VOTER5, 5),
         ];
         let group_addr = instantiate_group(app, members);
-        let engagement_addr = instantiate_engagement(app, vec![tg4::Member {
-            addr: SOMEBODY.into(),
-            weight: 1,
-        }]);
+        let engagement_addr = instantiate_engagement(
+            app,
+            vec![tg4::Member {
+                addr: SOMEBODY.into(),
+                weight: 1,
+            }],
+        );
         app.update_block(next_block);
 
         // 2. Set up Multisig backed by this group
@@ -786,7 +792,7 @@ mod tests {
         );
     }
 
-    fn get_tally(app: &App, flex_addr: &str, proposal_id: u64) -> u64 {
+    fn get_tally(app: &TgradeApp, flex_addr: &str, proposal_id: u64) -> u64 {
         // Get all the voters on the proposal
         let voters = QueryMsg::ListVotes {
             proposal_id,
@@ -1212,7 +1218,7 @@ mod tests {
             .unwrap();
         // Get the proposal id from the logs
         let proposal_id: u64 = res.custom_attrs(1)[2].value.parse().unwrap();
-        let prop_status = |app: &App, proposal_id: u64| -> Status {
+        let prop_status = |app: &TgradeApp, proposal_id: u64| -> Status {
             let query_prop = QueryMsg::Proposal { proposal_id };
             let prop: ProposalResponse = app
                 .wrap()
@@ -1310,7 +1316,7 @@ mod tests {
             .unwrap();
         // Get the proposal id from the logs
         let proposal_id: u64 = res.custom_attrs(1)[2].value.parse().unwrap();
-        let prop_status = |app: &App| -> Status {
+        let prop_status = |app: &TgradeApp| -> Status {
             let query_prop = QueryMsg::Proposal { proposal_id };
             let prop: ProposalResponse = app
                 .wrap()
@@ -1388,7 +1394,7 @@ mod tests {
             .unwrap();
         // Get the proposal id from the logs
         let proposal_id: u64 = res.custom_attrs(1)[2].value.parse().unwrap();
-        let prop_status = |app: &App| -> Status {
+        let prop_status = |app: &TgradeApp| -> Status {
             let query_prop = QueryMsg::Proposal { proposal_id };
             let prop: ProposalResponse = app
                 .wrap()
@@ -1455,7 +1461,7 @@ mod tests {
             .unwrap();
         // Get the proposal id from the logs
         let proposal_id: u64 = res.custom_attrs(1)[2].value.parse().unwrap();
-        let prop_status = |app: &App| -> Status {
+        let prop_status = |app: &TgradeApp| -> Status {
             let query_prop = QueryMsg::Proposal { proposal_id };
             let prop: ProposalResponse = app
                 .wrap()
