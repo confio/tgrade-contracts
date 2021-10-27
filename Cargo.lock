@@ -448,6 +448,35 @@ dependencies = [
 ]
 
 [[package]]
+name = "cw4"
+version = "0.10.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "9d5721e82368b31ff1690258d283b9e1682169d9236c1c2157d30375d5ebf736"
+dependencies = [
+ "cosmwasm-std",
+ "cw-storage-plus",
+ "schemars",
+ "serde",
+]
+
+[[package]]
+name = "cw4-group"
+version = "0.10.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "f6ca733c2df6fd4f02f29270893e2075b193d8d87f5d3864ee4b337d1be013f9"
+dependencies = [
+ "cosmwasm-std",
+ "cw-controllers",
+ "cw-storage-plus",
+ "cw0",
+ "cw2",
+ "cw4",
+ "schemars",
+ "serde",
+ "thiserror",
+]
+
+[[package]]
 name = "darling"
 version = "0.13.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1579,6 +1608,24 @@ dependencies = [
  "schemars",
  "serde",
  "tg-bindings",
+ "thiserror",
+]
+
+[[package]]
+name = "tgrade-oc-proposals"
+version = "0.5.0-alpha"
+dependencies = [
+ "cosmwasm-schema",
+ "cosmwasm-std",
+ "cw-multi-test",
+ "cw-storage-plus",
+ "cw0",
+ "cw2",
+ "cw3",
+ "cw4",
+ "cw4-group",
+ "schemars",
+ "serde",
  "thiserror",
 ]
 
