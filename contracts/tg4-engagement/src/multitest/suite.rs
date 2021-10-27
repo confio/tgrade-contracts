@@ -127,7 +127,7 @@ impl SuiteBuilder {
             app,
             contract,
             owner,
-            token: token,
+            token,
         }
     }
 }
