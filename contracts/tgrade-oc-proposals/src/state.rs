@@ -7,6 +7,7 @@ use cw0::Expiration;
 use cw3::{Status, Vote};
 use cw4::Cw4Contract;
 use cw_storage_plus::{Item, Map, U64Key};
+use tg4::Tg4Contract;
 
 use crate::msg::OversightProposal;
 use crate::ContractError;
@@ -20,6 +21,7 @@ pub struct Config {
     pub rules: VotingRules,
     // Total weight and voters are queried from this contract
     pub group_addr: Cw4Contract,
+    pub engagement_contract: Tg4Contract,
 }
 
 #[derive(Serialize, Deserialize, Clone, PartialEq, JsonSchema, Debug)]

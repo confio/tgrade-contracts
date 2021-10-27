@@ -9,6 +9,9 @@ pub enum ContractError {
     #[error("Group contract invalid address '{addr}'")]
     InvalidGroup { addr: String },
 
+    #[error("Engagement contract invalid address '{addr}'")]
+    InvalidEngagementContract { addr: String },
+
     #[error("Unauthorized")]
     Unauthorized {},
 

@@ -13,6 +13,7 @@ use cw3::{
 };
 use cw4::{Cw4Contract, MemberChangedHookMsg, MemberDiff};
 use cw_storage_plus::Bound;
+use tg4::Tg4Contract;
 
 use crate::error::ContractError;
 use crate::msg::{ExecuteMsg, InstantiateMsg, OversightProposal, QueryMsg};
@@ -37,11 +38,22 @@ pub fn instantiate(
             addr: msg.group_addr.clone(),
         }
     })?);
+    let engagement_contract = Tg4Contract(
+        deps.api
+            .addr_validate(&msg.engagement_contract)
+            .map_err(|_| ContractError::InvalidEngagementContract {
+                addr: msg.engagement_contract.clone(),
+            })?,
+    );
+    let total_weight = group_addr.total_weight(&deps.querier)?;
+    msg.threshold.validate(total_weight)?;
+
     set_contract_version(deps.storage, CONTRACT_NAME, CONTRACT_VERSION)?;
 
     let cfg = Config {
         rules: msg.rules,
         group_addr,
+        engagement_contract,
     };
 
     cfg.rules.validate()?;

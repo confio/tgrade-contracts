@@ -1626,6 +1626,7 @@ dependencies = [
  "cw4-group",
  "schemars",
  "serde",
+ "tg4",
  "thiserror",
 ]
 
