@@ -242,9 +242,9 @@ pub fn execute_slash(
     let addr = deps.api.addr_validate(&addr)?;
 
     // update the addr's stake
-    let stake = STAKE.load(deps.storage, &info.sender)?;
+    let stake = STAKE.load(deps.storage, &addr)?;
     let slashed = stake * portion;
-    let new_stake = STAKE.update(deps.storage, &info.sender, |stake| -> StdResult<_> {
+    let new_stake = STAKE.update(deps.storage, &addr, |stake| -> StdResult<_> {
         Ok(stake.unwrap_or_default().checked_sub(slashed).unwrap())
     })?;
 
@@ -259,7 +259,14 @@ pub fn execute_slash(
         .add_attribute("addr", &addr)
         .add_attribute("sender", info.sender)
         .add_message(burn_msg);
-    res.messages = update_membership(deps.storage, addr, new_stake, &cfg, env.block.height)?;
+
+    res.messages.extend(update_membership(
+        deps.storage,
+        addr,
+        new_stake,
+        &cfg,
+        env.block.height,
+    )?);
 
     Ok(res)
 }
@@ -534,7 +541,9 @@ fn list_members_by_weight(
 mod tests {
     use crate::claim::Claim;
     use cosmwasm_std::testing::{mock_dependencies, mock_env, mock_info};
-    use cosmwasm_std::{from_slice, OverflowError, OverflowOperation, StdError, Storage};
+    use cosmwasm_std::{
+        from_slice, CosmosMsg, OverflowError, OverflowOperation, StdError, Storage,
+    };
     use tg4::{member_key, TOTAL_KEY};
     use tg_utils::{Expiration, HookError, PreauthError};
 
@@ -1216,7 +1225,7 @@ mod tests {
             addr: contract1.clone(),
         };
 
-        // anyone can add the first one, until preauth is consume
+        // anyone can add the first one, until preauth is consumed
         assert_eq!(1, PREAUTH_SLASHING.get_auth(&deps.storage).unwrap());
         let user_info = mock_info(USER1, &[]);
         let _ = execute(deps.as_mut(), mock_env(), user_info, add_msg.clone()).unwrap();
@@ -1277,6 +1286,73 @@ mod tests {
         execute(deps.as_mut(), mock_env(), contract_info, remove_msg2).unwrap();
         let slashers = SLASHERS.list_slashers(&deps.storage).unwrap();
         assert_eq!(slashers, Vec::<String>::new());
+    }
+
+    fn add_slasher(deps: DepsMut) -> String {
+        let slasher = String::from("slasher");
+        let add_msg = ExecuteMsg::AddSlasher {
+            addr: slasher.clone(),
+        };
+        let user_info = mock_info(USER1, &[]);
+        execute(deps, mock_env(), user_info, add_msg).unwrap();
+
+        slasher
+    }
+
+    fn slash(
+        deps: DepsMut,
+        slasher: &str,
+        addr: &str,
+        portion: Decimal,
+    ) -> Result<Response, ContractError> {
+        let msg = ExecuteMsg::Slash {
+            addr: addr.to_string(),
+            portion,
+        };
+        let slasher_info = mock_info(slasher, &[]);
+
+        execute(deps, mock_env(), slasher_info, msg)
+    }
+
+    #[test]
+    fn slashing_bonded_tokens_works() {
+        let mut deps = mock_dependencies(&[]);
+        default_instantiate(deps.as_mut());
+        let cfg = CONFIG.load(&deps.storage).unwrap();
+        let slasher = add_slasher(deps.as_mut());
+
+        bond(deps.as_mut(), 12_000, 7_500, 4_000, 1);
+        assert_stake(deps.as_ref(), 12_000, 7_500, 4_000);
+
+        // Contract admin can slash
+        let res1 = slash(deps.as_mut(), INIT_ADMIN, USER1, Decimal::percent(20)).unwrap();
+        // The slasher we added can slash
+        let res2 = slash(deps.as_mut(), &slasher, USER3, Decimal::percent(50)).unwrap();
+        assert_stake(deps.as_ref(), 9_600, 7_500, 2_000);
+
+        // Tokens are burned
+        assert!(res1.messages.iter().any(|m| m.msg
+            == CosmosMsg::Bank(BankMsg::Burn {
+                amount: coins(2_400, &cfg.denom)
+            })));
+        assert!(res2.messages.iter().any(|m| m.msg
+            == CosmosMsg::Bank(BankMsg::Burn {
+                amount: coins(2_000, &cfg.denom)
+            })));
+    }
+
+    #[test]
+    fn random_user_cannot_slash() {
+        let mut deps = mock_dependencies(&[]);
+        default_instantiate(deps.as_mut());
+        let _slasher = add_slasher(deps.as_mut());
+
+        bond(deps.as_mut(), 12_000, 7_500, 4_000, 1);
+        assert_stake(deps.as_ref(), 12_000, 7_500, 4_000);
+
+        let res = slash(deps.as_mut(), USER2, USER1, Decimal::percent(20));
+        assert_eq!(res, Err(ContractError::Unauthorized {}));
+        assert_stake(deps.as_ref(), 12_000, 7_500, 4_000);
     }
 
     #[test]
