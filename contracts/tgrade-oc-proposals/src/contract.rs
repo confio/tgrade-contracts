@@ -428,7 +428,8 @@ mod tests {
     use cw0::Duration;
     use cw2::{query_contract_info, ContractVersion};
     use cw4::{Cw4ExecuteMsg, Member};
-    use cw_multi_test::{next_block, App, AppBuilder, Contract, ContractWrapper, Executor};
+    use tg_bindings::TgradeMsg;
+    use cw_multi_test::{next_block, App, BasicAppBuilder, Contract, ContractWrapper, Executor, BasicApp};
 
     use super::*;
 
@@ -465,7 +466,7 @@ mod tests {
         Box::new(contract)
     }
 
-    pub fn contract_engagement() -> Box<dyn Contract<Empty>> {
+    pub fn contract_engagement() -> Box<dyn Contract<TgradeMsg>> {
         let contract = ContractWrapper::new(
             tg4_engagement::contract::execute,
             tg4_engagement::contract::instantiate,
@@ -474,8 +475,8 @@ mod tests {
         Box::new(contract)
     }
 
-    fn mock_app(init_funds: &[Coin]) -> App {
-        AppBuilder::new().build(|router, _, storage| {
+    fn mock_app(init_funds: &[Coin]) -> BasicApp<TgradeMsg> {
+        BasicAppBuilder::new().build(|router, _, storage| {
             router
                 .bank
                 .init_balance(storage, &Addr::unchecked(OWNER), init_funds.to_vec())
@@ -484,7 +485,7 @@ mod tests {
     }
 
     // uploads code and returns address of group contract
-    fn instantiate_group(app: &mut App, members: Vec<Member>) -> Addr {
+    fn instantiate_group(app: &mut BasicApp, members: Vec<Member>) -> Addr {
         let group_id = app.store_code(contract_group());
         let msg = cw4_group::msg::InstantiateMsg {
             admin: Some(OWNER.into()),
@@ -495,7 +496,7 @@ mod tests {
     }
 
     // uploads code and returns address of engagement contract
-    fn instantiate_engagement(app: &mut App, members: Vec<tg4::Member>) -> Addr {
+    fn instantiate_engagement(app: &mut BasicApp<TgradeMsg>, members: Vec<tg4::Member>) -> Addr {
         let engagement_id = app.store_code(contract_engagement());
         let msg = tg4_engagement::msg::InstantiateMsg {
             admin: Some(OWNER.into()),
@@ -516,7 +517,7 @@ mod tests {
     }
 
     fn instantiate_flex(
-        app: &mut App,
+        app: &mut BasicApp,
         group: Addr,
         engagement_contract: Addr,
         threshold: Threshold,
@@ -537,8 +538,8 @@ mod tests {
     // all voters defined above, and the multisig pointing to it and given threshold criteria.
     // Returns (multisig address, group address).
     fn setup_test_case_fixed(
-        app: &mut App,
         rules: VotingRules,
+        app: &mut BasicApp,
         init_funds: Vec<Coin>,
         multisig_as_group_admin: bool,
     ) -> (Addr, Addr) {
@@ -546,7 +547,7 @@ mod tests {
     }
 
     fn setup_test_case(
-        app: &mut App,
+        app: &mut BasicApp,
         rules: VotingRules,
         init_funds: Vec<Coin>,
         multisig_as_group_admin: bool,
@@ -561,7 +562,10 @@ mod tests {
             member(VOTER5, 5),
         ];
         let group_addr = instantiate_group(app, members);
-        let engagement_addr = instantiate_group(&mut app, vec![member(SOMEBODY, 1)]);
+        let engagement_addr = instantiate_engagement(app, vec![tg4::Member {
+            addr: SOMEBODY.into(),
+            weight: 1,
+        }]);
         app.update_block(next_block);
 
         // 2. Set up Multisig backed by this group

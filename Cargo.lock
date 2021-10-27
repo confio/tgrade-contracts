@@ -1626,6 +1626,7 @@ dependencies = [
  "cw4-group",
  "schemars",
  "serde",
+ "tg-bindings",
  "tg4",
  "tg4-engagement",
  "thiserror",
