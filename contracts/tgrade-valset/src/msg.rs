@@ -320,6 +320,12 @@ pub enum RewardsDistribution {
     DistributeFunds {},
 }
 
+#[derive(Serialize, Deserialize, Clone, PartialEq, JsonSchema, Debug)]
+#[serde(rename_all = "snake_case")]
+pub struct InstantiateResponse {
+    pub rewards_contract: Addr,
+}
+
 #[cfg(test)]
 mod test {
     use super::*;
