@@ -7,7 +7,7 @@ use cosmwasm_std::{
     StdError, StdResult, SubMsg, Timestamp, WasmMsg,
 };
 
-use cw0::maybe_addr;
+use cw0::{maybe_addr, parse_reply_instantiate_data};
 use cw2::set_contract_version;
 use cw_controllers::AdminError;
 use cw_storage_plus::Bound;
@@ -616,30 +616,20 @@ pub fn rewards_instantiate_reply(
     msg: Reply,
 ) -> Result<Response, ContractError> {
     let id = msg.id;
-    let res: MsgInstantiateContractResponse = Message::parse_from_bytes(
-        msg.result
-            .into_result()
-            .map_err(ContractError::SubmsgFailure)?
-            .data
-            .ok_or_else(|| ContractError::ReplyParseFailure {
-                id,
-                err: "Missing reply data".to_owned(),
-            })?
-            .as_slice(),
-    )
-    .map_err(|err| ContractError::ReplyParseFailure {
-        id,
-        err: err.to_string(),
-    })?;
+    let res =
+        parse_reply_instantiate_data(msg).map_err(|err| ContractError::ReplyParseFailure {
+            id,
+            err: err.to_string(),
+        })?;
 
-    let addr = deps.api.addr_validate(res.get_contract_address())?;
+    let addr = deps.api.addr_validate(&res.contract_address)?;
     CONFIG.update(deps.storage, |mut config| -> StdResult<_> {
-        config.rewards_contract = addr;
+        config.rewards_contract = addr.clone();
         Ok(config)
     })?;
 
     let response = InstantiateResponse {
-        rewards_contract: Addr::unchecked(res.get_contract_address()),
+        rewards_contract: addr,
     };
 
     let mut resp = MsgInstantiateContractResponse::new();

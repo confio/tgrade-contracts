@@ -401,9 +401,9 @@ dependencies = [
 
 [[package]]
 name = "cw0"
-version = "0.10.0"
+version = "0.10.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "1a7ed2e4c60ec883bc5295613b016e9d7710ad6e28610361981ae999e6fe9bc5"
+checksum = "c89a80c2865cf22aa96856c70e1b6cf1083b5d176c6531acd97b142d7c00ae96"
 dependencies = [
  "cosmwasm-std",
  "schemars",
