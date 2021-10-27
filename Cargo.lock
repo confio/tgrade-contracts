@@ -436,22 +436,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "cw20-base"
-version = "0.10.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "30b9c237cb0713816588c0cc6fb49dbdaf2688b184d441518436b0c986fb45dd"
-dependencies = [
- "cosmwasm-std",
- "cw-storage-plus",
- "cw0",
- "cw2",
- "cw20",
- "schemars",
- "serde",
- "thiserror",
-]
-
-[[package]]
 name = "cw3"
 version = "0.10.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1595,24 +1579,6 @@ dependencies = [
  "schemars",
  "serde",
  "tg-bindings",
- "thiserror",
-]
-
-[[package]]
-name = "tgrade-oc-proposals"
-version = "0.5.0-alpha"
-dependencies = [
- "cosmwasm-schema",
- "cosmwasm-std",
- "cw-multi-test",
- "cw-storage-plus",
- "cw0",
- "cw2",
- "cw20",
- "cw20-base",
- "cw3",
- "schemars",
- "serde",
  "thiserror",
 ]
 
