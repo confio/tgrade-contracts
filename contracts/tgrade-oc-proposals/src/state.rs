@@ -2,15 +2,13 @@ use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use std::convert::TryInto;
 
-use cosmwasm_std::{
-    Addr, BlockInfo, CosmosMsg, Decimal, Empty, StdError, StdResult, Storage, Uint128,
-};
-
+use cosmwasm_std::{Addr, BlockInfo, Decimal, StdError, StdResult, Storage, Uint128};
 use cw0::Expiration;
 use cw3::{Status, Vote};
 use cw4::Cw4Contract;
 use cw_storage_plus::{Item, Map, U64Key};
 
+use crate::msg::OversightProposal;
 use crate::ContractError;
 
 // we multiply by this when calculating needed_votes in order to round up properly
@@ -30,7 +28,7 @@ pub struct Proposal {
     pub description: String,
     pub start_height: u64,
     pub expires: Expiration,
-    pub msgs: Vec<CosmosMsg<Empty>>,
+    pub proposals: Vec<OversightProposal>,
     pub status: Status,
     /// pass requirements
     pub rules: VotingRules,
@@ -44,14 +42,11 @@ pub struct Proposal {
 /// the querier needs to know what possible custom message types
 /// those are in order to parse the response
 #[derive(Serialize, Deserialize, Clone, PartialEq, JsonSchema, Debug)]
-pub struct ProposalResponse<T = Empty>
-where
-    T: Clone + std::fmt::Debug + PartialEq + JsonSchema,
-{
+pub struct ProposalResponse {
     pub id: u64,
     pub title: String,
     pub description: String,
-    pub msgs: Vec<CosmosMsg<T>>,
+    pub proposals: Vec<OversightProposal>,
     pub status: Status,
     pub expires: Expiration,
     pub rules: VotingRules,

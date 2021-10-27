@@ -1,8 +1,8 @@
 #[cfg(not(feature = "library"))]
 use cosmwasm_std::entry_point;
 use cosmwasm_std::{
-    to_binary, Binary, BlockInfo, CosmosMsg, Deps, DepsMut, Empty, Env, MessageInfo, Order,
-    Response, StdResult,
+    to_binary, Binary, BlockInfo, Deps, DepsMut, Empty, Env, MessageInfo, Order, Response,
+    StdResult,
 };
 
 use cw0::{maybe_addr, Expiration};
@@ -15,7 +15,7 @@ use cw4::{Cw4Contract, MemberChangedHookMsg, MemberDiff};
 use cw_storage_plus::Bound;
 
 use crate::error::ContractError;
-use crate::msg::{ExecuteMsg, InstantiateMsg, QueryMsg};
+use crate::msg::{ExecuteMsg, InstantiateMsg, OversightProposal, QueryMsg};
 use crate::state::{
     next_id, parse_id, Ballot, Config, Proposal, ProposalListResponse, ProposalResponse, Votes,
     VotingRules, BALLOTS, CONFIG, PROPOSALS,
@@ -61,8 +61,9 @@ pub fn execute(
         ExecuteMsg::Propose {
             title,
             description,
-            msgs,
-        } => execute_propose(deps, env, info, title, description, msgs),
+            proposals,
+            latest,
+        } => execute_propose(deps, env, info, title, description, proposals, latest),
         ExecuteMsg::Vote { proposal_id, vote } => execute_vote(deps, env, info, proposal_id, vote),
         ExecuteMsg::Execute { proposal_id } => execute_execute(deps, env, info, proposal_id),
         ExecuteMsg::Close { proposal_id } => execute_close(deps, env, info, proposal_id),
@@ -78,7 +79,9 @@ pub fn execute_propose(
     info: MessageInfo,
     title: String,
     description: String,
-    msgs: Vec<CosmosMsg>,
+    proposals: Vec<OversightProposal>,
+    // we ignore earliest
+    latest: Option<Expiration>,
 ) -> Result<Response<Empty>, ContractError> {
     // only members of the multisig can create a proposal
     let cfg = CONFIG.load(deps.storage)?;
@@ -97,7 +100,7 @@ pub fn execute_propose(
         description,
         start_height: env.block.height,
         expires,
-        msgs,
+        proposals,
         status: Status::Open,
         votes: Votes::new(vote_power),
         rules: cfg.rules,
@@ -192,7 +195,6 @@ pub fn execute_execute(
 
     // dispatch all proposed messages
     Ok(Response::new()
-        .add_messages(prop.msgs)
         .add_attribute("action", "execute")
         .add_attribute("sender", info.sender)
         .add_attribute("proposal_id", proposal_id.to_string()))
@@ -281,7 +283,7 @@ fn query_proposal(deps: Deps, env: Env, id: u64) -> StdResult<ProposalResponse> 
         id,
         title: prop.title,
         description: prop.description,
-        msgs: prop.msgs,
+        proposals: prop.proposals,
         status,
         expires: prop.expires,
         rules,
@@ -336,7 +338,7 @@ fn map_proposal(
         id: parse_id(&key)?,
         title: prop.title,
         description: prop.description,
-        msgs: prop.msgs,
+        proposals: prop.proposals,
         status,
         expires: prop.expires,
         rules: prop.rules,
@@ -580,7 +582,7 @@ mod tests {
         MockRulesBuilder::new()
     }
 
-    fn proposal_info() -> (Vec<CosmosMsg<Empty>>, String, String) {
+    fn proposal_info() -> (Vec<OversightProposal>, String, String) {
         let bank_msg = BankMsg::Send {
             to_address: SOMEBODY.into(),
             amount: coins(1, "BTC"),
@@ -592,11 +594,11 @@ mod tests {
     }
 
     fn pay_somebody_proposal() -> ExecuteMsg {
-        let (msgs, title, description) = proposal_info();
+        let (proposals, title, description) = proposal_info();
         ExecuteMsg::Propose {
             title,
             description,
-            msgs,
+            proposals,
         }
     }
 
