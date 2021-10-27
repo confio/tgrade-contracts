@@ -1298,6 +1298,14 @@ mod tests {
         slasher
     }
 
+    fn remove_slasher(deps: DepsMut, slasher: &str) {
+        let add_msg = ExecuteMsg::RemoveSlasher {
+            addr: slasher.to_string(),
+        };
+        let user_info = mock_info(INIT_ADMIN, &[]);
+        execute(deps, mock_env(), user_info, add_msg).unwrap();
+    }
+
     fn slash(
         deps: DepsMut,
         slasher: &str,
@@ -1363,6 +1371,23 @@ mod tests {
         assert_stake(deps.as_ref(), 12_000, 7_500, 4_000);
 
         let res = slash(deps.as_mut(), INIT_ADMIN, USER1, Decimal::percent(20));
+        assert_eq!(res, Err(ContractError::Unauthorized {}));
+        assert_stake(deps.as_ref(), 12_000, 7_500, 4_000);
+    }
+
+    #[test]
+    fn removed_slasher_cannot_slash() {
+        let mut deps = mock_dependencies(&[]);
+        default_instantiate(deps.as_mut());
+
+        // Add, then remove a slasher
+        let slasher = add_slasher(deps.as_mut());
+        remove_slasher(deps.as_mut(), &slasher);
+
+        bond(deps.as_mut(), 12_000, 7_500, 4_000, 1);
+        assert_stake(deps.as_ref(), 12_000, 7_500, 4_000);
+
+        let res = slash(deps.as_mut(), &slasher, USER1, Decimal::percent(20));
         assert_eq!(res, Err(ContractError::Unauthorized {}));
         assert_stake(deps.as_ref(), 12_000, 7_500, 4_000);
     }
