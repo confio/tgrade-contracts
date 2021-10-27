@@ -244,7 +244,7 @@ pub fn execute_slash(
     let stake = STAKE.load(deps.storage, &addr)?;
     let slashed = stake * portion;
     let new_stake = STAKE.update(deps.storage, &addr, |stake| -> StdResult<_> {
-        Ok(stake.unwrap_or_default().checked_sub(slashed).unwrap())
+        Ok(stake.unwrap_or_default().checked_sub(slashed)?)
     })?;
 
     // burn the tokens
