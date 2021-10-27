@@ -2,7 +2,7 @@ use cosmwasm_std::StdError;
 use thiserror::Error;
 
 use cw_controllers::AdminError;
-use tg_utils::{HookError, PreauthError};
+use tg_utils::{HookError, PreauthError, SlasherError};
 
 #[derive(Error, Debug, PartialEq)]
 pub enum ContractError {
@@ -14,6 +14,9 @@ pub enum ContractError {
 
     #[error("{0}")]
     Hook(#[from] HookError),
+
+    #[error("{0}")]
+    Slasher(#[from] SlasherError),
 
     #[error("{0}")]
     Preauth(#[from] PreauthError),
@@ -44,10 +47,4 @@ pub enum ContractError {
 
     #[error("Cw20 coins release functionality is in progress")]
     Cw20CoinsRelease {},
-
-    #[error("Attempt to add slasher {0}, which is already registered")]
-    SlasherAlreadyRegistered(String),
-
-    #[error("Attempt to remove slasher {0}, which is not registered")]
-    SlasherNotRegistered(String),
 }

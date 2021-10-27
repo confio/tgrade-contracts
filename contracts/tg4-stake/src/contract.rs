@@ -13,14 +13,14 @@ use tg4::{
     TotalWeightResponse,
 };
 use tg_bindings::{request_privileges, Privilege, PrivilegeChangeMsg, TgradeMsg, TgradeSudoMsg};
-use tg_utils::{members, Duration, ADMIN, HOOKS, PREAUTH, TOTAL};
+use tg_utils::{members, Duration, ADMIN, HOOKS, PREAUTH, PREAUTH_SLASHING, SLASHERS, TOTAL};
 
 use crate::error::ContractError;
 use crate::msg::{
     ClaimsResponse, ExecuteMsg, InstantiateMsg, PreauthResponse, QueryMsg, StakedResponse,
     UnbondingPeriodResponse,
 };
-use crate::state::{claims, Config, CONFIG, PREAUTH_SLASHING, SLASHERS, STAKE};
+use crate::state::{claims, Config, CONFIG, STAKE};
 
 pub type Response = cosmwasm_std::Response<TgradeMsg>;
 pub type SubMsg = cosmwasm_std::SubMsg<TgradeMsg>;
@@ -61,6 +61,7 @@ pub fn instantiate(
     };
     CONFIG.save(deps.storage, &config)?;
     TOTAL.save(deps.storage, &0)?;
+    SLASHERS.instantiate(deps.storage)?;
 
     Ok(Response::default())
 }
@@ -545,7 +546,7 @@ mod tests {
         from_slice, CosmosMsg, OverflowError, OverflowOperation, StdError, Storage,
     };
     use tg4::{member_key, TOTAL_KEY};
-    use tg_utils::{Expiration, HookError, PreauthError};
+    use tg_utils::{Expiration, HookError, PreauthError, SlasherError};
 
     use crate::error::ContractError;
 
@@ -1252,7 +1253,7 @@ mod tests {
         let err = execute(deps.as_mut(), mock_env(), admin_info.clone(), remove_msg).unwrap_err();
         assert_eq!(
             err,
-            ContractError::SlasherNotRegistered(contract2.clone()).into()
+            ContractError::Slasher(SlasherError::SlasherNotRegistered(contract2.clone())).into()
         );
 
         // admin can second contract, and it appears in the query
@@ -1267,7 +1268,8 @@ mod tests {
         let err = execute(deps.as_mut(), mock_env(), admin_info.clone(), add_msg).unwrap_err();
         assert_eq!(
             err,
-            ContractError::SlasherAlreadyRegistered(contract1.clone()).into()
+            ContractError::Slasher(SlasherError::SlasherAlreadyRegistered(contract1.clone()))
+                .into()
         );
 
         // non-admin cannot remove
