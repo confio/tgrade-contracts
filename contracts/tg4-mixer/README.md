@@ -28,8 +28,11 @@ As mentioned above, we optimize for the case where `None` on either
 contract leads to `None` in the combined group. This is especially used
 for the initialization.
 
-For now, we hardcode a geometric mean `sqrt(left * right)`. This
-will need to be extended in the future.
+A number of mixing functions are implemented:
+ - `GeometricMean`. A simple geometric mean of `left` and `right`.
+ - `Sigmoid`. A sigmoid-like function like the one discussed in the PoE whitepaper.
+ - `SigmoidSqrt`. A variant of the above, with a `p = 0.5`, and implemented using `GeometricSigmoid`.
+ - `AlgebraicSigmoid`. An algebraic sigmoid modelled after `Sigmoid`.
 
 ## Updates
 
