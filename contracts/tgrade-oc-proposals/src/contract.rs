@@ -218,16 +218,18 @@ pub fn execute_execute(
         .iter()
         .map(|proposal| match proposal {
             OversightProposal::GrantEngagement { member, points } => {
-                let mut members = engagement_contract.list_members(
-                    &deps.querier,
-                    Some(member.to_string()),
-                    Some(1),
-                )?;
-                if members.len() == 1 {
-                    members[0].weight += points;
-                }
-
-                Ok(engagement_contract.update_members(members, vec![])?)
+                let member_weight = engagement_contract
+                    .member_at_height(&deps.querier, member.to_string(), env.block.height)?
+                    .ok_or(ContractError::EngagementMemberNotFound {
+                        member: member.to_string(),
+                    })?;
+                Ok(engagement_contract.update_members(
+                    vec![tg4::Member {
+                        addr: member.to_string(),
+                        weight: member_weight + points,
+                    }],
+                    vec![],
+                )?)
             }
         })
         .collect::<Result<Vec<SubMsg>, ContractError>>()?;
@@ -472,7 +474,7 @@ mod tests {
     const VOTER5: &str = "voter0005";
     const SOMEBODY: &str = "somebody";
 
-    const ENGAGEMENT_POINTS: &str = "engagement";
+    const ENGAGEMENT_TOKEN: &str = "engagement";
 
     fn member<T: Into<String>>(addr: T, weight: u64) -> Member {
         Member {
@@ -518,7 +520,7 @@ mod tests {
             members,
             preauths: None,
             halflife: None,
-            token: ENGAGEMENT_POINTS.to_owned(),
+            token: ENGAGEMENT_TOKEN.to_owned(),
         };
         app.instantiate_contract(group_id, Addr::unchecked(OWNER), &msg, &[], "group", None)
             .unwrap()
@@ -536,7 +538,7 @@ mod tests {
             members,
             preauths: None,
             halflife: None,
-            token: ENGAGEMENT_POINTS.to_owned(),
+            token: ENGAGEMENT_TOKEN.to_owned(),
         };
         app.instantiate_contract(
             engagement_id,
@@ -595,14 +597,8 @@ mod tests {
             member(VOTER5, 5),
         ];
         let group_addr = instantiate_group(app, members);
-        let engagement_addr = instantiate_engagement(
-            app,
-            Some(OWNER.to_string()),
-            vec![tg4::Member {
-                addr: SOMEBODY.into(),
-                weight: 0,
-            }],
-        );
+        let engagement_addr =
+            instantiate_engagement(app, Some(OWNER.to_string()), vec![member(SOMEBODY, 0)]);
         app.update_block(next_block);
 
         // 2. Set up Multisig backed by this group
@@ -1179,6 +1175,8 @@ mod tests {
         );
 
         // verify engagement points were transfered
+        // engagement_contract is initialized with one member SOMEBODY
+        // with weight 0; after proposal it should be 1
         let engagement_points: tg4::MemberResponse = app
             .wrap()
             .query_wasm_smart(

@@ -12,6 +12,9 @@ pub enum ContractError {
     #[error("Engagement contract invalid address '{addr}'")]
     InvalidEngagementContract { addr: String },
 
+    #[error("Engagement contract member not found: '{member}'")]
+    EngagementMemberNotFound { member: String },
+
     #[error("Unauthorized")]
     Unauthorized {},
 
