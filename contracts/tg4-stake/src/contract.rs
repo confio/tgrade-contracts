@@ -1253,7 +1253,7 @@ mod tests {
         let err = execute(deps.as_mut(), mock_env(), admin_info.clone(), remove_msg).unwrap_err();
         assert_eq!(
             err,
-            ContractError::Slasher(SlasherError::SlasherNotRegistered(contract2.clone())).into()
+            ContractError::Slasher(SlasherError::SlasherNotRegistered(contract2.clone()))
         );
 
         // admin can add a second slasher, and it appears in the query
@@ -1269,7 +1269,6 @@ mod tests {
         assert_eq!(
             err,
             ContractError::Slasher(SlasherError::SlasherAlreadyRegistered(contract1.clone()))
-                .into()
         );
 
         // non-admin cannot remove
