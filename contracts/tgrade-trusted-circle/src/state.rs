@@ -203,7 +203,7 @@ pub enum Punishment {
         /// Slashing percentage
         slashing_percentage: Decimal,
         /// Distribution list to send member's slashed escrow amount.
-        /// If empty (and `burn_tokens` is false), funds are kept in member's escrow.
+        /// If empty, funds are kept in member's escrow.
         /// `slashing_percentage` is irrelevant / ignored in that case
         distribution_list: Vec<String>,
         /// If set to false, slashed member is demoted to `Pending`. Or not demoted at all,
