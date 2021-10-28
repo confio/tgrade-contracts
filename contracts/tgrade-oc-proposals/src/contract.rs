@@ -204,12 +204,31 @@ pub fn execute_execute(
         return Err(ContractError::WrongExecuteStatus {});
     }
 
+    let engagement_contract = CONFIG.load(deps.storage)?.engagement_contract;
+
+    let mut messages = vec![];
+    prop.proposals
+        .iter()
+        .for_each(|proposal| match proposal {
+            OversightProposal::GrantEngagement { member, points } => {
+                let mut members = engagement_contract.list_members(
+                    &deps.querier,
+                    Some(member.to_string()),
+                    Some(1),
+                ).unwrap();
+                members[0].weight += points;
+
+                messages.push(engagement_contract.update_members(members, vec![]).unwrap());
+            }
+        });
+
     // set it to executed
     prop.status = Status::Executed;
     PROPOSALS.save(deps.storage, proposal_id.into(), &prop)?;
 
     // dispatch all proposed messages
     Ok(Response::new()
+        .add_submessages(messages)
         .add_attribute("action", "execute")
         .add_attribute("sender", info.sender)
         .add_attribute("proposal_id", proposal_id.to_string()))
@@ -426,7 +445,7 @@ fn list_voters(
 
 #[cfg(test)]
 mod tests {
-    use cosmwasm_std::{coin, coins, Addr, Coin, Decimal, Timestamp, Uint128};
+    use cosmwasm_std::{coin, coins, Addr, Coin, Decimal, Timestamp};
 
     use cw0::Duration;
     use cw_multi_test::{next_block, Contract, ContractWrapper, Executor};
@@ -606,8 +625,8 @@ mod tests {
 
     fn proposal_info() -> (Vec<OversightProposal>, String, String) {
         let proposals = vec![OversightProposal::GrantEngagement {
-            user: Addr::unchecked(SOMEBODY),
-            points: Uint128::new(1),
+            member: Addr::unchecked(SOMEBODY),
+            points: 1,
         }];
         let title = "Pay somebody".to_string();
         let description = "Do I pay her?".to_string();
@@ -625,105 +644,95 @@ mod tests {
     }
 
     // TODO: I will remake this test as multitest - in separate PR
-    // #[test]
-    // fn test_instantiate_works() {
-    //     let mut app = mock_app(&[]);
+    #[test]
+    fn test_instantiate_works() {
+        let mut app = mock_app(&[]);
 
-    //     // make a simple group
-    //     let group_addr = instantiate_group(&mut app, vec![member(OWNER, 1)]);
-    //     let engagement_addr = instantiate_group(&mut app, vec![member(SOMEBODY, 1)]);
-    //     let flex_id = app.store_code(contract_flex());
+        // make a simple group
+        let group_addr = instantiate_group(&mut app, vec![member(OWNER, 1)]);
+        let engagement_addr = instantiate_group(&mut app, vec![member(SOMEBODY, 1)]);
+        let flex_id = app.store_code(contract_flex());
 
-    //     let max_voting_period = Duration::Time(1234567);
+        let max_voting_period = Duration::Time(1234567);
 
-    //     // Zero required weight fails
-    //     let instantiate_msg = InstantiateMsg {
-    //         group_addr: group_addr.to_string(),
-    //         threshold: Threshold::AbsoluteCount { weight: 0 },
-    //         max_voting_period,
-    //         engagement_contract: engagement_addr.to_string(),
-    //     };
-    //     let err = app
-    //         .instantiate_contract(
-    //             flex_id,
-    //             Addr::unchecked(OWNER),
-    //             &instantiate_msg,
-    //             &[],
-    //             "zero required weight",
-    //             None,
-    //         )
-    //         .unwrap_err();
-    //     assert_eq!(ContractError::ZeroThreshold {}, err.downcast().unwrap());
+        // Zero required weight fails
+        let instantiate_msg = InstantiateMsg {
+            group_addr: group_addr.to_string(),
+            threshold: Threshold::AbsoluteCount { weight: 0 },
+            max_voting_period,
+            engagement_contract: engagement_addr.to_string(),
+        };
+        let err = app
+            .instantiate_contract(
+                flex_id,
+                Addr::unchecked(OWNER),
+                &instantiate_msg,
+                &[],
+                "zero required weight",
+                None,
+            )
+            .unwrap_err();
+        assert_eq!(ContractError::ZeroThreshold {}, err.downcast().unwrap());
 
-    //     // Total weight less than required weight not allowed
-    //     let instantiate_msg = InstantiateMsg {
-    //         group_addr: group_addr.to_string(),
-    //         threshold: Threshold::AbsoluteCount { weight: 100 },
-    //         max_voting_period,
-    //         engagement_contract: engagement_addr.to_string(),
-    //     };
-    //     let err = app
-    //         .instantiate_contract(
-    //             flex_id,
-    //             Addr::unchecked(OWNER),
-    //             &instantiate_msg,
-    //             &[],
-    //             "high required weight",
-    //             None,
-    //         )
-    //         .unwrap_err();
-    //     assert_eq!(
-    //         ContractError::UnreachableThreshold {},
-    //         err.downcast().unwrap()
-    //     );
+        // Total weight less than required weight not allowed
+        let instantiate_msg = InstantiateMsg {
+            group_addr: group_addr.to_string(),
+            threshold: Threshold::AbsoluteCount { weight: 100 },
+            max_voting_period,
+            engagement_contract: engagement_addr.to_string(),
+        };
+        let err = app
+            .instantiate_contract(
+                flex_id,
+                Addr::unchecked(OWNER),
+                &instantiate_msg,
+                &[],
+                "high required weight",
+                None,
+            )
+            .unwrap_err();
+        assert_eq!(
+            ContractError::UnreachableThreshold {},
+            err.downcast().unwrap()
+        );
 
-    //     // All valid
-    //     let instantiate_msg = InstantiateMsg {
-    //         group_addr: group_addr.to_string(),
-    //         threshold: Threshold::AbsoluteCount { weight: 1 },
-    //         max_voting_period,
-    //         engagement_contract: engagement_addr.to_string(),
-    //     };
-    //     let flex_addr = app
-    //         .instantiate_contract(
-    //             flex_id,
-    //             Addr::unchecked(OWNER),
-    //             &instantiate_msg,
-    //             &[],
-    //             "all good",
-    //             None,
-    //         )
-    //         .unwrap();
+        // All valid
+        let instantiate_msg = InstantiateMsg {
+            group_addr: group_addr.to_string(),
+            threshold: Threshold::AbsoluteCount { weight: 1 },
+            max_voting_period,
+            engagement_contract: engagement_addr.to_string(),
+        };
+        let flex_addr = app
+            .instantiate_contract(
+                flex_id,
+                Addr::unchecked(OWNER),
+                &instantiate_msg,
+                &[],
+                "all good",
+                None,
+            )
+            .unwrap();
 
-    //     // Verify contract version set properly
-    //     let version = query_contract_info(&app.deps.querier, flex_addr.clone()).unwrap();
-    //     assert_eq!(
-    //         ContractVersion {
-    //             contract: CONTRACT_NAME.to_string(),
-    //             version: CONTRACT_VERSION.to_string(),
-    //         },
-    //         version,
-    //     );
-
-    //     // Get voters query
-    //     let voters: VoterListResponse = app
-    //         .wrap()
-    //         .query_wasm_smart(
-    //             &flex_addr,
-    //             &QueryMsg::ListVoters {
-    //                 start_after: None,
-    //                 limit: None,
-    //             },
-    //         )
-    //         .unwrap();
-    //     assert_eq!(
-    //         voters.voters,
-    //         vec![VoterDetail {
-    //             addr: OWNER.into(),
-    //             weight: 1
-    //         }]
-    //     );
-    // }
+        // Get voters query
+        let voters: VoterListResponse = app
+            .wrap()
+            .query_wasm_smart(
+                &flex_addr,
+                &QueryMsg::ListVoters {
+                    start_after: None,
+                    limit: None,
+                },
+            )
+            .unwrap();
+        assert_eq!(
+            voters.voters,
+            vec![VoterDetail {
+                addr: OWNER.into(),
+                weight: 1
+            }]
+        );
+    }
 
     #[test]
     fn test_propose_works() {
