@@ -206,11 +206,11 @@ pub fn execute_execute(
 
     let engagement_contract = CONFIG.load(deps.storage)?.engagement_contract;
 
-    let eng_admin = engagement_contract.admin(&deps.querier)?;
-    if !prop.proposals.is_empty()
-        && (eng_admin.is_some() && eng_admin.unwrap() != env.contract.address)
-    {
-        return Err(ContractError::Unauthorized {});
+    if !prop.proposals.is_empty() {
+        let eng_admin = engagement_contract.admin(&deps.querier)?;
+        if eng_admin.is_some() && eng_admin.unwrap() != env.contract.address {
+            return Err(ContractError::ContractIsNotEngagementAdmin);
+        }
     }
 
     let messages = prop
@@ -610,7 +610,7 @@ mod tests {
             max_voting_period,
         );
 
-        // 2.5 Set flex's contract address as admin of engagement contract
+        // 2.5 Set flex contract's address as admin of engagement contract
         app.execute_contract(
             Addr::unchecked(OWNER),
             engagement_addr.clone(),

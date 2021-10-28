@@ -56,9 +56,7 @@ impl Tg4Contract {
     }
 
     pub fn update_members(&self, add: Vec<Member>, remove: Vec<String>) -> StdResult<SubMsg> {
-        let msg = Tg4ExecuteMsg::UpdateMembers {
-            add, remove,
-        };
+        let msg = Tg4ExecuteMsg::UpdateMembers { add, remove };
         self.encode_msg(msg)
     }
 

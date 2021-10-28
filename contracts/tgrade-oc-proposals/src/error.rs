@@ -15,6 +15,9 @@ pub enum ContractError {
     #[error("Engagement contract member not found: '{member}'")]
     EngagementMemberNotFound { member: String },
 
+    #[error("To pass grant engagement proposal, contract must be admin of tg4-engagament")]
+    ContractIsNotEngagementAdmin,
+
     #[error("Unauthorized")]
     Unauthorized {},
 
