@@ -3,7 +3,6 @@ use serde::{Deserialize, Serialize};
 
 use crate::state::VotingRules;
 use cosmwasm_std::{CosmosMsg, Empty};
-use cw0::Expiration;
 use cw3::Vote;
 use cw4::MemberChangedHookMsg;
 
@@ -22,8 +21,6 @@ pub enum ExecuteMsg {
         title: String,
         description: String,
         msgs: Vec<CosmosMsg<Empty>>,
-        // note: we ignore API-spec'd earliest if passed, always opens immediately
-        latest: Option<Expiration>,
     },
     Vote {
         proposal_id: u64,
