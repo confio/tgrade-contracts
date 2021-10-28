@@ -242,10 +242,13 @@ pub fn execute_slash(
 
     // update the addr's stake
     let stake = STAKE.load(deps.storage, &addr)?;
-    let slashed = stake * portion;
+    let mut slashed = stake * portion;
     let new_stake = STAKE.update(deps.storage, &addr, |stake| -> StdResult<_> {
         Ok(stake.unwrap_or_default().checked_sub(slashed)?)
     })?;
+
+    // slash the claims
+    slashed += claims().slash_claims_for_addr(deps.storage, addr.clone(), portion)?;
 
     // burn the tokens
     let burn_msg = BankMsg::Burn {
@@ -1344,6 +1347,49 @@ mod tests {
         assert!(res2.messages.iter().any(|m| m.msg
             == CosmosMsg::Bank(BankMsg::Burn {
                 amount: coins(2_000, &cfg.denom)
+            })));
+    }
+
+    #[test]
+    fn slashing_claims_works() {
+        let mut deps = mock_dependencies(&[]);
+        default_instantiate(deps.as_mut());
+        let cfg = CONFIG.load(&deps.storage).unwrap();
+        let slasher = add_slasher(deps.as_mut());
+
+        // create some data
+        bond(deps.as_mut(), 12_000, 7_500, 4_000, 1);
+        let height_delta = 2;
+        unbond(deps.as_mut(), 12_000, 2_600, 0, height_delta, 0);
+        let mut env = mock_env();
+        env.block.height += height_delta;
+
+        // check the claims for each user
+        let expires = Duration::new(UNBONDING_DURATION).after(&env.block);
+        assert_eq!(
+            get_claims(deps.as_ref(), Addr::unchecked(USER1), None, None),
+            vec![Claim::new(
+                Addr::unchecked(USER1),
+                12_000,
+                expires,
+                env.block.height
+            )]
+        );
+
+        let res = slash(deps.as_mut(), &slasher, USER1, Decimal::percent(20)).unwrap();
+
+        assert_eq!(
+            get_claims(deps.as_ref(), Addr::unchecked(USER1), None, None),
+            vec![Claim::new(
+                Addr::unchecked(USER1),
+                9_600,
+                expires,
+                env.block.height
+            )]
+        );
+        assert!(res.messages.iter().any(|m| m.msg
+            == CosmosMsg::Bank(BankMsg::Burn {
+                amount: coins(2_400, &cfg.denom)
             })));
     }
 

@@ -47,4 +47,7 @@ pub enum ContractError {
 
     #[error("Cw20 coins release functionality is in progress")]
     Cw20CoinsRelease {},
+
+    #[error("Claim is missing")]
+    ClaimMissing,
 }
