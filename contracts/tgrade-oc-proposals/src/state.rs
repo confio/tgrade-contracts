@@ -5,7 +5,6 @@ use std::convert::TryInto;
 use cosmwasm_std::{Addr, BlockInfo, Decimal, StdError, StdResult, Storage, Uint128};
 use cw0::Expiration;
 use cw3::{Status, Vote};
-use cw4::Cw4Contract;
 use cw_storage_plus::{Item, Map, U64Key};
 use tg4::Tg4Contract;
 
@@ -20,7 +19,7 @@ const PRECISION_FACTOR: u128 = 1_000_000_000;
 pub struct Config {
     pub rules: VotingRules,
     // Total weight and voters are queried from this contract
-    pub group_addr: Cw4Contract,
+    pub group_addr: Tg4Contract,
     pub engagement_contract: Tg4Contract,
 }
 
