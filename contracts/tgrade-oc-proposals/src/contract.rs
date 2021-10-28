@@ -207,7 +207,7 @@ pub fn execute_execute(
     let engagement_contract = CONFIG.load(deps.storage)?.engagement_contract;
 
     let eng_admin = engagement_contract.admin(&deps.querier)?;
-    if prop.proposals.len() > 0
+    if !prop.proposals.is_empty()
         && (eng_admin.is_some() && eng_admin.unwrap() != env.contract.address)
     {
         return Err(ContractError::Unauthorized {});
@@ -459,7 +459,7 @@ mod tests {
 
     use cw0::Duration;
     use cw_multi_test::{next_block, Contract, ContractWrapper, Executor};
-    use tg4::{Member, Tg4ExecuteMsg};
+    use tg4::{Member, Tg4ExecuteMsg, Tg4QueryMsg};
     use tg_bindings_test::TgradeApp;
 
     use super::*;
@@ -584,7 +584,7 @@ mod tests {
         rules: VotingRules,
         init_funds: Vec<Coin>,
         multisig_as_group_admin: bool,
-    ) -> (Addr, Addr) {
+    ) -> (Addr, Addr, Addr) {
         // 1. Instantiate group contract with members (and OWNER as admin)
         let members = vec![
             member(OWNER, 0),
@@ -600,7 +600,7 @@ mod tests {
             Some(OWNER.to_string()),
             vec![tg4::Member {
                 addr: SOMEBODY.into(),
-                weight: 1,
+                weight: 0,
             }],
         );
         app.update_block(next_block);
@@ -617,7 +617,7 @@ mod tests {
         // 2.5 Set flex's contract address as admin of engagement contract
         app.execute_contract(
             Addr::unchecked(OWNER),
-            engagement_addr,
+            engagement_addr.clone(),
             &Tg4ExecuteMsg::UpdateAdmin {
                 admin: Some(flex_addr.to_string()),
             },
@@ -646,7 +646,7 @@ mod tests {
             app.send_tokens(Addr::unchecked(OWNER), flex_addr.clone(), &init_funds)
                 .unwrap();
         }
-        (flex_addr, group_addr)
+        (flex_addr, group_addr, engagement_addr)
     }
 
     fn proposal_info() -> (Vec<OversightProposal>, String, String) {
@@ -654,12 +654,12 @@ mod tests {
             member: Addr::unchecked(SOMEBODY),
             points: 1,
         }];
-        let title = "Pay somebody".to_string();
-        let description = "Do I pay her?".to_string();
+        let title = "Grant engagement point to somebody".to_string();
+        let description = "Did I grant him?".to_string();
         (proposals, title, description)
     }
 
-    fn pay_somebody_proposal() -> ExecuteMsg {
+    fn grant_somebody_engagement_point_proposal() -> ExecuteMsg {
         let (proposals, title, description) = proposal_info();
         ExecuteMsg::Propose {
             title,
@@ -669,7 +669,6 @@ mod tests {
         }
     }
 
-    // TODO: I will remake this test as multitest - in separate PR
     #[test]
     fn test_instantiate_works() {
         let mut app = mock_app(&[]);
@@ -772,7 +771,7 @@ mod tests {
             false,
         );
 
-        let proposal = pay_somebody_proposal();
+        let proposal = grant_somebody_engagement_point_proposal();
         // Only voters can propose
         let err = app
             .execute_contract(Addr::unchecked(SOMEBODY), flex_addr.clone(), &proposal, &[])
@@ -880,7 +879,7 @@ mod tests {
         let (flex_addr, _) = setup_test_case_fixed(&mut app, rules.clone(), init_funds, false);
 
         // create proposal with 1 vote power
-        let proposal = pay_somebody_proposal();
+        let proposal = grant_somebody_engagement_point_proposal();
         let res = app
             .execute_contract(Addr::unchecked(VOTER1), flex_addr.clone(), &proposal, &[])
             .unwrap();
@@ -888,7 +887,7 @@ mod tests {
 
         // another proposal immediately passes
         app.update_block(next_block);
-        let proposal = pay_somebody_proposal();
+        let proposal = grant_somebody_engagement_point_proposal();
         let res = app
             .execute_contract(Addr::unchecked(VOTER3), flex_addr.clone(), &proposal, &[])
             .unwrap();
@@ -898,7 +897,7 @@ mod tests {
         app.update_block(expire(voting_period));
 
         // add one more open proposal, 2 votes
-        let proposal = pay_somebody_proposal();
+        let proposal = grant_somebody_engagement_point_proposal();
         let res = app
             .execute_contract(Addr::unchecked(VOTER2), flex_addr.clone(), &proposal, &[])
             .unwrap();
@@ -968,7 +967,7 @@ mod tests {
         let (flex_addr, _) = setup_test_case_fixed(&mut app, rules, init_funds, false);
 
         // create proposal with 0 vote power
-        let proposal = pay_somebody_proposal();
+        let proposal = grant_somebody_engagement_point_proposal();
         let res = app
             .execute_contract(Addr::unchecked(OWNER), flex_addr.clone(), &proposal, &[])
             .unwrap();
@@ -1118,7 +1117,7 @@ mod tests {
         assert_eq!(contract_bal, coin(10, "BTC"));
 
         // create proposal with 0 vote power
-        let proposal = pay_somebody_proposal();
+        let proposal = grant_somebody_engagement_point_proposal();
         let res = app
             .execute_contract(Addr::unchecked(OWNER), flex_addr.clone(), &proposal, &[])
             .unwrap();
@@ -1179,14 +1178,18 @@ mod tests {
             ],
         );
 
-        // TODO: This check is not actual, since this contract transfers
-        // engagement points instead of tokens
-        // leaving comment to change it properly in further PR
-        // verify money was transfered
-        // let some_bal = app.wrap().query_balance(SOMEBODY, "BTC").unwrap();
-        // assert_eq!(some_bal, coin(1, "BTC"));
-        // let contract_bal = app.wrap().query_balance(&flex_addr, "BTC").unwrap();
-        // assert_eq!(contract_bal, coin(9, "BTC"));
+        // verify engagement points were transfered
+        let engagement_points: tg4::MemberResponse = app
+            .wrap()
+            .query_wasm_smart(
+                engagement_addr,
+                &Tg4QueryMsg::Member {
+                    addr: SOMEBODY.to_string(),
+                    at_height: None,
+                },
+            )
+            .unwrap();
+        assert_eq!(engagement_points.weight.unwrap(), 1);
 
         // In passing: Try to close Executed fails
         let err = app
@@ -1205,7 +1208,7 @@ mod tests {
         let (flex_addr, _) = setup_test_case_fixed(&mut app, rules, init_funds, true);
 
         // create proposal with 0 vote power
-        let proposal = pay_somebody_proposal();
+        let proposal = grant_somebody_engagement_point_proposal();
         let res = app
             .execute_contract(Addr::unchecked(OWNER), flex_addr.clone(), &proposal, &[])
             .unwrap();
@@ -1252,7 +1255,7 @@ mod tests {
         let (flex_addr, group_addr) = setup_test_case_fixed(&mut app, rules, init_funds, false);
 
         // VOTER1 starts a proposal to send some tokens (1/4 votes)
-        let proposal = pay_somebody_proposal();
+        let proposal = grant_somebody_engagement_point_proposal();
         let res = app
             .execute_contract(Addr::unchecked(VOTER1), flex_addr.clone(), &proposal, &[])
             .unwrap();
@@ -1302,7 +1305,7 @@ mod tests {
         app.update_block(|block| block.height += 3);
 
         // make a second proposal
-        let proposal2 = pay_somebody_proposal();
+        let proposal2 = grant_somebody_engagement_point_proposal();
         let res = app
             .execute_contract(Addr::unchecked(VOTER1), flex_addr.clone(), &proposal2, &[])
             .unwrap();
@@ -1350,7 +1353,7 @@ mod tests {
         let (flex_addr, group_addr) = setup_test_case(&mut app, rules, init_funds, false);
 
         // VOTER3 starts a proposal to send some tokens (3/5 votes)
-        let proposal = pay_somebody_proposal();
+        let proposal = grant_somebody_engagement_point_proposal();
         let res = app
             .execute_contract(Addr::unchecked(VOTER3), flex_addr.clone(), &proposal, &[])
             .unwrap();
@@ -1394,7 +1397,7 @@ mod tests {
         assert_eq!(prop_status(&app), Status::Passed);
 
         // new proposal can be passed single-handedly by newbie
-        let proposal = pay_somebody_proposal();
+        let proposal = grant_somebody_engagement_point_proposal();
         let res = app
             .execute_contract(Addr::unchecked(newbie), flex_addr.clone(), &proposal, &[])
             .unwrap();
@@ -1428,7 +1431,7 @@ mod tests {
         let (flex_addr, group_addr) = setup_test_case(&mut app, rules, init_funds, false);
 
         // VOTER3 starts a proposal to send some tokens (3 votes)
-        let proposal = pay_somebody_proposal();
+        let proposal = grant_somebody_engagement_point_proposal();
         let res = app
             .execute_contract(Addr::unchecked(VOTER3), flex_addr.clone(), &proposal, &[])
             .unwrap();
@@ -1484,7 +1487,6 @@ mod tests {
 
         // 33% required for quora, which is 5 of the initial 15
         // 50% yes required to pass early (8 of the initial 15)
-
         let rules = mock_rules()
             .threshold(Decimal::percent(60))
             .quorum(Decimal::percent(80))
@@ -1495,7 +1497,7 @@ mod tests {
         );
 
         // create proposal
-        let proposal = pay_somebody_proposal();
+        let proposal = grant_somebody_engagement_point_proposal();
         let res = app
             .execute_contract(Addr::unchecked(VOTER5), flex_addr.clone(), &proposal, &[])
             .unwrap();
