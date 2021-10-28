@@ -11,7 +11,7 @@ use cw3::{Status, Vote};
 use cw4::Cw4Contract;
 use cw_storage_plus::{Item, Map, U64Key};
 
-use crate::{msg::Threshold, ContractError};
+use crate::ContractError;
 
 // we multiply by this when calculating needed_votes in order to round up properly
 // Note: `10u128.pow(9)` fails as "u128::pow` is not yet stable as a const fn"

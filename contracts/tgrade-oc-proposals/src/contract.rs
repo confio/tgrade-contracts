@@ -424,7 +424,6 @@ mod tests {
     use cw_multi_test::{next_block, App, AppBuilder, Contract, ContractWrapper, Executor};
 
     use super::*;
-    use crate::msg::Threshold;
 
     const OWNER: &str = "admin0001";
     const VOTER1: &str = "voter0001";
