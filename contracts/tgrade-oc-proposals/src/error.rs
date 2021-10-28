@@ -1,4 +1,4 @@
-use cosmwasm_std::StdError;
+use cosmwasm_std::{Decimal, StdError};
 use thiserror::Error;
 
 #[derive(Error, Debug, PartialEq)]
@@ -18,6 +18,15 @@ pub enum ContractError {
     #[error("Unauthorized")]
     Unauthorized {},
 
+    #[error("Invalid voting quorum percentage, must be 0.01-1.0: {0}")]
+    InvalidQuorum(Decimal),
+
+    #[error("Invalid voting threshold percentage, must be 0.5-1.0: {0}")]
+    InvalidThreshold(Decimal),
+
+    #[error("Invalid voting period, must be 1-365 days: {0}")]
+    InvalidVotingPeriod(u32),
+
     #[error("Proposal is not open")]
     NotOpen {},
 
@@ -26,9 +35,6 @@ pub enum ContractError {
 
     #[error("Proposal must expire before you can close it")]
     NotExpired {},
-
-    #[error("Wrong expiration option")]
-    WrongExpiration {},
 
     #[error("Already voted on this proposal")]
     AlreadyVoted {},

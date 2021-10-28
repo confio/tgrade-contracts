@@ -3,7 +3,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::error::ContractError;
 use cosmwasm_std::{CosmosMsg, Decimal, Empty};
-use cw0::{Duration, Expiration};
+use cw0::Expiration;
 use cw3::{ThresholdResponse, Vote};
 use cw4::MemberChangedHookMsg;
 
@@ -11,8 +11,15 @@ use cw4::MemberChangedHookMsg;
 pub struct InstantiateMsg {
     // this is the group contract that contains the member list
     pub group_addr: String,
-    pub threshold: Threshold,
-    pub max_voting_period: Duration,
+    /// Voting period in days
+    pub voting_period: u32,
+    /// Default voting quorum percentage (0-100)
+    pub quorum: Decimal,
+    /// Default voting threshold percentage (0-100)
+    pub threshold: Decimal,
+    /// If true, and absolute threshold and quorum are met, we can end before voting period finished.
+    /// (Recommended value: true, unless you have special needs)
+    pub allow_end_early: bool,
 }
 
 /// This defines the different ways tallies can happen.
@@ -131,8 +138,8 @@ pub enum ExecuteMsg {
 #[derive(Serialize, Deserialize, Clone, PartialEq, JsonSchema, Debug)]
 #[serde(rename_all = "snake_case")]
 pub enum QueryMsg {
-    /// Return ThresholdResponse
-    Threshold {},
+    /// Return VotingRules
+    Rules {},
     /// Returns ProposalResponse
     Proposal { proposal_id: u64 },
     /// Returns ProposalListResponse
