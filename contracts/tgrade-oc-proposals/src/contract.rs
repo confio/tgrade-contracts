@@ -42,12 +42,7 @@ pub fn instantiate(
     set_contract_version(deps.storage, CONTRACT_NAME, CONTRACT_VERSION)?;
 
     let cfg = Config {
-        rules: VotingRules {
-            voting_period: msg.voting_period,
-            quorum: msg.quorum,
-            threshold: msg.threshold,
-            allow_end_early: msg.allow_end_early,
-        },
+        rules: msg.rules,
         group_addr,
     };
 
@@ -484,205 +479,214 @@ mod tests {
             .unwrap()
     }
 
-    // fn instantiate_flex(
-    //     app: &mut App,
-    //     group: Addr,
-    //     threshold: Threshold,
-    //     max_voting_period: Duration,
-    // ) -> Addr {
-    //     let flex_id = app.store_code(contract_flex());
-    //     let msg = crate::msg::InstantiateMsg {
-    //         group_addr: group.to_string(),
-    //         threshold,
-    //         max_voting_period,
-    //     };
-    //     app.instantiate_contract(flex_id, Addr::unchecked(OWNER), &msg, &[], "flex", None)
-    //         .unwrap()
-    // }
+    fn instantiate_flex(app: &mut App, group: Addr, rules: VotingRules) -> Addr {
+        let flex_id = app.store_code(contract_flex());
+        let msg = crate::msg::InstantiateMsg {
+            group_addr: group.to_string(),
+            rules,
+        };
+        app.instantiate_contract(flex_id, Addr::unchecked(OWNER), &msg, &[], "flex", None)
+            .unwrap()
+    }
 
-    // // this will set up both contracts, instantiating the group with
-    // // all voters defined above, and the multisig pointing to it and given threshold criteria.
-    // // Returns (multisig address, group address).
-    // fn setup_test_case_fixed(
-    //     app: &mut App,
-    //     weight_needed: u64,
-    //     max_voting_period: Duration,
-    //     init_funds: Vec<Coin>,
-    //     multisig_as_group_admin: bool,
-    // ) -> (Addr, Addr) {
-    //     setup_test_case(
-    //         app,
-    //         Threshold::AbsoluteCount {
-    //             weight: weight_needed,
-    //         },
-    //         max_voting_period,
-    //         init_funds,
-    //         multisig_as_group_admin,
-    //     )
-    // }
+    // this will set up both contracts, instantiating the group with
+    // all voters defined above, and the multisig pointing to it and given threshold criteria.
+    // Returns (multisig address, group address).
+    fn setup_test_case_fixed(
+        app: &mut App,
+        rules: VotingRules,
+        max_voting_period: Duration,
+        init_funds: Vec<Coin>,
+        multisig_as_group_admin: bool,
+    ) -> (Addr, Addr) {
+        setup_test_case(app, rules, init_funds, multisig_as_group_admin)
+    }
 
-    // fn setup_test_case(
-    //     app: &mut App,
-    //     threshold: Threshold,
-    //     max_voting_period: Duration,
-    //     init_funds: Vec<Coin>,
-    //     multisig_as_group_admin: bool,
-    // ) -> (Addr, Addr) {
-    //     // 1. Instantiate group contract with members (and OWNER as admin)
-    //     let members = vec![
-    //         member(OWNER, 0),
-    //         member(VOTER1, 1),
-    //         member(VOTER2, 2),
-    //         member(VOTER3, 3),
-    //         member(VOTER4, 4),
-    //         member(VOTER5, 5),
-    //     ];
-    //     let group_addr = instantiate_group(app, members);
-    //     app.update_block(next_block);
+    fn setup_test_case(
+        app: &mut App,
+        rules: VotingRules,
+        init_funds: Vec<Coin>,
+        multisig_as_group_admin: bool,
+    ) -> (Addr, Addr) {
+        // 1. Instantiate group contract with members (and OWNER as admin)
+        let members = vec![
+            member(OWNER, 0),
+            member(VOTER1, 1),
+            member(VOTER2, 2),
+            member(VOTER3, 3),
+            member(VOTER4, 4),
+            member(VOTER5, 5),
+        ];
+        let group_addr = instantiate_group(app, members);
+        app.update_block(next_block);
 
-    //     // 2. Set up Multisig backed by this group
-    //     let flex_addr = instantiate_flex(app, group_addr.clone(), threshold, max_voting_period);
-    //     app.update_block(next_block);
+        // 2. Set up Multisig backed by this group
+        let flex_addr = instantiate_flex(app, group_addr.clone(), rules);
+        app.update_block(next_block);
 
-    //     // 3. (Optional) Set the multisig as the group owner
-    //     if multisig_as_group_admin {
-    //         let update_admin = Cw4ExecuteMsg::UpdateAdmin {
-    //             admin: Some(flex_addr.to_string()),
-    //         };
-    //         app.execute_contract(
-    //             Addr::unchecked(OWNER),
-    //             group_addr.clone(),
-    //             &update_admin,
-    //             &[],
-    //         )
-    //         .unwrap();
-    //         app.update_block(next_block);
-    //     }
+        // 3. (Optional) Set the multisig as the group owner
+        if multisig_as_group_admin {
+            let update_admin = Cw4ExecuteMsg::UpdateAdmin {
+                admin: Some(flex_addr.to_string()),
+            };
+            app.execute_contract(
+                Addr::unchecked(OWNER),
+                group_addr.clone(),
+                &update_admin,
+                &[],
+            )
+            .unwrap();
+            app.update_block(next_block);
+        }
 
-    //     // Bonus: set some funds on the multisig contract for future proposals
-    //     if !init_funds.is_empty() {
-    //         app.send_tokens(Addr::unchecked(OWNER), flex_addr.clone(), &init_funds)
-    //             .unwrap();
-    //     }
-    //     (flex_addr, group_addr)
-    // }
+        // Bonus: set some funds on the multisig contract for future proposals
+        if !init_funds.is_empty() {
+            app.send_tokens(Addr::unchecked(OWNER), flex_addr.clone(), &init_funds)
+                .unwrap();
+        }
+        (flex_addr, group_addr)
+    }
 
-    // fn proposal_info() -> (Vec<CosmosMsg<Empty>>, String, String) {
-    //     let bank_msg = BankMsg::Send {
-    //         to_address: SOMEBODY.into(),
-    //         amount: coins(1, "BTC"),
-    //     };
-    //     let msgs = vec![bank_msg.into()];
-    //     let title = "Pay somebody".to_string();
-    //     let description = "Do I pay her?".to_string();
-    //     (msgs, title, description)
-    // }
+    struct MockRulesBuilder {
+        pub voting_period: u32,
+        pub quorum: Decimal,
+        pub threshold: Decimal,
+        pub allow_end_early: bool,
+    }
 
-    // fn pay_somebody_proposal() -> ExecuteMsg {
-    //     let (msgs, title, description) = proposal_info();
-    //     ExecuteMsg::Propose {
-    //         title,
-    //         description,
-    //         msgs,
-    //         latest: None,
-    //     }
-    // }
+    impl MockRulesBuilder {
+        fn new() -> Self {
+            Self {
+                voting_period: 14,
+                quorum: Decimal::percent(1),
+                threshold: Decimal::percent(50),
+                allow_end_early: true,
+            }
+        }
 
-    // #[test]
-    // fn test_instantiate_works() {
-    //     let mut app = mock_app(&[]);
+        fn voting_period(&mut self, voting_period: u32) -> &mut Self {
+            self.voting_period = voting_period;
+            self
+        }
 
-    //     // make a simple group
-    //     let group_addr = instantiate_group(&mut app, vec![member(OWNER, 1)]);
-    //     let flex_id = app.store_code(contract_flex());
+        fn quorum(&mut self, quorum: impl Into<Decimal>) -> &mut Self {
+            self.quorum = quorum.into();
+            self
+        }
 
-    //     let max_voting_period = Duration::Time(1234567);
+        fn threshold(&mut self, threshold: impl Into<Decimal>) -> &mut Self {
+            self.threshold = threshold.into();
+            self
+        }
 
-    //     // Zero required weight fails
-    //     let instantiate_msg = InstantiateMsg {
-    //         group_addr: group_addr.to_string(),
-    //         threshold: Threshold::AbsoluteCount { weight: 0 },
-    //         max_voting_period,
-    //     };
-    //     let err = app
-    //         .instantiate_contract(
-    //             flex_id,
-    //             Addr::unchecked(OWNER),
-    //             &instantiate_msg,
-    //             &[],
-    //             "zero required weight",
-    //             None,
-    //         )
-    //         .unwrap_err();
-    //     assert_eq!(ContractError::ZeroThreshold {}, err.downcast().unwrap());
+        fn build(&self) -> VotingRules {
+            VotingRules {
+                voting_period: self.voting_period,
+                quorum: self.quorum,
+                threshold: self.threshold,
+                allow_end_early: self.allow_end_early,
+            }
+        }
+    }
 
-    //     // Total weight less than required weight not allowed
-    //     let instantiate_msg = InstantiateMsg {
-    //         group_addr: group_addr.to_string(),
-    //         threshold: Threshold::AbsoluteCount { weight: 100 },
-    //         max_voting_period,
-    //     };
-    //     let err = app
-    //         .instantiate_contract(
-    //             flex_id,
-    //             Addr::unchecked(OWNER),
-    //             &instantiate_msg,
-    //             &[],
-    //             "high required weight",
-    //             None,
-    //         )
-    //         .unwrap_err();
-    //     assert_eq!(
-    //         ContractError::UnreachableThreshold {},
-    //         err.downcast().unwrap()
-    //     );
+    fn mock_rules() -> MockRulesBuilder {
+        MockRulesBuilder::new()
+    }
 
-    //     // All valid
-    //     let instantiate_msg = InstantiateMsg {
-    //         group_addr: group_addr.to_string(),
-    //         threshold: Threshold::AbsoluteCount { weight: 1 },
-    //         max_voting_period,
-    //     };
-    //     let flex_addr = app
-    //         .instantiate_contract(
-    //             flex_id,
-    //             Addr::unchecked(OWNER),
-    //             &instantiate_msg,
-    //             &[],
-    //             "all good",
-    //             None,
-    //         )
-    //         .unwrap();
+    fn proposal_info() -> (Vec<CosmosMsg<Empty>>, String, String) {
+        let bank_msg = BankMsg::Send {
+            to_address: SOMEBODY.into(),
+            amount: coins(1, "BTC"),
+        };
+        let msgs = vec![bank_msg.into()];
+        let title = "Pay somebody".to_string();
+        let description = "Do I pay her?".to_string();
+        (msgs, title, description)
+    }
 
-    //     // Verify contract version set properly
-    //     let version = query_contract_info(&app, flex_addr.clone()).unwrap();
-    //     assert_eq!(
-    //         ContractVersion {
-    //             contract: CONTRACT_NAME.to_string(),
-    //             version: CONTRACT_VERSION.to_string(),
-    //         },
-    //         version,
-    //     );
+    fn pay_somebody_proposal() -> ExecuteMsg {
+        let (msgs, title, description) = proposal_info();
+        ExecuteMsg::Propose {
+            title,
+            description,
+            msgs,
+            latest: None,
+        }
+    }
 
-    //     // Get voters query
-    //     let voters: VoterListResponse = app
-    //         .wrap()
-    //         .query_wasm_smart(
-    //             &flex_addr,
-    //             &QueryMsg::ListVoters {
-    //                 start_after: None,
-    //                 limit: None,
-    //             },
-    //         )
-    //         .unwrap();
-    //     assert_eq!(
-    //         voters.voters,
-    //         vec![VoterDetail {
-    //             addr: OWNER.into(),
-    //             weight: 1
-    //         }]
-    //     );
-    // }
+    #[test]
+    fn test_instantiate_works() {
+        let mut app = mock_app(&[]);
+
+        // make a simple group
+        let group_addr = instantiate_group(&mut app, vec![member(OWNER, 1)]);
+        let flex_id = app.store_code(contract_flex());
+
+        // Zero threshold fails
+        let instantiate_msg = InstantiateMsg {
+            group_addr: group_addr.to_string(),
+            rules: mock_rules().threshold(Decimal::zero()).build(),
+        };
+        let err = app
+            .instantiate_contract(
+                flex_id,
+                Addr::unchecked(OWNER),
+                &instantiate_msg,
+                &[],
+                "zero required weight",
+                None,
+            )
+            .unwrap_err();
+        assert_eq!(
+            ContractError::InvalidThreshold(Decimal::zero()),
+            err.downcast().unwrap()
+        );
+
+        // All valid
+        let instantiate_msg = InstantiateMsg {
+            group_addr: group_addr.to_string(),
+            rules: mock_rules().build(),
+        };
+        let flex_addr = app
+            .instantiate_contract(
+                flex_id,
+                Addr::unchecked(OWNER),
+                &instantiate_msg,
+                &[],
+                "all good",
+                None,
+            )
+            .unwrap();
+
+        // Verify contract version set properly
+        let version = query_contract_info(&app, flex_addr.clone()).unwrap();
+        assert_eq!(
+            ContractVersion {
+                contract: CONTRACT_NAME.to_string(),
+                version: CONTRACT_VERSION.to_string(),
+            },
+            version,
+        );
+
+        // Get voters query
+        let voters: VoterListResponse = app
+            .wrap()
+            .query_wasm_smart(
+                &flex_addr,
+                &QueryMsg::ListVoters {
+                    start_after: None,
+                    limit: None,
+                },
+            )
+            .unwrap();
+        assert_eq!(
+            voters.voters,
+            vec![VoterDetail {
+                addr: OWNER.into(),
+                weight: 1
+            }]
+        );
+    }
 
     // #[test]
     // fn test_propose_works() {

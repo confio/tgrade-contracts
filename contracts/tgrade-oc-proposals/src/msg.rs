@@ -1,7 +1,7 @@
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
-use crate::error::ContractError;
+use crate::{error::ContractError, state::VotingRules};
 use cosmwasm_std::{CosmosMsg, Decimal, Empty};
 use cw0::Expiration;
 use cw3::{ThresholdResponse, Vote};
@@ -11,15 +11,7 @@ use cw4::MemberChangedHookMsg;
 pub struct InstantiateMsg {
     // this is the group contract that contains the member list
     pub group_addr: String,
-    /// Voting period in days
-    pub voting_period: u32,
-    /// Default voting quorum percentage (0-100)
-    pub quorum: Decimal,
-    /// Default voting threshold percentage (0-100)
-    pub threshold: Decimal,
-    /// If true, and absolute threshold and quorum are met, we can end before voting period finished.
-    /// (Recommended value: true, unless you have special needs)
-    pub allow_end_early: bool,
+    pub rules: VotingRules,
 }
 
 /// This defines the different ways tallies can happen.
