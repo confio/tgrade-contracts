@@ -1,6 +1,6 @@
 [package]
 name = "tgrade-oc-proposals"
-version = "0.5.0-alpha"
+version = "0.5.0-beta"
 authors = ["Ethan Frey <ethanfrey@users.noreply.github.com>"]
 edition = "2018"
 description = "Implementing tgrade-oc-proposals"
@@ -14,11 +14,11 @@ backtraces = ["cosmwasm-std/backtraces"]
 library = []
 
 [dependencies]
-cw0 = "0.10.0"
-cw2 = "0.10.0"
-cw3 = "0.10.0"
-cw4 = "0.10.0"
-cw-storage-plus = "0.10.0"
+cw0 = "0.10.1"
+cw2 = "0.10.1"
+cw3 = "0.10.1"
+cw4 = "0.10.1"
+cw-storage-plus = "0.10.1"
 cosmwasm-std = "1.0.0-beta"
 schemars = "0.8.1"
 serde = { version = "1", default-features = false, features = ["derive"] }
@@ -26,5 +26,5 @@ thiserror = { version = "1" }
 
 [dev-dependencies]
 cosmwasm-schema = "1.0.0-beta"
-cw4-group = "0.10.0"
-cw-multi-test = "0.10.0"
+cw4-group = "0.10.1"
+cw-multi-test = "0.10.1"
