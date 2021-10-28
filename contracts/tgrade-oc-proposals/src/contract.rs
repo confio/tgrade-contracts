@@ -191,7 +191,7 @@ pub fn execute_vote(
 
 pub fn execute_execute(
     deps: DepsMut,
-    _env: Env,
+    env: Env,
     info: MessageInfo,
     proposal_id: u64,
 ) -> Result<Response, ContractError> {
@@ -206,21 +206,31 @@ pub fn execute_execute(
 
     let engagement_contract = CONFIG.load(deps.storage)?.engagement_contract;
 
-    let mut messages = vec![];
-    prop.proposals
+    let eng_admin = engagement_contract.admin(&deps.querier)?;
+    if prop.proposals.len() > 0
+        && (eng_admin.is_some() && eng_admin.unwrap() != env.contract.address)
+    {
+        return Err(ContractError::Unauthorized {});
+    }
+
+    let messages = prop
+        .proposals
         .iter()
-        .for_each(|proposal| match proposal {
+        .map(|proposal| match proposal {
             OversightProposal::GrantEngagement { member, points } => {
                 let mut members = engagement_contract.list_members(
                     &deps.querier,
                     Some(member.to_string()),
                     Some(1),
-                ).unwrap();
-                members[0].weight += points;
+                )?;
+                if members.len() == 1 {
+                    members[0].weight += points;
+                }
 
-                messages.push(engagement_contract.update_members(members, vec![]).unwrap());
+                Ok(engagement_contract.update_members(members, vec![])?)
             }
-        });
+        })
+        .collect::<Result<Vec<SubMsg>, ContractError>>()?;
 
     // set it to executed
     prop.status = Status::Executed;
@@ -515,10 +525,14 @@ mod tests {
     }
 
     // uploads code and returns address of engagement contract
-    fn instantiate_engagement(app: &mut TgradeApp, members: Vec<Member>) -> Addr {
+    fn instantiate_engagement(
+        app: &mut TgradeApp,
+        admin: Option<String>,
+        members: Vec<Member>,
+    ) -> Addr {
         let engagement_id = app.store_code(contract_engagement());
         let msg = tg4_engagement::msg::InstantiateMsg {
-            admin: Some(OWNER.into()),
+            admin,
             members,
             preauths: None,
             halflife: None,
@@ -583,6 +597,7 @@ mod tests {
         let group_addr = instantiate_group(app, members);
         let engagement_addr = instantiate_engagement(
             app,
+            Some(OWNER.to_string()),
             vec![tg4::Member {
                 addr: SOMEBODY.into(),
                 weight: 1,
@@ -594,10 +609,21 @@ mod tests {
         let flex_addr = instantiate_flex(
             app,
             group_addr.clone(),
-            engagement_addr,
+            engagement_addr.clone(),
             threshold,
             max_voting_period,
         );
+
+        // 2.5 Set flex's contract address as admin of engagement contract
+        app.execute_contract(
+            Addr::unchecked(OWNER),
+            engagement_addr,
+            &Tg4ExecuteMsg::UpdateAdmin {
+                admin: Some(flex_addr.to_string()),
+            },
+            &[],
+        )
+        .unwrap();
         app.update_block(next_block);
 
         // 3. (Optional) Set the multisig as the group owner
