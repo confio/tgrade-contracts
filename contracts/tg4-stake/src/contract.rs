@@ -1323,6 +1323,30 @@ mod tests {
         execute(deps, mock_env(), slasher_info, msg)
     }
 
+    fn assert_burned(res: Response, expected_amount: Vec<Coin>) {
+        // Find all instances of BankMsg::Burn in the response and extract the burned amounts
+        let burned_amounts: Vec<_> = res
+            .messages
+            .iter()
+            .filter_map(|sub_msg| match &sub_msg.msg {
+                CosmosMsg::Bank(BankMsg::Burn { amount }) => Some(amount),
+                _ => None,
+            })
+            .collect();
+
+        assert_eq!(
+            burned_amounts.len(),
+            1,
+            "Expected exactly 1 Bank::Burn message, got {}",
+            burned_amounts.len()
+        );
+        assert_eq!(
+            burned_amounts[0], &expected_amount,
+            "Expected to burn {}, burned {}",
+            expected_amount[0], burned_amounts[0][0]
+        );
+    }
+
     #[test]
     fn slashing_bonded_tokens_works() {
         let mut deps = mock_dependencies(&[]);
@@ -1339,14 +1363,8 @@ mod tests {
         assert_stake(deps.as_ref(), 9_600, 7_500, 2_000);
 
         // Tokens are burned
-        assert!(res1.messages.iter().any(|m| m.msg
-            == CosmosMsg::Bank(BankMsg::Burn {
-                amount: coins(2_400, &cfg.denom)
-            })));
-        assert!(res2.messages.iter().any(|m| m.msg
-            == CosmosMsg::Bank(BankMsg::Burn {
-                amount: coins(2_000, &cfg.denom)
-            })));
+        assert_burned(res1, coins(2_400, &cfg.denom));
+        assert_burned(res2, coins(2_000, &cfg.denom));
     }
 
     #[test]
@@ -1386,10 +1404,7 @@ mod tests {
                 env.block.height
             )]
         );
-        assert!(res.messages.iter().any(|m| m.msg
-            == CosmosMsg::Bank(BankMsg::Burn {
-                amount: coins(2_400, &cfg.denom)
-            })));
+        assert_burned(res, coins(2_400, &cfg.denom));
     }
 
     #[test]
