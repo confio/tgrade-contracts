@@ -37,7 +37,7 @@ impl<'a> Slashers<'a> {
 
     pub fn is_slasher(&self, storage: &dyn Storage, addr: &Addr) -> Result<bool, SlasherError> {
         let slashers = self.0.load(storage)?;
-        Ok(slashers.iter().any(|s| s == addr))
+        Ok(slashers.contains(addr))
     }
 
     pub fn list_slashers(&self, storage: &dyn Storage) -> StdResult<Vec<String>> {
