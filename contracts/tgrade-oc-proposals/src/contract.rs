@@ -75,9 +75,9 @@ pub fn execute(
         ExecuteMsg::Propose {
             title,
             description,
-            proposals,
+            proposal,
             latest,
-        } => execute_propose(deps, env, info, title, description, proposals, latest),
+        } => execute_propose(deps, env, info, title, description, proposal, latest),
         ExecuteMsg::Vote { proposal_id, vote } => execute_vote(deps, env, info, proposal_id, vote),
         ExecuteMsg::Execute { proposal_id } => execute_execute(deps, env, info, proposal_id),
         ExecuteMsg::Close { proposal_id } => execute_close(deps, env, info, proposal_id),
@@ -93,7 +93,7 @@ pub fn execute_propose(
     info: MessageInfo,
     title: String,
     description: String,
-    proposals: Vec<OversightProposal>,
+    proposal: OversightProposal,
     // we ignore earliest
     latest: Option<Expiration>,
 ) -> Result<Response, ContractError> {
@@ -114,7 +114,7 @@ pub fn execute_propose(
         description,
         start_height: env.block.height,
         expires,
-        proposals,
+        proposal,
         status: Status::Open,
         votes: Votes::new(vote_power),
         rules: cfg.rules,
@@ -205,36 +205,30 @@ pub fn execute_execute(
 
     let engagement_contract = CONFIG.load(deps.storage)?.engagement_contract;
 
-    if !prop.proposals.is_empty() {
-        let eng_admin = engagement_contract.admin(&deps.querier)?;
-        if eng_admin.is_some() && eng_admin.unwrap() != env.contract.address {
-            return Err(ContractError::ContractIsNotEngagementAdmin);
-        }
+    let eng_admin = engagement_contract.admin(&deps.querier)?;
+    if eng_admin.is_some() && eng_admin.unwrap() != env.contract.address {
+        return Err(ContractError::ContractIsNotEngagementAdmin);
     }
 
-    let messages = prop
-        .proposals
-        .iter()
-        .map(|proposal| match proposal {
-            OversightProposal::GrantEngagement { member, points } => {
-                let member_weight = engagement_contract
-                    .member_at_height(&deps.querier, member.to_string(), env.block.height)?
-                    .ok_or(ContractError::EngagementMemberNotFound {
-                        member: member.to_string(),
-                    })?;
-                let member = tg4::Member {
-                    addr: member.to_string(),
-                    weight: member_weight + points,
-                };
-                Ok(engagement_contract.encode_raw_msg(to_binary(
-                    &tg4_engagement::ExecuteMsg::UpdateMembers {
-                        remove: vec![],
-                        add: vec![member],
-                    },
-                )?)?)
-            }
-        })
-        .collect::<Result<Vec<SubMsg>, ContractError>>()?;
+    let message = match prop.proposal {
+        OversightProposal::GrantEngagement { ref member, points } => {
+            let member_weight = engagement_contract
+                .member_at_height(&deps.querier, member.to_string(), env.block.height)?
+                .ok_or(ContractError::EngagementMemberNotFound {
+                    member: member.to_string(),
+                })?;
+            let member = tg4::Member {
+                addr: member.to_string(),
+                weight: member_weight + points,
+            };
+            engagement_contract.encode_raw_msg(to_binary(
+                &tg4_engagement::ExecuteMsg::UpdateMembers {
+                    remove: vec![],
+                    add: vec![member],
+                },
+            )?)?
+        }
+    };
 
     // set it to executed
     prop.status = Status::Executed;
@@ -242,7 +236,7 @@ pub fn execute_execute(
 
     // dispatch all proposed messages
     Ok(Response::new()
-        .add_submessages(messages)
+        .add_submessage(message)
         .add_attribute("action", "execute")
         .add_attribute("sender", info.sender)
         .add_attribute("proposal_id", proposal_id.to_string()))
@@ -331,7 +325,7 @@ fn query_proposal(deps: Deps, env: Env, id: u64) -> StdResult<ProposalResponse> 
         id,
         title: prop.title,
         description: prop.description,
-        proposals: prop.proposals,
+        proposal: prop.proposal,
         status,
         expires: prop.expires,
         rules,
@@ -386,7 +380,7 @@ fn map_proposal(
         id: parse_id(&key)?,
         title: prop.title,
         description: prop.description,
-        proposals: prop.proposals,
+        proposal: prop.proposal,
         status,
         expires: prop.expires,
         rules: prop.rules,
@@ -647,22 +641,22 @@ mod tests {
         (flex_addr, group_addr, engagement_addr)
     }
 
-    fn proposal_info() -> (Vec<OversightProposal>, String, String) {
-        let proposals = vec![OversightProposal::GrantEngagement {
+    fn proposal_info() -> (OversightProposal, String, String) {
+        let proposal = OversightProposal::GrantEngagement {
             member: Addr::unchecked(SOMEBODY),
             points: 1,
-        }];
+        };
         let title = "Grant engagement point to somebody".to_string();
         let description = "Did I grant him?".to_string();
-        (proposals, title, description)
+        (proposal, title, description)
     }
 
     fn grant_somebody_engagement_point_proposal() -> ExecuteMsg {
-        let (proposals, title, description) = proposal_info();
+        let (proposal, title, description) = proposal_info();
         ExecuteMsg::Propose {
             title,
             description,
-            proposals,
+            proposal,
             latest: None,
         }
     }
@@ -769,22 +763,27 @@ mod tests {
             false,
         );
 
-        let proposal = grant_somebody_engagement_point_proposal();
+        let proposal_msg = grant_somebody_engagement_point_proposal();
         // Only voters can propose
         let err = app
-            .execute_contract(Addr::unchecked(SOMEBODY), flex_addr.clone(), &proposal, &[])
+            .execute_contract(
+                Addr::unchecked(SOMEBODY),
+                flex_addr.clone(),
+                &proposal_msg,
+                &[],
+            )
             .unwrap_err();
         assert_eq!(ContractError::Unauthorized {}, err.downcast().unwrap());
 
         // Wrong expiration option fails
-        let proposals = match proposal.clone() {
-            ExecuteMsg::Propose { proposals, .. } => proposals,
+        let proposal = match proposal_msg.clone() {
+            ExecuteMsg::Propose { proposal, .. } => proposal,
             _ => panic!("Wrong variant"),
         };
         let proposal_wrong_exp = ExecuteMsg::Propose {
             title: "Rewarding somebody".to_string(),
             description: "Do we reward her?".to_string(),
-            proposals,
+            proposal,
             latest: Some(Expiration::AtHeight(123456)),
         };
         let err = app
@@ -799,7 +798,12 @@ mod tests {
 
         // Proposal from voter works
         let res = app
-            .execute_contract(Addr::unchecked(VOTER3), flex_addr.clone(), &proposal, &[])
+            .execute_contract(
+                Addr::unchecked(VOTER3),
+                flex_addr.clone(),
+                &proposal_msg,
+                &[],
+            )
             .unwrap();
         assert_eq!(
             res.custom_attrs(1),
@@ -813,7 +817,7 @@ mod tests {
 
         // Proposal from voter with enough vote power directly passes
         let res = app
-            .execute_contract(Addr::unchecked(VOTER4), flex_addr, &proposal, &[])
+            .execute_contract(Addr::unchecked(VOTER4), flex_addr, &proposal_msg, &[])
             .unwrap();
         assert_eq!(
             res.custom_attrs(1),
@@ -924,11 +928,11 @@ mod tests {
         assert_eq!(expected_info, info);
 
         // ensure the common features are set
-        let (expected_proposals, expected_title, expected_description) = proposal_info();
+        let (expected_proposal, expected_title, expected_description) = proposal_info();
         for prop in res.proposals {
             assert_eq!(prop.title, expected_title);
             assert_eq!(prop.description, expected_description);
-            assert_eq!(prop.proposals, expected_proposals);
+            assert_eq!(prop.proposal, expected_proposal);
         }
 
         // reverse query can get just proposal_id3
@@ -942,12 +946,12 @@ mod tests {
             .unwrap();
         assert_eq!(1, res.proposals.len());
 
-        let (proposals, title, description) = proposal_info();
+        let (proposal, title, description) = proposal_info();
         let expected = ProposalResponse {
             id: proposal_id3,
             title,
             description,
-            proposals,
+            proposal,
             expires: voting_period.after(&proposed_at),
             status: Status::Open,
             rules,

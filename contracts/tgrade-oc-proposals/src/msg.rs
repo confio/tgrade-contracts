@@ -113,7 +113,7 @@ pub enum ExecuteMsg {
     Propose {
         title: String,
         description: String,
-        proposals: Vec<OversightProposal>,
+        proposal: OversightProposal,
         // note: we ignore API-spec'd earliest if passed, always opens immediately
         latest: Option<Expiration>,
     },

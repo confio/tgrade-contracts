@@ -29,7 +29,7 @@ pub struct Proposal {
     pub description: String,
     pub start_height: u64,
     pub expires: Expiration,
-    pub proposals: Vec<OversightProposal>,
+    pub proposal: OversightProposal,
     pub status: Status,
     /// pass requirements
     pub rules: VotingRules,
@@ -271,7 +271,10 @@ mod test {
             description: "Info".to_string(),
             start_height: 100,
             expires,
-            proposals: vec![],
+            proposal: OversightProposal::GrantEngagement {
+                member: Addr::unchecked("random"),
+                points: 10,
+            },
             status: Status::Open,
             rules,
             total_weight,
