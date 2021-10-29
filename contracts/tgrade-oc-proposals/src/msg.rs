@@ -11,10 +11,9 @@ use crate::error::ContractError;
 
 #[derive(Serialize, Deserialize, Clone, PartialEq, JsonSchema, Debug)]
 pub struct InstantiateMsg {
-    // this is the group contract that contains the member list
-    pub group_addr: String,
     pub threshold: Threshold,
     pub max_voting_period: Duration,
+    // this is the group contract that contains the member list
     pub engagement_contract: String,
 }
 
