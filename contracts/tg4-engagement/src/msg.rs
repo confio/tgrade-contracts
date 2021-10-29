@@ -1,4 +1,4 @@
-use cosmwasm_std::{Addr, Coin, Timestamp};
+use cosmwasm_std::{Addr, Coin, Decimal, Timestamp};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
@@ -13,7 +13,10 @@ pub struct InstantiateMsg {
     /// Omit it to make the group immutable.
     pub admin: Option<String>,
     pub members: Vec<Member>,
-    pub preauths: Option<u64>,
+    #[serde(default)]
+    pub preauths: u64,
+    #[serde(default)]
+    pub preauths_slashing: u64,
     pub halflife: Option<Duration>,
     /// Token which may be distributed by this contract.
     pub token: String,
@@ -61,6 +64,12 @@ pub enum ExecuteMsg {
         /// own address.
         delegated: String,
     },
+    /// Adds slasher for contract if there are enough `slasher_preauths` left
+    AddSlasher { addr: String },
+    /// Removes slasher for contract
+    RemoveSlasher { addr: String },
+    /// Slash engagement points from address
+    Slash { addr: String, portion: Decimal },
 }
 
 #[derive(Serialize, Deserialize, Clone, PartialEq, JsonSchema, Debug)]

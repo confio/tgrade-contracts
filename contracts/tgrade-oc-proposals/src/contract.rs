@@ -508,7 +508,8 @@ mod tests {
         let msg = tg4_engagement::msg::InstantiateMsg {
             admin,
             members,
-            preauths: None,
+            preauths: 0,
+            preauths_slashing: 0,
             halflife: None,
             token: ENGAGEMENT_TOKEN.to_owned(),
         };

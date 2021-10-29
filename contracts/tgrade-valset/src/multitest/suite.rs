@@ -183,7 +183,8 @@ impl SuiteBuilder {
                 &tg4_engagement::msg::InstantiateMsg {
                     admin: Some(admin.to_string()),
                     members: members.clone(),
-                    preauths: None,
+                    preauths: 0,
+                    preauths_slashing: 0,
                     halflife: None,
                     token: token.clone(),
                 },
@@ -201,7 +202,8 @@ impl SuiteBuilder {
                 &tg4_engagement::msg::InstantiateMsg {
                     admin: Some(admin.to_string()),
                     members: config.members,
-                    preauths: None,
+                    preauths: 0,
+                    preauths_slashing: 0,
                     halflife: config.halflife,
                     token: token.clone(),
                 },

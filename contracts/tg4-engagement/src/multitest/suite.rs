@@ -107,7 +107,8 @@ impl SuiteBuilder {
                 &InstantiateMsg {
                     admin: Some(owner.to_string()),
                     members: self.members,
-                    preauths: None,
+                    preauths: 0,
+                    preauths_slashing: 0,
                     halflife: self.halflife,
                     token: token.clone(),
                 },

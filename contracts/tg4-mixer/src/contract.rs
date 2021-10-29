@@ -431,7 +431,8 @@ mod tests {
         let msg = tg4_engagement::msg::InstantiateMsg {
             admin: admin.clone(),
             members,
-            preauths: Some(1),
+            preauths: 1,
+            preauths_slashing: 0,
             halflife: None,
             token: STAKE_DENOM.to_owned(),
         };
