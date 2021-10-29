@@ -1,18 +1,11 @@
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
-use crate::query::Member;
-
 #[derive(Serialize, Deserialize, Clone, PartialEq, JsonSchema, Debug)]
 #[serde(rename_all = "snake_case")]
 pub enum Tg4ExecuteMsg {
     /// Change the admin
     UpdateAdmin { admin: Option<String> },
-    /// Update members
-    UpdateMembers {
-        remove: Vec<String>,
-        add: Vec<Member>,
-    },
     /// Add a new hook to be informed of all membership changes. Must be called by Admin
     AddHook { addr: String },
     /// Remove a hook. Must be called by Admin

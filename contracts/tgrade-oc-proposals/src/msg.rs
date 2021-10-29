@@ -4,7 +4,7 @@ use serde::{Deserialize, Serialize};
 use cosmwasm_std::{Addr, Decimal};
 use cw0::{Duration, Expiration};
 use cw3::Vote;
-use cw4::MemberChangedHookMsg;
+use tg4::MemberChangedHookMsg;
 
 use crate::state::VotingRules;
 use crate::error::ContractError;

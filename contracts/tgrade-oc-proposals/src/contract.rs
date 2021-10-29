@@ -10,9 +10,8 @@ use cw3::{
     Status, Vote, VoteInfo, VoteListResponse, VoteResponse, VoterDetail, VoterListResponse,
     VoterResponse,
 };
-use cw4::{MemberChangedHookMsg, MemberDiff};
 use cw_storage_plus::Bound;
-use tg4::Tg4Contract;
+use tg4::{MemberChangedHookMsg, MemberDiff, Tg4Contract};
 use tg_bindings::TgradeMsg;
 
 use crate::error::ContractError;
@@ -223,13 +222,16 @@ pub fn execute_execute(
                     .ok_or(ContractError::EngagementMemberNotFound {
                         member: member.to_string(),
                     })?;
-                Ok(engagement_contract.update_members(
-                    vec![tg4::Member {
-                        addr: member.to_string(),
-                        weight: member_weight + points,
-                    }],
-                    vec![],
-                )?)
+                let member = tg4::Member {
+                    addr: member.to_string(),
+                    weight: member_weight + points,
+                };
+                Ok(engagement_contract.encode_raw_msg(to_binary(
+                    &tg4_engagement::ExecuteMsg::UpdateMembers {
+                        remove: vec![],
+                        add: vec![member],
+                    },
+                )?)?)
             }
         })
         .collect::<Result<Vec<SubMsg>, ContractError>>()?;
