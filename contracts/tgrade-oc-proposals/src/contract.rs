@@ -1,5 +1,3 @@
-use std::cmp::Ordering;
-
 #[cfg(not(feature = "library"))]
 use cosmwasm_std::entry_point;
 use cosmwasm_std::{
@@ -10,8 +8,8 @@ use cosmwasm_std::{
 use cw0::{maybe_addr, Expiration};
 use cw2::set_contract_version;
 use cw3::{
-    ProposalListResponse, ProposalResponse, Status, ThresholdResponse, Vote, VoteInfo,
-    VoteListResponse, VoteResponse, VoterDetail, VoterListResponse, VoterResponse,
+    Status, Vote, VoteInfo, VoteListResponse, VoteResponse, VoterDetail, VoterListResponse,
+    VoterResponse,
 };
 use cw4::{Cw4Contract, MemberChangedHookMsg, MemberDiff};
 use cw_storage_plus::Bound;
@@ -19,7 +17,8 @@ use cw_storage_plus::Bound;
 use crate::error::ContractError;
 use crate::msg::{ExecuteMsg, InstantiateMsg, QueryMsg};
 use crate::state::{
-    next_id, parse_id, Ballot, Config, Proposal, Votes, BALLOTS, CONFIG, PROPOSALS,
+    next_id, parse_id, Ballot, Config, Proposal, ProposalListResponse, ProposalResponse, Votes,
+    VotingRules, BALLOTS, CONFIG, PROPOSALS,
 };
 
 // version info for migration info
@@ -38,16 +37,14 @@ pub fn instantiate(
             addr: msg.group_addr.clone(),
         }
     })?);
-    let total_weight = group_addr.total_weight(&deps.querier)?;
-    msg.threshold.validate(total_weight)?;
-
     set_contract_version(deps.storage, CONTRACT_NAME, CONTRACT_VERSION)?;
 
     let cfg = Config {
-        threshold: msg.threshold,
-        max_voting_period: msg.max_voting_period,
+        rules: msg.rules,
         group_addr,
     };
+
+    cfg.rules.validate()?;
     CONFIG.save(deps.storage, &cfg)?;
 
     Ok(Response::default())
@@ -65,8 +62,7 @@ pub fn execute(
             title,
             description,
             msgs,
-            latest,
-        } => execute_propose(deps, env, info, title, description, msgs, latest),
+        } => execute_propose(deps, env, info, title, description, msgs),
         ExecuteMsg::Vote { proposal_id, vote } => execute_vote(deps, env, info, proposal_id, vote),
         ExecuteMsg::Execute { proposal_id } => execute_execute(deps, env, info, proposal_id),
         ExecuteMsg::Close { proposal_id } => execute_close(deps, env, info, proposal_id),
@@ -83,8 +79,6 @@ pub fn execute_propose(
     title: String,
     description: String,
     msgs: Vec<CosmosMsg>,
-    // we ignore earliest
-    latest: Option<Expiration>,
 ) -> Result<Response<Empty>, ContractError> {
     // only members of the multisig can create a proposal
     let cfg = CONFIG.load(deps.storage)?;
@@ -94,15 +88,8 @@ pub fn execute_propose(
         .is_member(&deps.querier, &info.sender)?
         .ok_or(ContractError::Unauthorized {})?;
 
-    // max expires also used as default
-    let max_expires = cfg.max_voting_period.after(&env.block);
-    let mut expires = latest.unwrap_or(max_expires);
-    let comp = expires.partial_cmp(&max_expires);
-    if let Some(Ordering::Greater) = comp {
-        expires = max_expires;
-    } else if comp.is_none() {
-        return Err(ContractError::WrongExpiration {});
-    }
+    // calculate expiry time
+    let expires = Expiration::AtTime(env.block.time.plus_seconds(cfg.rules.voting_period_secs()));
 
     // create a proposal
     let mut prop = Proposal {
@@ -113,7 +100,7 @@ pub fn execute_propose(
         msgs,
         status: Status::Open,
         votes: Votes::new(vote_power),
-        threshold: cfg.threshold,
+        rules: cfg.rules,
         total_weight: cfg.group_addr.total_weight(&deps.querier)?,
     };
     prop.update_status(&env.block);
@@ -259,7 +246,7 @@ pub fn execute_membership_hook(
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn query(deps: Deps, env: Env, msg: QueryMsg) -> StdResult<Binary> {
     match msg {
-        QueryMsg::Threshold {} => to_binary(&query_threshold(deps)?),
+        QueryMsg::Rules {} => to_binary(&query_rules(deps)?),
         QueryMsg::Proposal { proposal_id } => to_binary(&query_proposal(deps, env, proposal_id)?),
         QueryMsg::Vote { proposal_id, voter } => to_binary(&query_vote(deps, proposal_id, voter)?),
         QueryMsg::ListProposals { start_after, limit } => {
@@ -281,16 +268,15 @@ pub fn query(deps: Deps, env: Env, msg: QueryMsg) -> StdResult<Binary> {
     }
 }
 
-fn query_threshold(deps: Deps) -> StdResult<ThresholdResponse> {
+fn query_rules(deps: Deps) -> StdResult<VotingRules> {
     let cfg = CONFIG.load(deps.storage)?;
-    let total_weight = cfg.group_addr.total_weight(&deps.querier)?;
-    Ok(cfg.threshold.to_response(total_weight))
+    Ok(cfg.rules)
 }
 
 fn query_proposal(deps: Deps, env: Env, id: u64) -> StdResult<ProposalResponse> {
     let prop = PROPOSALS.load(deps.storage, id.into())?;
     let status = prop.current_status(&env.block);
-    let threshold = prop.threshold.to_response(prop.total_weight);
+    let rules = prop.rules;
     Ok(ProposalResponse {
         id,
         title: prop.title,
@@ -298,7 +284,7 @@ fn query_proposal(deps: Deps, env: Env, id: u64) -> StdResult<ProposalResponse> 
         msgs: prop.msgs,
         status,
         expires: prop.expires,
-        threshold,
+        rules,
     })
 }
 
@@ -346,7 +332,6 @@ fn map_proposal(
 ) -> StdResult<ProposalResponse> {
     let (key, prop) = item?;
     let status = prop.current_status(block);
-    let threshold = prop.threshold.to_response(prop.total_weight);
     Ok(ProposalResponse {
         id: parse_id(&key)?,
         title: prop.title,
@@ -354,7 +339,7 @@ fn map_proposal(
         msgs: prop.msgs,
         status,
         expires: prop.expires,
-        threshold,
+        rules: prop.rules,
     })
 }
 
@@ -433,7 +418,6 @@ mod tests {
     use cw_multi_test::{next_block, App, AppBuilder, Contract, ContractWrapper, Executor};
 
     use super::*;
-    use crate::msg::Threshold;
 
     const OWNER: &str = "admin0001";
     const VOTER1: &str = "voter0001";
@@ -488,17 +472,11 @@ mod tests {
             .unwrap()
     }
 
-    fn instantiate_flex(
-        app: &mut App,
-        group: Addr,
-        threshold: Threshold,
-        max_voting_period: Duration,
-    ) -> Addr {
+    fn instantiate_flex(app: &mut App, group: Addr, rules: VotingRules) -> Addr {
         let flex_id = app.store_code(contract_flex());
         let msg = crate::msg::InstantiateMsg {
             group_addr: group.to_string(),
-            threshold,
-            max_voting_period,
+            rules,
         };
         app.instantiate_contract(flex_id, Addr::unchecked(OWNER), &msg, &[], "flex", None)
             .unwrap()
@@ -509,26 +487,16 @@ mod tests {
     // Returns (multisig address, group address).
     fn setup_test_case_fixed(
         app: &mut App,
-        weight_needed: u64,
-        max_voting_period: Duration,
+        rules: VotingRules,
         init_funds: Vec<Coin>,
         multisig_as_group_admin: bool,
     ) -> (Addr, Addr) {
-        setup_test_case(
-            app,
-            Threshold::AbsoluteCount {
-                weight: weight_needed,
-            },
-            max_voting_period,
-            init_funds,
-            multisig_as_group_admin,
-        )
+        setup_test_case(app, rules, init_funds, multisig_as_group_admin)
     }
 
     fn setup_test_case(
         app: &mut App,
-        threshold: Threshold,
-        max_voting_period: Duration,
+        rules: VotingRules,
         init_funds: Vec<Coin>,
         multisig_as_group_admin: bool,
     ) -> (Addr, Addr) {
@@ -545,7 +513,7 @@ mod tests {
         app.update_block(next_block);
 
         // 2. Set up Multisig backed by this group
-        let flex_addr = instantiate_flex(app, group_addr.clone(), threshold, max_voting_period);
+        let flex_addr = instantiate_flex(app, group_addr.clone(), rules);
         app.update_block(next_block);
 
         // 3. (Optional) Set the multisig as the group owner
@@ -571,6 +539,47 @@ mod tests {
         (flex_addr, group_addr)
     }
 
+    struct MockRulesBuilder {
+        pub voting_period: u32,
+        pub quorum: Decimal,
+        pub threshold: Decimal,
+        pub allow_end_early: bool,
+    }
+
+    impl MockRulesBuilder {
+        fn new() -> Self {
+            Self {
+                voting_period: 14,
+                quorum: Decimal::percent(1),
+                threshold: Decimal::percent(50),
+                allow_end_early: true,
+            }
+        }
+
+        fn quorum(&mut self, quorum: impl Into<Decimal>) -> &mut Self {
+            self.quorum = quorum.into();
+            self
+        }
+
+        fn threshold(&mut self, threshold: impl Into<Decimal>) -> &mut Self {
+            self.threshold = threshold.into();
+            self
+        }
+
+        fn build(&self) -> VotingRules {
+            VotingRules {
+                voting_period: self.voting_period,
+                quorum: self.quorum,
+                threshold: self.threshold,
+                allow_end_early: self.allow_end_early,
+            }
+        }
+    }
+
+    fn mock_rules() -> MockRulesBuilder {
+        MockRulesBuilder::new()
+    }
+
     fn proposal_info() -> (Vec<CosmosMsg<Empty>>, String, String) {
         let bank_msg = BankMsg::Send {
             to_address: SOMEBODY.into(),
@@ -588,7 +597,6 @@ mod tests {
             title,
             description,
             msgs,
-            latest: None,
         }
     }
 
@@ -600,13 +608,10 @@ mod tests {
         let group_addr = instantiate_group(&mut app, vec![member(OWNER, 1)]);
         let flex_id = app.store_code(contract_flex());
 
-        let max_voting_period = Duration::Time(1234567);
-
-        // Zero required weight fails
+        // Zero threshold fails
         let instantiate_msg = InstantiateMsg {
             group_addr: group_addr.to_string(),
-            threshold: Threshold::AbsoluteCount { weight: 0 },
-            max_voting_period,
+            rules: mock_rules().threshold(Decimal::zero()).build(),
         };
         let err = app
             .instantiate_contract(
@@ -618,34 +623,15 @@ mod tests {
                 None,
             )
             .unwrap_err();
-        assert_eq!(ContractError::ZeroThreshold {}, err.downcast().unwrap());
-
-        // Total weight less than required weight not allowed
-        let instantiate_msg = InstantiateMsg {
-            group_addr: group_addr.to_string(),
-            threshold: Threshold::AbsoluteCount { weight: 100 },
-            max_voting_period,
-        };
-        let err = app
-            .instantiate_contract(
-                flex_id,
-                Addr::unchecked(OWNER),
-                &instantiate_msg,
-                &[],
-                "high required weight",
-                None,
-            )
-            .unwrap_err();
         assert_eq!(
-            ContractError::UnreachableThreshold {},
+            ContractError::InvalidThreshold(Decimal::zero()),
             err.downcast().unwrap()
         );
 
         // All valid
         let instantiate_msg = InstantiateMsg {
             group_addr: group_addr.to_string(),
-            threshold: Threshold::AbsoluteCount { weight: 1 },
-            max_voting_period,
+            rules: mock_rules().build(),
         };
         let flex_addr = app
             .instantiate_contract(
@@ -693,10 +679,12 @@ mod tests {
         let init_funds = coins(10, "BTC");
         let mut app = mock_app(&init_funds);
 
-        let required_weight = 4;
-        let voting_period = Duration::Time(2000000);
-        let (flex_addr, _) =
-            setup_test_case_fixed(&mut app, required_weight, voting_period, init_funds, false);
+        let (flex_addr, _) = setup_test_case_fixed(
+            &mut app,
+            mock_rules().threshold(Decimal::percent(25)).build(),
+            init_funds,
+            false,
+        );
 
         let proposal = pay_somebody_proposal();
         // Only voters can propose
@@ -704,27 +692,6 @@ mod tests {
             .execute_contract(Addr::unchecked(SOMEBODY), flex_addr.clone(), &proposal, &[])
             .unwrap_err();
         assert_eq!(ContractError::Unauthorized {}, err.downcast().unwrap());
-
-        // Wrong expiration option fails
-        let msgs = match proposal.clone() {
-            ExecuteMsg::Propose { msgs, .. } => msgs,
-            _ => panic!("Wrong variant"),
-        };
-        let proposal_wrong_exp = ExecuteMsg::Propose {
-            title: "Rewarding somebody".to_string(),
-            description: "Do we reward her?".to_string(),
-            msgs,
-            latest: Some(Expiration::AtHeight(123456)),
-        };
-        let err = app
-            .execute_contract(
-                Addr::unchecked(OWNER),
-                flex_addr.clone(),
-                &proposal_wrong_exp,
-                &[],
-            )
-            .unwrap_err();
-        assert_eq!(ContractError::WrongExpiration {}, err.downcast().unwrap());
 
         // Proposal from voter works
         let res = app
@@ -798,10 +765,12 @@ mod tests {
         let init_funds = coins(10, "BTC");
         let mut app = mock_app(&init_funds);
 
-        let required_weight = 3;
-        let voting_period = Duration::Time(2000000);
-        let (flex_addr, _) =
-            setup_test_case_fixed(&mut app, required_weight, voting_period, init_funds, false);
+        let rules = mock_rules()
+            .quorum(Decimal::percent(20))
+            .threshold(Decimal::percent(20))
+            .build();
+        let voting_period = Duration::Time(rules.voting_period_secs());
+        let (flex_addr, _) = setup_test_case_fixed(&mut app, rules.clone(), init_funds, false);
 
         // create proposal with 1 vote power
         let proposal = pay_somebody_proposal();
@@ -877,10 +846,7 @@ mod tests {
             msgs,
             expires: voting_period.after(&proposed_at),
             status: Status::Open,
-            threshold: ThresholdResponse::AbsoluteCount {
-                weight: 3,
-                total_weight: 15,
-            },
+            rules,
         };
         assert_eq!(&expected, &res.proposals[0]);
     }
@@ -890,10 +856,9 @@ mod tests {
         let init_funds = coins(10, "BTC");
         let mut app = mock_app(&init_funds);
 
-        let required_weight = 3;
-        let voting_period = Duration::Time(2000000);
-        let (flex_addr, _) =
-            setup_test_case_fixed(&mut app, required_weight, voting_period, init_funds, false);
+        let rules = mock_rules().threshold(Decimal::percent(30)).build();
+        let voting_period = Duration::Time(rules.voting_period_secs());
+        let (flex_addr, _) = setup_test_case_fixed(&mut app, rules, init_funds, false);
 
         // create proposal with 0 vote power
         let proposal = pay_somebody_proposal();
@@ -1038,10 +1003,8 @@ mod tests {
         let init_funds = coins(10, "BTC");
         let mut app = mock_app(&init_funds);
 
-        let required_weight = 3;
-        let voting_period = Duration::Time(2000000);
-        let (flex_addr, _) =
-            setup_test_case_fixed(&mut app, required_weight, voting_period, init_funds, true);
+        let rules = mock_rules().threshold(Decimal::percent(20)).build();
+        let (flex_addr, _) = setup_test_case_fixed(&mut app, rules, init_funds, true);
 
         // ensure we have cash to cover the proposal
         let contract_bal = app.wrap().query_balance(&flex_addr, "BTC").unwrap();
@@ -1127,10 +1090,9 @@ mod tests {
         let init_funds = coins(10, "BTC");
         let mut app = mock_app(&init_funds);
 
-        let required_weight = 3;
-        let voting_period = Duration::Height(2000000);
-        let (flex_addr, _) =
-            setup_test_case_fixed(&mut app, required_weight, voting_period, init_funds, true);
+        let rules = mock_rules().threshold(Decimal::percent(20)).build();
+        let voting_period = Duration::Time(rules.voting_period_secs());
+        let (flex_addr, _) = setup_test_case_fixed(&mut app, rules, init_funds, true);
 
         // create proposal with 0 vote power
         let proposal = pay_somebody_proposal();
@@ -1176,10 +1138,8 @@ mod tests {
         let init_funds = coins(10, "BTC");
         let mut app = mock_app(&init_funds);
 
-        let required_weight = 4;
-        let voting_period = Duration::Time(20000);
-        let (flex_addr, group_addr) =
-            setup_test_case_fixed(&mut app, required_weight, voting_period, init_funds, false);
+        let rules = mock_rules().threshold(Decimal::percent(30)).build();
+        let (flex_addr, group_addr) = setup_test_case_fixed(&mut app, rules, init_funds, false);
 
         // VOTER1 starts a proposal to send some tokens (1/4 votes)
         let proposal = pay_somebody_proposal();
@@ -1199,17 +1159,6 @@ mod tests {
 
         // 1/4 votes
         assert_eq!(prop_status(&app, proposal_id), Status::Open);
-
-        // check current threshold (global)
-        let threshold: ThresholdResponse = app
-            .wrap()
-            .query_wasm_smart(&flex_addr, &QueryMsg::Threshold {})
-            .unwrap();
-        let expected_thresh = ThresholdResponse::AbsoluteCount {
-            weight: 4,
-            total_weight: 15,
-        };
-        assert_eq!(expected_thresh, threshold);
 
         // a few blocks later...
         app.update_block(|block| block.height += 2);
@@ -1278,19 +1227,6 @@ mod tests {
         app.execute_contract(Addr::unchecked(VOTER3), flex_addr.clone(), &yes_vote, &[])
             .unwrap();
         assert_eq!(prop_status(&app, proposal_id), Status::Passed);
-
-        // check current threshold (global) is updated
-        let threshold: ThresholdResponse = app
-            .wrap()
-            .query_wasm_smart(&flex_addr, &QueryMsg::Threshold {})
-            .unwrap();
-        let expected_thresh = ThresholdResponse::AbsoluteCount {
-            weight: 4,
-            total_weight: 19,
-        };
-        assert_eq!(expected_thresh, threshold);
-
-        // TODO: check proposal threshold not changed
     }
 
     // uses the power from the beginning of the voting period
@@ -1301,10 +1237,8 @@ mod tests {
         let init_funds = coins(10, "BTC");
         let mut app = mock_app(&init_funds);
 
-        let required_weight = 4;
-        let voting_period = Duration::Time(20000);
-        let (flex_addr, group_addr) =
-            setup_test_case_fixed(&mut app, required_weight, voting_period, init_funds, true);
+        let rules = mock_rules().threshold(Decimal::percent(25)).build();
+        let (flex_addr, group_addr) = setup_test_case_fixed(&mut app, rules, init_funds, true);
 
         // Start a proposal to remove VOTER3 from the set
         let update_msg = Cw4GroupContract::new(group_addr)
@@ -1314,7 +1248,6 @@ mod tests {
             title: "Kick out VOTER3".to_string(),
             description: "He's trying to steal our money".to_string(),
             msgs: vec![update_msg],
-            latest: None,
         };
         let res = app
             .execute_contract(
@@ -1418,16 +1351,8 @@ mod tests {
         let mut app = mock_app(&init_funds);
 
         // 33% required, which is 5 of the initial 15
-        let voting_period = Duration::Time(20000);
-        let (flex_addr, group_addr) = setup_test_case(
-            &mut app,
-            Threshold::AbsolutePercentage {
-                percentage: Decimal::percent(33),
-            },
-            voting_period,
-            init_funds,
-            false,
-        );
+        let rules = mock_rules().threshold(Decimal::percent(33)).build();
+        let (flex_addr, group_addr) = setup_test_case(&mut app, rules, init_funds, false);
 
         // VOTER3 starts a proposal to send some tokens (3/5 votes)
         let proposal = pay_somebody_proposal();
@@ -1500,17 +1425,12 @@ mod tests {
 
         // 33% required for quora, which is 5 of the initial 15
         // 50% yes required to pass early (8 of the initial 15)
-        let voting_period = Duration::Time(20000);
-        let (flex_addr, group_addr) = setup_test_case(
-            &mut app,
-            Threshold::ThresholdQuorum {
-                threshold: Decimal::percent(50),
-                quorum: Decimal::percent(33),
-            },
-            voting_period,
-            init_funds,
-            false,
-        );
+        let rules = mock_rules()
+            .threshold(Decimal::percent(50))
+            .quorum(Decimal::percent(33))
+            .build();
+        let voting_period = Duration::Time(rules.voting_period_secs());
+        let (flex_addr, group_addr) = setup_test_case(&mut app, rules, init_funds, false);
 
         // VOTER3 starts a proposal to send some tokens (3 votes)
         let proposal = pay_somebody_proposal();
@@ -1569,17 +1489,14 @@ mod tests {
 
         // 33% required for quora, which is 5 of the initial 15
         // 50% yes required to pass early (8 of the initial 15)
-        let voting_period = Duration::Time(20000);
+
+        let rules = mock_rules()
+            .threshold(Decimal::percent(60))
+            .quorum(Decimal::percent(80))
+            .build();
         let (flex_addr, _) = setup_test_case(
-            &mut app,
-            // note that 60% yes is not enough to pass without 20% no as well
-            Threshold::ThresholdQuorum {
-                threshold: Decimal::percent(60),
-                quorum: Decimal::percent(80),
-            },
-            voting_period,
-            init_funds,
-            false,
+            &mut app, // note that 60% yes is not enough to pass without 20% no as well
+            rules, init_funds, false,
         );
 
         // create proposal
