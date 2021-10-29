@@ -1,4 +1,4 @@
-use crate::{Hooks, Preauth};
+use crate::{Hooks, Preauth, Slashers};
 use cosmwasm_std::Addr;
 use cw_controllers::Admin;
 use cw_storage_plus::{Index, IndexList, IndexedSnapshotMap, Item, MultiIndex, Strategy, U64Key};
@@ -7,6 +7,8 @@ use tg4::TOTAL_KEY;
 pub const ADMIN: Admin = Admin::new("admin");
 pub const HOOKS: Hooks = Hooks::new("tg4-hooks");
 pub const PREAUTH: Preauth = Preauth::new("tg4-preauth");
+pub const SLASHERS: Slashers = Slashers::new("tg4-slashers");
+pub const PREAUTH_SLASHING: Preauth = Preauth::new("tg4-preauth_slashing");
 pub const TOTAL: Item<u64> = Item::new(TOTAL_KEY);
 
 pub struct MemberIndexes<'a> {
