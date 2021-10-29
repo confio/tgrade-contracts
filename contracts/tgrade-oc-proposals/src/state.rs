@@ -46,7 +46,7 @@ pub struct ProposalResponse {
     pub id: u64,
     pub title: String,
     pub description: String,
-    pub proposals: Vec<OversightProposal>,
+    pub proposal: OversightProposal,
     pub status: Status,
     pub expires: Expiration,
     pub rules: VotingRules,

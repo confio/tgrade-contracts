@@ -42,14 +42,10 @@ pub fn instantiate(
                 addr: msg.engagement_contract.clone(),
             })?,
     );
-    let total_weight = engagement_contract.total_weight(&deps.querier)?;
-    msg.threshold.validate(total_weight)?;
-
     set_contract_version(deps.storage, CONTRACT_NAME, CONTRACT_VERSION)?;
 
     let cfg = Config {
         rules: msg.rules,
-        group_addr,
         engagement_contract,
     };
 
@@ -71,8 +67,7 @@ pub fn execute(
             title,
             description,
             proposal,
-            latest,
-        } => execute_propose(deps, env, info, title, description, proposal, latest),
+        } => execute_propose(deps, env, info, title, description, proposal),
         ExecuteMsg::Vote { proposal_id, vote } => execute_vote(deps, env, info, proposal_id, vote),
         ExecuteMsg::Execute { proposal_id } => execute_execute(deps, env, info, proposal_id),
         ExecuteMsg::Close { proposal_id } => execute_close(deps, env, info, proposal_id),
@@ -89,8 +84,6 @@ pub fn execute_propose(
     title: String,
     description: String,
     proposal: OversightProposal,
-    // we ignore earliest
-    latest: Option<Expiration>,
 ) -> Result<Response, ContractError> {
     // only members of the multisig can create a proposal
     let cfg = CONFIG.load(deps.storage)?;
@@ -113,7 +106,7 @@ pub fn execute_propose(
         status: Status::Open,
         votes: Votes::new(vote_power),
         rules: cfg.rules,
-        total_weight: cfg.group_addr.total_weight(&deps.querier)?,
+        total_weight: cfg.engagement_contract.total_weight(&deps.querier)?,
     };
     prop.update_status(&env.block);
     let id = next_id(deps.storage)?;
@@ -533,14 +526,12 @@ mod tests {
     fn instantiate_flex(
         app: &mut TgradeApp,
         engagement_contract: Addr,
-        threshold: Threshold,
-        max_voting_period: Duration,
+        rules: VotingRules,
     ) -> Addr {
         let flex_id = app.store_code(contract_flex());
         let msg = crate::msg::InstantiateMsg {
-            threshold,
-            max_voting_period,
             engagement_contract: engagement_contract.to_string(),
+            rules,
         };
         app.instantiate_contract(flex_id, Addr::unchecked(OWNER), &msg, &[], "flex", None)
             .unwrap()
@@ -577,8 +568,7 @@ mod tests {
         app.update_block(next_block);
 
         // 2. Set up Multisig backed by this group
-        let flex_addr =
-            instantiate_flex(app, engagement_addr.clone(), threshold, max_voting_period);
+        let flex_addr = instantiate_flex(app, engagement_addr.clone(), rules);
 
         // 2.5 Set flex contract's address as admin of engagement contract
         app.execute_contract(
@@ -615,6 +605,47 @@ mod tests {
         (flex_addr, engagement_addr)
     }
 
+    struct MockRulesBuilder {
+        pub voting_period: u32,
+        pub quorum: Decimal,
+        pub threshold: Decimal,
+        pub allow_end_early: bool,
+    }
+
+    impl MockRulesBuilder {
+        fn new() -> Self {
+            Self {
+                voting_period: 14,
+                quorum: Decimal::percent(1),
+                threshold: Decimal::percent(50),
+                allow_end_early: true,
+            }
+        }
+
+        fn quorum(&mut self, quorum: impl Into<Decimal>) -> &mut Self {
+            self.quorum = quorum.into();
+            self
+        }
+
+        fn threshold(&mut self, threshold: impl Into<Decimal>) -> &mut Self {
+            self.threshold = threshold.into();
+            self
+        }
+
+        fn build(&self) -> VotingRules {
+            VotingRules {
+                voting_period: self.voting_period,
+                quorum: self.quorum,
+                threshold: self.threshold,
+                allow_end_early: self.allow_end_early,
+            }
+        }
+    }
+
+    fn mock_rules() -> MockRulesBuilder {
+        MockRulesBuilder::new()
+    }
+
     fn proposal_info() -> (OversightProposal, String, String) {
         let proposal = OversightProposal::GrantEngagement {
             member: Addr::unchecked(VOTER1),
@@ -631,7 +662,6 @@ mod tests {
             title,
             description,
             proposal,
-            latest: None,
         }
     }
 
@@ -644,13 +674,10 @@ mod tests {
         let engagement_addr =
             instantiate_engagement(&mut app, Some(OWNER.to_string()), vec![member(OWNER, 1)]);
 
-        let max_voting_period = Duration::Time(1234567);
-
         // Zero required weight fails
         let instantiate_msg = InstantiateMsg {
-            threshold: Threshold::AbsoluteCount { weight: 0 },
-            max_voting_period,
             engagement_contract: engagement_addr.to_string(),
+            rules: mock_rules().threshold(Decimal::zero()).build(),
         };
         let err = app
             .instantiate_contract(
@@ -662,34 +689,15 @@ mod tests {
                 None,
             )
             .unwrap_err();
-        assert_eq!(ContractError::ZeroThreshold {}, err.downcast().unwrap());
-
-        // Total weight less than required weight not allowed
-        let instantiate_msg = InstantiateMsg {
-            threshold: Threshold::AbsoluteCount { weight: 100 },
-            max_voting_period,
-            engagement_contract: engagement_addr.to_string(),
-        };
-        let err = app
-            .instantiate_contract(
-                flex_id,
-                Addr::unchecked(OWNER),
-                &instantiate_msg,
-                &[],
-                "high required weight",
-                None,
-            )
-            .unwrap_err();
         assert_eq!(
-            ContractError::UnreachableThreshold {},
+            ContractError::InvalidThreshold(Decimal::zero()),
             err.downcast().unwrap()
         );
 
         // All valid
         let instantiate_msg = InstantiateMsg {
-            threshold: Threshold::AbsoluteCount { weight: 1 },
-            max_voting_period,
             engagement_contract: engagement_addr.to_string(),
+            rules: mock_rules().build(),
         };
         let flex_addr = app
             .instantiate_contract(
@@ -745,27 +753,6 @@ mod tests {
             )
             .unwrap_err();
         assert_eq!(ContractError::Unauthorized {}, err.downcast().unwrap());
-
-        // Wrong expiration option fails
-        let proposal = match proposal_msg.clone() {
-            ExecuteMsg::Propose { proposal, .. } => proposal,
-            _ => panic!("Wrong variant"),
-        };
-        let proposal_wrong_exp = ExecuteMsg::Propose {
-            title: "Rewarding somebody".to_string(),
-            description: "Do we reward her?".to_string(),
-            proposal,
-            latest: Some(Expiration::AtHeight(123456)),
-        };
-        let err = app
-            .execute_contract(
-                Addr::unchecked(OWNER),
-                flex_addr.clone(),
-                &proposal_wrong_exp,
-                &[],
-            )
-            .unwrap_err();
-        assert_eq!(ContractError::WrongExpiration {}, err.downcast().unwrap());
 
         // Proposal from voter works
         let res = app
@@ -1083,7 +1070,7 @@ mod tests {
         let mut app = mock_app(&init_funds);
 
         let rules = mock_rules().threshold(Decimal::percent(20)).build();
-        let (flex_addr, _) = setup_test_case_fixed(&mut app, rules, init_funds, true);
+        let (flex_addr, engagement_addr) = setup_test_case_fixed(&mut app, rules, init_funds, true);
 
         // ensure we have cash to cover the proposal
         let contract_bal = app.wrap().query_balance(&flex_addr, "BTC").unwrap();
@@ -1228,7 +1215,8 @@ mod tests {
         let mut app = mock_app(&init_funds);
 
         let rules = mock_rules().threshold(Decimal::percent(30)).build();
-        let (flex_addr, group_addr) = setup_test_case_fixed(&mut app, rules, init_funds, false);
+        let (flex_addr, engagement_addr) =
+            setup_test_case_fixed(&mut app, rules, init_funds, false);
 
         // VOTER1 starts a proposal to send some tokens (1/4 votes)
         let proposal = grant_voter1_engagement_point_proposal();
@@ -1331,7 +1319,7 @@ mod tests {
 
         // 33% required, which is 5 of the initial 15
         let rules = mock_rules().threshold(Decimal::percent(33)).build();
-        let (flex_addr, group_addr) = setup_test_case(&mut app, rules, init_funds, false);
+        let (flex_addr, engagement_addr) = setup_test_case(&mut app, rules, init_funds, false);
 
         // VOTER3 starts a proposal to send some tokens (3/5 votes)
         let proposal = grant_voter1_engagement_point_proposal();
@@ -1414,7 +1402,7 @@ mod tests {
             .quorum(Decimal::percent(33))
             .build();
         let voting_period = Duration::Time(rules.voting_period_secs());
-        let (flex_addr, group_addr) = setup_test_case(&mut app, rules, init_funds, false);
+        let (flex_addr, engagement_addr) = setup_test_case(&mut app, rules, init_funds, false);
 
         // VOTER3 starts a proposal to send some tokens (3 votes)
         let proposal = grant_voter1_engagement_point_proposal();
