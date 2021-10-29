@@ -15,10 +15,10 @@ use tg4::{MemberChangedHookMsg, MemberDiff, Tg4Contract};
 use tg_bindings::TgradeMsg;
 
 use crate::error::ContractError;
-use crate::msg::{ExecuteMsg, InstantiateMsg, OversightProposal, QueryMsg};
+use crate::msg::{ExecuteMsg, InstantiateMsg, QueryMsg};
 use crate::state::{
-    next_id, parse_id, Ballot, Config, Proposal, ProposalListResponse, ProposalResponse, Votes,
-    VotingRules, BALLOTS, CONFIG, PROPOSALS,
+    next_id, parse_id, Ballot, Config, OversightProposal, Proposal, ProposalListResponse,
+    ProposalResponse, Votes, VotingRules, BALLOTS, CONFIG, PROPOSALS,
 };
 
 pub type Response = cosmwasm_std::Response<TgradeMsg>;

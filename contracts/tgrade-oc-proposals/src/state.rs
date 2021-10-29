@@ -8,7 +8,6 @@ use cw3::{Status, Vote};
 use cw_storage_plus::{Item, Map, U64Key};
 use tg4::Tg4Contract;
 
-use crate::msg::OversightProposal;
 use crate::ContractError;
 
 // we multiply by this when calculating needed_votes in order to round up properly
@@ -20,6 +19,12 @@ pub struct Config {
     pub rules: VotingRules,
     // Total weight and voters are queried from this contract
     pub engagement_contract: Tg4Contract,
+}
+
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
+#[serde(rename_all = "snake_case")]
+pub enum OversightProposal {
+    GrantEngagement { member: Addr, points: u64 },
 }
 
 #[derive(Serialize, Deserialize, Clone, PartialEq, JsonSchema, Debug)]
