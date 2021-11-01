@@ -69,7 +69,7 @@ pub fn execute(
             proposal,
         } => execute_propose(deps, env, info, title, description, proposal),
         ExecuteMsg::Vote { proposal_id, vote } => execute_vote(deps, env, info, proposal_id, vote),
-        ExecuteMsg::Execute { proposal_id } => execute_execute(deps, env, info, proposal_id),
+        ExecuteMsg::Execute { proposal_id } => execute_execute(deps, info, proposal_id),
         ExecuteMsg::Close { proposal_id } => execute_close(deps, env, info, proposal_id),
         ExecuteMsg::MemberChangedHook(MemberChangedHookMsg { diffs }) => {
             execute_membership_hook(deps, env, info, diffs)
@@ -176,38 +176,8 @@ pub fn execute_vote(
         .add_attribute("status", format!("{:?}", prop.status)))
 }
 
-mod proposal {
-    use super::*;
-
-    use cosmwasm_std::Addr;
-
-    pub fn grant_engagement_points(
-        deps: &DepsMut,
-        env: &Env,
-        member: &Addr,
-        points: u64,
-        engagement_contract: &Tg4Contract,
-    ) -> Result<SubMsg, ContractError> {
-        let member_weight = engagement_contract
-            .member_at_height(&deps.querier, member.to_string(), env.block.height)?
-            .unwrap_or_default();
-        let member = tg4::Member {
-            addr: member.to_string(),
-            weight: member_weight + points,
-        };
-        let msg = engagement_contract.encode_raw_msg(to_binary(
-            &tg4_engagement::ExecuteMsg::UpdateMembers {
-                remove: vec![],
-                add: vec![member],
-            },
-        )?)?;
-        Ok(msg)
-    }
-}
-
 pub fn execute_execute(
     deps: DepsMut,
-    env: Env,
     info: MessageInfo,
     proposal_id: u64,
 ) -> Result<Response, ContractError> {
@@ -223,9 +193,11 @@ pub fn execute_execute(
     let engagement_contract = CONFIG.load(deps.storage)?.engagement_contract;
 
     let message = match prop.proposal {
-        OversightProposal::GrantEngagement { ref member, points } => {
-            proposal::grant_engagement_points(&deps, &env, member, points, &engagement_contract)?
-        }
+        OversightProposal::GrantEngagement { ref member, points } => engagement_contract
+            .encode_raw_msg(to_binary(&tg4_engagement::ExecuteMsg::AddPoints {
+                addr: member.to_string(),
+                points,
+            })?)?,
     };
 
     // set it to executed
