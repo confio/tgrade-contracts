@@ -190,9 +190,7 @@ mod proposal {
     ) -> Result<SubMsg, ContractError> {
         let member_weight = engagement_contract
             .member_at_height(&deps.querier, member.to_string(), env.block.height)?
-            .ok_or(ContractError::EngagementMemberNotFound {
-                member: member.to_string(),
-            })?;
+            .unwrap_or_default();
         let member = tg4::Member {
             addr: member.to_string(),
             weight: member_weight + points,
