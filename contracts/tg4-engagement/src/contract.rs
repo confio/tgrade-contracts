@@ -156,7 +156,7 @@ pub fn execute_add_points(
 
     ADMIN.assert_admin(deps.as_ref(), &info.sender)?;
 
-    let old_weight = query_member(deps.as_ref(), addr.clone(), Some(env.block.height))?
+    let old_weight = query_member(deps.as_ref(), addr.clone(), None)?
         .weight
         .unwrap_or_default();
 
@@ -1399,5 +1399,36 @@ mod tests {
         env.block.time = env.block.time.plus_seconds(HALFLIFE);
         end_block(deps.as_mut(), env).unwrap();
         assert_users(&deps, Some(1), Some(1), None, None);
+    }
+
+    mod points {
+        use super::*;
+
+        #[test]
+        fn add_to_existing_member() {
+            let mut deps = mock_dependencies(&[]);
+            do_instantiate(deps.as_mut());
+
+            let env = mock_env();
+            let info = mock_info(INIT_ADMIN, &[]);
+
+            // Originally USER1 has 11 points of weight
+            execute_add_points(deps.as_mut(), env, info, "USER1".to_string(), 10).unwrap();
+            assert_users(&deps, Some(21), Some(6), None, None);
+        }
+
+        #[test]
+        fn add_to_nonexisting_member() {
+            let mut deps = mock_dependencies(&[]);
+            do_instantiate(deps.as_mut());
+
+            let env = mock_env();
+            let info = mock_info(INIT_ADMIN, &[]);
+
+            let new_user = "USER111".to_owned();
+            execute_add_points(deps.as_mut(), env, info, new_user.clone(), 10).unwrap();
+            let new_member = query_member(deps.as_ref(), new_user, None).unwrap();
+            assert_eq!(new_member.weight, Some(10));
+        }
     }
 }
