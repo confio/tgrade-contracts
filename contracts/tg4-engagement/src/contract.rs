@@ -127,6 +127,7 @@ pub fn execute(
         ExecuteMsg::UpdateMembers { add, remove } => {
             execute_update_members(deps, env, info, add, remove)
         }
+        ExecuteMsg::AddPoints { addr, points } => execute_add_points(deps, env, info, addr, points),
         ExecuteMsg::AddHook { addr } => execute_add_hook(deps, info, addr),
         ExecuteMsg::RemoveHook { addr } => execute_remove_hook(deps, info, addr),
         ExecuteMsg::DistributeFunds { sender } => {
@@ -139,6 +140,41 @@ pub fn execute(
             execute_delegate_withdrawal(deps, info, delegated)
         }
     }
+}
+
+pub fn execute_add_points(
+    mut deps: DepsMut,
+    env: Env,
+    info: MessageInfo,
+    addr: String,
+    points: u64,
+) -> Result<Response, ContractError> {
+    let mut res = Response::new()
+        .add_attribute("action", "add_points")
+        .add_attribute("to_member", addr.to_string())
+        .add_attribute("amount", points.to_string());
+
+    ADMIN.assert_admin(deps.as_ref(), &info.sender)?;
+
+    let old_weight = query_member(deps.as_ref(), addr.clone(), Some(env.block.height))?
+        .weight
+        .unwrap_or_default();
+
+    // make the local update
+    let diff = update_members(
+        deps.branch(),
+        env.block.height,
+        vec![Member {
+            addr,
+            weight: old_weight + points,
+        }],
+        vec![],
+    )?;
+    // call all registered hooks
+    res.messages = HOOKS.prepare_hooks(deps.storage, |h| {
+        diff.clone().into_cosmos_msg(h).map(SubMsg::new)
+    })?;
+    Ok(res)
 }
 
 pub fn execute_add_hook(
