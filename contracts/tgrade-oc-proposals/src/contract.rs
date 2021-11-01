@@ -176,6 +176,37 @@ pub fn execute_vote(
         .add_attribute("status", format!("{:?}", prop.status)))
 }
 
+mod proposal {
+    use super::*;
+
+    use cosmwasm_std::Addr;
+
+    pub fn grant_engagement_points(
+        deps: &DepsMut,
+        env: &Env,
+        member: &Addr,
+        points: u64,
+        engagement_contract: &Tg4Contract,
+    ) -> Result<SubMsg, ContractError> {
+        let member_weight = engagement_contract
+            .member_at_height(&deps.querier, member.to_string(), env.block.height)?
+            .ok_or(ContractError::EngagementMemberNotFound {
+                member: member.to_string(),
+            })?;
+        let member = tg4::Member {
+            addr: member.to_string(),
+            weight: member_weight + points,
+        };
+        let msg = engagement_contract.encode_raw_msg(to_binary(
+            &tg4_engagement::ExecuteMsg::UpdateMembers {
+                remove: vec![],
+                add: vec![member],
+            },
+        )?)?;
+        Ok(msg)
+    }
+}
+
 pub fn execute_execute(
     deps: DepsMut,
     env: Env,
@@ -193,28 +224,9 @@ pub fn execute_execute(
 
     let engagement_contract = CONFIG.load(deps.storage)?.engagement_contract;
 
-    let eng_admin = engagement_contract.admin(&deps.querier)?;
-    if eng_admin.is_some() && eng_admin.unwrap() != env.contract.address {
-        return Err(ContractError::ContractIsNotEngagementAdmin);
-    }
-
     let message = match prop.proposal {
         OversightProposal::GrantEngagement { ref member, points } => {
-            let member_weight = engagement_contract
-                .member_at_height(&deps.querier, member.to_string(), env.block.height)?
-                .ok_or(ContractError::EngagementMemberNotFound {
-                    member: member.to_string(),
-                })?;
-            let member = tg4::Member {
-                addr: member.to_string(),
-                weight: member_weight + points,
-            };
-            engagement_contract.encode_raw_msg(to_binary(
-                &tg4_engagement::ExecuteMsg::UpdateMembers {
-                    remove: vec![],
-                    add: vec![member],
-                },
-            )?)?
+            proposal::grant_engagement_points(&deps, &env, member, points, &engagement_contract)?
         }
     };
 
