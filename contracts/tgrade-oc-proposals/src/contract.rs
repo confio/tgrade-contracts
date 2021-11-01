@@ -1,8 +1,7 @@
 #[cfg(not(feature = "library"))]
 use cosmwasm_std::entry_point;
 use cosmwasm_std::{
-    to_binary, Binary, BlockInfo, CosmosMsg, Deps, DepsMut, Empty, Env, MessageInfo, Order,
-    Response, StdResult,
+    to_binary, Binary, BlockInfo, Deps, DepsMut, Env, MessageInfo, Order, StdResult,
 };
 
 use cw0::{maybe_addr, Expiration};
@@ -11,15 +10,19 @@ use cw3::{
     Status, Vote, VoteInfo, VoteListResponse, VoteResponse, VoterDetail, VoterListResponse,
     VoterResponse,
 };
-use cw4::{Cw4Contract, MemberChangedHookMsg, MemberDiff};
 use cw_storage_plus::Bound;
+use tg4::{MemberChangedHookMsg, MemberDiff, Tg4Contract};
+use tg_bindings::TgradeMsg;
 
 use crate::error::ContractError;
 use crate::msg::{ExecuteMsg, InstantiateMsg, QueryMsg};
 use crate::state::{
-    next_id, parse_id, Ballot, Config, Proposal, ProposalListResponse, ProposalResponse, Votes,
-    VotingRules, BALLOTS, CONFIG, PROPOSALS,
+    next_id, parse_id, Ballot, Config, OversightProposal, Proposal, ProposalListResponse,
+    ProposalResponse, Votes, VotingRules, BALLOTS, CONFIG, PROPOSALS,
 };
+
+pub type Response = cosmwasm_std::Response<TgradeMsg>;
+pub type SubMsg = cosmwasm_std::SubMsg<TgradeMsg>;
 
 // version info for migration info
 const CONTRACT_NAME: &str = "crates.io:tgrade_oc_proposals";
@@ -32,16 +35,18 @@ pub fn instantiate(
     _info: MessageInfo,
     msg: InstantiateMsg,
 ) -> Result<Response, ContractError> {
-    let group_addr = Cw4Contract(deps.api.addr_validate(&msg.group_addr).map_err(|_| {
-        ContractError::InvalidGroup {
-            addr: msg.group_addr.clone(),
-        }
-    })?);
+    let engagement_contract = Tg4Contract(
+        deps.api
+            .addr_validate(&msg.engagement_contract)
+            .map_err(|_| ContractError::InvalidEngagementContract {
+                addr: msg.engagement_contract.clone(),
+            })?,
+    );
     set_contract_version(deps.storage, CONTRACT_NAME, CONTRACT_VERSION)?;
 
     let cfg = Config {
         rules: msg.rules,
-        group_addr,
+        engagement_contract,
     };
 
     cfg.rules.validate()?;
@@ -56,13 +61,13 @@ pub fn execute(
     env: Env,
     info: MessageInfo,
     msg: ExecuteMsg,
-) -> Result<Response<Empty>, ContractError> {
+) -> Result<Response, ContractError> {
     match msg {
         ExecuteMsg::Propose {
             title,
             description,
-            msgs,
-        } => execute_propose(deps, env, info, title, description, msgs),
+            proposal,
+        } => execute_propose(deps, env, info, title, description, proposal),
         ExecuteMsg::Vote { proposal_id, vote } => execute_vote(deps, env, info, proposal_id, vote),
         ExecuteMsg::Execute { proposal_id } => execute_execute(deps, env, info, proposal_id),
         ExecuteMsg::Close { proposal_id } => execute_close(deps, env, info, proposal_id),
@@ -78,13 +83,13 @@ pub fn execute_propose(
     info: MessageInfo,
     title: String,
     description: String,
-    msgs: Vec<CosmosMsg>,
-) -> Result<Response<Empty>, ContractError> {
+    proposal: OversightProposal,
+) -> Result<Response, ContractError> {
     // only members of the multisig can create a proposal
     let cfg = CONFIG.load(deps.storage)?;
 
     let vote_power = cfg
-        .group_addr
+        .engagement_contract
         .is_member(&deps.querier, &info.sender)?
         .ok_or(ContractError::Unauthorized {})?;
 
@@ -97,11 +102,11 @@ pub fn execute_propose(
         description,
         start_height: env.block.height,
         expires,
-        msgs,
+        proposal,
         status: Status::Open,
         votes: Votes::new(vote_power),
         rules: cfg.rules,
-        total_weight: cfg.group_addr.total_weight(&deps.querier)?,
+        total_weight: cfg.engagement_contract.total_weight(&deps.querier)?,
     };
     prop.update_status(&env.block);
     let id = next_id(deps.storage)?;
@@ -127,7 +132,7 @@ pub fn execute_vote(
     info: MessageInfo,
     proposal_id: u64,
     vote: Vote,
-) -> Result<Response<Empty>, ContractError> {
+) -> Result<Response, ContractError> {
     // only members of the multisig can vote
     let cfg = CONFIG.load(deps.storage)?;
 
@@ -142,7 +147,7 @@ pub fn execute_vote(
 
     // use a snapshot of "start of proposal"
     let vote_power = cfg
-        .group_addr
+        .engagement_contract
         .member_at_height(&deps.querier, info.sender.clone(), prop.start_height)?
         .ok_or(ContractError::Unauthorized {})?;
 
@@ -173,7 +178,7 @@ pub fn execute_vote(
 
 pub fn execute_execute(
     deps: DepsMut,
-    _env: Env,
+    env: Env,
     info: MessageInfo,
     proposal_id: u64,
 ) -> Result<Response, ContractError> {
@@ -186,13 +191,40 @@ pub fn execute_execute(
         return Err(ContractError::WrongExecuteStatus {});
     }
 
+    let engagement_contract = CONFIG.load(deps.storage)?.engagement_contract;
+
+    let eng_admin = engagement_contract.admin(&deps.querier)?;
+    if eng_admin.is_some() && eng_admin.unwrap() != env.contract.address {
+        return Err(ContractError::ContractIsNotEngagementAdmin);
+    }
+
+    let message = match prop.proposal {
+        OversightProposal::GrantEngagement { ref member, points } => {
+            let member_weight = engagement_contract
+                .member_at_height(&deps.querier, member.to_string(), env.block.height)?
+                .ok_or(ContractError::EngagementMemberNotFound {
+                    member: member.to_string(),
+                })?;
+            let member = tg4::Member {
+                addr: member.to_string(),
+                weight: member_weight + points,
+            };
+            engagement_contract.encode_raw_msg(to_binary(
+                &tg4_engagement::ExecuteMsg::UpdateMembers {
+                    remove: vec![],
+                    add: vec![member],
+                },
+            )?)?
+        }
+    };
+
     // set it to executed
     prop.status = Status::Executed;
     PROPOSALS.save(deps.storage, proposal_id.into(), &prop)?;
 
     // dispatch all proposed messages
     Ok(Response::new()
-        .add_messages(prop.msgs)
+        .add_submessage(message)
         .add_attribute("action", "execute")
         .add_attribute("sender", info.sender)
         .add_attribute("proposal_id", proposal_id.to_string()))
@@ -203,7 +235,7 @@ pub fn execute_close(
     env: Env,
     info: MessageInfo,
     proposal_id: u64,
-) -> Result<Response<Empty>, ContractError> {
+) -> Result<Response, ContractError> {
     // anyone can trigger this if the vote passed
 
     let mut prop = PROPOSALS.load(deps.storage, proposal_id.into())?;
@@ -232,11 +264,11 @@ pub fn execute_membership_hook(
     _env: Env,
     info: MessageInfo,
     _diffs: Vec<MemberDiff>,
-) -> Result<Response<Empty>, ContractError> {
+) -> Result<Response, ContractError> {
     // This is now a no-op
     // But we leave the authorization check as a demo
     let cfg = CONFIG.load(deps.storage)?;
-    if info.sender != cfg.group_addr.0 {
+    if info.sender != cfg.engagement_contract.0 {
         return Err(ContractError::Unauthorized {});
     }
 
@@ -281,7 +313,7 @@ fn query_proposal(deps: Deps, env: Env, id: u64) -> StdResult<ProposalResponse> 
         id,
         title: prop.title,
         description: prop.description,
-        msgs: prop.msgs,
+        proposal: prop.proposal,
         status,
         expires: prop.expires,
         rules,
@@ -336,7 +368,7 @@ fn map_proposal(
         id: parse_id(&key)?,
         title: prop.title,
         description: prop.description,
-        msgs: prop.msgs,
+        proposal: prop.proposal,
         status,
         expires: prop.expires,
         rules: prop.rules,
@@ -384,7 +416,9 @@ fn list_votes(
 fn query_voter(deps: Deps, voter: String) -> StdResult<VoterResponse> {
     let cfg = CONFIG.load(deps.storage)?;
     let voter_addr = deps.api.addr_validate(&voter)?;
-    let weight = cfg.group_addr.is_member(&deps.querier, &voter_addr)?;
+    let weight = cfg
+        .engagement_contract
+        .is_member(&deps.querier, &voter_addr)?;
 
     Ok(VoterResponse { weight })
 }
@@ -396,7 +430,7 @@ fn list_voters(
 ) -> StdResult<VoterListResponse> {
     let cfg = CONFIG.load(deps.storage)?;
     let voters = cfg
-        .group_addr
+        .engagement_contract
         .list_members(&deps.querier, start_after, limit)?
         .into_iter()
         .map(|member| VoterDetail {
@@ -409,13 +443,12 @@ fn list_voters(
 
 #[cfg(test)]
 mod tests {
-    use cosmwasm_std::{coin, coins, Addr, BankMsg, Coin, Decimal, Timestamp};
+    use cosmwasm_std::{coin, coins, Addr, Coin, Decimal, Timestamp};
 
     use cw0::Duration;
-    use cw2::{query_contract_info, ContractVersion};
-    use cw4::{Cw4ExecuteMsg, Member};
-    use cw4_group::helpers::Cw4GroupContract;
-    use cw_multi_test::{next_block, App, AppBuilder, Contract, ContractWrapper, Executor};
+    use cw_multi_test::{next_block, Contract, ContractWrapper, Executor};
+    use tg4::{Member, Tg4ExecuteMsg, Tg4QueryMsg};
+    use tg_bindings_test::TgradeApp;
 
     use super::*;
 
@@ -427,6 +460,8 @@ mod tests {
     const VOTER5: &str = "voter0005";
     const SOMEBODY: &str = "somebody";
 
+    const ENGAGEMENT_TOKEN: &str = "engagement";
+
     fn member<T: Into<String>>(addr: T, weight: u64) -> Member {
         Member {
             addr: addr.into(),
@@ -434,7 +469,7 @@ mod tests {
         }
     }
 
-    pub fn contract_flex() -> Box<dyn Contract<Empty>> {
+    pub fn contract_flex() -> Box<dyn Contract<TgradeMsg>> {
         let contract = ContractWrapper::new(
             crate::contract::execute,
             crate::contract::instantiate,
@@ -443,39 +478,59 @@ mod tests {
         Box::new(contract)
     }
 
-    pub fn contract_group() -> Box<dyn Contract<Empty>> {
+    pub fn contract_engagement() -> Box<dyn Contract<TgradeMsg>> {
         let contract = ContractWrapper::new(
-            cw4_group::contract::execute,
-            cw4_group::contract::instantiate,
-            cw4_group::contract::query,
+            tg4_engagement::contract::execute,
+            tg4_engagement::contract::instantiate,
+            tg4_engagement::contract::query,
         );
         Box::new(contract)
     }
 
-    fn mock_app(init_funds: &[Coin]) -> App {
-        AppBuilder::new().build(|router, _, storage| {
+    fn mock_app(init_funds: &[Coin]) -> TgradeApp {
+        let mut app = TgradeApp::new(OWNER);
+        app.init_modules(|router, _, storage| {
             router
                 .bank
                 .init_balance(storage, &Addr::unchecked(OWNER), init_funds.to_vec())
                 .unwrap();
-        })
+        });
+        app
     }
 
-    // uploads code and returns address of group contract
-    fn instantiate_group(app: &mut App, members: Vec<Member>) -> Addr {
-        let group_id = app.store_code(contract_group());
-        let msg = cw4_group::msg::InstantiateMsg {
-            admin: Some(OWNER.into()),
+    // uploads code and returns address of engagement contract
+    fn instantiate_engagement(
+        app: &mut TgradeApp,
+        admin: Option<String>,
+        members: Vec<Member>,
+    ) -> Addr {
+        let engagement_id = app.store_code(contract_engagement());
+        let msg = tg4_engagement::msg::InstantiateMsg {
+            admin,
             members,
+            preauths: None,
+            halflife: None,
+            token: ENGAGEMENT_TOKEN.to_owned(),
         };
-        app.instantiate_contract(group_id, Addr::unchecked(OWNER), &msg, &[], "group", None)
-            .unwrap()
+        app.instantiate_contract(
+            engagement_id,
+            Addr::unchecked(OWNER),
+            &msg,
+            &[],
+            "engagement",
+            None,
+        )
+        .unwrap()
     }
 
-    fn instantiate_flex(app: &mut App, group: Addr, rules: VotingRules) -> Addr {
+    fn instantiate_flex(
+        app: &mut TgradeApp,
+        engagement_contract: Addr,
+        rules: VotingRules,
+    ) -> Addr {
         let flex_id = app.store_code(contract_flex());
         let msg = crate::msg::InstantiateMsg {
-            group_addr: group.to_string(),
+            engagement_contract: engagement_contract.to_string(),
             rules,
         };
         app.instantiate_contract(flex_id, Addr::unchecked(OWNER), &msg, &[], "flex", None)
@@ -486,7 +541,7 @@ mod tests {
     // all voters defined above, and the multisig pointing to it and given threshold criteria.
     // Returns (multisig address, group address).
     fn setup_test_case_fixed(
-        app: &mut App,
+        app: &mut TgradeApp,
         rules: VotingRules,
         init_funds: Vec<Coin>,
         multisig_as_group_admin: bool,
@@ -495,12 +550,12 @@ mod tests {
     }
 
     fn setup_test_case(
-        app: &mut App,
+        app: &mut TgradeApp,
         rules: VotingRules,
         init_funds: Vec<Coin>,
         multisig_as_group_admin: bool,
     ) -> (Addr, Addr) {
-        // 1. Instantiate group contract with members (and OWNER as admin)
+        // 1. Instantiate group engagement contract with members (and OWNER as admin)
         let members = vec![
             member(OWNER, 0),
             member(VOTER1, 1),
@@ -509,21 +564,32 @@ mod tests {
             member(VOTER4, 4),
             member(VOTER5, 5),
         ];
-        let group_addr = instantiate_group(app, members);
+        let engagement_addr = instantiate_engagement(app, Some(OWNER.to_string()), members);
         app.update_block(next_block);
 
         // 2. Set up Multisig backed by this group
-        let flex_addr = instantiate_flex(app, group_addr.clone(), rules);
+        let flex_addr = instantiate_flex(app, engagement_addr.clone(), rules);
+
+        // 2.5 Set flex contract's address as admin of engagement contract
+        app.execute_contract(
+            Addr::unchecked(OWNER),
+            engagement_addr.clone(),
+            &Tg4ExecuteMsg::UpdateAdmin {
+                admin: Some(flex_addr.to_string()),
+            },
+            &[],
+        )
+        .unwrap();
         app.update_block(next_block);
 
         // 3. (Optional) Set the multisig as the group owner
         if multisig_as_group_admin {
-            let update_admin = Cw4ExecuteMsg::UpdateAdmin {
+            let update_admin = Tg4ExecuteMsg::UpdateAdmin {
                 admin: Some(flex_addr.to_string()),
             };
             app.execute_contract(
-                Addr::unchecked(OWNER),
-                group_addr.clone(),
+                flex_addr.clone(),
+                engagement_addr.clone(),
                 &update_admin,
                 &[],
             )
@@ -536,7 +602,7 @@ mod tests {
             app.send_tokens(Addr::unchecked(OWNER), flex_addr.clone(), &init_funds)
                 .unwrap();
         }
-        (flex_addr, group_addr)
+        (flex_addr, engagement_addr)
     }
 
     struct MockRulesBuilder {
@@ -580,23 +646,22 @@ mod tests {
         MockRulesBuilder::new()
     }
 
-    fn proposal_info() -> (Vec<CosmosMsg<Empty>>, String, String) {
-        let bank_msg = BankMsg::Send {
-            to_address: SOMEBODY.into(),
-            amount: coins(1, "BTC"),
+    fn proposal_info() -> (OversightProposal, String, String) {
+        let proposal = OversightProposal::GrantEngagement {
+            member: Addr::unchecked(VOTER1),
+            points: 10,
         };
-        let msgs = vec![bank_msg.into()];
-        let title = "Pay somebody".to_string();
-        let description = "Do I pay her?".to_string();
-        (msgs, title, description)
+        let title = "Grant engagement point to somebody".to_string();
+        let description = "Did I grant him?".to_string();
+        (proposal, title, description)
     }
 
-    fn pay_somebody_proposal() -> ExecuteMsg {
-        let (msgs, title, description) = proposal_info();
+    fn grant_voter1_engagement_point_proposal() -> ExecuteMsg {
+        let (proposal, title, description) = proposal_info();
         ExecuteMsg::Propose {
             title,
             description,
-            msgs,
+            proposal,
         }
     }
 
@@ -605,12 +670,13 @@ mod tests {
         let mut app = mock_app(&[]);
 
         // make a simple group
-        let group_addr = instantiate_group(&mut app, vec![member(OWNER, 1)]);
         let flex_id = app.store_code(contract_flex());
+        let engagement_addr =
+            instantiate_engagement(&mut app, Some(OWNER.to_string()), vec![member(OWNER, 1)]);
 
-        // Zero threshold fails
+        // Zero required weight fails
         let instantiate_msg = InstantiateMsg {
-            group_addr: group_addr.to_string(),
+            engagement_contract: engagement_addr.to_string(),
             rules: mock_rules().threshold(Decimal::zero()).build(),
         };
         let err = app
@@ -630,7 +696,7 @@ mod tests {
 
         // All valid
         let instantiate_msg = InstantiateMsg {
-            group_addr: group_addr.to_string(),
+            engagement_contract: engagement_addr.to_string(),
             rules: mock_rules().build(),
         };
         let flex_addr = app
@@ -643,16 +709,6 @@ mod tests {
                 None,
             )
             .unwrap();
-
-        // Verify contract version set properly
-        let version = query_contract_info(&app, flex_addr.clone()).unwrap();
-        assert_eq!(
-            ContractVersion {
-                contract: CONTRACT_NAME.to_string(),
-                version: CONTRACT_VERSION.to_string(),
-            },
-            version,
-        );
 
         // Get voters query
         let voters: VoterListResponse = app
@@ -686,16 +742,26 @@ mod tests {
             false,
         );
 
-        let proposal = pay_somebody_proposal();
+        let proposal_msg = grant_voter1_engagement_point_proposal();
         // Only voters can propose
         let err = app
-            .execute_contract(Addr::unchecked(SOMEBODY), flex_addr.clone(), &proposal, &[])
+            .execute_contract(
+                Addr::unchecked(SOMEBODY),
+                flex_addr.clone(),
+                &proposal_msg,
+                &[],
+            )
             .unwrap_err();
         assert_eq!(ContractError::Unauthorized {}, err.downcast().unwrap());
 
         // Proposal from voter works
         let res = app
-            .execute_contract(Addr::unchecked(VOTER3), flex_addr.clone(), &proposal, &[])
+            .execute_contract(
+                Addr::unchecked(VOTER3),
+                flex_addr.clone(),
+                &proposal_msg,
+                &[],
+            )
             .unwrap();
         assert_eq!(
             res.custom_attrs(1),
@@ -709,7 +775,7 @@ mod tests {
 
         // Proposal from voter with enough vote power directly passes
         let res = app
-            .execute_contract(Addr::unchecked(VOTER4), flex_addr, &proposal, &[])
+            .execute_contract(Addr::unchecked(VOTER4), flex_addr, &proposal_msg, &[])
             .unwrap();
         assert_eq!(
             res.custom_attrs(1),
@@ -722,7 +788,7 @@ mod tests {
         );
     }
 
-    fn get_tally(app: &App, flex_addr: &str, proposal_id: u64) -> u64 {
+    fn get_tally(app: &TgradeApp, flex_addr: &str, proposal_id: u64) -> u64 {
         // Get all the voters on the proposal
         let voters = QueryMsg::ListVotes {
             proposal_id,
@@ -773,7 +839,7 @@ mod tests {
         let (flex_addr, _) = setup_test_case_fixed(&mut app, rules.clone(), init_funds, false);
 
         // create proposal with 1 vote power
-        let proposal = pay_somebody_proposal();
+        let proposal = grant_voter1_engagement_point_proposal();
         let res = app
             .execute_contract(Addr::unchecked(VOTER1), flex_addr.clone(), &proposal, &[])
             .unwrap();
@@ -781,7 +847,7 @@ mod tests {
 
         // another proposal immediately passes
         app.update_block(next_block);
-        let proposal = pay_somebody_proposal();
+        let proposal = grant_voter1_engagement_point_proposal();
         let res = app
             .execute_contract(Addr::unchecked(VOTER3), flex_addr.clone(), &proposal, &[])
             .unwrap();
@@ -791,7 +857,7 @@ mod tests {
         app.update_block(expire(voting_period));
 
         // add one more open proposal, 2 votes
-        let proposal = pay_somebody_proposal();
+        let proposal = grant_voter1_engagement_point_proposal();
         let res = app
             .execute_contract(Addr::unchecked(VOTER2), flex_addr.clone(), &proposal, &[])
             .unwrap();
@@ -820,11 +886,11 @@ mod tests {
         assert_eq!(expected_info, info);
 
         // ensure the common features are set
-        let (expected_msgs, expected_title, expected_description) = proposal_info();
+        let (expected_proposal, expected_title, expected_description) = proposal_info();
         for prop in res.proposals {
             assert_eq!(prop.title, expected_title);
             assert_eq!(prop.description, expected_description);
-            assert_eq!(prop.msgs, expected_msgs);
+            assert_eq!(prop.proposal, expected_proposal);
         }
 
         // reverse query can get just proposal_id3
@@ -838,12 +904,12 @@ mod tests {
             .unwrap();
         assert_eq!(1, res.proposals.len());
 
-        let (msgs, title, description) = proposal_info();
+        let (proposal, title, description) = proposal_info();
         let expected = ProposalResponse {
             id: proposal_id3,
             title,
             description,
-            msgs,
+            proposal,
             expires: voting_period.after(&proposed_at),
             status: Status::Open,
             rules,
@@ -861,7 +927,7 @@ mod tests {
         let (flex_addr, _) = setup_test_case_fixed(&mut app, rules, init_funds, false);
 
         // create proposal with 0 vote power
-        let proposal = pay_somebody_proposal();
+        let proposal = grant_voter1_engagement_point_proposal();
         let res = app
             .execute_contract(Addr::unchecked(OWNER), flex_addr.clone(), &proposal, &[])
             .unwrap();
@@ -1004,14 +1070,14 @@ mod tests {
         let mut app = mock_app(&init_funds);
 
         let rules = mock_rules().threshold(Decimal::percent(20)).build();
-        let (flex_addr, _) = setup_test_case_fixed(&mut app, rules, init_funds, true);
+        let (flex_addr, engagement_addr) = setup_test_case_fixed(&mut app, rules, init_funds, true);
 
         // ensure we have cash to cover the proposal
         let contract_bal = app.wrap().query_balance(&flex_addr, "BTC").unwrap();
         assert_eq!(contract_bal, coin(10, "BTC"));
 
         // create proposal with 0 vote power
-        let proposal = pay_somebody_proposal();
+        let proposal = grant_voter1_engagement_point_proposal();
         let res = app
             .execute_contract(Addr::unchecked(OWNER), flex_addr.clone(), &proposal, &[])
             .unwrap();
@@ -1072,11 +1138,21 @@ mod tests {
             ],
         );
 
-        // verify money was transfered
-        let some_bal = app.wrap().query_balance(SOMEBODY, "BTC").unwrap();
-        assert_eq!(some_bal, coin(1, "BTC"));
-        let contract_bal = app.wrap().query_balance(&flex_addr, "BTC").unwrap();
-        assert_eq!(contract_bal, coin(9, "BTC"));
+        // verify engagement points were transfered
+        // engagement_contract is initialized with members
+        // Member VOTER1 has 1 point of weight, after proposal it
+        // should be 11
+        let engagement_points: tg4::MemberResponse = app
+            .wrap()
+            .query_wasm_smart(
+                engagement_addr,
+                &Tg4QueryMsg::Member {
+                    addr: VOTER1.to_string(),
+                    at_height: None,
+                },
+            )
+            .unwrap();
+        assert_eq!(engagement_points.weight.unwrap(), 11);
 
         // In passing: Try to close Executed fails
         let err = app
@@ -1095,7 +1171,7 @@ mod tests {
         let (flex_addr, _) = setup_test_case_fixed(&mut app, rules, init_funds, true);
 
         // create proposal with 0 vote power
-        let proposal = pay_somebody_proposal();
+        let proposal = grant_voter1_engagement_point_proposal();
         let res = app
             .execute_contract(Addr::unchecked(OWNER), flex_addr.clone(), &proposal, &[])
             .unwrap();
@@ -1139,16 +1215,17 @@ mod tests {
         let mut app = mock_app(&init_funds);
 
         let rules = mock_rules().threshold(Decimal::percent(30)).build();
-        let (flex_addr, group_addr) = setup_test_case_fixed(&mut app, rules, init_funds, false);
+        let (flex_addr, engagement_addr) =
+            setup_test_case_fixed(&mut app, rules, init_funds, false);
 
         // VOTER1 starts a proposal to send some tokens (1/4 votes)
-        let proposal = pay_somebody_proposal();
+        let proposal = grant_voter1_engagement_point_proposal();
         let res = app
             .execute_contract(Addr::unchecked(VOTER1), flex_addr.clone(), &proposal, &[])
             .unwrap();
         // Get the proposal id from the logs
         let proposal_id: u64 = res.custom_attrs(1)[2].value.parse().unwrap();
-        let prop_status = |app: &App, proposal_id: u64| -> Status {
+        let prop_status = |app: &TgradeApp, proposal_id: u64| -> Status {
             let query_prop = QueryMsg::Proposal { proposal_id };
             let prop: ProposalResponse = app
                 .wrap()
@@ -1168,12 +1245,17 @@ mod tests {
         // adds NEWBIE with 2 power -> with snapshot, invalid vote
         // removes VOTER3 -> with snapshot, can vote and pass proposal
         let newbie: &str = "newbie";
-        let update_msg = cw4_group::msg::ExecuteMsg::UpdateMembers {
+        let update_msg = tg4_engagement::msg::ExecuteMsg::UpdateMembers {
             remove: vec![VOTER3.into()],
             add: vec![member(VOTER2, 7), member(newbie, 2)],
         };
-        app.execute_contract(Addr::unchecked(OWNER), group_addr, &update_msg, &[])
-            .unwrap();
+        app.execute_contract(
+            Addr::unchecked(flex_addr.clone()),
+            engagement_addr,
+            &update_msg,
+            &[],
+        )
+        .unwrap();
 
         // check membership queries properly updated
         let query_voter = QueryMsg::Voter {
@@ -1192,7 +1274,7 @@ mod tests {
         app.update_block(|block| block.height += 3);
 
         // make a second proposal
-        let proposal2 = pay_somebody_proposal();
+        let proposal2 = grant_voter1_engagement_point_proposal();
         let res = app
             .execute_contract(Addr::unchecked(VOTER1), flex_addr.clone(), &proposal2, &[])
             .unwrap();
@@ -1230,121 +1312,6 @@ mod tests {
     }
 
     // uses the power from the beginning of the voting period
-    // similar to above - simpler case, but shows that one proposals can
-    // trigger the action
-    #[test]
-    fn execute_group_changes_from_proposal() {
-        let init_funds = coins(10, "BTC");
-        let mut app = mock_app(&init_funds);
-
-        let rules = mock_rules().threshold(Decimal::percent(25)).build();
-        let (flex_addr, group_addr) = setup_test_case_fixed(&mut app, rules, init_funds, true);
-
-        // Start a proposal to remove VOTER3 from the set
-        let update_msg = Cw4GroupContract::new(group_addr)
-            .update_members(vec![VOTER3.into()], vec![])
-            .unwrap();
-        let update_proposal = ExecuteMsg::Propose {
-            title: "Kick out VOTER3".to_string(),
-            description: "He's trying to steal our money".to_string(),
-            msgs: vec![update_msg],
-        };
-        let res = app
-            .execute_contract(
-                Addr::unchecked(VOTER1),
-                flex_addr.clone(),
-                &update_proposal,
-                &[],
-            )
-            .unwrap();
-        // Get the proposal id from the logs
-        let update_proposal_id: u64 = res.custom_attrs(1)[2].value.parse().unwrap();
-
-        // next block...
-        app.update_block(|b| b.height += 1);
-
-        // VOTER1 starts a proposal to send some tokens
-        let cash_proposal = pay_somebody_proposal();
-        let res = app
-            .execute_contract(
-                Addr::unchecked(VOTER1),
-                flex_addr.clone(),
-                &cash_proposal,
-                &[],
-            )
-            .unwrap();
-        // Get the proposal id from the logs
-        let cash_proposal_id: u64 = res.custom_attrs(1)[2].value.parse().unwrap();
-        assert_ne!(cash_proposal_id, update_proposal_id);
-
-        // query proposal state
-        let prop_status = |app: &App, proposal_id: u64| -> Status {
-            let query_prop = QueryMsg::Proposal { proposal_id };
-            let prop: ProposalResponse = app
-                .wrap()
-                .query_wasm_smart(&flex_addr, &query_prop)
-                .unwrap();
-            prop.status
-        };
-        assert_eq!(prop_status(&app, cash_proposal_id), Status::Open);
-        assert_eq!(prop_status(&app, update_proposal_id), Status::Open);
-
-        // next block...
-        app.update_block(|b| b.height += 1);
-
-        // Pass and execute first proposal
-        let yes_vote = ExecuteMsg::Vote {
-            proposal_id: update_proposal_id,
-            vote: Vote::Yes,
-        };
-        app.execute_contract(Addr::unchecked(VOTER4), flex_addr.clone(), &yes_vote, &[])
-            .unwrap();
-        let execution = ExecuteMsg::Execute {
-            proposal_id: update_proposal_id,
-        };
-        app.execute_contract(Addr::unchecked(VOTER4), flex_addr.clone(), &execution, &[])
-            .unwrap();
-
-        // ensure that the update_proposal is executed, but the other unchanged
-        assert_eq!(prop_status(&app, update_proposal_id), Status::Executed);
-        assert_eq!(prop_status(&app, cash_proposal_id), Status::Open);
-
-        // next block...
-        app.update_block(|b| b.height += 1);
-
-        // VOTER3 can still pass the cash proposal
-        // voting on it fails
-        let yes_vote = ExecuteMsg::Vote {
-            proposal_id: cash_proposal_id,
-            vote: Vote::Yes,
-        };
-        app.execute_contract(Addr::unchecked(VOTER3), flex_addr.clone(), &yes_vote, &[])
-            .unwrap();
-        assert_eq!(prop_status(&app, cash_proposal_id), Status::Passed);
-
-        // but cannot open a new one
-        let cash_proposal = pay_somebody_proposal();
-        let err = app
-            .execute_contract(
-                Addr::unchecked(VOTER3),
-                flex_addr.clone(),
-                &cash_proposal,
-                &[],
-            )
-            .unwrap_err();
-        assert_eq!(ContractError::Unauthorized {}, err.downcast().unwrap());
-
-        // extra: ensure no one else can call the hook
-        let hook_hack = ExecuteMsg::MemberChangedHook(MemberChangedHookMsg {
-            diffs: vec![MemberDiff::new(VOTER1, Some(1), None)],
-        });
-        let err = app
-            .execute_contract(Addr::unchecked(VOTER2), flex_addr.clone(), &hook_hack, &[])
-            .unwrap_err();
-        assert_eq!(ContractError::Unauthorized {}, err.downcast().unwrap());
-    }
-
-    // uses the power from the beginning of the voting period
     #[test]
     fn percentage_handles_group_changes() {
         let init_funds = coins(10, "BTC");
@@ -1352,16 +1319,16 @@ mod tests {
 
         // 33% required, which is 5 of the initial 15
         let rules = mock_rules().threshold(Decimal::percent(33)).build();
-        let (flex_addr, group_addr) = setup_test_case(&mut app, rules, init_funds, false);
+        let (flex_addr, engagement_addr) = setup_test_case(&mut app, rules, init_funds, false);
 
         // VOTER3 starts a proposal to send some tokens (3/5 votes)
-        let proposal = pay_somebody_proposal();
+        let proposal = grant_voter1_engagement_point_proposal();
         let res = app
             .execute_contract(Addr::unchecked(VOTER3), flex_addr.clone(), &proposal, &[])
             .unwrap();
         // Get the proposal id from the logs
         let proposal_id: u64 = res.custom_attrs(1)[2].value.parse().unwrap();
-        let prop_status = |app: &App| -> Status {
+        let prop_status = |app: &TgradeApp| -> Status {
             let query_prop = QueryMsg::Proposal { proposal_id };
             let prop: ProposalResponse = app
                 .wrap()
@@ -1378,12 +1345,17 @@ mod tests {
 
         // admin changes the group (3 -> 0, 2 -> 7, 0 -> 15) - total = 32, require 11 to pass
         let newbie: &str = "newbie";
-        let update_msg = cw4_group::msg::ExecuteMsg::UpdateMembers {
+        let update_msg = tg4_engagement::msg::ExecuteMsg::UpdateMembers {
             remove: vec![VOTER3.into()],
             add: vec![member(VOTER2, 7), member(newbie, 15)],
         };
-        app.execute_contract(Addr::unchecked(OWNER), group_addr, &update_msg, &[])
-            .unwrap();
+        app.execute_contract(
+            Addr::unchecked(flex_addr.clone()),
+            engagement_addr,
+            &update_msg,
+            &[],
+        )
+        .unwrap();
 
         // a few blocks later...
         app.update_block(|block| block.height += 3);
@@ -1399,7 +1371,7 @@ mod tests {
         assert_eq!(prop_status(&app), Status::Passed);
 
         // new proposal can be passed single-handedly by newbie
-        let proposal = pay_somebody_proposal();
+        let proposal = grant_voter1_engagement_point_proposal();
         let res = app
             .execute_contract(Addr::unchecked(newbie), flex_addr.clone(), &proposal, &[])
             .unwrap();
@@ -1430,16 +1402,16 @@ mod tests {
             .quorum(Decimal::percent(33))
             .build();
         let voting_period = Duration::Time(rules.voting_period_secs());
-        let (flex_addr, group_addr) = setup_test_case(&mut app, rules, init_funds, false);
+        let (flex_addr, engagement_addr) = setup_test_case(&mut app, rules, init_funds, false);
 
         // VOTER3 starts a proposal to send some tokens (3 votes)
-        let proposal = pay_somebody_proposal();
+        let proposal = grant_voter1_engagement_point_proposal();
         let res = app
             .execute_contract(Addr::unchecked(VOTER3), flex_addr.clone(), &proposal, &[])
             .unwrap();
         // Get the proposal id from the logs
         let proposal_id: u64 = res.custom_attrs(1)[2].value.parse().unwrap();
-        let prop_status = |app: &App| -> Status {
+        let prop_status = |app: &TgradeApp| -> Status {
             let query_prop = QueryMsg::Proposal { proposal_id };
             let prop: ProposalResponse = app
                 .wrap()
@@ -1456,12 +1428,17 @@ mod tests {
 
         // admin changes the group (3 -> 0, 2 -> 7, 0 -> 15) - total = 32, require 11 to pass
         let newbie: &str = "newbie";
-        let update_msg = cw4_group::msg::ExecuteMsg::UpdateMembers {
+        let update_msg = tg4_engagement::msg::ExecuteMsg::UpdateMembers {
             remove: vec![VOTER3.into()],
             add: vec![member(VOTER2, 7), member(newbie, 15)],
         };
-        app.execute_contract(Addr::unchecked(OWNER), group_addr, &update_msg, &[])
-            .unwrap();
+        app.execute_contract(
+            Addr::unchecked(flex_addr.clone()),
+            engagement_addr,
+            &update_msg,
+            &[],
+        )
+        .unwrap();
 
         // a few blocks later...
         app.update_block(|block| block.height += 3);
@@ -1489,7 +1466,6 @@ mod tests {
 
         // 33% required for quora, which is 5 of the initial 15
         // 50% yes required to pass early (8 of the initial 15)
-
         let rules = mock_rules()
             .threshold(Decimal::percent(60))
             .quorum(Decimal::percent(80))
@@ -1500,13 +1476,13 @@ mod tests {
         );
 
         // create proposal
-        let proposal = pay_somebody_proposal();
+        let proposal = grant_voter1_engagement_point_proposal();
         let res = app
             .execute_contract(Addr::unchecked(VOTER5), flex_addr.clone(), &proposal, &[])
             .unwrap();
         // Get the proposal id from the logs
         let proposal_id: u64 = res.custom_attrs(1)[2].value.parse().unwrap();
-        let prop_status = |app: &App| -> Status {
+        let prop_status = |app: &TgradeApp| -> Status {
             let query_prop = QueryMsg::Proposal { proposal_id };
             let prop: ProposalResponse = app
                 .wrap()

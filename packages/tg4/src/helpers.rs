@@ -38,6 +38,14 @@ impl Tg4Contract {
         }))
     }
 
+    pub fn encode_raw_msg<T: Into<Binary>>(&self, msg: T) -> StdResult<SubMsg> {
+        Ok(SubMsg::new(WasmMsg::Execute {
+            contract_addr: self.addr().into(),
+            msg: msg.into(),
+            funds: vec![],
+        }))
+    }
+
     pub fn add_hook<T: Into<String>>(&self, addr: T) -> StdResult<SubMsg> {
         let msg = Tg4ExecuteMsg::AddHook { addr: addr.into() };
         self.encode_msg(msg)

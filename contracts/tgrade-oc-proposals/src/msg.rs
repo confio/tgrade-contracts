@@ -1,16 +1,16 @@
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
-use crate::state::VotingRules;
-use cosmwasm_std::{CosmosMsg, Empty};
 use cw3::Vote;
-use cw4::MemberChangedHookMsg;
+use tg4::MemberChangedHookMsg;
+
+use crate::state::{OversightProposal, VotingRules};
 
 #[derive(Serialize, Deserialize, Clone, PartialEq, JsonSchema, Debug)]
 pub struct InstantiateMsg {
-    // this is the group contract that contains the member list
-    pub group_addr: String,
     pub rules: VotingRules,
+    // this is the group contract that contains the member list
+    pub engagement_contract: String,
 }
 
 // TODO: add some T variants? Maybe good enough as fixed Empty for now
@@ -20,7 +20,7 @@ pub enum ExecuteMsg {
     Propose {
         title: String,
         description: String,
-        msgs: Vec<CosmosMsg<Empty>>,
+        proposal: OversightProposal,
     },
     Vote {
         proposal_id: u64,
