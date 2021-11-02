@@ -12,7 +12,9 @@ sometimes refered to as "power".  Be it "Engagement Points", the Points you get 
 or the "Validator Power" computer by mixing these two.
 
 Green arrows indicate flow of TGD tokens. They come in to the valset contract from fees and minting block
-rewards, and are distributed to other contracts via these lines. Black arrows indictates punishment or slashing.
+rewards, and are distributed to other contracts via these lines.
+
+Black arrows indictates punishment or slashing.
 This is a reduction of "Engagement Points" or of the staked tokens (and their associated validator power).
 
 ![Base Arch](./Tgrade-Contracts.svg)
@@ -22,9 +24,9 @@ This is a reduction of "Engagement Points" or of the staked tokens (and their as
 From this diagam, we can observe the flow of Points that control the validation / consensus:
 
 * People have Engagement Points in the tg4-engagement contract
-* People can stake TGD toklens in the tg4-stake contract to get Staking Points
+* People can stake TGD tokens in the tg4-stake contract to get Staking Points
 * tg4-mixer mixes Engagement Points and Staking Points to produce Validation Points
-* tg4-valset grabs the top (unjailed) validators by points and uses that to assign their Validator Power in Tendermint (active validators)
+* tg4-valset grabs the top (unjailed) validators by Validation Points and uses that to assign their Validator Power in Tendermint (active validators).
 
 This is the flow of Rewards (TGD) that the blockchain gives to people that keep it running well:
 
@@ -33,7 +35,7 @@ This is the flow of Rewards (TGD) that the blockchain gives to people that keep 
 * Both of these contracts use cw2222 to keep a counter of how many tokens everyone is entitled to in an efficient way (one update to deposit, one update on withdraw, one update when changing the point value)
 * Validator (operators) can withdraw their rewards from the distribution contract
 * Engagement Point holders can withdraw their rewards from the engagement contract
-* Community Pool collects some small part of rewards that can be distributed via governance
+* Community Pool collects some small part of rewards that can be distributed via governance by EP holders (this percentage is defined in genesis and defaults to 5%)
 
 Cw2222 is based on ERC2222, and can be used to efficiently and lazily distribute rewards to people based on their
 points, even when those points/balances change over time.
@@ -59,14 +61,15 @@ tokens from the block rewards and can vote to send them to any address that they
 to fund various initiatives to support the chain - from relayers to marketing to a block explorer. Giving
 autonomy to the Engagement Point holders.
 
-There is also a "Validator Voting Contract", which is based on membership in the current active validators set.
-This governance contract can perform the following actions related to the operations of an efficiently running chain:
+There is also a "Validator Governance" contract, which is based on membership in the current active validators set.
+It doesn't affect the other contracts in the system, but rather the core operations of the blockchain
+as needed to maintain an efficiently running chain, and schedule needed upgrades:
 
 * Set an upgrade plan (using `x/upgrade`), to plan an upgrade of the binary
 * Cancel a pending upgrade
 * Set Tendermint Consensus Parameters (eg. max block size, max block gas)
 * Pin/Unpin Contracts (this keeps popular contracts in cache, lowering gas and runtime)
-* Set `x/params`, such as enabling IBC.
+* Perform a limited subset of `x/params`, such as (only as?) enabling IBC.
 
 On genesis, the only way to migrate the PoE contracts is via a chain upgrade with custom migration code
 written in Go. We consider allowing more governance voting types in the future, but want to start with a
