@@ -30,6 +30,8 @@ pub enum ExecuteMsg {
         remove: Vec<String>,
         add: Vec<Member>,
     },
+    /// Add points (weight) to member's address
+    AddPoints { addr: String, points: u64 },
     /// Add a new hook to be informed of all membership changes. Must be called by Admin
     AddHook { addr: String },
     /// Remove a hook. Must be called by Admin

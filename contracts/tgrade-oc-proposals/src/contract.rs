@@ -69,7 +69,7 @@ pub fn execute(
             proposal,
         } => execute_propose(deps, env, info, title, description, proposal),
         ExecuteMsg::Vote { proposal_id, vote } => execute_vote(deps, env, info, proposal_id, vote),
-        ExecuteMsg::Execute { proposal_id } => execute_execute(deps, env, info, proposal_id),
+        ExecuteMsg::Execute { proposal_id } => execute_execute(deps, info, proposal_id),
         ExecuteMsg::Close { proposal_id } => execute_close(deps, env, info, proposal_id),
         ExecuteMsg::MemberChangedHook(MemberChangedHookMsg { diffs }) => {
             execute_membership_hook(deps, env, info, diffs)
@@ -178,7 +178,6 @@ pub fn execute_vote(
 
 pub fn execute_execute(
     deps: DepsMut,
-    env: Env,
     info: MessageInfo,
     proposal_id: u64,
 ) -> Result<Response, ContractError> {
@@ -193,29 +192,12 @@ pub fn execute_execute(
 
     let engagement_contract = CONFIG.load(deps.storage)?.engagement_contract;
 
-    let eng_admin = engagement_contract.admin(&deps.querier)?;
-    if eng_admin.is_some() && eng_admin.unwrap() != env.contract.address {
-        return Err(ContractError::ContractIsNotEngagementAdmin);
-    }
-
     let message = match prop.proposal {
-        OversightProposal::GrantEngagement { ref member, points } => {
-            let member_weight = engagement_contract
-                .member_at_height(&deps.querier, member.to_string(), env.block.height)?
-                .ok_or(ContractError::EngagementMemberNotFound {
-                    member: member.to_string(),
-                })?;
-            let member = tg4::Member {
+        OversightProposal::GrantEngagement { ref member, points } => engagement_contract
+            .encode_raw_msg(to_binary(&tg4_engagement::ExecuteMsg::AddPoints {
                 addr: member.to_string(),
-                weight: member_weight + points,
-            };
-            engagement_contract.encode_raw_msg(to_binary(
-                &tg4_engagement::ExecuteMsg::UpdateMembers {
-                    remove: vec![],
-                    add: vec![member],
-                },
-            )?)?
-        }
+                points,
+            })?)?,
     };
 
     // set it to executed
