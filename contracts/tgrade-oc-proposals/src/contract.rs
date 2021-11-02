@@ -35,17 +35,23 @@ pub fn instantiate(
     _info: MessageInfo,
     msg: InstantiateMsg,
 ) -> Result<Response, ContractError> {
-    let engagement_contract = Tg4Contract(
-        deps.api
-            .addr_validate(&msg.engagement_contract)
-            .map_err(|_| ContractError::InvalidEngagementContract {
-                addr: msg.engagement_contract.clone(),
-            })?,
-    );
+    let group_contract = Tg4Contract(deps.api.addr_validate(&msg.group_addr).map_err(|_| {
+        ContractError::InvalidGroup {
+            addr: msg.group_addr.clone(),
+        }
+    })?);
+
+    let engagement_contract =
+        Tg4Contract(deps.api.addr_validate(&msg.engagement_addr).map_err(|_| {
+            ContractError::InvalidEngagementContract {
+                addr: msg.engagement_addr.clone(),
+            }
+        })?);
     set_contract_version(deps.storage, CONTRACT_NAME, CONTRACT_VERSION)?;
 
     let cfg = Config {
         rules: msg.rules,
+        group_contract,
         engagement_contract,
     };
 
@@ -89,7 +95,7 @@ pub fn execute_propose(
     let cfg = CONFIG.load(deps.storage)?;
 
     let vote_power = cfg
-        .engagement_contract
+        .group_contract
         .is_member(&deps.querier, &info.sender)?
         .ok_or(ContractError::Unauthorized {})?;
 
@@ -106,7 +112,7 @@ pub fn execute_propose(
         status: Status::Open,
         votes: Votes::new(vote_power),
         rules: cfg.rules,
-        total_weight: cfg.engagement_contract.total_weight(&deps.querier)?,
+        total_weight: cfg.group_contract.total_weight(&deps.querier)?,
     };
     prop.update_status(&env.block);
     let id = next_id(deps.storage)?;
@@ -147,7 +153,7 @@ pub fn execute_vote(
 
     // use a snapshot of "start of proposal"
     let vote_power = cfg
-        .engagement_contract
+        .group_contract
         .member_at_height(&deps.querier, info.sender.clone(), prop.start_height)?
         .ok_or(ContractError::Unauthorized {})?;
 
@@ -250,7 +256,7 @@ pub fn execute_membership_hook(
     // This is now a no-op
     // But we leave the authorization check as a demo
     let cfg = CONFIG.load(deps.storage)?;
-    if info.sender != cfg.engagement_contract.0 {
+    if info.sender != cfg.group_contract.0 {
         return Err(ContractError::Unauthorized {});
     }
 
@@ -398,9 +404,7 @@ fn list_votes(
 fn query_voter(deps: Deps, voter: String) -> StdResult<VoterResponse> {
     let cfg = CONFIG.load(deps.storage)?;
     let voter_addr = deps.api.addr_validate(&voter)?;
-    let weight = cfg
-        .engagement_contract
-        .is_member(&deps.querier, &voter_addr)?;
+    let weight = cfg.group_contract.is_member(&deps.querier, &voter_addr)?;
 
     Ok(VoterResponse { weight })
 }
@@ -412,7 +416,7 @@ fn list_voters(
 ) -> StdResult<VoterListResponse> {
     let cfg = CONFIG.load(deps.storage)?;
     let voters = cfg
-        .engagement_contract
+        .group_contract
         .list_members(&deps.querier, start_after, limit)?
         .into_iter()
         .map(|member| VoterDetail {

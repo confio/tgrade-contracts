@@ -10,7 +10,9 @@ use crate::state::{OversightProposal, VotingRules};
 pub struct InstantiateMsg {
     pub rules: VotingRules,
     // this is the group contract that contains the member list
-    pub engagement_contract: String,
+    pub group_addr: String,
+    // this is the engagement contract that contains list for engagement rewards
+    pub engagement_addr: String,
 }
 
 // TODO: add some T variants? Maybe good enough as fixed Empty for now
