@@ -11,7 +11,7 @@ use cw3::{
     VoterResponse,
 };
 use cw_storage_plus::Bound;
-use tg4::{MemberChangedHookMsg, MemberDiff, Tg4Contract};
+use tg4::Tg4Contract;
 use tg_bindings::TgradeMsg;
 
 use crate::error::ContractError;
@@ -77,9 +77,6 @@ pub fn execute(
         ExecuteMsg::Vote { proposal_id, vote } => execute_vote(deps, env, info, proposal_id, vote),
         ExecuteMsg::Execute { proposal_id } => execute_execute(deps, info, proposal_id),
         ExecuteMsg::Close { proposal_id } => execute_close(deps, env, info, proposal_id),
-        ExecuteMsg::MemberChangedHook(MemberChangedHookMsg { diffs }) => {
-            execute_membership_hook(deps, env, info, diffs)
-        }
     }
 }
 
@@ -245,22 +242,6 @@ pub fn execute_close(
         .add_attribute("action", "close")
         .add_attribute("sender", info.sender)
         .add_attribute("proposal_id", proposal_id.to_string()))
-}
-
-pub fn execute_membership_hook(
-    deps: DepsMut,
-    _env: Env,
-    info: MessageInfo,
-    _diffs: Vec<MemberDiff>,
-) -> Result<Response, ContractError> {
-    // This is now a no-op
-    // But we leave the authorization check as a demo
-    let cfg = CONFIG.load(deps.storage)?;
-    if info.sender != cfg.group_contract.0 {
-        return Err(ContractError::Unauthorized {});
-    }
-
-    Ok(Response::default())
 }
 
 #[cfg_attr(not(feature = "library"), entry_point)]

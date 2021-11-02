@@ -2,7 +2,6 @@ use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
 use cw3::Vote;
-use tg4::MemberChangedHookMsg;
 
 use crate::state::{OversightProposal, VotingRules};
 
@@ -34,8 +33,6 @@ pub enum ExecuteMsg {
     Close {
         proposal_id: u64,
     },
-    /// Handles update hook messages from the group contract
-    MemberChangedHook(MemberChangedHookMsg),
 }
 
 // We can also add this as a cw3 extension
