@@ -1,20 +1,15 @@
 use anyhow::Result as AnyResult;
 
-use cosmwasm_std::{Addr, Coin, CosmosMsg, Decimal};
-use cw_multi_test::{AppResponse, Contract, ContractWrapper, CosmosRouter, Executor};
-use tg4::{Member, Tg4ExecuteMsg};
+use cosmwasm_std::{Addr, Decimal};
+use cw3::Vote;
+use cw_multi_test::{AppResponse, Contract, ContractWrapper, Executor};
+use tg4::{Member, MemberResponse, Tg4ExecuteMsg, Tg4QueryMsg};
 use tg_bindings::TgradeMsg;
 use tg_bindings_test::TgradeApp;
 
+use crate::error::ContractError;
 use crate::msg::*;
 use crate::state::{OversightProposal, VotingRules};
-
-fn member<T: Into<String>>(addr: T, weight: u64) -> Member {
-    Member {
-        addr: addr.into(),
-        weight,
-    }
-}
 
 fn contract_oc_proposals() -> Box<dyn Contract<TgradeMsg>> {
     let contract = ContractWrapper::new(
@@ -53,11 +48,6 @@ impl MockRulesBuilder {
         }
     }
 
-    pub fn quorum(&mut self, quorum: impl Into<Decimal>) -> &mut Self {
-        self.quorum = quorum.into();
-        self
-    }
-
     pub fn threshold(&mut self, threshold: impl Into<Decimal>) -> &mut Self {
         self.threshold = threshold.into();
         self
@@ -81,7 +71,6 @@ pub struct SuiteBuilder {
     engagement_members: Vec<Member>,
     group_members: Vec<Member>,
     rules: VotingRules,
-    funds: Vec<Coin>,
     multisig_as_group_admin: bool,
 }
 
@@ -96,7 +85,6 @@ impl SuiteBuilder {
                 threshold: Decimal::zero(),
                 allow_end_early: false,
             },
-            funds: vec![],
             multisig_as_group_admin: false,
         }
     }
@@ -117,11 +105,6 @@ impl SuiteBuilder {
         self
     }
 
-    pub fn with_funds(mut self, amount: u128, denom: &str) -> Self {
-        self.funds.push(Coin::new(amount, denom));
-        self
-    }
-
     pub fn with_voting_rules(mut self, voting_rules: VotingRules) -> Self {
         self.rules = voting_rules;
         self
@@ -134,29 +117,6 @@ impl SuiteBuilder {
 
         // start from genesis
         app.back_to_genesis();
-
-        let block_info = app.block_info();
-        let funds = self.funds;
-
-        app.init_modules(|router, api, storage| -> AnyResult<()> {
-            for coin in funds {
-                router.execute(
-                    api,
-                    storage,
-                    &block_info,
-                    owner.clone(),
-                    CosmosMsg::Custom(TgradeMsg::MintTokens {
-                        denom: coin.denom.clone(),
-                        amount: coin.amount.into(),
-                        recipient: owner.to_string(),
-                    })
-                    .into(),
-                )?;
-            }
-
-            Ok(())
-        })
-        .unwrap();
 
         let engagement_id = app.store_code(contract_engagement());
         let engagement_contract = app
@@ -226,7 +186,7 @@ impl SuiteBuilder {
 
         if self.multisig_as_group_admin {
             app.execute_contract(
-                owner.clone(),
+                owner,
                 group_contract.clone(),
                 &Tg4ExecuteMsg::UpdateAdmin {
                     admin: Some(contract.to_string()),
@@ -241,8 +201,6 @@ impl SuiteBuilder {
             app,
             contract,
             engagement_contract,
-            group_contract,
-            owner,
         }
     }
 }
@@ -251,12 +209,10 @@ pub struct Suite {
     app: TgradeApp,
     contract: Addr,
     engagement_contract: Addr,
-    group_contract: Addr,
-    owner: Addr,
 }
 
 impl Suite {
-    pub fn propose<'a>(
+    pub fn propose(
         &mut self,
         executor: &str,
         title: &str,
@@ -273,5 +229,48 @@ impl Suite {
             },
             &[],
         )
+    }
+
+    pub fn execute(&mut self, executor: &str, proposal_id: u64) -> AnyResult<AppResponse> {
+        self.app.execute_contract(
+            Addr::unchecked(executor),
+            self.contract.clone(),
+            &ExecuteMsg::Execute { proposal_id },
+            &[],
+        )
+    }
+
+    pub fn vote(&mut self, executor: &str, proposal_id: u64, vote: Vote) -> AnyResult<AppResponse> {
+        self.app.execute_contract(
+            Addr::unchecked(executor),
+            self.contract.clone(),
+            &ExecuteMsg::Vote { proposal_id, vote },
+            &[],
+        )
+    }
+
+    pub fn close(&mut self, executor: &str, proposal_id: u64) -> AnyResult<AppResponse> {
+        self.app.execute_contract(
+            Addr::unchecked(executor),
+            self.contract.clone(),
+            &ExecuteMsg::Close { proposal_id },
+            &[],
+        )
+    }
+
+    fn query_engagement_points(&mut self, addr: &str) -> Result<Option<u64>, ContractError> {
+        let response: MemberResponse = self.app.wrap().query_wasm_smart(
+            self.engagement_contract.clone(),
+            &Tg4QueryMsg::Member {
+                addr: addr.to_string(),
+                at_height: None,
+            },
+        )?;
+        Ok(response.weight)
+    }
+
+    pub fn assert_engagement_points(&mut self, addr: &str, points: u64) {
+        let response = self.query_engagement_points(addr).unwrap();
+        assert_eq!(response, Some(points));
     }
 }

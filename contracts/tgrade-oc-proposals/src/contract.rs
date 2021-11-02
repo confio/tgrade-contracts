@@ -410,11 +410,11 @@ fn list_voters(
 
 #[cfg(test)]
 mod tests {
-    use cosmwasm_std::{coin, coins, Addr, Coin, Decimal, Timestamp};
+    use cosmwasm_std::{coins, Addr, Coin, Decimal, Timestamp};
 
     use cw0::Duration;
     use cw_multi_test::{next_block, Contract, ContractWrapper, Executor};
-    use tg4::{Member, Tg4ExecuteMsg, Tg4QueryMsg};
+    use tg4::{Member, Tg4ExecuteMsg};
     use tg_bindings_test::TgradeApp;
 
     use super::*;
@@ -996,104 +996,6 @@ mod tests {
             .query_wasm_smart(&flex_addr, &QueryMsg::Vote { proposal_id, voter })
             .unwrap();
         assert!(vote.vote.is_none());
-    }
-
-    #[test]
-    fn test_execute_works() {
-        let init_funds = coins(10, "BTC");
-        let mut app = mock_app(&init_funds);
-
-        let rules = mock_rules().threshold(Decimal::percent(50)).build();
-        let (flex_addr, _, engagement_addr) =
-            setup_test_case_fixed(&mut app, rules, init_funds, true);
-
-        // ensure we have cash to cover the proposal
-        let contract_bal = app.wrap().query_balance(&flex_addr, "BTC").unwrap();
-        assert_eq!(contract_bal, coin(10, "BTC"));
-
-        // create proposal with 0 vote power
-        let proposal = grant_voter1_engagement_point_proposal();
-        let res = app
-            .execute_contract(Addr::unchecked(OWNER), flex_addr.clone(), &proposal, &[])
-            .unwrap();
-
-        // Get the proposal id from the logs
-        let proposal_id: u64 = res.custom_attrs(1)[2].value.parse().unwrap();
-
-        // Only Passed can be executed
-        let execution = ExecuteMsg::Execute { proposal_id };
-        let err = app
-            .execute_contract(Addr::unchecked(OWNER), flex_addr.clone(), &execution, &[])
-            .unwrap_err();
-        assert_eq!(
-            ContractError::WrongExecuteStatus {},
-            err.downcast().unwrap()
-        );
-
-        // Vote it, so it passes
-        let vote = ExecuteMsg::Vote {
-            proposal_id,
-            vote: Vote::Yes,
-        };
-        let res = app
-            .execute_contract(Addr::unchecked(VOTER4), flex_addr.clone(), &vote, &[])
-            .unwrap();
-        assert_eq!(
-            res.custom_attrs(1),
-            [
-                ("action", "vote"),
-                ("sender", VOTER4),
-                ("proposal_id", proposal_id.to_string().as_str()),
-                ("status", "Passed"),
-            ],
-        );
-
-        // In passing: Try to close Passed fails
-        let closing = ExecuteMsg::Close { proposal_id };
-        let err = app
-            .execute_contract(Addr::unchecked(OWNER), flex_addr.clone(), &closing, &[])
-            .unwrap_err();
-        assert_eq!(ContractError::WrongCloseStatus {}, err.downcast().unwrap());
-
-        // Execute works. Anybody can execute Passed proposals
-        let res = app
-            .execute_contract(
-                Addr::unchecked(SOMEBODY),
-                flex_addr.clone(),
-                &execution,
-                &[],
-            )
-            .unwrap();
-        assert_eq!(
-            res.custom_attrs(1),
-            [
-                ("action", "execute"),
-                ("sender", SOMEBODY),
-                ("proposal_id", proposal_id.to_string().as_str()),
-            ],
-        );
-
-        // verify engagement points were transfered
-        // engagement_contract is initialized with members
-        // Member VOTER1 has 1 point of weight, after proposal it
-        // should be 11
-        let engagement_points: tg4::MemberResponse = app
-            .wrap()
-            .query_wasm_smart(
-                engagement_addr,
-                &Tg4QueryMsg::Member {
-                    addr: VOTER1.to_string(),
-                    at_height: None,
-                },
-            )
-            .unwrap();
-        assert_eq!(engagement_points.weight.unwrap(), 11);
-
-        // In passing: Try to close Executed fails
-        let err = app
-            .execute_contract(Addr::unchecked(OWNER), flex_addr, &closing, &[])
-            .unwrap_err();
-        assert_eq!(ContractError::WrongCloseStatus {}, err.downcast().unwrap());
     }
 
     #[test]
