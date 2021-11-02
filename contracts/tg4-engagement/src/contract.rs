@@ -437,7 +437,7 @@ pub fn execute_slash(
         return Err(ContractError::Unauthorized {});
     }
 
-    let ppw: u128 = dbg!(DISTRIBUTION.load(deps.storage)?.points_per_weight.into());
+    let ppw: u128 = DISTRIBUTION.load(deps.storage)?.points_per_weight.into();
 
     let addr = Addr::unchecked(&addr);
     let mut diff = 0i128;
@@ -447,10 +447,9 @@ pub fn execute_slash(
         &addr,
         env.block.height,
         |old| -> StdResult<_> {
-            let old = if let Some(old) = old {
-                Uint128::new(old as _)
-            } else {
-                return Ok(0);
+            let old = match old {
+                Some(old) => Uint128::new(old as _),
+                None => Uint128::zero(),
             };
 
             let slash = old * portion;
