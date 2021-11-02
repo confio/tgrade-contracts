@@ -17,8 +17,7 @@ fn member<T: Into<String>>(addr: T, weight: u64) -> Member {
     }
 }
 
-
-pub fn contract_oc_proposal() -> Box<dyn Contract<TgradeMsg>> {
+pub fn contract_oc_proposals() -> Box<dyn Contract<TgradeMsg>> {
     let contract = ContractWrapper::new(
         crate::contract::execute,
         crate::contract::instantiate,
@@ -39,7 +38,8 @@ pub fn contract_engagement() -> Box<dyn Contract<TgradeMsg>> {
 }
 
 struct SuiteBuilder {
-    members: Vec<Member>,
+    engagement_members: Vec<Member>,
+    group_members: Vec<Member>,
     rules: VotingRules,
     init_funds: Vec<Coin>,
     multisig_as_group_admin: bool,
@@ -48,7 +48,8 @@ struct SuiteBuilder {
 impl SuiteBuilder {
     fn new() -> SuiteBuilder {
         SuiteBuilder {
-            members: vec![],
+            engagement_members: vec![],
+            group_members: vec![],
             rules: VotingRules {
                 voting_period: 0,
                 quorum: Decimal::zero(),
@@ -79,22 +80,66 @@ impl SuiteBuilder {
         app.back_to_genesis();
 
         let engagement_id = app.store_code(contract_engagement());
-        let contract = app
+        let engagement_contract = app
             .instantiate_contract(
                 engagement_id,
                 owner.clone(),
                 &tg4_engagement::msg::InstantiateMsg {
                     admin: Some(owner.to_string()),
-                    members: self.members,
+                    members: self.engagement_members,
                     preauths: None,
                     halflife: None,
-                    token: token.clone(),
+                    token: "ENGAGEMENT".to_owned(),
                 },
                 &[],
                 "engagement",
                 Some(owner.to_string()),
             )
             .unwrap();
+
+        let group_id = app.store_code(contract_engagement());
+        let group_contract = app
+            .instantiate_contract(
+                group_id,
+                owner.clone(),
+                &tg4_engagement::msg::InstantiateMsg {
+                    admin: Some(owner.to_string()),
+                    members: self.group_members,
+                    preauths: None,
+                    halflife: None,
+                    token: "GROUP".to_owned(),
+                },
+                &[],
+                "group",
+                None,
+            )
+            .unwrap();
+
+        let flex_id = app.store_code(contract_oc_proposals());
+        let contract = app
+            .instantiate_contract(
+                flex_id,
+                owner.clone(),
+                &crate::msg::InstantiateMsg {
+                    group_addr: group_contract.to_string(),
+                    engagement_addr: engagement_contract.to_string(),
+                    rules: self.rules,
+                },
+                &[],
+                "oc-proposals",
+                None,
+            )
+            .unwrap();
+
+        app.next_block().unwrap();
+
+        Suite {
+            app,
+            contract,
+            engagement_contract,
+            group_contract,
+            owner,
+        }
     }
 }
 
@@ -104,5 +149,4 @@ struct Suite {
     engagement_contract: Addr,
     group_contract: Addr,
     owner: Addr,
-    token: String,
 }
