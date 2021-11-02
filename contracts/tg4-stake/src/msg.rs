@@ -1,4 +1,4 @@
-use cosmwasm_std::{Coin, Uint128};
+use cosmwasm_std::{Coin, Decimal, Uint128};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use tg_utils::{Duration, Expiration};
@@ -19,10 +19,12 @@ pub struct InstantiateMsg {
     /// unbounding period in seconds
     pub unbonding_period: u64,
 
-    // admin can only add/remove hooks, not change other parameters
+    // admin can only add/remove hooks and slashers, not change other parameters
     pub admin: Option<String>,
     // or you can simply pre-authorize a number of hooks (to be done in following messages)
     pub preauths: Option<u64>,
+    // and you can pre-authorize a number of slashers the same way
+    pub preauths_slashing: Option<u64>,
     /// Limits how much claims would be automatically returned at end of block, 20 by default.
     /// Setting this to 0 disables auto returning claims.
     #[serde(default = "default_auto_return_limit")]
@@ -48,6 +50,15 @@ pub enum ExecuteMsg {
     AddHook { addr: String },
     /// Remove a hook. Must be called by Admin
     RemoveHook { addr: String },
+    /// Add a new slasher. Must be called by Admin
+    AddSlasher { addr: String },
+    /// Remove a slasher. Must be called by Admin
+    RemoveSlasher { addr: String },
+    Slash {
+        addr: String,
+        // between (0.0, 1.0]
+        portion: Decimal,
+    },
 }
 
 #[derive(Serialize, Deserialize, Clone, PartialEq, JsonSchema, Debug)]

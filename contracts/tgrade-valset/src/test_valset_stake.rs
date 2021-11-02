@@ -83,6 +83,7 @@ fn instantiate_stake(app: &mut BasicApp<TgradeMsg>) -> Addr {
         unbonding_period: 1234,
         admin: admin.clone(),
         preauths: None,
+        preauths_slashing: None,
         auto_return_limit: 0,
     };
     app.instantiate_contract(

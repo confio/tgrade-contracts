@@ -1,11 +1,13 @@
 // Copied from cw-plus repository: https://github.com/CosmWasm/cw-plus/tree/main/packages/controllers
 // Original file distributed on Apache license
 
+use std::convert::TryInto;
+
 use itertools::Itertools;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
-use cosmwasm_std::{Addr, BlockInfo, Deps, Order, StdResult, Storage, Uint128};
+use cosmwasm_std::{Addr, BlockInfo, Decimal, Deps, Order, StdError, StdResult, Storage, Uint128};
 use cw_storage_plus::{Bound, Index, IndexList, IndexedMap, MultiIndex, PrimaryKey, U64Key};
 use tg_utils::Expiration;
 
@@ -211,6 +213,47 @@ impl<'a> Claims<'a> {
         }
 
         Ok(())
+    }
+
+    pub fn slash_claims_for_addr(
+        &self,
+        storage: &mut dyn Storage,
+        address: Addr,
+        portion: Decimal,
+    ) -> StdResult<Uint128> {
+        // This should be unnecessary in the future, maybe after
+        // https://github.com/CosmWasm/cw-plus/pull/500
+        fn deser_key(k: Vec<u8>) -> StdResult<U64Key> {
+            Ok(U64Key::new(u64::from_be_bytes(
+                k.as_slice()
+                    .try_into()
+                    .map_err(|_| StdError::generic_err("Invalid length for U64Key"))?,
+            )))
+        }
+
+        let claims: StdResult<Vec<_>> = self
+            .claims
+            .prefix(&address)
+            .range(storage, None, None, Order::Ascending)
+            .collect();
+        let claims = claims?;
+
+        let mut total_slashed = Uint128::zero();
+
+        for (key, claim) in claims {
+            let key = (&address, deser_key(key)?);
+
+            let slashed = claim.amount * portion;
+            let mut new_claim = claim.clone();
+            new_claim.amount -= slashed;
+
+            self.claims
+                .replace(storage, key, Some(&new_claim), Some(&claim))?;
+
+            total_slashed += slashed;
+        }
+
+        Ok(total_slashed)
     }
 
     pub fn query_claims(

@@ -451,6 +451,7 @@ mod tests {
             unbonding_period: 3600,
             admin: admin.clone(),
             preauths: Some(1),
+            preauths_slashing: None,
             auto_return_limit: 0,
         };
         let contract = app
