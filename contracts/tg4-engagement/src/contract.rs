@@ -1,8 +1,8 @@
 #[cfg(not(feature = "library"))]
 use cosmwasm_std::entry_point;
 use cosmwasm_std::{
-    coin, to_binary, Addr, BankMsg, Binary, Coin, Deps, DepsMut, Env, Event, MessageInfo, Order,
-    StdResult, Timestamp, Uint128,
+    coin, to_binary, Addr, BankMsg, Binary, Coin, Decimal, Deps, DepsMut, Env, Event, MessageInfo,
+    Order, StdResult, Timestamp, Uint128,
 };
 use cw0::maybe_addr;
 use cw2::set_contract_version;
@@ -19,7 +19,7 @@ use crate::msg::{
 };
 use crate::state::{
     Distribution, Halflife, WithdrawAdjustment, DISTRIBUTION, HALFLIFE, POINTS_SHIFT,
-    WITHDRAW_ADJUSTMENT,
+    PREAUTH_SLASHING, SLASHERS, WITHDRAW_ADJUSTMENT,
 };
 use tg_bindings::{request_privileges, Privilege, PrivilegeChangeMsg, TgradeMsg};
 use tg_utils::{members, Duration, ADMIN, HOOKS, PREAUTH, TOTAL};
@@ -45,12 +45,14 @@ pub fn instantiate(
         deps,
         msg.admin,
         msg.members,
-        msg.preauths.unwrap_or_default(),
+        msg.preauths,
+        msg.preauths_slashing,
         env.block.height,
         env.block.time,
         msg.halflife,
         msg.token,
     )?;
+
     Ok(Response::default())
 }
 
@@ -62,6 +64,7 @@ pub fn create(
     admin: Option<String>,
     members_list: Vec<Member>,
     preauths: u64,
+    preauths_slashing: u64,
     height: u64,
     time: Timestamp,
     halflife: Option<Duration>,
@@ -73,6 +76,7 @@ pub fn create(
     ADMIN.set(deps.branch(), admin_addr)?;
 
     PREAUTH.set_auth(deps.storage, preauths)?;
+    PREAUTH_SLASHING.set_auth(deps.storage, preauths_slashing)?;
 
     let data = Halflife {
         halflife,
@@ -106,6 +110,8 @@ pub fn create(
     }
     TOTAL.save(deps.storage, &total)?;
 
+    SLASHERS.instantiate(deps.storage)?;
+
     Ok(())
 }
 
@@ -117,28 +123,25 @@ pub fn execute(
     info: MessageInfo,
     msg: ExecuteMsg,
 ) -> Result<Response, ContractError> {
+    use ExecuteMsg::*;
+
     let api = deps.api;
     match msg {
-        ExecuteMsg::UpdateAdmin { admin } => Ok(ADMIN.execute_update_admin(
+        UpdateAdmin { admin } => Ok(ADMIN.execute_update_admin(
             deps,
             info,
             admin.map(|admin| api.addr_validate(&admin)).transpose()?,
         )?),
-        ExecuteMsg::UpdateMembers { add, remove } => {
-            execute_update_members(deps, env, info, add, remove)
-        }
-        ExecuteMsg::AddPoints { addr, points } => execute_add_points(deps, env, info, addr, points),
-        ExecuteMsg::AddHook { addr } => execute_add_hook(deps, info, addr),
-        ExecuteMsg::RemoveHook { addr } => execute_remove_hook(deps, info, addr),
-        ExecuteMsg::DistributeFunds { sender } => {
-            execute_distribute_tokens(deps, env, info, sender)
-        }
-        ExecuteMsg::WithdrawFunds { owner, receiver } => {
-            execute_withdraw_tokens(deps, info, owner, receiver)
-        }
-        ExecuteMsg::DelegateWithdrawal { delegated } => {
-            execute_delegate_withdrawal(deps, info, delegated)
-        }
+        UpdateMembers { add, remove } => execute_update_members(deps, env, info, add, remove),
+        AddPoints { addr, points } => execute_add_points(deps, env, info, addr, points),
+        AddHook { addr } => execute_add_hook(deps, info, addr),
+        RemoveHook { addr } => execute_remove_hook(deps, info, addr),
+        DistributeFunds { sender } => execute_distribute_tokens(deps, env, info, sender),
+        WithdrawFunds { owner, receiver } => execute_withdraw_tokens(deps, info, owner, receiver),
+        DelegateWithdrawal { delegated } => execute_delegate_withdrawal(deps, info, delegated),
+        AddSlasher { addr } => execute_add_slasher(deps, info, addr),
+        RemoveSlasher { addr } => execute_remove_slasher(deps, info, addr),
+        Slash { addr, portion } => execute_slash(deps, env, info, addr, portion),
     }
 }
 
@@ -376,6 +379,99 @@ pub fn execute_delegate_withdrawal(
         .add_attribute("delegated", &delegated);
 
     Ok(resp)
+}
+
+/// Adds new slasher to contract
+pub fn execute_add_slasher(
+    deps: DepsMut,
+    info: MessageInfo,
+    slasher: String,
+) -> Result<Response, ContractError> {
+    if !ADMIN.is_admin(deps.as_ref(), &info.sender)? {
+        PREAUTH_SLASHING.use_auth(deps.storage)?;
+    }
+
+    SLASHERS.add_slasher(deps.storage, deps.api.addr_validate(&slasher)?)?;
+
+    let res = Response::new()
+        .add_attribute("action", "add_slasher")
+        .add_attribute("slasher", slasher)
+        .add_attribute("sender", info.sender);
+
+    Ok(res)
+}
+
+/// Removes slasher from contract
+pub fn execute_remove_slasher(
+    deps: DepsMut,
+    info: MessageInfo,
+    slasher: String,
+) -> Result<Response, ContractError> {
+    // Do not need to validate - it would be "verified" on when it is compared to be either admin
+    // or slasher which is already verified.
+    let slasher_addr = Addr::unchecked(&slasher);
+
+    if info.sender != slasher_addr && !ADMIN.is_admin(deps.as_ref(), &info.sender)? {
+        return Err(ContractError::Unauthorized {});
+    }
+
+    SLASHERS.remove_slasher(deps.storage, slasher_addr)?;
+
+    let res = Response::new()
+        .add_attribute("action", "remove_slasher")
+        .add_attribute("slasher", slasher)
+        .add_attribute("sender", info.sender);
+
+    Ok(res)
+}
+
+/// Slashes engagement points from address
+pub fn execute_slash(
+    mut deps: DepsMut,
+    env: Env,
+    info: MessageInfo,
+    addr: String,
+    portion: Decimal,
+) -> Result<Response, ContractError> {
+    if !SLASHERS.is_slasher(deps.storage, &info.sender)? {
+        return Err(ContractError::Unauthorized {});
+    }
+
+    let ppw: u128 = DISTRIBUTION.load(deps.storage)?.points_per_weight.into();
+
+    let addr = Addr::unchecked(&addr);
+    let mut diff = 0i128;
+
+    members().update(
+        deps.storage,
+        &addr,
+        env.block.height,
+        |old| -> StdResult<_> {
+            let old = match old {
+                Some(old) => Uint128::new(old as _),
+                None => Uint128::zero(),
+            };
+
+            let slash = old * portion;
+            let new = old - slash;
+
+            diff = -(slash.u128() as i128);
+
+            Ok(new.u128() as _)
+        },
+    )?;
+    apply_points_correction(deps.branch(), &addr, ppw, diff)?;
+
+    TOTAL.update(deps.storage, |total| -> StdResult<_> {
+        Ok((total as i128 + diff) as _)
+    })?;
+
+    let res = Response::new()
+        .add_attribute("action", "slash")
+        .add_attribute("addr", &addr)
+        .add_attribute("sender", info.sender);
+
+    Ok(res)
 }
 
 /// Calculates withdrawable funds from distribution and adjustment info.
@@ -781,7 +877,8 @@ mod tests {
                     weight: USER2_WEIGHT,
                 },
             ],
-            preauths: Some(1),
+            preauths: 1,
+            preauths_slashing: 0,
             halflife: Some(Duration::new(HALFLIFE)),
             token: "usdc".to_owned(),
         };
@@ -976,7 +1073,8 @@ mod tests {
                     weight: USER2_WEIGHT,
                 },
             ],
-            preauths: Some(1),
+            preauths: 1,
+            preauths_slashing: 0,
             halflife: None,
             token: "usdc".to_owned(),
         };

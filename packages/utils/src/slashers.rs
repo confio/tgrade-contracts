@@ -11,8 +11,12 @@ impl<'a> Slashers<'a> {
         Slashers(Item::new(storage_key))
     }
 
+    pub fn instantiate(&self, storage: &mut dyn Storage) -> StdResult<()> {
+        self.0.save(storage, &vec![])
+    }
+
     pub fn add_slasher(&self, storage: &mut dyn Storage, addr: Addr) -> Result<(), SlasherError> {
-        let mut slashers = self.0.may_load(storage)?.unwrap_or_default();
+        let mut slashers = self.0.load(storage)?;
         if !slashers.iter().any(|h| h == &addr) {
             slashers.push(addr);
         } else {
@@ -41,7 +45,7 @@ impl<'a> Slashers<'a> {
     }
 
     pub fn list_slashers(&self, storage: &dyn Storage) -> StdResult<Vec<String>> {
-        let slashers = self.0.may_load(storage)?.unwrap_or_default();
+        let slashers = self.0.load(storage)?;
         Ok(slashers.into_iter().map(String::from).collect())
     }
 }

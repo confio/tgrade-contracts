@@ -1,7 +1,7 @@
 use crate::error::ContractError;
 use crate::msg::*;
 use anyhow::Result as AnyResult;
-use cosmwasm_std::{Addr, Coin, CosmosMsg, StdResult};
+use cosmwasm_std::{Addr, Coin, CosmosMsg, Decimal, StdResult};
 use cw_multi_test::{AppResponse, Contract, ContractWrapper, CosmosRouter, Executor};
 use derivative::Derivative;
 use tg4::{Member, MemberListResponse};
@@ -38,6 +38,7 @@ pub struct SuiteBuilder {
     halflife: Option<Duration>,
     #[derivative(Default(value = "\"usdc\".to_owned()"))]
     token: String,
+    preauths_slashing: u64,
 }
 
 impl SuiteBuilder {
@@ -62,6 +63,11 @@ impl SuiteBuilder {
 
     pub fn with_token(mut self, token: &str) -> Self {
         self.token = token.to_owned();
+        self
+    }
+
+    pub fn with_preaths_slashing(mut self, preauths: u64) -> Self {
+        self.preauths_slashing = preauths;
         self
     }
 
@@ -107,7 +113,8 @@ impl SuiteBuilder {
                 &InstantiateMsg {
                     admin: Some(owner.to_string()),
                     members: self.members,
-                    preauths: None,
+                    preauths: 0,
+                    preauths_slashing: self.preauths_slashing,
                     halflife: self.halflife,
                     token: token.clone(),
                 },
@@ -214,6 +221,45 @@ impl Suite {
             Addr::unchecked(executor),
             self.contract.clone(),
             &ExecuteMsg::UpdateMembers { add, remove },
+            &[],
+        )
+    }
+
+    pub fn add_slasher(&mut self, executor: &str, addr: &str) -> AnyResult<AppResponse> {
+        self.app.execute_contract(
+            Addr::unchecked(executor),
+            self.contract.clone(),
+            &ExecuteMsg::AddSlasher {
+                addr: addr.to_owned(),
+            },
+            &[],
+        )
+    }
+
+    pub fn remove_slasher(&mut self, executor: &str, addr: &str) -> AnyResult<AppResponse> {
+        self.app.execute_contract(
+            Addr::unchecked(executor),
+            self.contract.clone(),
+            &ExecuteMsg::RemoveSlasher {
+                addr: addr.to_owned(),
+            },
+            &[],
+        )
+    }
+
+    pub fn slash(
+        &mut self,
+        executor: &str,
+        addr: &str,
+        portion: Decimal,
+    ) -> AnyResult<AppResponse> {
+        self.app.execute_contract(
+            Addr::unchecked(executor),
+            self.contract.clone(),
+            &ExecuteMsg::Slash {
+                addr: addr.to_owned(),
+                portion,
+            },
             &[],
         )
     }

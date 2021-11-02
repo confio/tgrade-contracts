@@ -5,6 +5,7 @@ use crate::i128::Int128;
 use cosmwasm_std::{Addr, Timestamp, Uint128};
 use cw_storage_plus::{Item, Map};
 use tg_utils::Duration;
+pub use tg_utils::{PREAUTH_SLASHING, SLASHERS};
 
 #[derive(Serialize, Deserialize, Clone, PartialEq, JsonSchema, Debug)]
 pub struct Halflife {
