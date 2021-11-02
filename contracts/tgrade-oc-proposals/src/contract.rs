@@ -110,7 +110,7 @@ pub fn execute_propose(
         expires,
         proposal,
         status: Status::Open,
-        votes: Votes::new(vote_power),
+        votes: Votes::yes(vote_power),
         rules: cfg.rules,
         total_weight: cfg.group_contract.total_weight(&deps.querier)?,
     };

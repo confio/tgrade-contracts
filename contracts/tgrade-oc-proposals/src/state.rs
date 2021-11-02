@@ -116,7 +116,7 @@ impl Votes {
     }
 
     /// create it with a yes vote for this much
-    pub fn new(init_weight: u64) -> Self {
+    pub fn yes(init_weight: u64) -> Self {
         Votes {
             yes: init_weight,
             no: 0,
@@ -233,7 +233,7 @@ mod test {
 
     #[test]
     fn count_votes() {
-        let mut votes = Votes::new(5);
+        let mut votes = Votes::yes(5);
         votes.add_vote(Vote::No, 10);
         votes.add_vote(Vote::Veto, 20);
         votes.add_vote(Vote::Yes, 30);
