@@ -52,6 +52,7 @@ pub fn instantiate(
         msg.halflife,
         msg.token,
     )?;
+
     Ok(Response::default())
 }
 
@@ -108,6 +109,8 @@ pub fn create(
         WITHDRAW_ADJUSTMENT.save(deps.storage, &member_addr, &adjustment)?;
     }
     TOTAL.save(deps.storage, &total)?;
+
+    SLASHERS.instantiate(deps.storage)?;
 
     Ok(())
 }
@@ -430,11 +433,11 @@ pub fn execute_slash(
     addr: String,
     portion: Decimal,
 ) -> Result<Response, ContractError> {
-    if SLASHERS.is_slasher(deps.storage, &info.sender)? {
+    if !SLASHERS.is_slasher(deps.storage, &info.sender)? {
         return Err(ContractError::Unauthorized {});
     }
 
-    let ppw: u128 = DISTRIBUTION.load(deps.storage)?.points_per_weight.into();
+    let ppw: u128 = dbg!(DISTRIBUTION.load(deps.storage)?.points_per_weight.into());
 
     let addr = Addr::unchecked(&addr);
     let mut diff = 0i128;

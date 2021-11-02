@@ -1,13 +1,20 @@
 mod suite;
 
-use cosmwasm_std::{coin, coins, Event};
+use crate::error::ContractError;
+use cosmwasm_std::{coin, coins, Decimal, Event};
 use suite::{expected_members, SuiteBuilder};
+use tg4::Member;
+use tg_utils::{Duration, PreauthError};
+
+/// Helper constructor for a member
+fn member(addr: &str, weight: u64) -> Member {
+    Member {
+        addr: addr.to_owned(),
+        weight,
+    }
+}
 
 mod funds_distribution {
-    use tg_utils::Duration;
-
-    use crate::error::ContractError;
-
     use super::*;
 
     fn distribution_event(sender: &str, token: &str, amount: u128) -> Event {
@@ -554,5 +561,329 @@ mod funds_distribution {
 
         let resp = suite.withdrawable_funds("unknown").unwrap();
         assert_eq!(resp, coin(0, "usdc"))
+    }
+}
+
+mod slashing {
+    use super::*;
+
+    #[test]
+    fn slasher_slashes() {
+        // Initialize two members with equal weights of 10. Slash one of members. Ensure proper
+        // weights. Perform distribution and withdraw, ensure proper payouts.
+        let members = vec!["member1", "member2", "member3"];
+
+        let mut suite = SuiteBuilder::new()
+            .with_member(members[0], 10)
+            .with_member(members[1], 10)
+            .with_funds(members[2], 600)
+            .build();
+
+        let admin = suite.owner.clone();
+        let token = suite.token.clone();
+
+        suite.add_slasher(admin.as_str(), members[2]).unwrap();
+
+        suite
+            .slash(members[2], members[0], Decimal::percent(50))
+            .unwrap();
+
+        let mut slashed_members = suite.members().unwrap();
+        slashed_members.sort_by_key(|member| member.addr.clone());
+
+        assert_eq!(
+            slashed_members,
+            vec![member(members[0], 5), member(members[1], 10)]
+        );
+
+        suite
+            .distribute_funds(members[2], None, &coins(600, &token))
+            .unwrap();
+
+        suite.withdraw_funds(members[0], None, None).unwrap();
+        suite.withdraw_funds(members[1], None, None).unwrap();
+
+        assert_eq!(suite.token_balance(suite.contract.as_str()).unwrap(), 0);
+        assert_eq!(suite.token_balance(members[0]).unwrap(), 200);
+        assert_eq!(suite.token_balance(members[1]).unwrap(), 400);
+        assert_eq!(suite.token_balance(members[2]).unwrap(), 0);
+    }
+
+    #[test]
+    fn admin_cant_slash() {
+        // Initialize two members with equal weights of 10. Slash one of members. Ensure proper
+        // weights. Perform distribution and withdraw, ensure proper payouts.
+        let members = vec!["member1", "member2", "member3"];
+
+        let mut suite = SuiteBuilder::new()
+            .with_member(members[0], 10)
+            .with_member(members[1], 10)
+            .with_funds(members[2], 600)
+            .build();
+
+        let admin = suite.owner.clone();
+        let token = suite.token.clone();
+
+        let err = suite
+            .slash(admin.as_str(), members[0], Decimal::percent(50))
+            .unwrap_err();
+
+        assert_eq!(ContractError::Unauthorized {}, err.downcast().unwrap());
+
+        let mut slashed_members = suite.members().unwrap();
+        slashed_members.sort_by_key(|member| member.addr.clone());
+
+        assert_eq!(
+            slashed_members,
+            vec![member(members[0], 10), member(members[1], 10)]
+        );
+
+        suite
+            .distribute_funds(members[2], None, &coins(600, &token))
+            .unwrap();
+
+        suite.withdraw_funds(members[0], None, None).unwrap();
+        suite.withdraw_funds(members[1], None, None).unwrap();
+
+        assert_eq!(suite.token_balance(suite.contract.as_str()).unwrap(), 0);
+        assert_eq!(suite.token_balance(members[0]).unwrap(), 300);
+        assert_eq!(suite.token_balance(members[1]).unwrap(), 300);
+        assert_eq!(suite.token_balance(members[2]).unwrap(), 0);
+    }
+
+    #[test]
+    fn non_slasher_cant_slash() {
+        // Initialize two members with equal weights of 10. Slash one of members. Ensure proper
+        // weights. Perform distribution and withdraw, ensure proper payouts.
+        let members = vec!["member1", "member2", "member3"];
+
+        let mut suite = SuiteBuilder::new()
+            .with_member(members[0], 10)
+            .with_member(members[1], 10)
+            .with_funds(members[2], 600)
+            .build();
+
+        let token = suite.token.clone();
+
+        let err = suite
+            .slash(members[2], members[0], Decimal::percent(50))
+            .unwrap_err();
+
+        assert_eq!(ContractError::Unauthorized {}, err.downcast().unwrap());
+
+        let mut slashed_members = suite.members().unwrap();
+        slashed_members.sort_by_key(|member| member.addr.clone());
+
+        assert_eq!(
+            slashed_members,
+            vec![member(members[0], 10), member(members[1], 10)]
+        );
+
+        suite
+            .distribute_funds(members[2], None, &coins(600, &token))
+            .unwrap();
+
+        suite.withdraw_funds(members[0], None, None).unwrap();
+        suite.withdraw_funds(members[1], None, None).unwrap();
+
+        assert_eq!(suite.token_balance(suite.contract.as_str()).unwrap(), 0);
+        assert_eq!(suite.token_balance(members[0]).unwrap(), 300);
+        assert_eq!(suite.token_balance(members[1]).unwrap(), 300);
+        assert_eq!(suite.token_balance(members[2]).unwrap(), 0);
+    }
+
+    #[test]
+    fn remove_slasher() {
+        // Add then remove slasher by admin. Then ensure that the removed slasher can't slash
+        let members = vec!["member1", "member2"];
+
+        let mut suite = SuiteBuilder::new().with_member(members[0], 10).build();
+
+        let admin = suite.owner.clone();
+
+        suite.add_slasher(admin.as_ref(), members[1]).unwrap();
+        suite.remove_slasher(admin.as_ref(), members[1]).unwrap();
+
+        let err = suite
+            .slash(members[1], members[0], Decimal::percent(50))
+            .unwrap_err();
+
+        assert_eq!(ContractError::Unauthorized {}, err.downcast().unwrap());
+    }
+
+    #[test]
+    fn slasher_removes_himself() {
+        // Add then remove slasher by himself. Then ensure that the removed slasher can't slash
+        let members = vec!["member1", "member2"];
+
+        let mut suite = SuiteBuilder::new().with_member(members[0], 10).build();
+
+        let admin = suite.owner.clone();
+
+        suite.add_slasher(admin.as_ref(), members[1]).unwrap();
+        suite.remove_slasher(members[1], members[1]).unwrap();
+
+        let err = suite
+            .slash(members[1], members[0], Decimal::percent(50))
+            .unwrap_err();
+
+        assert_eq!(ContractError::Unauthorized {}, err.downcast().unwrap());
+    }
+
+    #[test]
+    fn non_admin_cant_add_slasher_without_preauth() {
+        // Add then remove slasher by himself. Then ensure that the removed slasher can't slash
+        let members = vec!["member1", "member2"];
+
+        let mut suite = SuiteBuilder::new().with_member(members[0], 10).build();
+
+        let err = suite.add_slasher(members[0], members[1]).unwrap_err();
+
+        assert_eq!(
+            ContractError::Preauth(PreauthError::NoPreauth {}),
+            err.downcast().unwrap()
+        );
+    }
+
+    #[test]
+    fn add_slasher_with_preauth() {
+        // Initialize two members with equal weights of 10. Slash one of members. Ensure proper
+        // weights. Perform distribution and withdraw, ensure proper payouts.
+        let members = vec!["member1", "member2", "member3"];
+
+        let mut suite = SuiteBuilder::new()
+            .with_member(members[0], 10)
+            .with_member(members[1], 10)
+            .with_funds(members[2], 600)
+            .with_preaths_slashing(1)
+            .build();
+
+        let token = suite.token.clone();
+
+        suite.add_slasher(members[2], members[2]).unwrap();
+
+        suite
+            .slash(members[2], members[0], Decimal::percent(50))
+            .unwrap();
+
+        let mut slashed_members = suite.members().unwrap();
+        slashed_members.sort_by_key(|member| member.addr.clone());
+
+        assert_eq!(
+            slashed_members,
+            vec![member(members[0], 5), member(members[1], 10)]
+        );
+
+        suite
+            .distribute_funds(members[2], None, &coins(600, &token))
+            .unwrap();
+
+        suite.withdraw_funds(members[0], None, None).unwrap();
+        suite.withdraw_funds(members[1], None, None).unwrap();
+
+        assert_eq!(suite.token_balance(suite.contract.as_str()).unwrap(), 0);
+        assert_eq!(suite.token_balance(members[0]).unwrap(), 200);
+        assert_eq!(suite.token_balance(members[1]).unwrap(), 400);
+        assert_eq!(suite.token_balance(members[2]).unwrap(), 0);
+    }
+
+    #[test]
+    fn cant_remove_other_slasher() {
+        // Add then remove slasher by other slasher. Then ensure that the removed slasher can
+        // slash still.
+        let members = vec!["member1", "member2"];
+
+        let mut suite = SuiteBuilder::new().with_member(members[0], 10).build();
+
+        let admin = suite.owner.clone();
+
+        suite.add_slasher(admin.as_ref(), members[1]).unwrap();
+        let err = suite.remove_slasher(members[0], members[1]).unwrap_err();
+
+        assert_eq!(ContractError::Unauthorized {}, err.downcast().unwrap());
+
+        suite
+            .slash(members[1], members[0], Decimal::percent(50))
+            .unwrap();
+    }
+
+    #[test]
+    fn slashing_after_distribution() {
+        // Perform full tokens distribution and withdrawal. Then slash one member. Perform another
+        // full distribution and withdrawal. Ensure all funds are as expected (the second
+        // distribution rewards are splitted with aligned weights.
+        let members = vec!["member1", "member2", "member3"];
+
+        let mut suite = SuiteBuilder::new()
+            .with_member(members[0], 10)
+            .with_member(members[1], 10)
+            .with_funds(members[2], 1200)
+            .build();
+
+        let admin = suite.owner.clone();
+        let token = suite.token.clone();
+
+        suite.add_slasher(admin.as_str(), members[2]).unwrap();
+
+        suite
+            .distribute_funds(members[2], None, &coins(600, &token))
+            .unwrap();
+
+        suite.withdraw_funds(members[0], None, None).unwrap();
+        suite.withdraw_funds(members[1], None, None).unwrap();
+
+        suite
+            .slash(members[2], members[0], Decimal::percent(50))
+            .unwrap();
+
+        suite
+            .distribute_funds(members[2], None, &coins(600, &token))
+            .unwrap();
+
+        suite.withdraw_funds(members[0], None, None).unwrap();
+        suite.withdraw_funds(members[1], None, None).unwrap();
+
+        assert_eq!(suite.token_balance(suite.contract.as_str()).unwrap(), 0);
+        assert_eq!(suite.token_balance(members[0]).unwrap(), 500);
+        assert_eq!(suite.token_balance(members[1]).unwrap(), 700);
+        assert_eq!(suite.token_balance(members[2]).unwrap(), 0);
+    }
+
+    #[test]
+    fn slashing_while_withdrawal_pending() {
+        // Perform tokens distribution, but don't withdraw funds. Then slash one member. Perform
+        // another distribution, and withdraw all funds. Ensure funds are as expected.
+        let members = vec!["member1", "member2", "member3"];
+
+        let mut suite = SuiteBuilder::new()
+            .with_member(members[0], 10)
+            .with_member(members[1], 10)
+            .with_funds(members[2], 1200)
+            .build();
+
+        let admin = suite.owner.clone();
+        let token = suite.token.clone();
+
+        suite.add_slasher(admin.as_str(), members[2]).unwrap();
+
+        suite
+            .distribute_funds(members[2], None, &coins(600, &token))
+            .unwrap();
+
+        suite
+            .slash(members[2], members[0], Decimal::percent(50))
+            .unwrap();
+
+        suite
+            .distribute_funds(members[2], None, &coins(600, &token))
+            .unwrap();
+
+        suite.withdraw_funds(members[0], None, None).unwrap();
+        suite.withdraw_funds(members[1], None, None).unwrap();
+
+        assert_eq!(suite.token_balance(suite.contract.as_str()).unwrap(), 0);
+        assert_eq!(suite.token_balance(members[0]).unwrap(), 500);
+        assert_eq!(suite.token_balance(members[1]).unwrap(), 700);
+        assert_eq!(suite.token_balance(members[2]).unwrap(), 0);
     }
 }
