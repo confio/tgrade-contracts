@@ -6,6 +6,9 @@ pub enum ContractError {
     #[error("{0}")]
     Std(#[from] StdError),
 
+    #[error("Group contract invalid address '{addr}'")]
+    InvalidGroup { addr: String },
+
     #[error("Engagement contract invalid address '{addr}'")]
     InvalidEngagementContract { addr: String },
 

@@ -18,6 +18,7 @@ const PRECISION_FACTOR: u128 = 1_000_000_000;
 pub struct Config {
     pub rules: VotingRules,
     // Total weight and voters are queried from this contract
+    pub group_contract: Tg4Contract,
     pub engagement_contract: Tg4Contract,
 }
 
