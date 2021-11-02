@@ -68,9 +68,9 @@ pub struct VotingRules {
     /// Length of voting period in days.
     /// Also used to define when escrow_pending is enforced.
     pub voting_period: u32,
-    /// quorum requirement (0.0-1.0]
+    /// quorum requirement (0.0-1.0)
     pub quorum: Decimal,
-    /// threshold requirement (0.0-1.0]
+    /// threshold requirement (0.5-1.0)
     pub threshold: Decimal,
     /// If true, and absolute threshold and quorum are met, we can end before voting period finished
     pub allow_end_early: bool,
@@ -85,7 +85,7 @@ impl VotingRules {
             return Err(ContractError::InvalidQuorum(self.quorum));
         }
 
-        if self.threshold == zero || self.threshold > hundred {
+        if self.threshold < Decimal::percent(50) || self.threshold > hundred {
             return Err(ContractError::InvalidThreshold(self.threshold));
         }
 

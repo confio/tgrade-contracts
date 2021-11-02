@@ -525,6 +525,7 @@ mod tests {
         .unwrap()
     }
 
+    #[track_caller]
     fn instantiate_flex(
         app: &mut TgradeApp,
         group: Addr,
@@ -544,6 +545,7 @@ mod tests {
     // this will set up both contracts, instantiating the group with
     // all voters defined above, and the multisig pointing to it and given threshold criteria.
     // Returns (multisig address, group address).
+    #[track_caller]
     fn setup_test_case_fixed(
         app: &mut TgradeApp,
         rules: VotingRules,
@@ -553,6 +555,7 @@ mod tests {
         setup_test_case(app, rules, init_funds, multisig_as_group_admin)
     }
 
+    #[track_caller]
     fn setup_test_case(
         app: &mut TgradeApp,
         rules: VotingRules,
@@ -565,7 +568,7 @@ mod tests {
             member(VOTER1, 1),
             member(VOTER2, 2),
             member(VOTER3, 3),
-            member(VOTER4, 4),
+            member(VOTER4, 12), // so that he alone can pass a 50 / 52% threshold proposal
             member(VOTER5, 5),
         ];
         let group_addr = instantiate_group(app, members.clone());
@@ -745,7 +748,7 @@ mod tests {
 
         let (flex_addr, _, _) = setup_test_case_fixed(
             &mut app,
-            mock_rules().threshold(Decimal::percent(25)).build(),
+            mock_rules().threshold(Decimal::percent(51)).build(),
             init_funds,
             false,
         );
@@ -841,7 +844,7 @@ mod tests {
 
         let rules = mock_rules()
             .quorum(Decimal::percent(20))
-            .threshold(Decimal::percent(20))
+            .threshold(Decimal::percent(80))
             .build();
         let voting_period = Duration::Time(rules.voting_period_secs());
         let (flex_addr, _, _) = setup_test_case_fixed(&mut app, rules.clone(), init_funds, false);
@@ -857,7 +860,7 @@ mod tests {
         app.update_block(next_block);
         let proposal = grant_voter1_engagement_point_proposal();
         let res = app
-            .execute_contract(Addr::unchecked(VOTER3), flex_addr.clone(), &proposal, &[])
+            .execute_contract(Addr::unchecked(VOTER4), flex_addr.clone(), &proposal, &[])
             .unwrap();
         let proposal_id2: u64 = res.custom_attrs(1)[2].value.parse().unwrap();
 
@@ -930,7 +933,7 @@ mod tests {
         let init_funds = coins(10, "BTC");
         let mut app = mock_app(&init_funds);
 
-        let rules = mock_rules().threshold(Decimal::percent(30)).build();
+        let rules = mock_rules().threshold(Decimal::percent(51)).build();
         let voting_period = Duration::Time(rules.voting_period_secs());
         let (flex_addr, _, _) = setup_test_case_fixed(&mut app, rules, init_funds, false);
 
@@ -1077,7 +1080,7 @@ mod tests {
         let init_funds = coins(10, "BTC");
         let mut app = mock_app(&init_funds);
 
-        let rules = mock_rules().threshold(Decimal::percent(20)).build();
+        let rules = mock_rules().threshold(Decimal::percent(50)).build();
         let (flex_addr, _, engagement_addr) =
             setup_test_case_fixed(&mut app, rules, init_funds, true);
 
@@ -1110,13 +1113,13 @@ mod tests {
             vote: Vote::Yes,
         };
         let res = app
-            .execute_contract(Addr::unchecked(VOTER3), flex_addr.clone(), &vote, &[])
+            .execute_contract(Addr::unchecked(VOTER4), flex_addr.clone(), &vote, &[])
             .unwrap();
         assert_eq!(
             res.custom_attrs(1),
             [
                 ("action", "vote"),
-                ("sender", VOTER3),
+                ("sender", VOTER4),
                 ("proposal_id", proposal_id.to_string().as_str()),
                 ("status", "Passed"),
             ],
@@ -1175,7 +1178,7 @@ mod tests {
         let init_funds = coins(10, "BTC");
         let mut app = mock_app(&init_funds);
 
-        let rules = mock_rules().threshold(Decimal::percent(20)).build();
+        let rules = mock_rules().threshold(Decimal::percent(50)).build();
         let voting_period = Duration::Time(rules.voting_period_secs());
         let (flex_addr, _, _) = setup_test_case_fixed(&mut app, rules, init_funds, true);
 
@@ -1223,7 +1226,7 @@ mod tests {
         let init_funds = coins(10, "BTC");
         let mut app = mock_app(&init_funds);
 
-        let rules = mock_rules().threshold(Decimal::percent(30)).build();
+        let rules = mock_rules().threshold(Decimal::percent(51)).build();
         let (flex_addr, group_addr, _) = setup_test_case_fixed(&mut app, rules, init_funds, false);
 
         // VOTER1 starts a proposal to send some tokens (1/4 votes)
@@ -1249,13 +1252,13 @@ mod tests {
         app.update_block(|block| block.height += 2);
 
         // admin changes the group
-        // updates VOTER2 power to 7 -> with snapshot, vote doesn't pass proposal
+        // updates VOTER2 power to 19 -> with snapshot, vote doesn't pass proposal
         // adds NEWBIE with 2 power -> with snapshot, invalid vote
-        // removes VOTER3 -> with snapshot, can vote and pass proposal
+        // removes VOTER3 -> with snapshot, can vote on proposal
         let newbie: &str = "newbie";
         let update_msg = tg4_engagement::msg::ExecuteMsg::UpdateMembers {
             remove: vec![VOTER3.into()],
-            add: vec![member(VOTER2, 7), member(newbie, 2)],
+            add: vec![member(VOTER2, 19), member(newbie, 2)],
         };
         app.execute_contract(Addr::unchecked(OWNER), group_addr, &update_msg, &[])
             .unwrap();
@@ -1311,7 +1314,6 @@ mod tests {
         // previously removed VOTER3 can still vote, passing the proposal
         app.execute_contract(Addr::unchecked(VOTER3), flex_addr.clone(), &yes_vote, &[])
             .unwrap();
-        assert_eq!(prop_status(&app, proposal_id), Status::Passed);
     }
 
     // uses the power from the beginning of the voting period
@@ -1320,11 +1322,11 @@ mod tests {
         let init_funds = coins(10, "BTC");
         let mut app = mock_app(&init_funds);
 
-        // 33% required, which is 5 of the initial 15
-        let rules = mock_rules().threshold(Decimal::percent(33)).build();
+        // 51% required, which is 12 of the initial 23
+        let rules = mock_rules().threshold(Decimal::percent(51)).build();
         let (flex_addr, group_addr, _) = setup_test_case(&mut app, rules, init_funds, false);
 
-        // VOTER3 starts a proposal to send some tokens (3/5 votes)
+        // VOTER3 starts a proposal to send some tokens (3/12 votes)
         let proposal = grant_voter1_engagement_point_proposal();
         let res = app
             .execute_contract(Addr::unchecked(VOTER3), flex_addr.clone(), &proposal, &[])
@@ -1340,17 +1342,17 @@ mod tests {
             prop.status
         };
 
-        // 3/5 votes
+        // 3/12 votes
         assert_eq!(prop_status(&app), Status::Open);
 
         // a few blocks later...
         app.update_block(|block| block.height += 2);
 
-        // admin changes the group (3 -> 0, 2 -> 7, 0 -> 15) - total = 32, require 11 to pass
+        // admin changes the group (3 -> 0, 2 -> 9, 0 -> 29) - total = 56, require 29 to pass
         let newbie: &str = "newbie";
         let update_msg = tg4_engagement::msg::ExecuteMsg::UpdateMembers {
             remove: vec![VOTER3.into()],
-            add: vec![member(VOTER2, 7), member(newbie, 15)],
+            add: vec![member(VOTER2, 9), member(newbie, 29)],
         };
         app.execute_contract(Addr::unchecked(OWNER), group_addr, &update_msg, &[])
             .unwrap();
@@ -1358,15 +1360,15 @@ mod tests {
         // a few blocks later...
         app.update_block(|block| block.height += 3);
 
-        // VOTER2 votes according to original weights: 3 + 2 = 5 / 5 => Passed
-        // with updated weights, it would be 3 + 7 = 10 / 11 => Open
+        // VOTER2 votes according to original weights: 3 + 2 = 5 / 12 => Open
+        // with updated weights, it would be 3 + 9 = 12 / 12 => Passed
         let yes_vote = ExecuteMsg::Vote {
             proposal_id,
             vote: Vote::Yes,
         };
         app.execute_contract(Addr::unchecked(VOTER2), flex_addr.clone(), &yes_vote, &[])
             .unwrap();
-        assert_eq!(prop_status(&app), Status::Passed);
+        assert_eq!(prop_status(&app), Status::Open);
 
         // new proposal can be passed single-handedly by newbie
         let proposal = grant_voter1_engagement_point_proposal();
@@ -1393,8 +1395,8 @@ mod tests {
         let init_funds = coins(10, "BTC");
         let mut app = mock_app(&init_funds);
 
-        // 33% required for quora, which is 5 of the initial 15
-        // 50% yes required to pass early (8 of the initial 15)
+        // 33% required for quora, which is 8 of the initial 23
+        // 50% yes required to pass early (12 of the initial 23)
         let rules = mock_rules()
             .threshold(Decimal::percent(50))
             .quorum(Decimal::percent(33))
@@ -1418,17 +1420,17 @@ mod tests {
             prop.status
         };
 
-        // 3/5 votes - not expired
+        // 3/12 votes - not expired
         assert_eq!(prop_status(&app), Status::Open);
 
         // a few blocks later...
         app.update_block(|block| block.height += 2);
 
-        // admin changes the group (3 -> 0, 2 -> 7, 0 -> 15) - total = 32, require 11 to pass
+        // admin changes the group (3 -> 0, 2 -> 9, 0 -> 28) - total = 55, require 28 to pass
         let newbie: &str = "newbie";
         let update_msg = tg4_engagement::msg::ExecuteMsg::UpdateMembers {
             remove: vec![VOTER3.into()],
-            add: vec![member(VOTER2, 7), member(newbie, 15)],
+            add: vec![member(VOTER2, 9), member(newbie, 28)],
         };
         app.execute_contract(Addr::unchecked(OWNER), group_addr, &update_msg, &[])
             .unwrap();
@@ -1436,11 +1438,11 @@ mod tests {
         // a few blocks later...
         app.update_block(|block| block.height += 3);
 
-        // VOTER2 votes no, according to original weights: 3 yes, 2 no, 5 total (will pass when expired)
-        // with updated weights, it would be 3 yes, 7 no, 10 total (will fail when expired)
+        // VOTER2 votes yes, according to original weights: 3 yes, 2 no, 5 total (will fail when expired)
+        // with updated weights, it would be 3 yes, 9 yes, 11 total (will pass when expired)
         let yes_vote = ExecuteMsg::Vote {
             proposal_id,
-            vote: Vote::No,
+            vote: Vote::Yes,
         };
         app.execute_contract(Addr::unchecked(VOTER2), flex_addr.clone(), &yes_vote, &[])
             .unwrap();
@@ -1449,7 +1451,7 @@ mod tests {
 
         // wait until the vote is over, and see it was passed (met quorum, and threshold of voters)
         app.update_block(expire(voting_period));
-        assert_eq!(prop_status(&app), Status::Passed);
+        assert_eq!(prop_status(&app), Status::Rejected);
     }
 
     #[test]
