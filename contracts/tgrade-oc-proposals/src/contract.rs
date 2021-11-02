@@ -484,6 +484,20 @@ mod tests {
         app
     }
 
+    // uploads code and returns address of group contract
+    fn instantiate_group(app: &mut TgradeApp, members: Vec<Member>) -> Addr {
+        let group_id = app.store_code(contract_engagement());
+        let msg = tg4_engagement::msg::InstantiateMsg {
+            admin: Some(OWNER.into()),
+            members,
+            preauths: None,
+            halflife: None,
+            token: ENGAGEMENT_TOKEN.to_owned(),
+        };
+        app.instantiate_contract(group_id, Addr::unchecked(OWNER), &msg, &[], "group", None)
+            .unwrap()
+    }
+
     // uploads code and returns address of engagement contract
     fn instantiate_engagement(
         app: &mut TgradeApp,
@@ -511,12 +525,14 @@ mod tests {
 
     fn instantiate_flex(
         app: &mut TgradeApp,
-        engagement_contract: Addr,
+        group: Addr,
+        engagement: Addr,
         rules: VotingRules,
     ) -> Addr {
         let flex_id = app.store_code(contract_flex());
         let msg = crate::msg::InstantiateMsg {
-            engagement_contract: engagement_contract.to_string(),
+            group_addr: group.to_string(),
+            engagement_addr: engagement.to_string(),
             rules,
         };
         app.instantiate_contract(flex_id, Addr::unchecked(OWNER), &msg, &[], "flex", None)
@@ -531,7 +547,7 @@ mod tests {
         rules: VotingRules,
         init_funds: Vec<Coin>,
         multisig_as_group_admin: bool,
-    ) -> (Addr, Addr) {
+    ) -> (Addr, Addr, Addr) {
         setup_test_case(app, rules, init_funds, multisig_as_group_admin)
     }
 
@@ -540,7 +556,7 @@ mod tests {
         rules: VotingRules,
         init_funds: Vec<Coin>,
         multisig_as_group_admin: bool,
-    ) -> (Addr, Addr) {
+    ) -> (Addr, Addr, Addr) {
         // 1. Instantiate group engagement contract with members (and OWNER as admin)
         let members = vec![
             member(OWNER, 0),
@@ -550,13 +566,14 @@ mod tests {
             member(VOTER4, 4),
             member(VOTER5, 5),
         ];
+        let group_addr = instantiate_group(app, members.clone());
         let engagement_addr = instantiate_engagement(app, Some(OWNER.to_string()), members);
         app.update_block(next_block);
 
         // 2. Set up Multisig backed by this group
-        let flex_addr = instantiate_flex(app, engagement_addr.clone(), rules);
+        let flex_addr = instantiate_flex(app, group_addr.clone(), engagement_addr.clone(), rules);
 
-        // 2.5 Set flex contract's address as admin of engagement contract
+        // 2.5 Set oc proposals contract's address as admin of engagement contract
         app.execute_contract(
             Addr::unchecked(OWNER),
             engagement_addr.clone(),
@@ -574,8 +591,8 @@ mod tests {
                 admin: Some(flex_addr.to_string()),
             };
             app.execute_contract(
-                flex_addr.clone(),
-                engagement_addr.clone(),
+                Addr::unchecked(OWNER),
+                group_addr.clone(),
                 &update_admin,
                 &[],
             )
@@ -588,7 +605,7 @@ mod tests {
             app.send_tokens(Addr::unchecked(OWNER), flex_addr.clone(), &init_funds)
                 .unwrap();
         }
-        (flex_addr, engagement_addr)
+        (flex_addr, group_addr, engagement_addr)
     }
 
     struct MockRulesBuilder {
@@ -656,13 +673,15 @@ mod tests {
         let mut app = mock_app(&[]);
 
         // make a simple group
-        let flex_id = app.store_code(contract_flex());
+        let group_addr = instantiate_group(&mut app, vec![member(OWNER, 1)]);
         let engagement_addr =
             instantiate_engagement(&mut app, Some(OWNER.to_string()), vec![member(OWNER, 1)]);
+        let flex_id = app.store_code(contract_flex());
 
         // Zero required weight fails
         let instantiate_msg = InstantiateMsg {
-            engagement_contract: engagement_addr.to_string(),
+            group_addr: group_addr.to_string(),
+            engagement_addr: engagement_addr.to_string(),
             rules: mock_rules().threshold(Decimal::zero()).build(),
         };
         let err = app
@@ -682,7 +701,8 @@ mod tests {
 
         // All valid
         let instantiate_msg = InstantiateMsg {
-            engagement_contract: engagement_addr.to_string(),
+            group_addr: group_addr.to_string(),
+            engagement_addr: engagement_addr.to_string(),
             rules: mock_rules().build(),
         };
         let flex_addr = app
@@ -721,7 +741,7 @@ mod tests {
         let init_funds = coins(10, "BTC");
         let mut app = mock_app(&init_funds);
 
-        let (flex_addr, _) = setup_test_case_fixed(
+        let (flex_addr, _, _) = setup_test_case_fixed(
             &mut app,
             mock_rules().threshold(Decimal::percent(25)).build(),
             init_funds,
@@ -822,7 +842,7 @@ mod tests {
             .threshold(Decimal::percent(20))
             .build();
         let voting_period = Duration::Time(rules.voting_period_secs());
-        let (flex_addr, _) = setup_test_case_fixed(&mut app, rules.clone(), init_funds, false);
+        let (flex_addr, _, _) = setup_test_case_fixed(&mut app, rules.clone(), init_funds, false);
 
         // create proposal with 1 vote power
         let proposal = grant_voter1_engagement_point_proposal();
@@ -910,7 +930,7 @@ mod tests {
 
         let rules = mock_rules().threshold(Decimal::percent(30)).build();
         let voting_period = Duration::Time(rules.voting_period_secs());
-        let (flex_addr, _) = setup_test_case_fixed(&mut app, rules, init_funds, false);
+        let (flex_addr, _, _) = setup_test_case_fixed(&mut app, rules, init_funds, false);
 
         // create proposal with 0 vote power
         let proposal = grant_voter1_engagement_point_proposal();
@@ -1056,7 +1076,8 @@ mod tests {
         let mut app = mock_app(&init_funds);
 
         let rules = mock_rules().threshold(Decimal::percent(20)).build();
-        let (flex_addr, engagement_addr) = setup_test_case_fixed(&mut app, rules, init_funds, true);
+        let (flex_addr, _, engagement_addr) =
+            setup_test_case_fixed(&mut app, rules, init_funds, true);
 
         // ensure we have cash to cover the proposal
         let contract_bal = app.wrap().query_balance(&flex_addr, "BTC").unwrap();
@@ -1154,7 +1175,7 @@ mod tests {
 
         let rules = mock_rules().threshold(Decimal::percent(20)).build();
         let voting_period = Duration::Time(rules.voting_period_secs());
-        let (flex_addr, _) = setup_test_case_fixed(&mut app, rules, init_funds, true);
+        let (flex_addr, _, _) = setup_test_case_fixed(&mut app, rules, init_funds, true);
 
         // create proposal with 0 vote power
         let proposal = grant_voter1_engagement_point_proposal();
@@ -1201,8 +1222,7 @@ mod tests {
         let mut app = mock_app(&init_funds);
 
         let rules = mock_rules().threshold(Decimal::percent(30)).build();
-        let (flex_addr, engagement_addr) =
-            setup_test_case_fixed(&mut app, rules, init_funds, false);
+        let (flex_addr, group_addr, _) = setup_test_case_fixed(&mut app, rules, init_funds, false);
 
         // VOTER1 starts a proposal to send some tokens (1/4 votes)
         let proposal = grant_voter1_engagement_point_proposal();
@@ -1235,13 +1255,8 @@ mod tests {
             remove: vec![VOTER3.into()],
             add: vec![member(VOTER2, 7), member(newbie, 2)],
         };
-        app.execute_contract(
-            Addr::unchecked(flex_addr.clone()),
-            engagement_addr,
-            &update_msg,
-            &[],
-        )
-        .unwrap();
+        app.execute_contract(Addr::unchecked(OWNER), group_addr, &update_msg, &[])
+            .unwrap();
 
         // check membership queries properly updated
         let query_voter = QueryMsg::Voter {
@@ -1305,7 +1320,7 @@ mod tests {
 
         // 33% required, which is 5 of the initial 15
         let rules = mock_rules().threshold(Decimal::percent(33)).build();
-        let (flex_addr, engagement_addr) = setup_test_case(&mut app, rules, init_funds, false);
+        let (flex_addr, group_addr, _) = setup_test_case(&mut app, rules, init_funds, false);
 
         // VOTER3 starts a proposal to send some tokens (3/5 votes)
         let proposal = grant_voter1_engagement_point_proposal();
@@ -1335,13 +1350,8 @@ mod tests {
             remove: vec![VOTER3.into()],
             add: vec![member(VOTER2, 7), member(newbie, 15)],
         };
-        app.execute_contract(
-            Addr::unchecked(flex_addr.clone()),
-            engagement_addr,
-            &update_msg,
-            &[],
-        )
-        .unwrap();
+        app.execute_contract(Addr::unchecked(OWNER), group_addr, &update_msg, &[])
+            .unwrap();
 
         // a few blocks later...
         app.update_block(|block| block.height += 3);
@@ -1388,7 +1398,7 @@ mod tests {
             .quorum(Decimal::percent(33))
             .build();
         let voting_period = Duration::Time(rules.voting_period_secs());
-        let (flex_addr, engagement_addr) = setup_test_case(&mut app, rules, init_funds, false);
+        let (flex_addr, group_addr, _) = setup_test_case(&mut app, rules, init_funds, false);
 
         // VOTER3 starts a proposal to send some tokens (3 votes)
         let proposal = grant_voter1_engagement_point_proposal();
@@ -1418,13 +1428,8 @@ mod tests {
             remove: vec![VOTER3.into()],
             add: vec![member(VOTER2, 7), member(newbie, 15)],
         };
-        app.execute_contract(
-            Addr::unchecked(flex_addr.clone()),
-            engagement_addr,
-            &update_msg,
-            &[],
-        )
-        .unwrap();
+        app.execute_contract(Addr::unchecked(OWNER), group_addr, &update_msg, &[])
+            .unwrap();
 
         // a few blocks later...
         app.update_block(|block| block.height += 3);
@@ -1456,7 +1461,7 @@ mod tests {
             .threshold(Decimal::percent(60))
             .quorum(Decimal::percent(80))
             .build();
-        let (flex_addr, _) = setup_test_case(
+        let (flex_addr, _, _) = setup_test_case(
             &mut app, // note that 60% yes is not enough to pass without 20% no as well
             rules, init_funds, false,
         );
