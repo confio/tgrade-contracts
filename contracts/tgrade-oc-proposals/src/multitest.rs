@@ -8,6 +8,7 @@ use cosmwasm_std::{Addr, Decimal};
 
 mod proposal {
     use super::*;
+
     #[test]
     fn only_voters_can_propose() {
         let members = vec!["owner", "voter1", "voter2", "voter3"];
@@ -17,8 +18,7 @@ mod proposal {
             .with_group_member(members[1], 1)
             .with_group_member(members[2], 2)
             .with_group_member(members[3], 10)
-            .with_voting_rules(mock_rules().threshold(Decimal::percent(25)).build())
-            .with_funds(10, "BTC")
+            .with_voting_rules(mock_rules().threshold(Decimal::percent(51)).build())
             .build();
 
         // Proposal from nonvoter is rejected

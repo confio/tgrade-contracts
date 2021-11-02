@@ -722,64 +722,6 @@ mod tests {
         );
     }
 
-    #[test]
-    fn test_propose_works() {
-        let init_funds = coins(10, "BTC");
-        let mut app = mock_app(&init_funds);
-
-        let (flex_addr, _, _) = setup_test_case_fixed(
-            &mut app,
-            mock_rules().threshold(Decimal::percent(51)).build(),
-            init_funds,
-            false,
-        );
-
-        let proposal_msg = grant_voter1_engagement_point_proposal();
-        // Only voters can propose
-        let err = app
-            .execute_contract(
-                Addr::unchecked(SOMEBODY),
-                flex_addr.clone(),
-                &proposal_msg,
-                &[],
-            )
-            .unwrap_err();
-        assert_eq!(ContractError::Unauthorized {}, err.downcast().unwrap());
-
-        // Proposal from voter works
-        let res = app
-            .execute_contract(
-                Addr::unchecked(VOTER3),
-                flex_addr.clone(),
-                &proposal_msg,
-                &[],
-            )
-            .unwrap();
-        assert_eq!(
-            res.custom_attrs(1),
-            [
-                ("action", "propose"),
-                ("sender", VOTER3),
-                ("proposal_id", "1"),
-                ("status", "Open"),
-            ],
-        );
-
-        // Proposal from voter with enough vote power directly passes
-        let res = app
-            .execute_contract(Addr::unchecked(VOTER4), flex_addr, &proposal_msg, &[])
-            .unwrap();
-        assert_eq!(
-            res.custom_attrs(1),
-            [
-                ("action", "propose"),
-                ("sender", VOTER4),
-                ("proposal_id", "2"),
-                ("status", "Passed"),
-            ],
-        );
-    }
-
     fn get_tally(app: &TgradeApp, flex_addr: &str, proposal_id: u64) -> u64 {
         // Get all the voters on the proposal
         let voters = QueryMsg::ListVotes {
