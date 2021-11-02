@@ -210,7 +210,7 @@ pub fn execute_remove_slasher(
     slasher: String,
 ) -> Result<Response, ContractError> {
     // custom guard: self-removal OR being admin
-    let slasher_addr = deps.api.addr_validate(&slasher)?;
+    let slasher_addr = Addr::unchecked(&slasher);
     if info.sender != slasher_addr && !ADMIN.is_admin(deps.as_ref(), &info.sender)? {
         return Err(ContractError::Unauthorized {});
     }
