@@ -1,14 +1,13 @@
 use anyhow::Result as AnyResult;
 
-use cosmwasm_std::{Addr, Coin, Decimal};
-use cw_multi_test::{AppResponse, Contract, ContractWrapper, Executor};
-use tg4::Member;
+use cosmwasm_std::{Addr, Coin, CosmosMsg, Decimal};
+use cw_multi_test::{AppResponse, Contract, ContractWrapper, CosmosRouter, Executor};
+use tg4::{Member, Tg4ExecuteMsg};
 use tg_bindings::TgradeMsg;
 use tg_bindings_test::TgradeApp;
 
-use crate::error::ContractError;
 use crate::msg::*;
-use crate::state::VotingRules;
+use crate::state::{OversightProposal, VotingRules};
 
 fn member<T: Into<String>>(addr: T, weight: u64) -> Member {
     Member {
@@ -17,7 +16,7 @@ fn member<T: Into<String>>(addr: T, weight: u64) -> Member {
     }
 }
 
-pub fn contract_oc_proposals() -> Box<dyn Contract<TgradeMsg>> {
+fn contract_oc_proposals() -> Box<dyn Contract<TgradeMsg>> {
     let contract = ContractWrapper::new(
         crate::contract::execute,
         crate::contract::instantiate,
@@ -27,7 +26,7 @@ pub fn contract_oc_proposals() -> Box<dyn Contract<TgradeMsg>> {
     Box::new(contract)
 }
 
-pub fn contract_engagement() -> Box<dyn Contract<TgradeMsg>> {
+fn contract_engagement() -> Box<dyn Contract<TgradeMsg>> {
     let contract = ContractWrapper::new(
         tg4_engagement::contract::execute,
         tg4_engagement::contract::instantiate,
@@ -37,16 +36,57 @@ pub fn contract_engagement() -> Box<dyn Contract<TgradeMsg>> {
     Box::new(contract)
 }
 
-struct SuiteBuilder {
+pub struct MockRulesBuilder {
+    pub voting_period: u32,
+    pub quorum: Decimal,
+    pub threshold: Decimal,
+    pub allow_end_early: bool,
+}
+
+impl MockRulesBuilder {
+    fn new() -> Self {
+        Self {
+            voting_period: 14,
+            quorum: Decimal::percent(1),
+            threshold: Decimal::percent(50),
+            allow_end_early: true,
+        }
+    }
+
+    pub fn quorum(&mut self, quorum: impl Into<Decimal>) -> &mut Self {
+        self.quorum = quorum.into();
+        self
+    }
+
+    pub fn threshold(&mut self, threshold: impl Into<Decimal>) -> &mut Self {
+        self.threshold = threshold.into();
+        self
+    }
+
+    pub fn build(&self) -> VotingRules {
+        VotingRules {
+            voting_period: self.voting_period,
+            quorum: self.quorum,
+            threshold: self.threshold,
+            allow_end_early: self.allow_end_early,
+        }
+    }
+}
+
+pub fn mock_rules() -> MockRulesBuilder {
+    MockRulesBuilder::new()
+}
+
+pub struct SuiteBuilder {
     engagement_members: Vec<Member>,
     group_members: Vec<Member>,
     rules: VotingRules,
-    init_funds: Vec<Coin>,
+    funds: Vec<Coin>,
     multisig_as_group_admin: bool,
 }
 
 impl SuiteBuilder {
-    fn new() -> SuiteBuilder {
+    pub fn new() -> SuiteBuilder {
         SuiteBuilder {
             engagement_members: vec![],
             group_members: vec![],
@@ -56,13 +96,29 @@ impl SuiteBuilder {
                 threshold: Decimal::zero(),
                 allow_end_early: false,
             },
-            init_funds: vec![],
+            funds: vec![],
             multisig_as_group_admin: false,
         }
     }
 
+    pub fn with_group_member(mut self, addr: &str, weight: u64) -> Self {
+        self.group_members.push(Member {
+            addr: addr.to_owned(),
+            weight,
+        });
+        self
+    }
+
+    pub fn with_engagement_member(mut self, addr: &str, weight: u64) -> Self {
+        self.engagement_members.push(Member {
+            addr: addr.to_owned(),
+            weight,
+        });
+        self
+    }
+
     pub fn with_funds(mut self, amount: u128, denom: &str) -> Self {
-        self.init_funds.push(Coin::new(amount, denom));
+        self.funds.push(Coin::new(amount, denom));
         self
     }
 
@@ -72,12 +128,35 @@ impl SuiteBuilder {
     }
 
     #[track_caller]
-    fn build(self) -> Suite {
+    pub fn build(self) -> Suite {
         let owner = Addr::unchecked("owner");
         let mut app = TgradeApp::new(owner.as_str());
 
         // start from genesis
         app.back_to_genesis();
+
+        let block_info = app.block_info();
+        let funds = self.funds;
+
+        app.init_modules(|router, api, storage| -> AnyResult<()> {
+            for coin in funds {
+                router.execute(
+                    api,
+                    storage,
+                    &block_info,
+                    owner.clone(),
+                    CosmosMsg::Custom(TgradeMsg::MintTokens {
+                        denom: coin.denom.clone(),
+                        amount: coin.amount.into(),
+                        recipient: owner.to_string(),
+                    })
+                    .into(),
+                )?;
+            }
+
+            Ok(())
+        })
+        .unwrap();
 
         let engagement_id = app.store_code(contract_engagement());
         let engagement_contract = app
@@ -133,6 +212,31 @@ impl SuiteBuilder {
 
         app.next_block().unwrap();
 
+        // Set oc proposals contract's address as admin of engagement contract
+        app.execute_contract(
+            owner.clone(),
+            engagement_contract.clone(),
+            &Tg4ExecuteMsg::UpdateAdmin {
+                admin: Some(contract.to_string()),
+            },
+            &[],
+        )
+        .unwrap();
+        app.next_block().unwrap();
+
+        if self.multisig_as_group_admin {
+            app.execute_contract(
+                owner.clone(),
+                group_contract.clone(),
+                &Tg4ExecuteMsg::UpdateAdmin {
+                    admin: Some(contract.to_string()),
+                },
+                &[],
+            )
+            .unwrap();
+            app.next_block().unwrap();
+        }
+
         Suite {
             app,
             contract,
@@ -143,10 +247,31 @@ impl SuiteBuilder {
     }
 }
 
-struct Suite {
+pub struct Suite {
     app: TgradeApp,
     contract: Addr,
     engagement_contract: Addr,
     group_contract: Addr,
     owner: Addr,
+}
+
+impl Suite {
+    pub fn propose<'a>(
+        &mut self,
+        executor: &str,
+        title: &str,
+        description: &str,
+        proposal: OversightProposal,
+    ) -> AnyResult<AppResponse> {
+        self.app.execute_contract(
+            Addr::unchecked(executor),
+            self.contract.clone(),
+            &ExecuteMsg::Propose {
+                title: title.to_owned(),
+                description: description.to_owned(),
+                proposal,
+            },
+            &[],
+        )
+    }
 }
