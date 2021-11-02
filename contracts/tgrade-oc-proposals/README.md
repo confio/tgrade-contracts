@@ -1,28 +1,25 @@
 # Tgrade Oversight Community Proposals
 
-TODO: Fill up later
+This is an implementation of the [tg4 spec](../../packages/tg4/README.md)
+with the aim of implementing Oversight Community Proposals voting.
+It implements all the elements of the tg4 spec.
+
+Besides tg4-based voting participants membership, it also defines and implements
+Oversight Community functionality for managing engagement points and validator slashing,
+according to proposals voting, based on [CW3](https://github.com/CosmWasm/cosmwasm-plus/tree/master/packages/cw3).
 
 ## Instantiation
 
-The first step to create such a multisig is to instantiate a cw4 contract
+The first step to create an oc-proposals contract is to instantiate a cw4 contract
 with the desired member set. For now, this only is supported by
 [cw4-group](../cw4-group), but we will add a token-weighted group contract
-(TODO).
 
-If you create a `cw4-group` contract and want a multisig to be able
-to modify its own group, do the following in multiple transactions:
+This member set will be managed by tgrade-trusted-circle, so, it is basically
+read-only from the point of view of oc-proposals.
 
-  * instantiate cw4-group, with your personal key as admin
-  * instantiate a multisig pointing to the group
-  * `AddHook{multisig}` on the group contract
-  * `UpdateAdmin{multisig}` on the group contract
-
-This is the current practice to create such circular dependencies,
-and depends on an external driver (hard to impossible to script such a
-self-deploying contract on-chain). (TODO: document better).
-
-When creating the multisig, you must set the required weight to pass a vote
-as well as the max/default voting period. (TODO: allow more threshold types)
+This contract also requires an address of a tg4-engagement contract, so that it
+can execute passed proposals for granting engagement points to its members, by sending
+messages this contract.
 
 ## Execution Process
 
@@ -51,7 +48,7 @@ open, this will calculate incorrect values (future PR).
 
 ## Running this contract
 
-You will need Rust 1.44.1+ with `wasm32-unknown-unknown` target installed.
+You will need Rust 1.53.0+ with `wasm32-unknown-unknown` target installed.
 
 You can run unit tests on this via:
 
