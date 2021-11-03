@@ -301,10 +301,6 @@ mod voting {
             ],
         );
 
-        // let tally = suite.get_sum_of_votes(proposal_id);
-        // // Weight of owner (1) + weight of voter1 (2)
-        // assert_eq!(tally, 3);
-
         let err = suite.vote(members[1], proposal_id, Vote::Yes).unwrap_err();
         assert_eq!(ContractError::AlreadyVoted {}, err.downcast().unwrap());
 
@@ -350,5 +346,44 @@ mod voting {
 
         let err = suite.vote(members[1], proposal_id, Vote::Yes).unwrap_err();
         assert_eq!(ContractError::Expired {}, err.downcast().unwrap());
+    }
+
+    #[test]
+    fn veto_doesnt_affect_tally() {
+        let members = vec!["owner", "voter1", "voter2", "voter3"];
+
+        let rules = RulesBuilder::new()
+            .with_threshold(Decimal::percent(51))
+            .build();
+
+        let mut suite = SuiteBuilder::new()
+            .with_group_member(members[0], 1)
+            .with_group_member(members[1], 2)
+            .with_group_member(members[2], 3)
+            .with_group_member(members[3], 4)
+            .with_voting_rules(rules)
+            .build();
+
+        // Create proposal with 1 voting power
+        let response = suite
+            .propose_grant_engagement(members[0], members[1], 10)
+            .unwrap();
+        let proposal_id: u64 = get_proposal_id(&response).unwrap();
+
+        suite.vote(members[1], proposal_id, Vote::Yes).unwrap();
+
+        let tally = suite.get_sum_of_votes(proposal_id);
+        // Weight of owner (1) + weight of voter1 (2)
+        assert_eq!(tally, 3);
+
+        // Veto doesn't affect the tally
+        suite.vote(members[2], proposal_id, Vote::Veto).unwrap();
+        let tally = suite.get_sum_of_votes(proposal_id);
+        assert_eq!(tally, 3);
+
+        suite.vote(members[3], proposal_id, Vote::Yes).unwrap();
+        let tally = suite.get_sum_of_votes(proposal_id);
+        // Previous result + weight of voter3 (4)
+        assert_eq!(tally, 7);
     }
 }

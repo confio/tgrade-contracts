@@ -424,7 +424,7 @@ fn list_voters(
 
 #[cfg(test)]
 mod tests {
-    use cosmwasm_std::{coins, Addr, Coin, Decimal, Timestamp};
+    use cosmwasm_std::{coins, Addr, Coin, Decimal};
 
     use cw0::Duration;
     use cw_multi_test::{next_block, Contract, ContractWrapper, Executor};
@@ -439,7 +439,6 @@ mod tests {
     const VOTER3: &str = "voter0003";
     const VOTER4: &str = "voter0004";
     const VOTER5: &str = "voter0005";
-    const SOMEBODY: &str = "somebody";
 
     const ENGAGEMENT_TOKEN: &str = "engagement";
 
@@ -736,40 +735,11 @@ mod tests {
         );
     }
 
-    fn get_tally(app: &TgradeApp, flex_addr: &str, proposal_id: u64) -> u64 {
-        // Get all the voters on the proposal
-        let voters = QueryMsg::ListVotes {
-            proposal_id,
-            start_after: None,
-            limit: None,
-        };
-        let votes: VoteListResponse = app.wrap().query_wasm_smart(flex_addr, &voters).unwrap();
-        // Sum the weights of the Yes votes to get the tally
-        votes
-            .votes
-            .iter()
-            .filter(|&v| v.vote == Vote::Yes)
-            .map(|v| v.weight)
-            .sum()
-    }
-
     fn expire(voting_period: Duration) -> impl Fn(&mut BlockInfo) {
         move |block: &mut BlockInfo| {
             match voting_period {
                 Duration::Time(duration) => block.time = block.time.plus_seconds(duration + 1),
                 Duration::Height(duration) => block.height += duration + 1,
-            };
-        }
-    }
-
-    fn unexpire(voting_period: Duration) -> impl Fn(&mut BlockInfo) {
-        move |block: &mut BlockInfo| {
-            match voting_period {
-                Duration::Time(duration) => {
-                    block.time =
-                        Timestamp::from_nanos(block.time.nanos() - (duration * 1_000_000_000));
-                }
-                Duration::Height(duration) => block.height -= duration,
             };
         }
     }
@@ -863,153 +833,6 @@ mod tests {
             rules,
         };
         assert_eq!(&expected, &res.proposals[0]);
-    }
-
-    #[test]
-    fn test_vote_works() {
-        let init_funds = coins(10, "BTC");
-        let mut app = mock_app(&init_funds);
-
-        let rules = mock_rules().threshold(Decimal::percent(51)).build();
-        let voting_period = Duration::Time(rules.voting_period_secs());
-        let (flex_addr, _, _) = setup_test_case_fixed(&mut app, rules, init_funds, false);
-
-        // create proposal with 0 vote power
-        let proposal = grant_voter1_engagement_point_proposal();
-        let res = app
-            .execute_contract(Addr::unchecked(OWNER), flex_addr.clone(), &proposal, &[])
-            .unwrap();
-
-        // Get the proposal id from the logs
-        let proposal_id: u64 = res.custom_attrs(1)[2].value.parse().unwrap();
-
-        // Owner cannot vote (again)
-        let yes_vote = ExecuteMsg::Vote {
-            proposal_id,
-            vote: Vote::Yes,
-        };
-        let err = app
-            .execute_contract(Addr::unchecked(OWNER), flex_addr.clone(), &yes_vote, &[])
-            .unwrap_err();
-        assert_eq!(ContractError::AlreadyVoted {}, err.downcast().unwrap());
-
-        // Only voters can vote
-        let err = app
-            .execute_contract(Addr::unchecked(SOMEBODY), flex_addr.clone(), &yes_vote, &[])
-            .unwrap_err();
-        assert_eq!(ContractError::Unauthorized {}, err.downcast().unwrap());
-
-        // But voter1 can
-        let res = app
-            .execute_contract(Addr::unchecked(VOTER1), flex_addr.clone(), &yes_vote, &[])
-            .unwrap();
-        assert_eq!(
-            res.custom_attrs(1),
-            [
-                ("action", "vote"),
-                ("sender", VOTER1),
-                ("proposal_id", proposal_id.to_string().as_str()),
-                ("status", "Open"),
-            ],
-        );
-
-        // No/Veto votes have no effect on the tally
-        // Compute the current tally
-        let tally = get_tally(&app, flex_addr.as_ref(), proposal_id);
-        assert_eq!(tally, 1);
-
-        // Cast a No vote
-        let no_vote = ExecuteMsg::Vote {
-            proposal_id,
-            vote: Vote::No,
-        };
-        let _ = app
-            .execute_contract(Addr::unchecked(VOTER2), flex_addr.clone(), &no_vote, &[])
-            .unwrap();
-
-        // Cast a Veto vote
-        let veto_vote = ExecuteMsg::Vote {
-            proposal_id,
-            vote: Vote::Veto,
-        };
-        let _ = app
-            .execute_contract(Addr::unchecked(VOTER3), flex_addr.clone(), &veto_vote, &[])
-            .unwrap();
-
-        // Tally unchanged
-        assert_eq!(tally, get_tally(&app, flex_addr.as_ref(), proposal_id));
-
-        let err = app
-            .execute_contract(Addr::unchecked(VOTER3), flex_addr.clone(), &yes_vote, &[])
-            .unwrap_err();
-        assert_eq!(ContractError::AlreadyVoted {}, err.downcast().unwrap());
-
-        // Expired proposals cannot be voted
-        app.update_block(expire(voting_period));
-        let err = app
-            .execute_contract(Addr::unchecked(VOTER4), flex_addr.clone(), &yes_vote, &[])
-            .unwrap_err();
-        assert_eq!(ContractError::Expired {}, err.downcast().unwrap());
-        app.update_block(unexpire(voting_period));
-
-        // Powerful voter supports it, so it passes
-        let res = app
-            .execute_contract(Addr::unchecked(VOTER4), flex_addr.clone(), &yes_vote, &[])
-            .unwrap();
-        assert_eq!(
-            res.custom_attrs(1),
-            [
-                ("action", "vote"),
-                ("sender", VOTER4),
-                ("proposal_id", proposal_id.to_string().as_str()),
-                ("status", "Passed"),
-            ],
-        );
-
-        // non-Open proposals cannot be voted
-        let err = app
-            .execute_contract(Addr::unchecked(VOTER5), flex_addr.clone(), &yes_vote, &[])
-            .unwrap_err();
-        assert_eq!(ContractError::NotOpen {}, err.downcast().unwrap());
-
-        // query individual votes
-        // initial (with 0 weight)
-        let voter = OWNER.into();
-        let vote: VoteResponse = app
-            .wrap()
-            .query_wasm_smart(&flex_addr, &QueryMsg::Vote { proposal_id, voter })
-            .unwrap();
-        assert_eq!(
-            vote.vote.unwrap(),
-            VoteInfo {
-                voter: OWNER.into(),
-                vote: Vote::Yes,
-                weight: 0
-            }
-        );
-
-        // nay sayer
-        let voter = VOTER2.into();
-        let vote: VoteResponse = app
-            .wrap()
-            .query_wasm_smart(&flex_addr, &QueryMsg::Vote { proposal_id, voter })
-            .unwrap();
-        assert_eq!(
-            vote.vote.unwrap(),
-            VoteInfo {
-                voter: VOTER2.into(),
-                vote: Vote::No,
-                weight: 2
-            }
-        );
-
-        // non-voter
-        let voter = VOTER5.into();
-        let vote: VoteResponse = app
-            .wrap()
-            .query_wasm_smart(&flex_addr, &QueryMsg::Vote { proposal_id, voter })
-            .unwrap();
-        assert!(vote.vote.is_none());
     }
 
     // uses the power from the beginning of the voting period
