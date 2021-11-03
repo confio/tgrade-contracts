@@ -93,4 +93,14 @@ pub enum SlasherError {
 
     #[error("Given address not registered as a hook")]
     SlasherNotRegistered(String),
+
+    #[error("Invalid portion {0}, must be (0, 1]")]
+    InvalidPortion(Decimal),
+}
+
+pub fn validate_portion(portion: Decimal) -> Result<(), SlasherError> {
+    match portion.is_zero() || portion > Decimal::one() {
+        true => Err(SlasherError::InvalidPortion(portion)),
+        false => Ok(()),
+    }
 }

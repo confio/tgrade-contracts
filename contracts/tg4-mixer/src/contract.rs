@@ -9,7 +9,9 @@ use cw2::set_contract_version;
 use cw_storage_plus::{Bound, PrimaryKey, U64Key};
 
 use tg_bindings::TgradeMsg;
-use tg_utils::{members, SlashMsg, HOOKS, PREAUTH, PREAUTH_SLASHING, SLASHERS, TOTAL};
+use tg_utils::{
+    members, validate_portion, SlashMsg, HOOKS, PREAUTH, PREAUTH_SLASHING, SLASHERS, TOTAL,
+};
 
 use tg4::{
     HooksResponse, Member, MemberChangedHookMsg, MemberDiff, MemberListResponse, MemberResponse,
@@ -312,6 +314,7 @@ pub fn execute_slash(
     if !SLASHERS.is_slasher(deps.storage, &info.sender)? {
         return Err(ContractError::Unauthorized {});
     }
+    validate_portion(portion)?;
     let addr = deps.api.addr_validate(&addr)?;
     let groups = GROUPS.load(deps.storage)?;
 
