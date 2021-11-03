@@ -1,21 +1,18 @@
 # Tgrade Oversight Community Proposals
 
-This is an implementation of the [tg4 spec](../../packages/tg4/README.md)
-with the aim of implementing Oversight Community Proposals voting.
-It implements all the elements of the tg4 spec.
-
-Besides tg4-based voting participants membership, it also defines and implements
-Oversight Community functionality for managing engagement points and validator slashing,
-according to proposals voting, based on [CW3](https://github.com/CosmWasm/cosmwasm-plus/tree/master/packages/cw3).
+This defines and implements Oversight Community functionality for managing
+engagement points and validator slashing, according to proposals voting,
+based on [CW3](https://github.com/CosmWasm/cosmwasm-plus/tree/master/packages/cw3).
 
 ## Instantiation
 
-The first step to create an oc-proposals contract is to instantiate a cw4 contract
-with the desired member set. For now, this only is supported by
-[cw4-group](../cw4-group), but we will add a token-weighted group contract
+The first step to create an oc-proposals contract is to instantiate a tg4 contract
+with the desired member set.
 
-This member set will be managed by tgrade-trusted-circle, so, it is basically
-read-only from the point of view of oc-proposals.
+We intend to use this contract with a trusted-circle serving as the backing tg4 group.
+In the tgrade binary, we have one singleton trusted circle per blockchain, labeled
+"Oversight Community", which will be the backing membership contract for a
+singleton tgrade-oc-proposals contract.
 
 This contract also requires an address of a tg4-engagement contract, so that it
 can execute passed proposals for granting engagement points to its members, by sending
