@@ -22,7 +22,7 @@ use crate::state::{
     PREAUTH_SLASHING, SLASHERS, WITHDRAW_ADJUSTMENT,
 };
 use tg_bindings::{request_privileges, Privilege, PrivilegeChangeMsg, TgradeMsg};
-use tg_utils::{members, Duration, ADMIN, HOOKS, PREAUTH, TOTAL};
+use tg_utils::{members, validate_portion, Duration, ADMIN, HOOKS, PREAUTH, TOTAL};
 
 pub type Response = cosmwasm_std::Response<TgradeMsg>;
 pub type SubMsg = cosmwasm_std::SubMsg<TgradeMsg>;
@@ -436,6 +436,8 @@ pub fn execute_slash(
     if !SLASHERS.is_slasher(deps.storage, &info.sender)? {
         return Err(ContractError::Unauthorized {});
     }
+
+    validate_portion(portion)?;
 
     let ppw: u128 = DISTRIBUTION.load(deps.storage)?.points_per_weight.into();
 
