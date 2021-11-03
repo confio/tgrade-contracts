@@ -188,8 +188,6 @@ impl SuiteBuilder {
             )
             .unwrap();
 
-        app.next_block().unwrap();
-
         // Set oc proposals contract's address as admin of engagement contract
         app.execute_contract(
             owner.clone(),
@@ -200,7 +198,6 @@ impl SuiteBuilder {
             &[],
         )
         .unwrap();
-        app.next_block().unwrap();
 
         if self.multisig_as_group_admin {
             app.execute_contract(
@@ -212,8 +209,9 @@ impl SuiteBuilder {
                 &[],
             )
             .unwrap();
-            app.next_block().unwrap();
         }
+
+        app.next_block().unwrap();
 
         Suite {
             app,
@@ -234,13 +232,19 @@ pub struct Suite {
 }
 
 impl Suite {
-    fn propose(&mut self, executor: &str, proposal: OversightProposal) -> AnyResult<AppResponse> {
+    fn propose(
+        &mut self,
+        executor: &str,
+        title: &str,
+        description: &str,
+        proposal: OversightProposal,
+    ) -> AnyResult<AppResponse> {
         self.app.execute_contract(
             Addr::unchecked(executor),
             self.contract.clone(),
             &ExecuteMsg::Propose {
-                title: "Proposal title".to_owned(),
-                description: "Proposal description".to_owned(),
+                title: title.to_owned(),
+                description: description.to_owned(),
                 proposal,
             },
             &[],
@@ -255,6 +259,8 @@ impl Suite {
     ) -> AnyResult<AppResponse> {
         self.propose(
             executor,
+            "proposal title",
+            "proposal description",
             OversightProposal::GrantEngagement {
                 member: Addr::unchecked(target),
                 points,
@@ -289,19 +295,23 @@ impl Suite {
         )
     }
 
-    fn query_engagement_points(&mut self, addr: &str) -> Result<Option<u64>, ContractError> {
+    fn query_engagement_points(
+        &mut self,
+        addr: &str,
+        at_height: impl Into<Option<u64>>,
+    ) -> Result<Option<u64>, ContractError> {
         let response: MemberResponse = self.app.wrap().query_wasm_smart(
             self.engagement_contract.clone(),
             &Tg4QueryMsg::Member {
                 addr: addr.to_string(),
-                at_height: None,
+                at_height: at_height.into(),
             },
         )?;
         Ok(response.weight)
     }
 
     pub fn assert_engagement_points(&mut self, addr: &str, points: u64) {
-        let response = self.query_engagement_points(addr).unwrap();
+        let response = self.query_engagement_points(addr, None).unwrap();
         assert_eq!(response, Some(points));
     }
 
