@@ -1,7 +1,7 @@
 mod suite;
 
 use crate::error::ContractError;
-use suite::{member, mock_rules, SuiteBuilder};
+use suite::{get_proposal_id, member, mock_rules, SuiteBuilder};
 
 use cosmwasm_std::Decimal;
 use cw3::{Status, Vote};
@@ -74,7 +74,7 @@ fn grant_engagement_reward() {
         .unwrap();
 
     // Only Passed proposals can be executed
-    let proposal_id: u64 = response.custom_attrs(1)[2].value.parse().unwrap();
+    let proposal_id: u64 = get_proposal_id(&response).unwrap();
     let err = suite.execute(members[0], proposal_id).unwrap_err();
     assert_eq!(
         ContractError::WrongExecuteStatus {},
@@ -132,7 +132,7 @@ fn execute_group_can_change() {
     let response = suite
         .propose_grant_engagement(members[0], members[1], 10)
         .unwrap();
-    let proposal_id: u64 = response.custom_attrs(1)[2].value.parse().unwrap();
+    let proposal_id: u64 = get_proposal_id(&response).unwrap();
 
     let proposal_status = suite.query_proposal_status(proposal_id).unwrap();
     assert_eq!(proposal_status, Status::Open);
@@ -164,7 +164,7 @@ fn execute_group_can_change() {
     let response = suite
         .propose_grant_engagement(members[0], members[1], 10)
         .unwrap();
-    let second_proposal_id: u64 = response.custom_attrs(1)[2].value.parse().unwrap();
+    let second_proposal_id: u64 = get_proposal_id(&response).unwrap();
 
     // Vote for proposal to pass
     // voter2 can pass this alone with the updated vote (newer height ignores snapshot)

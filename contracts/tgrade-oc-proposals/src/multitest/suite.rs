@@ -18,6 +18,10 @@ pub fn member<T: Into<String>>(addr: T, weight: u64) -> Member {
     }
 }
 
+pub fn get_proposal_id(response: &AppResponse) -> Result<u64, std::num::ParseIntError> {
+    response.custom_attrs(1)[2].value.parse()
+}
+
 fn contract_oc_proposals() -> Box<dyn Contract<TgradeMsg>> {
     let contract = ContractWrapper::new(
         crate::contract::execute,
@@ -168,10 +172,10 @@ impl SuiteBuilder {
             )
             .unwrap();
 
-        let flex_id = app.store_code(contract_oc_proposals());
+        let oc_proposals_id = app.store_code(contract_oc_proposals());
         let contract = app
             .instantiate_contract(
-                flex_id,
+                oc_proposals_id,
                 owner.clone(),
                 &crate::msg::InstantiateMsg {
                     group_addr: group_contract.to_string(),
