@@ -96,6 +96,20 @@ pub fn execute_propose(
         .is_member(&deps.querier, &info.sender)?
         .ok_or(ContractError::Unauthorized {})?;
 
+    // Additional check if weight >= 1
+    cfg.group_contract
+        .member_at_height(&deps.querier, &info.sender, env.block.height)?
+        .map_or_else(
+            || Err(ContractError::Unauthorized {}),
+            |w| {
+                if w < 1 {
+                    Err(ContractError::Unauthorized {})
+                } else {
+                    Ok(())
+                }
+            },
+        )?;
+
     // calculate expiry time
     let expires = Expiration::AtTime(env.block.time.plus_seconds(cfg.rules.voting_period_secs()));
 

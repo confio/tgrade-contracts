@@ -22,6 +22,11 @@ fn only_voters_can_propose() {
         .with_voting_rules(rules)
         .build();
 
+    let err = suite
+        .propose_grant_engagement(members[0], members[1], 10)
+        .unwrap_err();
+    assert_eq!(ContractError::Unauthorized {}, err.downcast().unwrap());
+
     // Proposal from nonvoter is rejected
     let err = suite
         .propose_grant_engagement("nonvoter", members[1], 10)
