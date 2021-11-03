@@ -230,11 +230,7 @@ pub struct Suite {
 }
 
 impl Suite {
-    pub fn propose(
-        &mut self,
-        executor: &str,
-        proposal: OversightProposal,
-    ) -> AnyResult<AppResponse> {
+    fn propose(&mut self, executor: &str, proposal: OversightProposal) -> AnyResult<AppResponse> {
         self.app.execute_contract(
             Addr::unchecked(executor),
             self.contract.clone(),
@@ -244,6 +240,21 @@ impl Suite {
                 proposal,
             },
             &[],
+        )
+    }
+
+    pub fn propose_grant_engagement(
+        &mut self,
+        executor: &str,
+        target: &str,
+        points: u64,
+    ) -> AnyResult<AppResponse> {
+        self.propose(
+            executor,
+            OversightProposal::GrantEngagement {
+                member: Addr::unchecked(target),
+                points,
+            },
         )
     }
 

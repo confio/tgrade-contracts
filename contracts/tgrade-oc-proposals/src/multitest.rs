@@ -1,10 +1,9 @@
 mod suite;
 
 use crate::error::ContractError;
-use crate::state::OversightProposal;
 use suite::{member, mock_rules, SuiteBuilder};
 
-use cosmwasm_std::{Addr, Decimal};
+use cosmwasm_std::Decimal;
 use cw3::{Status, Vote};
 
 #[test]
@@ -21,25 +20,13 @@ fn only_voters_can_propose() {
 
     // Proposal from nonvoter is rejected
     let err = suite
-        .propose(
-            "nonvoter",
-            OversightProposal::GrantEngagement {
-                member: Addr::unchecked(members[1]),
-                points: 10,
-            },
-        )
+        .propose_grant_engagement("nonvoter", members[1], 10)
         .unwrap_err();
     assert_eq!(ContractError::Unauthorized {}, err.downcast().unwrap());
 
     // Regular proposal from voters is accepted
     let response = suite
-        .propose(
-            members[2],
-            OversightProposal::GrantEngagement {
-                member: Addr::unchecked(members[1]),
-                points: 10,
-            },
-        )
+        .propose_grant_engagement(members[2], members[1], 10)
         .unwrap();
     assert_eq!(
         response.custom_attrs(1),
@@ -53,13 +40,7 @@ fn only_voters_can_propose() {
 
     // Proposal from voter with enough vote power directly pass
     let response = suite
-        .propose(
-            members[3],
-            OversightProposal::GrantEngagement {
-                member: Addr::unchecked(members[1]),
-                points: 10,
-            },
-        )
+        .propose_grant_engagement(members[3], members[1], 10)
         .unwrap();
     assert_eq!(
         response.custom_attrs(1),
@@ -89,13 +70,7 @@ fn grant_engagement_reward() {
     // Proposal granting 10 engagement points to voter1
     // Proposing member has 0 voting power
     let response = suite
-        .propose(
-            members[0],
-            OversightProposal::GrantEngagement {
-                member: Addr::unchecked(members[1]),
-                points: 10,
-            },
-        )
+        .propose_grant_engagement(members[0], members[1], 10)
         .unwrap();
 
     // Only Passed proposals can be executed
@@ -155,25 +130,19 @@ fn execute_group_can_change() {
 
     // voter1 starts a proposal to send some tokens (1/4 votes)
     let response = suite
-        .propose(
-            members[0],
-            OversightProposal::GrantEngagement {
-                member: Addr::unchecked(members[1]),
-                points: 10,
-            },
-        )
+        .propose_grant_engagement(members[0], members[1], 10)
         .unwrap();
     let proposal_id: u64 = response.custom_attrs(1)[2].value.parse().unwrap();
+
     let proposal_status = suite.query_proposal_status(proposal_id).unwrap();
-    // 1/4 votes
     assert_eq!(proposal_status, Status::Open);
 
     suite.app.advance_blocks(1);
 
     // Admin change the group
-    // updates voter2 power to 19 -> with snapshot, vote doesn't pass proposal
-    // adds newmember with 2 power -> with snapshot, invalid vote
-    // removes voter3 -> with snapshot, can vote on proposal
+    // - updates voter2 power to 19 -> with snapshot, vote doesn't pass proposal
+    // - adds newmember with 2 power -> with snapshot, invalid vote
+    // - removes voter3 -> with snapshot, can vote on proposal
     let newmember = "newmember";
     suite
         .group_update_members(
@@ -193,13 +162,7 @@ fn execute_group_can_change() {
 
     // Create a second proposal
     let response = suite
-        .propose(
-            members[0],
-            OversightProposal::GrantEngagement {
-                member: Addr::unchecked(members[1]),
-                points: 10,
-            },
-        )
+        .propose_grant_engagement(members[0], members[1], 10)
         .unwrap();
     let second_proposal_id: u64 = response.custom_attrs(1)[2].value.parse().unwrap();
 
