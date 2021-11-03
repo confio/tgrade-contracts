@@ -308,9 +308,6 @@ mod voting {
         let err = suite.vote(members[1], proposal_id, Vote::Yes).unwrap_err();
         assert_eq!(ContractError::AlreadyVoted {}, err.downcast().unwrap());
 
-        // Move time forward so proposal expires
-        // suite.app.advance_seconds(rules.voting_period_secs());
-
         // Powerful voter supports it, so it passes
         let response = suite.vote(members[3], proposal_id, Vote::Yes).unwrap();
         assert_eq!(
@@ -326,5 +323,32 @@ mod voting {
         // Non-open proposals cannot be voted
         let err = suite.vote(members[2], proposal_id, Vote::Yes).unwrap_err();
         assert_eq!(ContractError::NotOpen {}, err.downcast().unwrap());
+    }
+
+    #[test]
+    fn expired_proposals_cannot_be_voted() {
+        let members = vec!["owner", "voter1"];
+
+        let rules = RulesBuilder::new()
+            .with_threshold(Decimal::percent(51))
+            .build();
+
+        let mut suite = SuiteBuilder::new()
+            .with_group_member(members[0], 1)
+            .with_group_member(members[1], 2)
+            .with_voting_rules(rules.clone())
+            .build();
+
+        // Create proposal with 1 voting power
+        let response = suite
+            .propose_grant_engagement(members[0], members[1], 10)
+            .unwrap();
+        let proposal_id: u64 = get_proposal_id(&response).unwrap();
+
+        // Move time forward so proposal expires
+        suite.app.advance_seconds(rules.voting_period_secs());
+
+        let err = suite.vote(members[1], proposal_id, Vote::Yes).unwrap_err();
+        assert_eq!(ContractError::Expired {}, err.downcast().unwrap());
     }
 }
