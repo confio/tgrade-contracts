@@ -2,10 +2,10 @@ mod suite;
 
 use crate::error::ContractError;
 use crate::state::OversightProposal;
-use suite::{mock_rules, SuiteBuilder};
+use suite::{member, mock_rules, SuiteBuilder};
 
 use cosmwasm_std::{Addr, Decimal};
-use cw3::Vote;
+use cw3::{Status, Vote};
 
 #[test]
 fn only_voters_can_propose() {
@@ -147,4 +147,50 @@ fn grant_engagement_reward() {
     // Closing Executed proposal fails
     let err = suite.close(members[0], proposal_id).unwrap_err();
     assert_eq!(ContractError::WrongCloseStatus {}, err.downcast().unwrap());
+}
+
+#[test]
+fn execute_group_can_change() {
+    let members = vec!["owner", "voter1", "voter2", "voter3"];
+
+    let mut suite = SuiteBuilder::new()
+        .with_group_member(members[0], 0)
+        .with_group_member(members[1], 1)
+        .with_group_member(members[2], 2)
+        .with_group_member(members[3], 3)
+        .with_voting_rules(mock_rules().threshold(Decimal::percent(51)).build())
+        .build();
+
+    // voter1 starts a proposal to send some tokens (1/4 votes)
+    let response = suite
+        .propose(
+            members[0],
+            "proposal title",
+            "proposal description",
+            OversightProposal::GrantEngagement {
+                member: Addr::unchecked(members[1]),
+                points: 10,
+            },
+        )
+        .unwrap();
+    let proposal_id: u64 = response.custom_attrs(1)[2].value.parse().unwrap();
+    let proposal_status = suite.query_proposal_status(proposal_id).unwrap();
+    // 1/4 votes
+    assert_eq!(proposal_status, Status::Open);
+
+    // A few blocks later...
+    suite.app.advance_blocks(2);
+
+    // Admin change the group
+    // updates voter2 power to 19 -> with snapshot, vote doesn't pass proposal
+    // adds newmember with 2 power -> with snapshot, invalid vote
+    // removes voter3 -> with snapshot, can vote on proposal
+    suite
+        .group_update_members(
+            vec![member(members[2], 19), member("newmember", 2)],
+            vec![members[3].to_owned()],
+        )
+        .unwrap();
+    let power = suite.query_voter_weight(members[3]).unwrap();
+    assert_eq!(power, None);
 }

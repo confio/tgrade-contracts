@@ -1,7 +1,7 @@
 use anyhow::Result as AnyResult;
 
 use cosmwasm_std::{Addr, Decimal};
-use cw3::Vote;
+use cw3::{Status, Vote, VoterResponse};
 use cw_multi_test::{AppResponse, Contract, ContractWrapper, Executor};
 use tg4::{Member, MemberResponse, Tg4ExecuteMsg, Tg4QueryMsg};
 use tg_bindings::TgradeMsg;
@@ -9,7 +9,14 @@ use tg_bindings_test::TgradeApp;
 
 use crate::error::ContractError;
 use crate::msg::*;
-use crate::state::{OversightProposal, VotingRules};
+use crate::state::{OversightProposal, ProposalResponse, VotingRules};
+
+pub fn member<T: Into<String>>(addr: T, weight: u64) -> Member {
+    Member {
+        addr: addr.into(),
+        weight,
+    }
+}
 
 fn contract_oc_proposals() -> Box<dyn Contract<TgradeMsg>> {
     let contract = ContractWrapper::new(
@@ -112,9 +119,8 @@ impl SuiteBuilder {
 
     pub fn with_multisig_as_group_admin(mut self, multisig_as_group_admin: bool) -> Self {
         self.multisig_as_group_admin = multisig_as_group_admin;
-            self
+        self
     }
-
 
     #[track_caller]
     pub fn build(self) -> Suite {
@@ -194,8 +200,8 @@ impl SuiteBuilder {
 
         if self.multisig_as_group_admin {
             app.execute_contract(
-                owner,
-                group_contract,
+                owner.clone(),
+                group_contract.clone(),
                 &Tg4ExecuteMsg::UpdateAdmin {
                     admin: Some(contract.to_string()),
                 },
@@ -209,14 +215,18 @@ impl SuiteBuilder {
             app,
             contract,
             engagement_contract,
+            group_contract,
+            owner,
         }
     }
 }
 
 pub struct Suite {
-    app: TgradeApp,
+    pub app: TgradeApp,
     contract: Addr,
     engagement_contract: Addr,
+    group_contract: Addr,
+    owner: Addr,
 }
 
 impl Suite {
@@ -280,5 +290,36 @@ impl Suite {
     pub fn assert_engagement_points(&mut self, addr: &str, points: u64) {
         let response = self.query_engagement_points(addr).unwrap();
         assert_eq!(response, Some(points));
+    }
+
+    pub fn query_proposal_status(&mut self, proposal_id: u64) -> Result<Status, ContractError> {
+        let prop: ProposalResponse = self
+            .app
+            .wrap()
+            .query_wasm_smart(self.contract.clone(), &QueryMsg::Proposal { proposal_id })?;
+        Ok(prop.status)
+    }
+
+    pub fn query_voter_weight(&mut self, voter: &str) -> Result<Option<u64>, ContractError> {
+        let voter: VoterResponse = self.app.wrap().query_wasm_smart(
+            self.contract.clone(),
+            &QueryMsg::Voter {
+                address: voter.into(),
+            },
+        )?;
+        Ok(voter.weight)
+    }
+
+    pub fn group_update_members(
+        &mut self,
+        add: Vec<Member>,
+        remove: Vec<String>,
+    ) -> AnyResult<AppResponse> {
+        self.app.execute_contract(
+            self.owner.clone(),
+            self.group_contract.clone(),
+            &tg4_engagement::msg::ExecuteMsg::UpdateMembers { remove, add },
+            &[],
+        )
     }
 }
