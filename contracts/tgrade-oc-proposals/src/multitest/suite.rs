@@ -233,16 +233,14 @@ impl Suite {
     pub fn propose(
         &mut self,
         executor: &str,
-        title: &str,
-        description: &str,
         proposal: OversightProposal,
     ) -> AnyResult<AppResponse> {
         self.app.execute_contract(
             Addr::unchecked(executor),
             self.contract.clone(),
             &ExecuteMsg::Propose {
-                title: title.to_owned(),
-                description: description.to_owned(),
+                title: "Proposal title".to_owned(),
+                description: "Proposal description".to_owned(),
                 proposal,
             },
             &[],

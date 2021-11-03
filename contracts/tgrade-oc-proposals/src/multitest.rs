@@ -15,7 +15,7 @@ fn only_voters_can_propose() {
         .with_group_member(members[0], 0)
         .with_group_member(members[1], 1)
         .with_group_member(members[2], 2)
-        .with_group_member(members[3], 10)
+        .with_group_member(members[3], 4)
         .with_voting_rules(mock_rules().threshold(Decimal::percent(51)).build())
         .build();
 
@@ -23,8 +23,6 @@ fn only_voters_can_propose() {
     let err = suite
         .propose(
             "nonvoter",
-            "proposal title",
-            "proposal description",
             OversightProposal::GrantEngagement {
                 member: Addr::unchecked(members[1]),
                 points: 10,
@@ -37,8 +35,6 @@ fn only_voters_can_propose() {
     let response = suite
         .propose(
             members[2],
-            "proposal title",
-            "proposal description",
             OversightProposal::GrantEngagement {
                 member: Addr::unchecked(members[1]),
                 points: 10,
@@ -59,8 +55,6 @@ fn only_voters_can_propose() {
     let response = suite
         .propose(
             members[3],
-            "proposal title",
-            "proposal description",
             OversightProposal::GrantEngagement {
                 member: Addr::unchecked(members[1]),
                 points: 10,
@@ -97,8 +91,6 @@ fn grant_engagement_reward() {
     let response = suite
         .propose(
             members[0],
-            "proposal title",
-            "proposal description",
             OversightProposal::GrantEngagement {
                 member: Addr::unchecked(members[1]),
                 points: 10,
@@ -165,8 +157,6 @@ fn execute_group_can_change() {
     let response = suite
         .propose(
             members[0],
-            "proposal title",
-            "proposal description",
             OversightProposal::GrantEngagement {
                 member: Addr::unchecked(members[1]),
                 points: 10,
@@ -205,8 +195,6 @@ fn execute_group_can_change() {
     let response = suite
         .propose(
             members[0],
-            "proposal title",
-            "proposal description",
             OversightProposal::GrantEngagement {
                 member: Addr::unchecked(members[1]),
                 points: 10,
