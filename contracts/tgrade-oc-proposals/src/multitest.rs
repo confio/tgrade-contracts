@@ -178,19 +178,62 @@ fn execute_group_can_change() {
     // 1/4 votes
     assert_eq!(proposal_status, Status::Open);
 
-    // A few blocks later...
-    suite.app.advance_blocks(2);
+    suite.app.advance_blocks(1);
 
     // Admin change the group
     // updates voter2 power to 19 -> with snapshot, vote doesn't pass proposal
     // adds newmember with 2 power -> with snapshot, invalid vote
     // removes voter3 -> with snapshot, can vote on proposal
+    let newmember = "newmember";
     suite
         .group_update_members(
-            vec![member(members[2], 19), member("newmember", 2)],
+            vec![member(members[2], 19), member(newmember, 2)],
             vec![members[3].to_owned()],
         )
         .unwrap();
+    // Membership is properly updated
     let power = suite.query_voter_weight(members[3]).unwrap();
     assert_eq!(power, None);
+
+    // Proposal is still open
+    let proposal_status = suite.query_proposal_status(proposal_id).unwrap();
+    assert_eq!(proposal_status, Status::Open);
+
+    suite.app.advance_blocks(1);
+
+    // Create a second proposal
+    let response = suite
+        .propose(
+            members[0],
+            "proposal title",
+            "proposal description",
+            OversightProposal::GrantEngagement {
+                member: Addr::unchecked(members[1]),
+                points: 10,
+            },
+        )
+        .unwrap();
+    let second_proposal_id: u64 = response.custom_attrs(1)[2].value.parse().unwrap();
+
+    // Vote for proposal to pass
+    // voter2 can pass this alone with the updated vote (newer height ignores snapshot)
+    suite
+        .vote(members[2], second_proposal_id, Vote::Yes)
+        .unwrap();
+    let proposal_status = suite.query_proposal_status(second_proposal_id).unwrap();
+    assert_eq!(proposal_status, Status::Passed);
+
+    // voter2 can only vote on the first proposal with weight of 2 (not enough to pass)
+    suite.vote(members[2], proposal_id, Vote::Yes).unwrap();
+    let proposal_status = suite.query_proposal_status(proposal_id).unwrap();
+    assert_eq!(proposal_status, Status::Open);
+
+    // newmember can't vote
+    let err = suite.vote(newmember, proposal_id, Vote::Yes).unwrap_err();
+    assert_eq!(ContractError::Unauthorized {}, err.downcast().unwrap());
+
+    // Previously removed voter3 can still vote and passes the proposal
+    suite.vote(members[3], proposal_id, Vote::Yes).unwrap();
+    let proposal_status = suite.query_proposal_status(proposal_id).unwrap();
+    assert_eq!(proposal_status, Status::Passed);
 }
