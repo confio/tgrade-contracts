@@ -4,6 +4,7 @@ use std::fs::create_dir_all;
 use cosmwasm_schema::{export_schema, export_schema_with_title, remove_schemas, schema_for};
 
 use tgrade_oc_proposals::msg::{ExecuteMsg, InstantiateMsg, QueryMsg};
+use tgrade_oc_proposals::state::{OversightProposal, ProposalListResponse, ProposalResponse};
 
 fn main() {
     let mut out_dir = current_dir().unwrap();
@@ -14,4 +15,7 @@ fn main() {
     export_schema(&schema_for!(InstantiateMsg), &out_dir);
     export_schema_with_title(&schema_for!(ExecuteMsg), &out_dir, "ExecuteMsg");
     export_schema_with_title(&schema_for!(QueryMsg), &out_dir, "QueryMsg");
+    export_schema(&schema_for!(OversightProposal), &out_dir);
+    export_schema(&schema_for!(ProposalResponse), &out_dir);
+    export_schema(&schema_for!(ProposalListResponse), &out_dir);
 }
