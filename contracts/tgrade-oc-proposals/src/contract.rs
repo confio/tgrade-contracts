@@ -80,22 +80,6 @@ pub fn execute(
     }
 }
 
-fn confirm_voting_power(deps: Deps, member: &Addr, height: u64) -> Result<(), ContractError> {
-    let cfg = CONFIG.load(deps.storage)?;
-    cfg.group_contract
-        .member_at_height(&deps.querier, member, height)?
-        .map_or_else(
-            || Err(ContractError::Unauthorized {}),
-            |w| {
-                if w < 1 {
-                    Err(ContractError::Unauthorized {})
-                } else {
-                    Ok(())
-                }
-            },
-        )
-}
-
 pub fn execute_propose(
     deps: DepsMut,
     env: Env,
@@ -155,9 +139,6 @@ pub fn execute_vote(
     proposal_id: u64,
     vote: Vote,
 ) -> Result<Response, ContractError> {
-    // only members of the multisig can vote
-    let cfg = CONFIG.load(deps.storage)?;
-
     // ensure proposal exists and can be voted on
     let mut prop = PROPOSALS.load(deps.storage, proposal_id.into())?;
     if prop.status != Status::Open {
@@ -168,10 +149,8 @@ pub fn execute_vote(
     }
 
     // use a snapshot of "start of proposal"
-    let vote_power = cfg
-        .group_contract
-        .member_at_height(&deps.querier, info.sender.clone(), prop.start_height)?
-        .ok_or(ContractError::Unauthorized {})?;
+    // Must be a member of voting group and have voting power >= 1
+    let vote_power = confirm_voting_power(deps.as_ref(), &info.sender, prop.start_height)?;
 
     // cast vote if no vote previously cast
     BALLOTS.update(
@@ -261,6 +240,22 @@ pub fn execute_close(
         .add_attribute("action", "close")
         .add_attribute("sender", info.sender)
         .add_attribute("proposal_id", proposal_id.to_string()))
+}
+
+fn confirm_voting_power(deps: Deps, member: &Addr, height: u64) -> Result<u64, ContractError> {
+    let cfg = CONFIG.load(deps.storage)?;
+    cfg.group_contract
+        .member_at_height(&deps.querier, member, height)?
+        .map_or_else(
+            || Err(ContractError::Unauthorized {}),
+            |w| {
+                if w < 1 {
+                    Err(ContractError::Unauthorized {})
+                } else {
+                    Ok(w)
+                }
+            },
+        )
 }
 
 #[cfg_attr(not(feature = "library"), entry_point)]
