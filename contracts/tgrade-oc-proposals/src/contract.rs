@@ -998,53 +998,6 @@ mod tests {
         assert!(vote.vote.is_none());
     }
 
-    #[test]
-    fn test_close_works() {
-        let init_funds = coins(10, "BTC");
-        let mut app = mock_app(&init_funds);
-
-        let rules = mock_rules().threshold(Decimal::percent(50)).build();
-        let voting_period = Duration::Time(rules.voting_period_secs());
-        let (flex_addr, _, _) = setup_test_case_fixed(&mut app, rules, init_funds, true);
-
-        // create proposal with 0 vote power
-        let proposal = grant_voter1_engagement_point_proposal();
-        let res = app
-            .execute_contract(Addr::unchecked(OWNER), flex_addr.clone(), &proposal, &[])
-            .unwrap();
-
-        // Get the proposal id from the logs
-        let proposal_id: u64 = res.custom_attrs(1)[2].value.parse().unwrap();
-
-        // Non-expired proposals cannot be closed
-        let closing = ExecuteMsg::Close { proposal_id };
-        let err = app
-            .execute_contract(Addr::unchecked(SOMEBODY), flex_addr.clone(), &closing, &[])
-            .unwrap_err();
-        assert_eq!(ContractError::NotExpired {}, err.downcast().unwrap());
-
-        // Expired proposals can be closed
-        app.update_block(expire(voting_period));
-        let res = app
-            .execute_contract(Addr::unchecked(SOMEBODY), flex_addr.clone(), &closing, &[])
-            .unwrap();
-        assert_eq!(
-            res.custom_attrs(1),
-            [
-                ("action", "close"),
-                ("sender", SOMEBODY),
-                ("proposal_id", proposal_id.to_string().as_str()),
-            ],
-        );
-
-        // Trying to close it again fails
-        let closing = ExecuteMsg::Close { proposal_id };
-        let err = app
-            .execute_contract(Addr::unchecked(SOMEBODY), flex_addr, &closing, &[])
-            .unwrap_err();
-        assert_eq!(ContractError::WrongCloseStatus {}, err.downcast().unwrap());
-    }
-
     // uses the power from the beginning of the voting period
     #[test]
     fn percentage_handles_group_changes() {
