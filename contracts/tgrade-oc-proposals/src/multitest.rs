@@ -22,6 +22,7 @@ fn only_voters_can_propose() {
         .with_voting_rules(rules)
         .build();
 
+    // Member with 0 voting power is unable to create new proposal
     let err = suite
         .propose_grant_engagement(members[0], members[1], 10)
         .unwrap_err();
@@ -208,7 +209,7 @@ fn execute_group_can_change() {
 
 #[test]
 fn close_proposal() {
-    let members = vec!["owner", "voter1", "voter2", "voter3"];
+    let members = vec!["owner", "voter1"];
 
     let rules = RulesBuilder::new()
         .with_threshold(Decimal::percent(51))

@@ -1,7 +1,7 @@
 #[cfg(not(feature = "library"))]
 use cosmwasm_std::entry_point;
 use cosmwasm_std::{
-    to_binary, Binary, BlockInfo, Deps, DepsMut, Env, MessageInfo, Order, StdResult,
+    to_binary, Addr, Binary, BlockInfo, Deps, DepsMut, Env, MessageInfo, Order, StdResult,
 };
 
 use cw0::{maybe_addr, Expiration};
@@ -80,6 +80,22 @@ pub fn execute(
     }
 }
 
+fn confirm_voting_power(deps: Deps, member: &Addr, height: u64) -> Result<(), ContractError> {
+    let cfg = CONFIG.load(deps.storage)?;
+    cfg.group_contract
+        .member_at_height(&deps.querier, member, height)?
+        .map_or_else(
+            || Err(ContractError::Unauthorized {}),
+            |w| {
+                if w < 1 {
+                    Err(ContractError::Unauthorized {})
+                } else {
+                    Ok(())
+                }
+            },
+        )
+}
+
 pub fn execute_propose(
     deps: DepsMut,
     env: Env,
@@ -97,18 +113,7 @@ pub fn execute_propose(
         .ok_or(ContractError::Unauthorized {})?;
 
     // Additional check if weight >= 1
-    cfg.group_contract
-        .member_at_height(&deps.querier, &info.sender, env.block.height)?
-        .map_or_else(
-            || Err(ContractError::Unauthorized {}),
-            |w| {
-                if w < 1 {
-                    Err(ContractError::Unauthorized {})
-                } else {
-                    Ok(())
-                }
-            },
-        )?;
+    confirm_voting_power(deps.as_ref(), &info.sender, env.block.height)?;
 
     // calculate expiry time
     let expires = Expiration::AtTime(env.block.time.plus_seconds(cfg.rules.voting_period_secs()));
