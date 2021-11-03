@@ -410,11 +410,11 @@ fn list_voters(
 
 #[cfg(test)]
 mod tests {
-    use cosmwasm_std::{coin, coins, Addr, Coin, Decimal, Timestamp};
+    use cosmwasm_std::{coins, Addr, Coin, Decimal, Timestamp};
 
     use cw0::Duration;
     use cw_multi_test::{next_block, Contract, ContractWrapper, Executor};
-    use tg4::{Member, Tg4ExecuteMsg, Tg4QueryMsg};
+    use tg4::{Member, Tg4ExecuteMsg};
     use tg_bindings_test::TgradeApp;
 
     use super::*;
@@ -722,64 +722,6 @@ mod tests {
         );
     }
 
-    #[test]
-    fn test_propose_works() {
-        let init_funds = coins(10, "BTC");
-        let mut app = mock_app(&init_funds);
-
-        let (flex_addr, _, _) = setup_test_case_fixed(
-            &mut app,
-            mock_rules().threshold(Decimal::percent(51)).build(),
-            init_funds,
-            false,
-        );
-
-        let proposal_msg = grant_voter1_engagement_point_proposal();
-        // Only voters can propose
-        let err = app
-            .execute_contract(
-                Addr::unchecked(SOMEBODY),
-                flex_addr.clone(),
-                &proposal_msg,
-                &[],
-            )
-            .unwrap_err();
-        assert_eq!(ContractError::Unauthorized {}, err.downcast().unwrap());
-
-        // Proposal from voter works
-        let res = app
-            .execute_contract(
-                Addr::unchecked(VOTER3),
-                flex_addr.clone(),
-                &proposal_msg,
-                &[],
-            )
-            .unwrap();
-        assert_eq!(
-            res.custom_attrs(1),
-            [
-                ("action", "propose"),
-                ("sender", VOTER3),
-                ("proposal_id", "1"),
-                ("status", "Open"),
-            ],
-        );
-
-        // Proposal from voter with enough vote power directly passes
-        let res = app
-            .execute_contract(Addr::unchecked(VOTER4), flex_addr, &proposal_msg, &[])
-            .unwrap();
-        assert_eq!(
-            res.custom_attrs(1),
-            [
-                ("action", "propose"),
-                ("sender", VOTER4),
-                ("proposal_id", "2"),
-                ("status", "Passed"),
-            ],
-        );
-    }
-
     fn get_tally(app: &TgradeApp, flex_addr: &str, proposal_id: u64) -> u64 {
         // Get all the voters on the proposal
         let voters = QueryMsg::ListVotes {
@@ -1057,104 +999,6 @@ mod tests {
     }
 
     #[test]
-    fn test_execute_works() {
-        let init_funds = coins(10, "BTC");
-        let mut app = mock_app(&init_funds);
-
-        let rules = mock_rules().threshold(Decimal::percent(50)).build();
-        let (flex_addr, _, engagement_addr) =
-            setup_test_case_fixed(&mut app, rules, init_funds, true);
-
-        // ensure we have cash to cover the proposal
-        let contract_bal = app.wrap().query_balance(&flex_addr, "BTC").unwrap();
-        assert_eq!(contract_bal, coin(10, "BTC"));
-
-        // create proposal with 0 vote power
-        let proposal = grant_voter1_engagement_point_proposal();
-        let res = app
-            .execute_contract(Addr::unchecked(OWNER), flex_addr.clone(), &proposal, &[])
-            .unwrap();
-
-        // Get the proposal id from the logs
-        let proposal_id: u64 = res.custom_attrs(1)[2].value.parse().unwrap();
-
-        // Only Passed can be executed
-        let execution = ExecuteMsg::Execute { proposal_id };
-        let err = app
-            .execute_contract(Addr::unchecked(OWNER), flex_addr.clone(), &execution, &[])
-            .unwrap_err();
-        assert_eq!(
-            ContractError::WrongExecuteStatus {},
-            err.downcast().unwrap()
-        );
-
-        // Vote it, so it passes
-        let vote = ExecuteMsg::Vote {
-            proposal_id,
-            vote: Vote::Yes,
-        };
-        let res = app
-            .execute_contract(Addr::unchecked(VOTER4), flex_addr.clone(), &vote, &[])
-            .unwrap();
-        assert_eq!(
-            res.custom_attrs(1),
-            [
-                ("action", "vote"),
-                ("sender", VOTER4),
-                ("proposal_id", proposal_id.to_string().as_str()),
-                ("status", "Passed"),
-            ],
-        );
-
-        // In passing: Try to close Passed fails
-        let closing = ExecuteMsg::Close { proposal_id };
-        let err = app
-            .execute_contract(Addr::unchecked(OWNER), flex_addr.clone(), &closing, &[])
-            .unwrap_err();
-        assert_eq!(ContractError::WrongCloseStatus {}, err.downcast().unwrap());
-
-        // Execute works. Anybody can execute Passed proposals
-        let res = app
-            .execute_contract(
-                Addr::unchecked(SOMEBODY),
-                flex_addr.clone(),
-                &execution,
-                &[],
-            )
-            .unwrap();
-        assert_eq!(
-            res.custom_attrs(1),
-            [
-                ("action", "execute"),
-                ("sender", SOMEBODY),
-                ("proposal_id", proposal_id.to_string().as_str()),
-            ],
-        );
-
-        // verify engagement points were transfered
-        // engagement_contract is initialized with members
-        // Member VOTER1 has 1 point of weight, after proposal it
-        // should be 11
-        let engagement_points: tg4::MemberResponse = app
-            .wrap()
-            .query_wasm_smart(
-                engagement_addr,
-                &Tg4QueryMsg::Member {
-                    addr: VOTER1.to_string(),
-                    at_height: None,
-                },
-            )
-            .unwrap();
-        assert_eq!(engagement_points.weight.unwrap(), 11);
-
-        // In passing: Try to close Executed fails
-        let err = app
-            .execute_contract(Addr::unchecked(OWNER), flex_addr, &closing, &[])
-            .unwrap_err();
-        assert_eq!(ContractError::WrongCloseStatus {}, err.downcast().unwrap());
-    }
-
-    #[test]
     fn test_close_works() {
         let init_funds = coins(10, "BTC");
         let mut app = mock_app(&init_funds);
@@ -1199,102 +1043,6 @@ mod tests {
             .execute_contract(Addr::unchecked(SOMEBODY), flex_addr, &closing, &[])
             .unwrap_err();
         assert_eq!(ContractError::WrongCloseStatus {}, err.downcast().unwrap());
-    }
-
-    // uses the power from the beginning of the voting period
-    #[test]
-    fn execute_group_changes_from_external() {
-        let init_funds = coins(10, "BTC");
-        let mut app = mock_app(&init_funds);
-
-        let rules = mock_rules().threshold(Decimal::percent(51)).build();
-        let (flex_addr, group_addr, _) = setup_test_case_fixed(&mut app, rules, init_funds, false);
-
-        // VOTER1 starts a proposal to send some tokens (1/4 votes)
-        let proposal = grant_voter1_engagement_point_proposal();
-        let res = app
-            .execute_contract(Addr::unchecked(VOTER1), flex_addr.clone(), &proposal, &[])
-            .unwrap();
-        // Get the proposal id from the logs
-        let proposal_id: u64 = res.custom_attrs(1)[2].value.parse().unwrap();
-        let prop_status = |app: &TgradeApp, proposal_id: u64| -> Status {
-            let query_prop = QueryMsg::Proposal { proposal_id };
-            let prop: ProposalResponse = app
-                .wrap()
-                .query_wasm_smart(&flex_addr, &query_prop)
-                .unwrap();
-            prop.status
-        };
-
-        // 1/4 votes
-        assert_eq!(prop_status(&app, proposal_id), Status::Open);
-
-        // a few blocks later...
-        app.update_block(|block| block.height += 2);
-
-        // admin changes the group
-        // updates VOTER2 power to 19 -> with snapshot, vote doesn't pass proposal
-        // adds NEWBIE with 2 power -> with snapshot, invalid vote
-        // removes VOTER3 -> with snapshot, can vote on proposal
-        let newbie: &str = "newbie";
-        let update_msg = tg4_engagement::msg::ExecuteMsg::UpdateMembers {
-            remove: vec![VOTER3.into()],
-            add: vec![member(VOTER2, 19), member(newbie, 2)],
-        };
-        app.execute_contract(Addr::unchecked(OWNER), group_addr, &update_msg, &[])
-            .unwrap();
-
-        // check membership queries properly updated
-        let query_voter = QueryMsg::Voter {
-            address: VOTER3.into(),
-        };
-        let power: VoterResponse = app
-            .wrap()
-            .query_wasm_smart(&flex_addr, &query_voter)
-            .unwrap();
-        assert_eq!(power.weight, None);
-
-        // proposal still open
-        assert_eq!(prop_status(&app, proposal_id), Status::Open);
-
-        // a few blocks later...
-        app.update_block(|block| block.height += 3);
-
-        // make a second proposal
-        let proposal2 = grant_voter1_engagement_point_proposal();
-        let res = app
-            .execute_contract(Addr::unchecked(VOTER1), flex_addr.clone(), &proposal2, &[])
-            .unwrap();
-        // Get the proposal id from the logs
-        let proposal_id2: u64 = res.custom_attrs(1)[2].value.parse().unwrap();
-
-        // VOTER2 can pass this alone with the updated vote (newer height ignores snapshot)
-        let yes_vote = ExecuteMsg::Vote {
-            proposal_id: proposal_id2,
-            vote: Vote::Yes,
-        };
-        app.execute_contract(Addr::unchecked(VOTER2), flex_addr.clone(), &yes_vote, &[])
-            .unwrap();
-        assert_eq!(prop_status(&app, proposal_id2), Status::Passed);
-
-        // VOTER2 can only vote on first proposal with weight of 2 (not enough to pass)
-        let yes_vote = ExecuteMsg::Vote {
-            proposal_id,
-            vote: Vote::Yes,
-        };
-        app.execute_contract(Addr::unchecked(VOTER2), flex_addr.clone(), &yes_vote, &[])
-            .unwrap();
-        assert_eq!(prop_status(&app, proposal_id), Status::Open);
-
-        // newbie cannot vote
-        let err = app
-            .execute_contract(Addr::unchecked(newbie), flex_addr.clone(), &yes_vote, &[])
-            .unwrap_err();
-        assert_eq!(ContractError::Unauthorized {}, err.downcast().unwrap());
-
-        // previously removed VOTER3 can still vote, passing the proposal
-        app.execute_contract(Addr::unchecked(VOTER3), flex_addr.clone(), &yes_vote, &[])
-            .unwrap();
     }
 
     // uses the power from the beginning of the voting period

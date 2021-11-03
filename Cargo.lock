@@ -1586,6 +1586,7 @@ dependencies = [
 name = "tgrade-oc-proposals"
 version = "0.5.0-beta"
 dependencies = [
+ "anyhow",
  "cosmwasm-schema",
  "cosmwasm-std",
  "cw-multi-test",
