@@ -536,8 +536,8 @@ mod tests {
             min_bond: Uint128::new(100),
             unbonding_period: 3600,
             admin: admin.clone(),
-            preauths: Some(1),
-            preauths_slashing: Some(1),
+            preauths: 1,
+            preauths_slashing: 1,
             auto_return_limit: 0,
         };
         let contract = app

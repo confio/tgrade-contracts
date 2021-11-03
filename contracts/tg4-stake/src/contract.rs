@@ -44,8 +44,8 @@ pub fn instantiate(
     let api = deps.api;
     ADMIN.set(deps.branch(), maybe_addr(api, msg.admin)?)?;
 
-    PREAUTH.set_auth(deps.storage, msg.preauths.unwrap_or_default())?;
-    PREAUTH_SLASHING.set_auth(deps.storage, msg.preauths.unwrap_or_default())?;
+    PREAUTH.set_auth(deps.storage, msg.preauths)?;
+    PREAUTH_SLASHING.set_auth(deps.storage, msg.preauths)?;
 
     // min_bond is at least 1, so 0 stake -> non-membership
     let min_bond = if msg.min_bond == Uint128::zero() {
@@ -583,8 +583,8 @@ mod tests {
             min_bond,
             unbonding_period,
             admin: Some(INIT_ADMIN.into()),
-            preauths: Some(1),
-            preauths_slashing: Some(1),
+            preauths: 1,
+            preauths_slashing: 1,
             auto_return_limit,
         };
         let info = mock_info("creator", &[]);
