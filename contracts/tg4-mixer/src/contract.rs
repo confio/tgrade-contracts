@@ -9,7 +9,7 @@ use cw2::set_contract_version;
 use cw_storage_plus::{Bound, PrimaryKey, U64Key};
 
 use tg_bindings::TgradeMsg;
-use tg_utils::{members, HOOKS, PREAUTH, TOTAL};
+use tg_utils::{members, SlashMsg, HOOKS, PREAUTH, TOTAL};
 
 use tg4::{
     HooksResponse, Member, MemberChangedHookMsg, MemberDiff, MemberListResponse, MemberResponse,
@@ -52,11 +52,20 @@ pub fn instantiate(
     let groups = Groups { left, right };
     GROUPS.save(deps.storage, &groups)?;
 
+    // Register this contract as a slasher in left and right contracts
+    // Slashing is not part of the TG4 spec - it's a separate interface
+    // that these contracts must implement.
+    let slash_msg = to_binary(&SlashMsg::AddSlasher {
+        addr: env.contract.address.to_string(),
+    })?;
+
     // add hooks to listen for all changes
     // TODO: what events to return here?
     let res = Response::new()
         .add_submessage(groups.left.add_hook(&env.contract.address)?)
-        .add_submessage(groups.right.add_hook(&env.contract.address)?);
+        .add_submessage(groups.right.add_hook(&env.contract.address)?)
+        .add_submessage(groups.left.encode_raw_msg(slash_msg.clone())?)
+        .add_submessage(groups.right.encode_raw_msg(slash_msg)?);
 
     // Instantiate PoE function
     let poe_function = msg.function_type.to_poe_fn()?;
@@ -432,7 +441,7 @@ mod tests {
             admin: admin.clone(),
             members,
             preauths: 1,
-            preauths_slashing: 0,
+            preauths_slashing: 1,
             halflife: None,
             token: STAKE_DENOM.to_owned(),
         };
@@ -451,7 +460,7 @@ mod tests {
             unbonding_period: 3600,
             admin: admin.clone(),
             preauths: Some(1),
-            preauths_slashing: None,
+            preauths_slashing: Some(1),
             auto_return_limit: 0,
         };
         let contract = app
