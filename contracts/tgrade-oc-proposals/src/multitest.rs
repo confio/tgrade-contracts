@@ -1,7 +1,7 @@
 mod suite;
 
 use crate::error::ContractError;
-use suite::{get_proposal_id, member, mock_rules, SuiteBuilder};
+use suite::{get_proposal_id, member, RulesBuilder, SuiteBuilder};
 
 use cosmwasm_std::Decimal;
 use cw3::{Status, Vote};
@@ -10,12 +10,16 @@ use cw3::{Status, Vote};
 fn only_voters_can_propose() {
     let members = vec!["owner", "voter1", "voter2", "voter3"];
 
+    let rules = RulesBuilder::new()
+        .with_threshold(Decimal::percent(51))
+        .build();
+
     let mut suite = SuiteBuilder::new()
         .with_group_member(members[0], 0)
         .with_group_member(members[1], 1)
         .with_group_member(members[2], 2)
         .with_group_member(members[3], 4)
-        .with_voting_rules(mock_rules().threshold(Decimal::percent(51)).build())
+        .with_voting_rules(rules)
         .build();
 
     // Proposal from nonvoter is rejected
@@ -57,13 +61,17 @@ fn only_voters_can_propose() {
 fn grant_engagement_reward() {
     let members = vec!["owner", "voter1", "voter2", "voter3"];
 
+    let rules = RulesBuilder::new()
+        .with_threshold(Decimal::percent(50))
+        .build();
+
     let mut suite = SuiteBuilder::new()
         .with_group_member(members[0], 1)
         .with_group_member(members[1], 2)
         .with_group_member(members[2], 3)
         .with_group_member(members[3], 4)
         .with_engagement_member(members[1], 0)
-        .with_voting_rules(mock_rules().threshold(Decimal::percent(50)).build())
+        .with_voting_rules(rules)
         .with_multisig_as_group_admin(true)
         .build();
 
@@ -120,12 +128,16 @@ fn grant_engagement_reward() {
 fn execute_group_can_change() {
     let members = vec!["owner", "voter1", "voter2", "voter3"];
 
+    let rules = RulesBuilder::new()
+        .with_threshold(Decimal::percent(51))
+        .build();
+
     let mut suite = SuiteBuilder::new()
         .with_group_member(members[0], 1)
         .with_group_member(members[1], 2)
         .with_group_member(members[2], 3)
         .with_group_member(members[3], 4)
-        .with_voting_rules(mock_rules().threshold(Decimal::percent(51)).build())
+        .with_voting_rules(rules)
         .build();
 
     // voter1 starts a proposal to send some tokens (1/4 votes)
@@ -193,7 +205,9 @@ fn execute_group_can_change() {
 fn close_proposal() {
     let members = vec!["owner", "voter1", "voter2", "voter3"];
 
-    let rules = mock_rules().threshold(Decimal::percent(51)).build();
+    let rules = RulesBuilder::new()
+        .with_threshold(Decimal::percent(51))
+        .build();
 
     let mut suite = SuiteBuilder::new()
         .with_group_member(members[0], 1)
