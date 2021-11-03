@@ -7,9 +7,6 @@ use suite::{mock_rules, SuiteBuilder};
 use cosmwasm_std::{Addr, Decimal};
 use cw3::Vote;
 
-mod proposal {
-    use super::*;
-
 #[test]
 fn only_voters_can_propose() {
     let members = vec!["owner", "voter1", "voter2", "voter3"];
@@ -92,6 +89,7 @@ fn grant_engagement_reward() {
         .with_group_member(members[3], 3)
         .with_engagement_member(members[1], 0)
         .with_voting_rules(mock_rules().threshold(Decimal::percent(50)).build())
+        .with_multisig_as_group_admin(true)
         .build();
 
     // Proposal granting 10 engagement points to voter1

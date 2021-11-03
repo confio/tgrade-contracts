@@ -110,6 +110,12 @@ impl SuiteBuilder {
         self
     }
 
+    pub fn with_multisig_as_group_admin(mut self, multisig_as_group_admin: bool) -> Self {
+        self.multisig_as_group_admin = multisig_as_group_admin;
+            self
+    }
+
+
     #[track_caller]
     pub fn build(self) -> Suite {
         let owner = Addr::unchecked("owner");
@@ -126,7 +132,8 @@ impl SuiteBuilder {
                 &tg4_engagement::msg::InstantiateMsg {
                     admin: Some(owner.to_string()),
                     members: self.engagement_members,
-                    preauths: None,
+                    preauths: 0,
+                    preauths_slashing: 0,
                     halflife: None,
                     token: "ENGAGEMENT".to_owned(),
                 },
@@ -144,7 +151,8 @@ impl SuiteBuilder {
                 &tg4_engagement::msg::InstantiateMsg {
                     admin: Some(owner.to_string()),
                     members: self.group_members,
-                    preauths: None,
+                    preauths: 0,
+                    preauths_slashing: 0,
                     halflife: None,
                     token: "GROUP".to_owned(),
                 },
@@ -187,7 +195,7 @@ impl SuiteBuilder {
         if self.multisig_as_group_admin {
             app.execute_contract(
                 owner,
-                group_contract.clone(),
+                group_contract,
                 &Tg4ExecuteMsg::UpdateAdmin {
                     admin: Some(contract.to_string()),
                 },
