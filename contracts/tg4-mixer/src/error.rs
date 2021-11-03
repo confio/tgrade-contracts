@@ -1,5 +1,5 @@
 use cosmwasm_std::StdError;
-use tg_utils::{HookError, PreauthError};
+use tg_utils::{HookError, PreauthError, SlasherError};
 use thiserror::Error;
 
 #[derive(Error, Debug, PartialEq)]
@@ -9,6 +9,9 @@ pub enum ContractError {
 
     #[error("{0}")]
     Hook(#[from] HookError),
+
+    #[error("{0}")]
+    Slasher(#[from] SlasherError),
 
     #[error("{0}")]
     Preauth(#[from] PreauthError),

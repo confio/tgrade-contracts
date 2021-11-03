@@ -1,7 +1,7 @@
 #[cfg(not(feature = "library"))]
 use cosmwasm_std::entry_point;
 use cosmwasm_std::{
-    to_binary, Binary, Deps, DepsMut, Env, MessageInfo, Order, StdError, StdResult,
+    to_binary, Addr, Binary, Decimal, Deps, DepsMut, Env, MessageInfo, Order, StdError, StdResult,
 };
 
 use cw0::maybe_addr;
@@ -9,7 +9,7 @@ use cw2::set_contract_version;
 use cw_storage_plus::{Bound, PrimaryKey, U64Key};
 
 use tg_bindings::TgradeMsg;
-use tg_utils::{members, SlashMsg, HOOKS, PREAUTH, TOTAL};
+use tg_utils::{members, SlashMsg, HOOKS, PREAUTH, PREAUTH_SLASHING, SLASHERS, TOTAL};
 
 use tg4::{
     HooksResponse, Member, MemberChangedHookMsg, MemberDiff, MemberListResponse, MemberResponse,
@@ -39,9 +39,10 @@ pub fn instantiate(
     msg: InstantiateMsg,
 ) -> Result<Response, ContractError> {
     set_contract_version(deps.storage, CONTRACT_NAME, CONTRACT_VERSION)?;
-    if let Some(preauths) = msg.preauths {
-        PREAUTH.set_auth(deps.storage, preauths)?;
-    }
+    PREAUTH.set_auth(deps.storage, msg.preauths)?;
+    PREAUTH_SLASHING.set_auth(deps.storage, msg.preauths_slashing)?;
+
+    SLASHERS.instantiate(deps.storage)?;
 
     // Store the PoE function type / params
     POE_FUNCTION_TYPE.save(deps.storage, &msg.function_type)?;
@@ -127,6 +128,9 @@ pub fn execute(
         ExecuteMsg::MemberChangedHook(changes) => execute_member_changed(deps, env, info, changes),
         ExecuteMsg::AddHook { addr } => execute_add_hook(deps, info, addr),
         ExecuteMsg::RemoveHook { addr } => execute_remove_hook(deps, info, addr),
+        ExecuteMsg::AddSlasher { addr } => execute_add_slasher(deps, info, addr),
+        ExecuteMsg::RemoveSlasher { addr } => execute_remove_slasher(deps, info, addr),
+        ExecuteMsg::Slash { addr, portion } => execute_slash(deps, env, info, addr, portion),
     }
 }
 
@@ -254,6 +258,75 @@ pub fn execute_remove_hook(
         .add_attribute("action", "remove_hook")
         .add_attribute("hook", hook)
         .add_attribute("sender", info.sender);
+    Ok(res)
+}
+
+pub fn execute_add_slasher(
+    deps: DepsMut,
+    info: MessageInfo,
+    slasher: String,
+) -> Result<Response, ContractError> {
+    // custom guard: using a preauth
+    PREAUTH_SLASHING.use_auth(deps.storage)?;
+
+    // add the slasher
+    SLASHERS.add_slasher(deps.storage, deps.api.addr_validate(&slasher)?)?;
+
+    // response
+    let res = Response::new()
+        .add_attribute("action", "add_slasher")
+        .add_attribute("slasher", slasher)
+        .add_attribute("sender", info.sender);
+    Ok(res)
+}
+
+pub fn execute_remove_slasher(
+    deps: DepsMut,
+    info: MessageInfo,
+    slasher: String,
+) -> Result<Response, ContractError> {
+    // custom guard: self-removal only
+    let slasher_addr = Addr::unchecked(&slasher);
+    if info.sender != slasher_addr {
+        return Err(ContractError::Unauthorized {});
+    }
+
+    // remove the slasher
+    SLASHERS.remove_slasher(deps.storage, slasher_addr)?;
+
+    // response
+    let res = Response::new()
+        .add_attribute("action", "remove_slasher")
+        .add_attribute("slasher", slasher)
+        .add_attribute("sender", info.sender);
+    Ok(res)
+}
+
+pub fn execute_slash(
+    deps: DepsMut,
+    _env: Env,
+    info: MessageInfo,
+    addr: String,
+    portion: Decimal,
+) -> Result<Response, ContractError> {
+    if !SLASHERS.is_slasher(deps.storage, &info.sender)? {
+        return Err(ContractError::Unauthorized {});
+    }
+    let addr = deps.api.addr_validate(&addr)?;
+    let groups = GROUPS.load(deps.storage)?;
+
+    let slash_msg = to_binary(&SlashMsg::Slash {
+        addr: addr.to_string(),
+        portion,
+    })?;
+
+    // response
+    let res = Response::new()
+        .add_attribute("action", "slash")
+        .add_attribute("addr", &addr)
+        .add_attribute("sender", info.sender)
+        .add_submessage(groups.left.encode_raw_msg(slash_msg.clone())?)
+        .add_submessage(groups.right.encode_raw_msg(slash_msg)?);
     Ok(res)
 }
 
@@ -398,6 +471,7 @@ mod tests {
     const VOTER4: &str = "voter0004";
     const VOTER5: &str = "voter0005";
     const RESERVE: &str = "reserve";
+    const SLASHER: &str = "slasher";
 
     fn member<T: Into<String>>(addr: T, weight: u64) -> Member {
         Member {
@@ -494,7 +568,8 @@ mod tests {
         let msg = crate::msg::InstantiateMsg {
             left_group: left.to_string(),
             right_group: right.to_string(),
-            preauths: None,
+            preauths: 0,
+            preauths_slashing: 1,
             function_type: PoEFunctionType::GeometricMean {},
         };
         app.instantiate_contract(flex_id, Addr::unchecked(OWNER), &msg, &[], "mixer", None)
@@ -770,6 +845,81 @@ mod tests {
             Some(8944), // (8k, 100) mixed
             None,
             None,
+            None,
+            None,
+        );
+    }
+
+    #[test]
+    fn slashing_works() {
+        let stakers = vec![
+            member(VOTER1, 10000), // 10000 stake, 100 weight -> 1000 mixed
+            member(VOTER2, 20000), // 20000 stake, 200 weight -> 2000 mixed
+            member(VOTER3, 7500),  // 7500 stake, 300 weight -> 1500 mixed
+        ];
+
+        let mut app = AppBuilder::new_custom().build(|router, _, storage| {
+            router
+                .bank
+                .init_balance(storage, &Addr::unchecked(RESERVE), coins(450, STAKE_DENOM))
+                .unwrap();
+
+            for staker in &stakers {
+                router
+                    .bank
+                    .init_balance(
+                        storage,
+                        &Addr::unchecked(&staker.addr),
+                        coins(staker.weight as u128, STAKE_DENOM),
+                    )
+                    .unwrap();
+            }
+        });
+
+        let (mixer_addr, _, _) = setup_test_case(&mut app, stakers);
+
+        // Register our slasher using the preauth.
+        app.execute_contract(
+            Addr::unchecked(SLASHER),
+            mixer_addr.clone(),
+            &ExecuteMsg::AddSlasher {
+                addr: SLASHER.to_string(),
+            },
+            &[],
+        )
+        .unwrap();
+
+        // Slash VOTER1 by 40 percent
+        app.execute_contract(
+            Addr::unchecked(SLASHER),
+            mixer_addr.clone(),
+            &ExecuteMsg::Slash {
+                addr: VOTER1.to_string(),
+                portion: Decimal::percent(40),
+            },
+            &[],
+        )
+        .unwrap();
+        // We don't slash VOTER2
+        // Slash VOTER3 by 20 percent
+        app.execute_contract(
+            Addr::unchecked(SLASHER),
+            mixer_addr.clone(),
+            &ExecuteMsg::Slash {
+                addr: VOTER3.to_string(),
+                portion: Decimal::percent(20),
+            },
+            &[],
+        )
+        .unwrap();
+
+        check_membership(
+            &app,
+            &mixer_addr,
+            None,
+            Some(600),
+            Some(2000),
+            Some(1200),
             None,
             None,
         );
