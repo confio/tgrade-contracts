@@ -249,3 +249,82 @@ fn close_proposal() {
     let err = suite.close("anybody", proposal_id).unwrap_err();
     assert_eq!(ContractError::WrongCloseStatus {}, err.downcast().unwrap());
 }
+
+mod voting {
+    use super::*;
+
+    #[test]
+    fn casting_votes() {
+        let members = vec!["owner", "voter1", "voter2", "voter3", "voter4"];
+
+        let rules = RulesBuilder::new()
+            .with_threshold(Decimal::percent(51))
+            .build();
+
+        let mut suite = SuiteBuilder::new()
+            .with_group_member(members[0], 1)
+            .with_group_member(members[1], 2)
+            .with_group_member(members[2], 3)
+            .with_group_member(members[3], 4)
+            .with_group_member(members[4], 0)
+            .with_voting_rules(rules)
+            .build();
+
+        // Create proposal with 1 voting power
+        let response = suite
+            .propose_grant_engagement(members[0], members[1], 10)
+            .unwrap();
+        let proposal_id: u64 = get_proposal_id(&response).unwrap();
+
+        // Owner cannot vote (again)
+        let err = suite.vote(members[0], proposal_id, Vote::Yes).unwrap_err();
+        assert_eq!(ContractError::AlreadyVoted {}, err.downcast().unwrap());
+
+        // Only voters can vote
+        let err = suite
+            .vote("random_guy", proposal_id, Vote::Yes)
+            .unwrap_err();
+        assert_eq!(ContractError::Unauthorized {}, err.downcast().unwrap());
+
+        // Only members with voting power can vote
+        let err = suite.vote(members[4], proposal_id, Vote::Yes).unwrap_err();
+        assert_eq!(ContractError::Unauthorized {}, err.downcast().unwrap());
+
+        let response = suite.vote(members[1], proposal_id, Vote::Yes).unwrap();
+        assert_eq!(
+            response.custom_attrs(1),
+            [
+                ("action", "vote"),
+                ("sender", members[1]),
+                ("proposal_id", proposal_id.to_string().as_str()),
+                ("status", "Open"),
+            ],
+        );
+
+        // let tally = suite.get_sum_of_votes(proposal_id);
+        // // Weight of owner (1) + weight of voter1 (2)
+        // assert_eq!(tally, 3);
+
+        let err = suite.vote(members[1], proposal_id, Vote::Yes).unwrap_err();
+        assert_eq!(ContractError::AlreadyVoted {}, err.downcast().unwrap());
+
+        // Move time forward so proposal expires
+        // suite.app.advance_seconds(rules.voting_period_secs());
+
+        // Powerful voter supports it, so it passes
+        let response = suite.vote(members[3], proposal_id, Vote::Yes).unwrap();
+        assert_eq!(
+            response.custom_attrs(1),
+            [
+                ("action", "vote"),
+                ("sender", members[3]),
+                ("proposal_id", proposal_id.to_string().as_str()),
+                ("status", "Passed"),
+            ],
+        );
+
+        // Non-open proposals cannot be voted
+        let err = suite.vote(members[2], proposal_id, Vote::Yes).unwrap_err();
+        assert_eq!(ContractError::NotOpen {}, err.downcast().unwrap());
+    }
+}

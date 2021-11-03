@@ -1,7 +1,7 @@
 use anyhow::Result as AnyResult;
 
 use cosmwasm_std::{Addr, Decimal};
-use cw3::{Status, Vote, VoterResponse};
+use cw3::{Status, Vote, VoteListResponse, VoterResponse};
 use cw_multi_test::{AppResponse, Contract, ContractWrapper, Executor};
 use tg4::{Member, MemberResponse, Tg4ExecuteMsg, Tg4QueryMsg};
 use tg_bindings::TgradeMsg;
@@ -340,5 +340,28 @@ impl Suite {
             &tg4_engagement::msg::ExecuteMsg::UpdateMembers { remove, add },
             &[],
         )
+    }
+
+    pub fn get_sum_of_votes(&self, proposal_id: u64) -> u64 {
+        // Get all the voters on the proposal
+        let votes: VoteListResponse = self
+            .app
+            .wrap()
+            .query_wasm_smart(
+                self.contract.clone(),
+                &QueryMsg::ListVotes {
+                    proposal_id,
+                    start_after: None,
+                    limit: None,
+                },
+            )
+            .unwrap();
+        // Sum the weights of the Yes votes to get the tally
+        votes
+            .votes
+            .iter()
+            .filter(|&v| v.vote == Vote::Yes)
+            .map(|v| v.weight)
+            .sum()
     }
 }
