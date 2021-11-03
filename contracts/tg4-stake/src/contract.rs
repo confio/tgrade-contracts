@@ -13,7 +13,9 @@ use tg4::{
     TotalWeightResponse,
 };
 use tg_bindings::{request_privileges, Privilege, PrivilegeChangeMsg, TgradeMsg, TgradeSudoMsg};
-use tg_utils::{members, Duration, ADMIN, HOOKS, PREAUTH, PREAUTH_SLASHING, SLASHERS, TOTAL};
+use tg_utils::{
+    members, validate_portion, Duration, ADMIN, HOOKS, PREAUTH, PREAUTH_SLASHING, SLASHERS, TOTAL,
+};
 
 use crate::error::ContractError;
 use crate::msg::{
@@ -236,6 +238,8 @@ pub fn execute_slash(
     if !SLASHERS.is_slasher(deps.storage, &info.sender)? {
         return Err(ContractError::Unauthorized {});
     }
+
+    validate_portion(portion)?;
 
     let cfg = CONFIG.load(deps.storage)?;
     let addr = deps.api.addr_validate(&addr)?;
