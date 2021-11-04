@@ -82,7 +82,7 @@ fn instantiate_stake(app: &mut BasicApp<TgradeMsg>) -> Addr {
         min_bond: Uint128::new(MIN_BOND),
         unbonding_period: 1234,
         admin: admin.clone(),
-        preauths: 0,
+        preauths_hooks: 0,
         preauths_slashing: 0,
         auto_return_limit: 0,
     };
