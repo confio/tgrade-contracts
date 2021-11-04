@@ -14,7 +14,11 @@ pub struct InstantiateMsg {
     /// The other group we feed to the mixer function
     pub right_group: String,
     /// Preauthorize some hooks on init (only way to add them)
-    pub preauths: Option<u64>,
+    #[serde(default)]
+    pub preauths: u64,
+    /// Preauthorize slasher registration on init (only way to add them)
+    #[serde(default)]
+    pub preauths_slashing: u64,
     /// Enum to store the proof-of-engagement function parameters used for this contract
     pub function_type: PoEFunctionType,
 }
@@ -75,6 +79,12 @@ pub enum ExecuteMsg {
     AddHook { addr: String },
     /// Remove a hook. Must be called by the contract being removed
     RemoveHook { addr: String },
+    /// Adds slasher for contract if there are enough `slasher_preauths` left
+    AddSlasher { addr: String },
+    /// Removes slasher for contract
+    RemoveSlasher { addr: String },
+    /// Slash engagement points from address
+    Slash { addr: String, portion: StdDecimal },
 }
 
 #[derive(Serialize, Deserialize, Clone, PartialEq, JsonSchema, Debug)]
