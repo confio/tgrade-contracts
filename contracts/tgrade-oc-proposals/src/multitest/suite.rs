@@ -1,7 +1,7 @@
 use anyhow::Result as AnyResult;
 
 use cosmwasm_std::{Addr, Decimal};
-use cw3::{Status, Vote, VoteListResponse, VoterResponse};
+use cw3::{Status, Vote, VoteInfo, VoteListResponse, VoteResponse, VoterResponse};
 use cw_multi_test::{AppResponse, Contract, ContractWrapper, Executor};
 use tg4::{Member, MemberResponse, Tg4ExecuteMsg, Tg4QueryMsg};
 use tg_bindings::TgradeMsg;
@@ -317,6 +317,21 @@ impl Suite {
             .wrap()
             .query_wasm_smart(self.contract.clone(), &QueryMsg::Proposal { proposal_id })?;
         Ok(prop.status)
+    }
+
+    pub fn query_vote_info(
+        &mut self,
+        proposal_id: u64,
+        voter: &str,
+    ) -> Result<Option<VoteInfo>, ContractError> {
+        let vote: VoteResponse = self.app.wrap().query_wasm_smart(
+            self.contract.clone(),
+            &QueryMsg::Vote {
+                proposal_id,
+                voter: voter.to_owned(),
+            },
+        )?;
+        Ok(vote.vote)
     }
 
     pub fn query_voter_weight(&mut self, voter: &str) -> Result<Option<u64>, ContractError> {

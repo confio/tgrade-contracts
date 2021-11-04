@@ -4,7 +4,7 @@ use crate::error::ContractError;
 use suite::{get_proposal_id, member, RulesBuilder, SuiteBuilder};
 
 use cosmwasm_std::Decimal;
-use cw3::{Status, Vote};
+use cw3::{Status, Vote, VoteInfo};
 
 #[test]
 fn only_voters_can_propose() {
@@ -385,5 +385,55 @@ mod voting {
         let tally = suite.get_sum_of_votes(proposal_id);
         // Previous result + weight of voter3 (4)
         assert_eq!(tally, 7);
+    }
+
+    #[test]
+    fn query_individual_votes() {
+        let members = vec!["owner", "voter1", "voter2"];
+
+        let rules = RulesBuilder::new()
+            .with_threshold(Decimal::percent(51))
+            .build();
+
+        let mut suite = SuiteBuilder::new()
+            .with_group_member(members[0], 1)
+            .with_group_member(members[1], 2)
+            .with_group_member(members[2], 3)
+            .with_voting_rules(rules)
+            .build();
+
+        // Create proposal with 1 voting power
+        let response = suite
+            .propose_grant_engagement(members[0], members[1], 10)
+            .unwrap();
+        let proposal_id: u64 = get_proposal_id(&response).unwrap();
+
+        suite.vote(members[1], proposal_id, Vote::No).unwrap();
+
+        // Creator of proposal
+        let vote = suite.query_vote_info(proposal_id, members[0]).unwrap();
+        assert_eq!(
+            vote,
+            Some(VoteInfo {
+                voter: members[0].to_owned(),
+                vote: Vote::Yes,
+                weight: 1
+            })
+        );
+
+        // First no vote
+        let vote = suite.query_vote_info(proposal_id, members[1]).unwrap();
+        assert_eq!(
+            vote,
+            Some(VoteInfo {
+                voter: members[1].to_owned(),
+                vote: Vote::No,
+                weight: 2
+            })
+        );
+
+        // Non-voter
+        let vote = suite.query_vote_info(proposal_id, members[2]).unwrap();
+        assert!(vote.is_none());
     }
 }

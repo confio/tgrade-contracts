@@ -237,7 +237,7 @@ pub fn execute_close(
         .add_attribute("proposal_id", proposal_id.to_string()))
 }
 
-/// Function confirms if member exist (therefore has weight), and if his weight is >= 1
+/// Confirms if member exist (therefore has weight), and if his weight is >= 1
 fn confirm_voting_power(deps: Deps, member: &Addr, height: u64) -> Result<u64, ContractError> {
     let cfg = CONFIG.load(deps.storage)?;
     cfg.group_contract
