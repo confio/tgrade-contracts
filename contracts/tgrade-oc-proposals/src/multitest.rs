@@ -3,8 +3,8 @@ mod suite;
 use crate::error::ContractError;
 use suite::{get_proposal_id, member, RulesBuilder, SuiteBuilder};
 
-use cosmwasm_std::Decimal;
-use cw3::{Status, Vote};
+use cosmwasm_std::{Decimal, StdError};
+use cw3::{Status, Vote, VoteInfo};
 
 #[test]
 fn only_voters_can_propose() {
@@ -22,11 +22,27 @@ fn only_voters_can_propose() {
         .with_voting_rules(rules)
         .build();
 
+    // Member with 0 voting power is unable to create new proposal
+    let err = suite
+        .propose_grant_engagement(members[0], members[1], 10)
+        .unwrap_err();
+    assert_eq!(
+        ContractError::Std(StdError::GenericErr {
+            msg: "Unauthorized".to_string()
+        }),
+        err.downcast().unwrap()
+    );
+
     // Proposal from nonvoter is rejected
     let err = suite
         .propose_grant_engagement("nonvoter", members[1], 10)
         .unwrap_err();
-    assert_eq!(ContractError::Unauthorized {}, err.downcast().unwrap());
+    assert_eq!(
+        ContractError::Std(StdError::GenericErr {
+            msg: "Unauthorized".to_string()
+        }),
+        err.downcast().unwrap()
+    );
 
     // Regular proposal from voters is accepted
     let response = suite
@@ -193,7 +209,12 @@ fn execute_group_can_change() {
 
     // newmember can't vote
     let err = suite.vote(newmember, proposal_id, Vote::Yes).unwrap_err();
-    assert_eq!(ContractError::Unauthorized {}, err.downcast().unwrap());
+    assert_eq!(
+        ContractError::Std(StdError::GenericErr {
+            msg: "Unauthorized".to_string()
+        }),
+        err.downcast().unwrap()
+    );
 
     // Previously removed voter3 can still vote and passes the proposal
     suite.vote(members[3], proposal_id, Vote::Yes).unwrap();
@@ -203,7 +224,7 @@ fn execute_group_can_change() {
 
 #[test]
 fn close_proposal() {
-    let members = vec!["owner", "voter1", "voter2", "voter3"];
+    let members = vec!["owner", "voter1"];
 
     let rules = RulesBuilder::new()
         .with_threshold(Decimal::percent(51))
@@ -242,4 +263,202 @@ fn close_proposal() {
     // Closing second time causes error
     let err = suite.close("anybody", proposal_id).unwrap_err();
     assert_eq!(ContractError::WrongCloseStatus {}, err.downcast().unwrap());
+}
+
+mod voting {
+    use super::*;
+
+    #[test]
+    fn casting_votes() {
+        let members = vec!["owner", "voter1", "voter2", "voter3", "voter4"];
+
+        let rules = RulesBuilder::new()
+            .with_threshold(Decimal::percent(51))
+            .build();
+
+        let mut suite = SuiteBuilder::new()
+            .with_group_member(members[0], 1)
+            .with_group_member(members[1], 2)
+            .with_group_member(members[2], 3)
+            .with_group_member(members[3], 4)
+            .with_group_member(members[4], 0)
+            .with_voting_rules(rules)
+            .build();
+
+        // Create proposal with 1 voting power
+        let response = suite
+            .propose_grant_engagement(members[0], members[1], 10)
+            .unwrap();
+        let proposal_id: u64 = get_proposal_id(&response).unwrap();
+
+        // Owner cannot vote (again)
+        let err = suite.vote(members[0], proposal_id, Vote::Yes).unwrap_err();
+        assert_eq!(ContractError::AlreadyVoted {}, err.downcast().unwrap());
+
+        // Only voters can vote
+        let err = suite
+            .vote("random_guy", proposal_id, Vote::Yes)
+            .unwrap_err();
+        assert_eq!(
+            ContractError::Std(StdError::GenericErr {
+                msg: "Unauthorized".to_string()
+            }),
+            err.downcast().unwrap()
+        );
+
+        // Only members with voting power can vote
+        let err = suite.vote(members[4], proposal_id, Vote::Yes).unwrap_err();
+        assert_eq!(
+            ContractError::Std(StdError::GenericErr {
+                msg: "Unauthorized".to_string()
+            }),
+            err.downcast().unwrap()
+        );
+
+        let response = suite.vote(members[1], proposal_id, Vote::Yes).unwrap();
+        assert_eq!(
+            response.custom_attrs(1),
+            [
+                ("action", "vote"),
+                ("sender", members[1]),
+                ("proposal_id", proposal_id.to_string().as_str()),
+                ("status", "Open"),
+            ],
+        );
+
+        let err = suite.vote(members[1], proposal_id, Vote::Yes).unwrap_err();
+        assert_eq!(ContractError::AlreadyVoted {}, err.downcast().unwrap());
+
+        // Powerful voter supports it, so it passes
+        let response = suite.vote(members[3], proposal_id, Vote::Yes).unwrap();
+        assert_eq!(
+            response.custom_attrs(1),
+            [
+                ("action", "vote"),
+                ("sender", members[3]),
+                ("proposal_id", proposal_id.to_string().as_str()),
+                ("status", "Passed"),
+            ],
+        );
+
+        // Non-open proposals cannot be voted
+        let err = suite.vote(members[2], proposal_id, Vote::Yes).unwrap_err();
+        assert_eq!(ContractError::NotOpen {}, err.downcast().unwrap());
+    }
+
+    #[test]
+    fn expired_proposals_cannot_be_voted() {
+        let members = vec!["owner", "voter1"];
+
+        let rules = RulesBuilder::new()
+            .with_threshold(Decimal::percent(51))
+            .build();
+
+        let mut suite = SuiteBuilder::new()
+            .with_group_member(members[0], 1)
+            .with_group_member(members[1], 2)
+            .with_voting_rules(rules.clone())
+            .build();
+
+        // Create proposal with 1 voting power
+        let response = suite
+            .propose_grant_engagement(members[0], members[1], 10)
+            .unwrap();
+        let proposal_id: u64 = get_proposal_id(&response).unwrap();
+
+        // Move time forward so proposal expires
+        suite.app.advance_seconds(rules.voting_period_secs());
+
+        let err = suite.vote(members[1], proposal_id, Vote::Yes).unwrap_err();
+        assert_eq!(ContractError::Expired {}, err.downcast().unwrap());
+    }
+
+    #[test]
+    fn veto_doesnt_affect_tally() {
+        let members = vec!["owner", "voter1", "voter2", "voter3"];
+
+        let rules = RulesBuilder::new()
+            .with_threshold(Decimal::percent(51))
+            .build();
+
+        let mut suite = SuiteBuilder::new()
+            .with_group_member(members[0], 1)
+            .with_group_member(members[1], 2)
+            .with_group_member(members[2], 3)
+            .with_group_member(members[3], 4)
+            .with_voting_rules(rules)
+            .build();
+
+        // Create proposal with 1 voting power
+        let response = suite
+            .propose_grant_engagement(members[0], members[1], 10)
+            .unwrap();
+        let proposal_id: u64 = get_proposal_id(&response).unwrap();
+
+        suite.vote(members[1], proposal_id, Vote::Yes).unwrap();
+
+        let tally = suite.get_sum_of_votes(proposal_id);
+        // Weight of owner (1) + weight of voter1 (2)
+        assert_eq!(tally, 3);
+
+        // Veto doesn't affect the tally
+        suite.vote(members[2], proposal_id, Vote::Veto).unwrap();
+        let tally = suite.get_sum_of_votes(proposal_id);
+        assert_eq!(tally, 3);
+
+        suite.vote(members[3], proposal_id, Vote::Yes).unwrap();
+        let tally = suite.get_sum_of_votes(proposal_id);
+        // Previous result + weight of voter3 (4)
+        assert_eq!(tally, 7);
+    }
+
+    #[test]
+    fn query_individual_votes() {
+        let members = vec!["owner", "voter1", "voter2"];
+
+        let rules = RulesBuilder::new()
+            .with_threshold(Decimal::percent(51))
+            .build();
+
+        let mut suite = SuiteBuilder::new()
+            .with_group_member(members[0], 1)
+            .with_group_member(members[1], 2)
+            .with_group_member(members[2], 3)
+            .with_voting_rules(rules)
+            .build();
+
+        // Create proposal with 1 voting power
+        let response = suite
+            .propose_grant_engagement(members[0], members[1], 10)
+            .unwrap();
+        let proposal_id: u64 = get_proposal_id(&response).unwrap();
+
+        suite.vote(members[1], proposal_id, Vote::No).unwrap();
+
+        // Creator of proposal
+        let vote = suite.query_vote_info(proposal_id, members[0]).unwrap();
+        assert_eq!(
+            vote,
+            Some(VoteInfo {
+                voter: members[0].to_owned(),
+                vote: Vote::Yes,
+                weight: 1
+            })
+        );
+
+        // First no vote
+        let vote = suite.query_vote_info(proposal_id, members[1]).unwrap();
+        assert_eq!(
+            vote,
+            Some(VoteInfo {
+                voter: members[1].to_owned(),
+                vote: Vote::No,
+                weight: 2
+            })
+        );
+
+        // Non-voter
+        let vote = suite.query_vote_info(proposal_id, members[2]).unwrap();
+        assert!(vote.is_none());
+    }
 }
