@@ -313,6 +313,7 @@ pub enum DistributionMsg {
 pub struct RewardsInstantiateMsg {
     pub admin: Addr,
     pub token: String,
+    pub preauth_slashing: u64,
     pub members: Vec<Member>,
 }
 

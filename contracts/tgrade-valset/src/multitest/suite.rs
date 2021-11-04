@@ -184,7 +184,7 @@ impl SuiteBuilder {
                     admin: Some(admin.to_string()),
                     members: members.clone(),
                     preauths_hooks: 0,
-                    preauths_slashing: 0,
+                    preauths_slashing: 1,
                     halflife: None,
                     token: token.clone(),
                 },
@@ -203,7 +203,7 @@ impl SuiteBuilder {
                     admin: Some(admin.to_string()),
                     members: config.members,
                     preauths_hooks: 0,
-                    preauths_slashing: 0,
+                    preauths_slashing: 1,
                     halflife: config.halflife,
                     token: token.clone(),
                 },
@@ -369,6 +369,23 @@ impl Suite {
             Addr::unchecked(executor),
             self.valset.clone(),
             &ExecuteMsg::UpdateMetadata(metadata.clone()),
+            &[],
+        )
+    }
+
+    pub fn slash(
+        &mut self,
+        executor: &str,
+        addr: &str,
+        portion: Decimal,
+    ) -> AnyResult<AppResponse> {
+        self.app.execute_contract(
+            Addr::unchecked(executor),
+            self.valset.clone(),
+            &ExecuteMsg::Slash {
+                addr: addr.to_owned(),
+                portion,
+            },
             &[],
         )
     }

@@ -106,6 +106,7 @@ pub fn instantiate(
     let rewards_init = RewardsInstantiateMsg {
         admin: env.contract.address.clone(),
         token,
+        preauth_slashing: 1,
         members: vec![],
     };
 
