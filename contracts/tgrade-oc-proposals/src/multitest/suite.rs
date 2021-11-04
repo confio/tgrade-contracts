@@ -1,6 +1,6 @@
 use anyhow::Result as AnyResult;
 
-use cosmwasm_std::{Addr, Decimal};
+use cosmwasm_std::{coin, Addr, Binary, Decimal};
 use cw3::{Status, Vote, VoteInfo, VoteListResponse, VoteResponse, VoterResponse};
 use cw_multi_test::{AppResponse, Contract, ContractWrapper, Executor};
 use tg4::{Member, MemberResponse, Tg4ExecuteMsg, Tg4QueryMsg};
@@ -39,6 +39,17 @@ fn contract_engagement() -> Box<dyn Contract<TgradeMsg>> {
         tg4_engagement::contract::query,
     );
 
+    Box::new(contract)
+}
+
+pub fn contract_valset() -> Box<dyn Contract<TgradeMsg>> {
+    let contract = ContractWrapper::new(
+        tgrade_valset::contract::execute,
+        tgrade_valset::contract::instantiate,
+        tgrade_valset::contract::query,
+    )
+    .with_sudo(tgrade_valset::contract::sudo)
+    .with_reply(tgrade_valset::contract::reply);
     Box::new(contract)
 }
 
@@ -156,7 +167,7 @@ impl SuiteBuilder {
                 owner.clone(),
                 &tg4_engagement::msg::InstantiateMsg {
                     admin: Some(owner.to_string()),
-                    members: self.group_members,
+                    members: self.group_members.clone(),
                     preauths_hooks: 0,
                     preauths_slashing: 0,
                     halflife: None,
@@ -164,6 +175,63 @@ impl SuiteBuilder {
                 },
                 &[],
                 "group",
+                None,
+            )
+            .unwrap();
+
+        use tgrade_valset::msg::OperatorInitInfo;
+
+        pub fn mock_pubkey(base: &[u8]) -> tg_bindings::Pubkey {
+            const ED25519_PUBKEY_LENGTH: usize = 32;
+
+            let copies = (ED25519_PUBKEY_LENGTH / base.len()) + 1;
+            let mut raw = base.repeat(copies);
+            raw.truncate(ED25519_PUBKEY_LENGTH);
+            tg_bindings::Pubkey::Ed25519(Binary(raw))
+        }
+
+        use tgrade_valset::msg::ValidatorMetadata;
+
+        pub fn mock_metadata(seed: &str) -> ValidatorMetadata {
+            ValidatorMetadata {
+                moniker: seed.into(),
+                details: Some(format!("I'm really {}", seed)),
+                ..ValidatorMetadata::default()
+            }
+        }
+
+        let operators: Vec<_> = self
+            .group_members
+            .iter()
+            .map(|member| OperatorInitInfo {
+                operator: member.addr.clone(),
+                validator_pubkey: mock_pubkey(member.addr.as_bytes()),
+                metadata: mock_metadata(&member.addr),
+            })
+            .collect();
+
+        let valset_id = app.store_code(contract_valset());
+        let valset_contract = app
+            .instantiate_contract(
+                valset_id,
+                owner.clone(),
+                &tgrade_valset::msg::InstantiateMsg {
+                    admin: Some(owner.to_string()),
+                    auto_unjail: false,
+                    distribution_contract: None,
+                    epoch_length: 1,
+                    epoch_reward: coin(1, "engagement".to_string()),
+                    fee_percentage: Decimal::percent(20),
+                    initial_keys: operators,
+                    max_validators: 1,
+                    membership: group_contract.to_string(),
+                    min_weight: 1,
+                    rewards_code_id: 1,
+                    scaling: Some(1),
+                    validators_reward_ratio: Decimal::one(),
+                },
+                &[],
+                "engagement",
                 None,
             )
             .unwrap();
@@ -176,6 +244,7 @@ impl SuiteBuilder {
                 &crate::msg::InstantiateMsg {
                     group_addr: group_contract.to_string(),
                     engagement_addr: engagement_contract.to_string(),
+                    valset_addr: valset_contract.to_string(),
                     rules: self.rules,
                 },
                 &[],

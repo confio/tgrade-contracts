@@ -20,6 +20,7 @@ pub struct Config {
     // Total weight and voters are queried from this contract
     pub group_contract: Tg4Contract,
     pub engagement_contract: Tg4Contract,
+    pub valset_contract: Tg4Contract,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
