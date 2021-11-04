@@ -284,10 +284,12 @@ fn execute_unjail(
 fn execute_slash(
     deps: DepsMut,
     _env: Env,
-    _info: MessageInfo,
+    info: MessageInfo,
     addr: String,
     portion: Decimal,
 ) -> Result<Response, ContractError> {
+    ADMIN.assert_admin(deps.as_ref(), &info.sender)?;
+
     let addr = deps.api.addr_validate(&addr)?;
     let config = CONFIG.load(deps.storage)?;
 
