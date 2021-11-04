@@ -138,7 +138,7 @@ impl SuiteBuilder {
                 &tg4_engagement::msg::InstantiateMsg {
                     admin: Some(owner.to_string()),
                     members: self.engagement_members,
-                    preauths: 0,
+                    preauths_hooks: 0,
                     preauths_slashing: 0,
                     halflife: None,
                     token: "ENGAGEMENT".to_owned(),
@@ -157,7 +157,7 @@ impl SuiteBuilder {
                 &tg4_engagement::msg::InstantiateMsg {
                     admin: Some(owner.to_string()),
                     members: self.group_members,
-                    preauths: 0,
+                    preauths_hooks: 0,
                     preauths_slashing: 0,
                     halflife: None,
                     token: "GROUP".to_owned(),

@@ -22,9 +22,11 @@ pub struct InstantiateMsg {
     // admin can only add/remove hooks and slashers, not change other parameters
     pub admin: Option<String>,
     // or you can simply pre-authorize a number of hooks (to be done in following messages)
-    pub preauths: Option<u64>,
+    #[serde(default)]
+    pub preauths_hooks: u64,
     // and you can pre-authorize a number of slashers the same way
-    pub preauths_slashing: Option<u64>,
+    #[serde(default)]
+    pub preauths_slashing: u64,
     /// Limits how much claims would be automatically returned at end of block, 20 by default.
     /// Setting this to 0 disables auto returning claims.
     #[serde(default = "default_auto_return_limit")]
@@ -109,7 +111,7 @@ pub struct StakedResponse {
 
 #[derive(Serialize, Deserialize, Clone, PartialEq, JsonSchema, Debug)]
 pub struct PreauthResponse {
-    pub preauths: u64,
+    pub preauths_hooks: u64,
 }
 
 #[derive(Serialize, Deserialize, Clone, PartialEq, JsonSchema, Debug)]

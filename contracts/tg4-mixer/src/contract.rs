@@ -10,7 +10,7 @@ use cw_storage_plus::{Bound, PrimaryKey, U64Key};
 
 use tg_bindings::TgradeMsg;
 use tg_utils::{
-    members, validate_portion, SlashMsg, HOOKS, PREAUTH, PREAUTH_SLASHING, SLASHERS, TOTAL,
+    members, validate_portion, SlashMsg, HOOKS, PREAUTH_HOOKS, PREAUTH_SLASHING, SLASHERS, TOTAL,
 };
 
 use tg4::{
@@ -41,7 +41,7 @@ pub fn instantiate(
     msg: InstantiateMsg,
 ) -> Result<Response, ContractError> {
     set_contract_version(deps.storage, CONTRACT_NAME, CONTRACT_VERSION)?;
-    PREAUTH.set_auth(deps.storage, msg.preauths)?;
+    PREAUTH_HOOKS.set_auth(deps.storage, msg.preauths_hooks)?;
     PREAUTH_SLASHING.set_auth(deps.storage, msg.preauths_slashing)?;
 
     SLASHERS.instantiate(deps.storage)?;
@@ -228,7 +228,7 @@ pub fn execute_add_hook(
     hook: String,
 ) -> Result<Response, ContractError> {
     // custom guard: only preauth
-    PREAUTH.use_auth(deps.storage)?;
+    PREAUTH_HOOKS.use_auth(deps.storage)?;
 
     // add the hook
     HOOKS.add_hook(deps.storage, deps.api.addr_validate(&hook)?)?;
@@ -353,8 +353,8 @@ pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
             to_binary(&HooksResponse { hooks })
         }
         QueryMsg::Preauths {} => {
-            let preauths = PREAUTH.get_auth(deps.storage)?;
-            to_binary(&PreauthResponse { preauths })
+            let preauths_hooks = PREAUTH_HOOKS.get_auth(deps.storage)?;
+            to_binary(&PreauthResponse { preauths_hooks })
         }
         QueryMsg::RewardFunction {
             stake,
@@ -517,7 +517,7 @@ mod tests {
         let msg = tg4_engagement::msg::InstantiateMsg {
             admin: admin.clone(),
             members,
-            preauths: 1,
+            preauths_hooks: 1,
             preauths_slashing: 1,
             halflife: None,
             token: STAKE_DENOM.to_owned(),
@@ -536,8 +536,8 @@ mod tests {
             min_bond: Uint128::new(100),
             unbonding_period: 3600,
             admin: admin.clone(),
-            preauths: Some(1),
-            preauths_slashing: Some(1),
+            preauths_hooks: 1,
+            preauths_slashing: 1,
             auto_return_limit: 0,
         };
         let contract = app
@@ -571,7 +571,7 @@ mod tests {
         let msg = crate::msg::InstantiateMsg {
             left_group: left.to_string(),
             right_group: right.to_string(),
-            preauths: 0,
+            preauths_hooks: 0,
             preauths_slashing: 1,
             function_type: PoEFunctionType::GeometricMean {},
         };

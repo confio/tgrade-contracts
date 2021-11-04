@@ -468,7 +468,7 @@ mod tests {
         let msg = tg4_engagement::msg::InstantiateMsg {
             admin: Some(OWNER.into()),
             members,
-            preauths: 0,
+            preauths_hooks: 0,
             preauths_slashing: 0,
             halflife: None,
             token: ENGAGEMENT_TOKEN.to_owned(),
@@ -487,7 +487,7 @@ mod tests {
         let msg = tg4_engagement::msg::InstantiateMsg {
             admin,
             members,
-            preauths: 0,
+            preauths_hooks: 0,
             preauths_slashing: 0,
             halflife: None,
             token: ENGAGEMENT_TOKEN.to_owned(),

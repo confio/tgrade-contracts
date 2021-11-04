@@ -134,7 +134,7 @@ impl SuiteBuilder {
                 &tg4_engagement::msg::InstantiateMsg {
                     admin: Some(owner.to_string()),
                     members: self.deny_list,
-                    preauths: 0,
+                    preauths_hooks: 0,
                     preauths_slashing: 0,
                     halflife: None,
                     token: "utgd".to_owned(),

@@ -6,7 +6,7 @@ use tg4::TOTAL_KEY;
 
 pub const ADMIN: Admin = Admin::new("admin");
 pub const HOOKS: Hooks = Hooks::new("tg4-hooks");
-pub const PREAUTH: Preauth = Preauth::new("tg4-preauth");
+pub const PREAUTH_HOOKS: Preauth = Preauth::new("tg4-preauth");
 pub const SLASHERS: Slashers = Slashers::new("tg4-slashers");
 pub const PREAUTH_SLASHING: Preauth = Preauth::new("tg4-preauth_slashing");
 pub const TOTAL: Item<u64> = Item::new(TOTAL_KEY);
