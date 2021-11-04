@@ -120,6 +120,25 @@ impl Tg4Contract {
         }
     }
 
+    /// Check if this address is a member, and if its weight is >= 1
+    pub fn is_voting_member<T: Into<String>>(
+        &self,
+        querier: &QuerierWrapper,
+        member: T,
+        height: u64,
+    ) -> StdResult<u64> {
+        self.member_at_height(querier, member, height)?.map_or(
+            Err(StdError::generic_err("Unauthorized")),
+            |member_weight| {
+                if member_weight < 1 {
+                    Err(StdError::generic_err("Unauthorized"))
+                } else {
+                    Ok(member_weight)
+                }
+            },
+        )
+    }
+
     /// Return the member's weight at the given snapshot - requires a smart query
     pub fn member_at_height<T: Into<String>>(
         &self,

@@ -3,7 +3,7 @@ mod suite;
 use crate::error::ContractError;
 use suite::{get_proposal_id, member, RulesBuilder, SuiteBuilder};
 
-use cosmwasm_std::Decimal;
+use cosmwasm_std::{Decimal, StdError};
 use cw3::{Status, Vote, VoteInfo};
 
 #[test]
@@ -26,13 +26,23 @@ fn only_voters_can_propose() {
     let err = suite
         .propose_grant_engagement(members[0], members[1], 10)
         .unwrap_err();
-    assert_eq!(ContractError::Unauthorized {}, err.downcast().unwrap());
+    assert_eq!(
+        ContractError::Std(StdError::GenericErr {
+            msg: "Unauthorized".to_string()
+        }),
+        err.downcast().unwrap()
+    );
 
     // Proposal from nonvoter is rejected
     let err = suite
         .propose_grant_engagement("nonvoter", members[1], 10)
         .unwrap_err();
-    assert_eq!(ContractError::Unauthorized {}, err.downcast().unwrap());
+    assert_eq!(
+        ContractError::Std(StdError::GenericErr {
+            msg: "Unauthorized".to_string()
+        }),
+        err.downcast().unwrap()
+    );
 
     // Regular proposal from voters is accepted
     let response = suite
@@ -199,7 +209,12 @@ fn execute_group_can_change() {
 
     // newmember can't vote
     let err = suite.vote(newmember, proposal_id, Vote::Yes).unwrap_err();
-    assert_eq!(ContractError::Unauthorized {}, err.downcast().unwrap());
+    assert_eq!(
+        ContractError::Std(StdError::GenericErr {
+            msg: "Unauthorized".to_string()
+        }),
+        err.downcast().unwrap()
+    );
 
     // Previously removed voter3 can still vote and passes the proposal
     suite.vote(members[3], proposal_id, Vote::Yes).unwrap();
@@ -284,11 +299,21 @@ mod voting {
         let err = suite
             .vote("random_guy", proposal_id, Vote::Yes)
             .unwrap_err();
-        assert_eq!(ContractError::Unauthorized {}, err.downcast().unwrap());
+        assert_eq!(
+            ContractError::Std(StdError::GenericErr {
+                msg: "Unauthorized".to_string()
+            }),
+            err.downcast().unwrap()
+        );
 
         // Only members with voting power can vote
         let err = suite.vote(members[4], proposal_id, Vote::Yes).unwrap_err();
-        assert_eq!(ContractError::Unauthorized {}, err.downcast().unwrap());
+        assert_eq!(
+            ContractError::Std(StdError::GenericErr {
+                msg: "Unauthorized".to_string()
+            }),
+            err.downcast().unwrap()
+        );
 
         let response = suite.vote(members[1], proposal_id, Vote::Yes).unwrap();
         assert_eq!(

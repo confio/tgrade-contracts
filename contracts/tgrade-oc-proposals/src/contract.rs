@@ -1,7 +1,7 @@
 #[cfg(not(feature = "library"))]
 use cosmwasm_std::entry_point;
 use cosmwasm_std::{
-    to_binary, Addr, Binary, BlockInfo, Deps, DepsMut, Env, MessageInfo, Order, StdResult,
+    to_binary, Binary, BlockInfo, Deps, DepsMut, Env, MessageInfo, Order, StdResult,
 };
 
 use cw0::{maybe_addr, Expiration};
@@ -92,7 +92,9 @@ pub fn execute_propose(
 
     // Only members of the multisig can create a proposal
     // Additional check if weight >= 1
-    let vote_power = confirm_voting_power(deps.as_ref(), &info.sender, env.block.height)?;
+    let vote_power =
+        cfg.group_contract
+            .is_voting_member(&deps.querier, &info.sender, env.block.height)?;
 
     // calculate expiry time
     let expires = Expiration::AtTime(env.block.time.plus_seconds(cfg.rules.voting_period_secs()));
@@ -145,7 +147,10 @@ pub fn execute_vote(
 
     // use a snapshot of "start of proposal"
     // Must be a member of voting group and have voting power >= 1
-    let vote_power = confirm_voting_power(deps.as_ref(), &info.sender, prop.start_height)?;
+    let cfg = CONFIG.load(deps.storage)?;
+    let vote_power =
+        cfg.group_contract
+            .is_voting_member(&deps.querier, &info.sender, prop.start_height)?;
 
     // cast vote if no vote previously cast
     BALLOTS.update(
@@ -235,23 +240,6 @@ pub fn execute_close(
         .add_attribute("action", "close")
         .add_attribute("sender", info.sender)
         .add_attribute("proposal_id", proposal_id.to_string()))
-}
-
-/// Confirms if member exist (therefore has weight), and if his weight is >= 1
-fn confirm_voting_power(deps: Deps, member: &Addr, height: u64) -> Result<u64, ContractError> {
-    let cfg = CONFIG.load(deps.storage)?;
-    cfg.group_contract
-        .member_at_height(&deps.querier, member, height)?
-        .map_or_else(
-            || Err(ContractError::Unauthorized {}),
-            |member_weight| {
-                if member_weight < 1 {
-                    Err(ContractError::Unauthorized {})
-                } else {
-                    Ok(member_weight)
-                }
-            },
-        )
 }
 
 #[cfg_attr(not(feature = "library"), entry_point)]
