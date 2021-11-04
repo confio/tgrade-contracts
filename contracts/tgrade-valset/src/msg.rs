@@ -195,6 +195,12 @@ pub enum ExecuteMsg {
         /// message (for convenience when unjailing self after the jail period).
         operator: Option<String>,
     },
+    /// To be called by admin only. Slashes a given address (by forwarding slash to both rewards
+    /// contract and engagement contract)
+    Slash {
+        addr: String,
+        portion: Decimal,
+    },
 }
 
 #[derive(Serialize, Deserialize, Clone, PartialEq, JsonSchema, Debug)]
@@ -324,6 +330,14 @@ pub enum RewardsDistribution {
 #[serde(rename_all = "snake_case")]
 pub struct InstantiateResponse {
     pub rewards_contract: Addr,
+}
+
+/// Messages to be send in slashing process
+#[derive(Serialize, Deserialize, Clone, PartialEq, JsonSchema, Debug)]
+#[serde(rename_all = "snake_case")]
+pub enum Slashing {
+    AddSlasher { addr: Addr },
+    Slash { addr: Addr, portion: Decimal },
 }
 
 #[cfg(test)]

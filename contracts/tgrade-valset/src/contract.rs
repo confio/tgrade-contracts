@@ -3,8 +3,8 @@ use std::collections::BTreeSet;
 use std::convert::TryInto;
 
 use cosmwasm_std::{
-    entry_point, to_binary, Addr, Binary, BlockInfo, Deps, DepsMut, Env, MessageInfo, Order, Reply,
-    StdError, StdResult, SubMsg, Timestamp, WasmMsg,
+    entry_point, to_binary, Addr, Binary, BlockInfo, Decimal, Deps, DepsMut, Env, MessageInfo,
+    Order, Reply, StdError, StdResult, SubMsg, Timestamp, WasmMsg,
 };
 
 use cw0::{maybe_addr, parse_reply_instantiate_data};
@@ -23,7 +23,7 @@ use crate::error::ContractError;
 use crate::msg::{
     ConfigResponse, EpochResponse, ExecuteMsg, InstantiateMsg, InstantiateResponse, JailingPeriod,
     ListActiveValidatorsResponse, ListValidatorResponse, OperatorResponse, QueryMsg,
-    RewardsDistribution, RewardsInstantiateMsg, ValidatorMetadata, ValidatorResponse,
+    RewardsDistribution, RewardsInstantiateMsg, Slashing, ValidatorMetadata, ValidatorResponse,
 };
 use crate::rewards::pay_block_rewards;
 use crate::state::{
@@ -36,6 +36,7 @@ const CONTRACT_NAME: &str = "crates.io:tgrade-valset";
 const CONTRACT_VERSION: &str = env!("CARGO_PKG_VERSION");
 
 const REWARDS_INIT_REPLY_ID: u64 = 1;
+const ADD_SLASHER_REPLY_ID: u64 = 2;
 
 /// We use this custom message everywhere
 pub type Response = cosmwasm_std::Response<TgradeMsg>;
@@ -69,6 +70,7 @@ pub fn instantiate(
         validators_reward_ratio: msg.validators_reward_ratio,
         distribution_contract: msg
             .distribution_contract
+            .clone()
             .map(|addr| deps.api.addr_validate(&addr))
             .transpose()?,
         // Will be overwritten in reply for rewards contract instantiation
@@ -107,16 +109,35 @@ pub fn instantiate(
         members: vec![],
     };
 
-    let resp = Response::new().add_submessage(SubMsg::reply_on_success(
-        WasmMsg::Instantiate {
-            admin: Some(env.contract.address.to_string()),
-            code_id: msg.rewards_code_id,
-            msg: to_binary(&rewards_init)?,
-            funds: vec![],
-            label: format!("rewards_distribution_{}", env.contract.address),
-        },
+    let instantiate_rewards_msg = WasmMsg::Instantiate {
+        admin: Some(env.contract.address.to_string()),
+        code_id: msg.rewards_code_id,
+        msg: to_binary(&rewards_init)?,
+        funds: vec![],
+        label: format!("rewards_distribution_{}", env.contract.address),
+    };
+
+    let mut resp = Response::new().add_submessage(SubMsg::reply_on_success(
+        instantiate_rewards_msg,
         REWARDS_INIT_REPLY_ID,
     ));
+
+    if let Some(distribution_contract) = msg.distribution_contract {
+        let add_slasher = Slashing::AddSlasher {
+            addr: env.contract.address,
+        };
+
+        let add_slasher_msg = WasmMsg::Execute {
+            contract_addr: distribution_contract,
+            msg: to_binary(&add_slasher)?,
+            funds: vec![],
+        };
+
+        resp = resp.add_submessage(SubMsg::reply_on_error(
+            add_slasher_msg,
+            ADD_SLASHER_REPLY_ID,
+        ));
+    }
 
     Ok(resp)
 }
@@ -137,6 +158,7 @@ pub fn execute(
             execute_jail(deps, env, info, operator, duration)
         }
         ExecuteMsg::Unjail { operator } => execute_unjail(deps, env, info, operator),
+        ExecuteMsg::Slash { addr, portion } => execute_slash(deps, env, info, addr, portion),
     }
 }
 
@@ -257,6 +279,39 @@ fn execute_unjail(
         .add_attribute("operator", operator.as_str());
 
     Ok(res)
+}
+
+fn execute_slash(
+    deps: DepsMut,
+    _env: Env,
+    _info: MessageInfo,
+    addr: String,
+    portion: Decimal,
+) -> Result<Response, ContractError> {
+    let addr = deps.api.addr_validate(&addr)?;
+    let config = CONFIG.load(deps.storage)?;
+
+    let slash_msg = Slashing::Slash { addr, portion };
+    let slash_msg = to_binary(&slash_msg)?;
+
+    let slash_rewards = WasmMsg::Execute {
+        contract_addr: config.rewards_contract.to_string(),
+        msg: slash_msg.clone(),
+        funds: vec![],
+    };
+
+    let mut resp = Response::new().add_submessage(SubMsg::new(slash_rewards));
+
+    if let Some(contract_addr) = config.distribution_contract {
+        let slash_distribution = WasmMsg::Execute {
+            contract_addr: contract_addr.to_string(),
+            msg: slash_msg,
+            funds: vec![],
+        };
+        resp = resp.add_submessage(SubMsg::new(slash_distribution));
+    }
+
+    Ok(resp)
 }
 
 #[cfg_attr(not(feature = "library"), entry_point)]
@@ -604,13 +659,17 @@ fn calculate_diff(
 pub fn reply(deps: DepsMut, env: Env, msg: Reply) -> Result<Response, ContractError> {
     match msg.id {
         REWARDS_INIT_REPLY_ID => rewards_instantiate_reply(deps, env, msg),
+        // Adding slasher doesn't affect success of instantiation - it would make slashing fail
+        // unless contract wont be added as slasher manually, but it is not crucial for this
+        // contract.
+        ADD_SLASHER_REPLY_ID => Ok(Response::new()),
         _ => Err(ContractError::UnrecognisedReply(msg.id)),
     }
 }
 
 pub fn rewards_instantiate_reply(
     deps: DepsMut,
-    _env: Env,
+    env: Env,
     msg: Reply,
 ) -> Result<Response, ContractError> {
     let id = msg.id;
@@ -629,7 +688,23 @@ pub fn rewards_instantiate_reply(
     let data = InstantiateResponse {
         rewards_contract: addr,
     };
-    let resp = Response::new().set_data(to_binary(&data)?);
+
+    let add_slasher = Slashing::AddSlasher {
+        addr: env.contract.address,
+    };
+
+    let add_slasher_msg = WasmMsg::Execute {
+        contract_addr: res.contract_address,
+        msg: to_binary(&add_slasher)?,
+        funds: vec![],
+    };
+
+    let resp = Response::new()
+        .set_data(to_binary(&data)?)
+        .add_submessage(SubMsg::reply_on_error(
+            add_slasher_msg,
+            ADD_SLASHER_REPLY_ID,
+        ));
 
     Ok(resp)
 }
