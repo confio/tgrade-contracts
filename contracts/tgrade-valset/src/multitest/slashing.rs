@@ -27,6 +27,8 @@ fn admin_can_slash() {
         .slash(&admin, actors[0], Decimal::percent(50))
         .unwrap();
 
+    // First epoch. Rewards are not slashed yet, but validators and their weights should be
+    // recalculated
     suite.advance_epoch().unwrap();
 
     suite.withdraw_engagement_reward(engagement[0]).unwrap();
@@ -34,9 +36,23 @@ fn admin_can_slash() {
     suite.withdraw_validation_reward(members[0]).unwrap();
     suite.withdraw_validation_reward(members[1]).unwrap();
 
-    assert_eq!(suite.token_balance(actors[0]).unwrap(), 1500);
-    assert_eq!(suite.token_balance(actors[1]).unwrap(), 750);
-    assert_eq!(suite.token_balance(actors[2]).unwrap(), 750);
+    assert_eq!(suite.token_balance(actors[0]).unwrap(), 2000);
+    assert_eq!(suite.token_balance(actors[1]).unwrap(), 500);
+    assert_eq!(suite.token_balance(actors[2]).unwrap(), 500);
+
+    // Second epoch. Rewards are sum from previous epoch + slashed rewards from second epoch. Only
+    // validation rewards are slashed here (so rewards distribution is affected), the engagement
+    // contract stays unchanged
+    suite.advance_epoch().unwrap();
+
+    suite.withdraw_engagement_reward(engagement[0]).unwrap();
+    suite.withdraw_engagement_reward(engagement[1]).unwrap();
+    suite.withdraw_validation_reward(members[0]).unwrap();
+    suite.withdraw_validation_reward(members[1]).unwrap();
+
+    assert_eq!(suite.token_balance(actors[0]).unwrap(), 3750);
+    assert_eq!(suite.token_balance(actors[1]).unwrap(), 1000);
+    assert_eq!(suite.token_balance(actors[2]).unwrap(), 1250);
 }
 
 #[test]
@@ -65,6 +81,9 @@ fn non_admin_cant_slash() {
         err.downcast().unwrap()
     );
 
+    // Going two epochs to ensure validators recalculation after slashing. No distributions shall
+    // be affected.
+    suite.advance_epoch().unwrap();
     suite.advance_epoch().unwrap();
 
     suite.withdraw_engagement_reward(engagement[0]).unwrap();
@@ -72,7 +91,7 @@ fn non_admin_cant_slash() {
     suite.withdraw_validation_reward(members[0]).unwrap();
     suite.withdraw_validation_reward(members[1]).unwrap();
 
-    assert_eq!(suite.token_balance(actors[0]).unwrap(), 2000);
-    assert_eq!(suite.token_balance(actors[1]).unwrap(), 500);
-    assert_eq!(suite.token_balance(actors[2]).unwrap(), 500);
+    assert_eq!(suite.token_balance(actors[0]).unwrap(), 4000);
+    assert_eq!(suite.token_balance(actors[1]).unwrap(), 1000);
+    assert_eq!(suite.token_balance(actors[2]).unwrap(), 1000);
 }
