@@ -88,16 +88,11 @@ pub fn execute_propose(
     description: String,
     proposal: OversightProposal,
 ) -> Result<Response, ContractError> {
-    // only members of the multisig can create a proposal
     let cfg = CONFIG.load(deps.storage)?;
 
-    let vote_power = cfg
-        .group_contract
-        .is_member(&deps.querier, &info.sender)?
-        .ok_or(ContractError::Unauthorized {})?;
-
+    // Only members of the multisig can create a proposal
     // Additional check if weight >= 1
-    confirm_voting_power(deps.as_ref(), &info.sender, env.block.height)?;
+    let vote_power = confirm_voting_power(deps.as_ref(), &info.sender, env.block.height)?;
 
     // calculate expiry time
     let expires = Expiration::AtTime(env.block.time.plus_seconds(cfg.rules.voting_period_secs()));
@@ -242,17 +237,18 @@ pub fn execute_close(
         .add_attribute("proposal_id", proposal_id.to_string()))
 }
 
+/// Function confirms if member exist (therefore has weight), and if his weight is >= 1
 fn confirm_voting_power(deps: Deps, member: &Addr, height: u64) -> Result<u64, ContractError> {
     let cfg = CONFIG.load(deps.storage)?;
     cfg.group_contract
         .member_at_height(&deps.querier, member, height)?
         .map_or_else(
             || Err(ContractError::Unauthorized {}),
-            |w| {
-                if w < 1 {
+            |member_weight| {
+                if member_weight < 1 {
                     Err(ContractError::Unauthorized {})
                 } else {
-                    Ok(w)
+                    Ok(member_weight)
                 }
             },
         )
