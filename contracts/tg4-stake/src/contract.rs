@@ -14,7 +14,8 @@ use tg4::{
 };
 use tg_bindings::{request_privileges, Privilege, PrivilegeChangeMsg, TgradeMsg, TgradeSudoMsg};
 use tg_utils::{
-    members, validate_portion, Duration, ADMIN, HOOKS, PREAUTH, PREAUTH_SLASHING, SLASHERS, TOTAL,
+    members, validate_portion, Duration, ADMIN, HOOKS, PREAUTH_HOOKS, PREAUTH_SLASHING, SLASHERS,
+    TOTAL,
 };
 
 use crate::error::ContractError;
@@ -44,8 +45,8 @@ pub fn instantiate(
     let api = deps.api;
     ADMIN.set(deps.branch(), maybe_addr(api, msg.admin)?)?;
 
-    PREAUTH.set_auth(deps.storage, msg.preauths)?;
-    PREAUTH_SLASHING.set_auth(deps.storage, msg.preauths)?;
+    PREAUTH_HOOKS.set_auth(deps.storage, msg.preauths_hooks)?;
+    PREAUTH_SLASHING.set_auth(deps.storage, msg.preauths_slashing)?;
 
     // min_bond is at least 1, so 0 stake -> non-membership
     let min_bond = if msg.min_bond == Uint128::zero() {
@@ -99,7 +100,7 @@ pub fn execute_add_hook(
 ) -> Result<Response, ContractError> {
     // custom guard: using a preauth OR being admin
     if !ADMIN.is_admin(deps.as_ref(), &info.sender)? {
-        PREAUTH.use_auth(deps.storage)?;
+        PREAUTH_HOOKS.use_auth(deps.storage)?;
     }
 
     // add the hook
@@ -453,8 +454,8 @@ pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
             to_binary(&HooksResponse { hooks })
         }
         QueryMsg::Preauths {} => {
-            let preauths = PREAUTH.get_auth(deps.storage)?;
-            to_binary(&PreauthResponse { preauths })
+            let preauths_hooks = PREAUTH_HOOKS.get_auth(deps.storage)?;
+            to_binary(&PreauthResponse { preauths_hooks })
         }
         QueryMsg::UnbondingPeriod {} => {
             let Config {
@@ -583,7 +584,7 @@ mod tests {
             min_bond,
             unbonding_period,
             admin: Some(INIT_ADMIN.into()),
-            preauths: 1,
+            preauths_hooks: 1,
             preauths_slashing: 1,
             auto_return_limit,
         };
@@ -1159,14 +1160,14 @@ mod tests {
         };
 
         // anyone can add the first one, until preauth is consume
-        assert_eq!(1, PREAUTH.get_auth(&deps.storage).unwrap());
+        assert_eq!(1, PREAUTH_HOOKS.get_auth(&deps.storage).unwrap());
         let user_info = mock_info(USER1, &[]);
         let _ = execute(deps.as_mut(), mock_env(), user_info, add_msg.clone()).unwrap();
         let hooks = HOOKS.list_hooks(&deps.storage).unwrap();
         assert_eq!(hooks, vec![contract1.clone()]);
 
         // non-admin cannot add hook without preauth
-        assert_eq!(0, PREAUTH.get_auth(&deps.storage).unwrap());
+        assert_eq!(0, PREAUTH_HOOKS.get_auth(&deps.storage).unwrap());
         let user_info = mock_info(USER1, &[]);
         let err = execute(
             deps.as_mut(),

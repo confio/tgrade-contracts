@@ -15,7 +15,7 @@ pub struct InstantiateMsg {
     pub right_group: String,
     /// Preauthorize some hooks on init (only way to add them)
     #[serde(default)]
-    pub preauths: u64,
+    pub preauths_hooks: u64,
     /// Preauthorize slasher registration on init (only way to add them)
     #[serde(default)]
     pub preauths_slashing: u64,
@@ -131,7 +131,7 @@ pub struct GroupsResponse {
 
 #[derive(Serialize, Deserialize, Clone, PartialEq, JsonSchema, Debug)]
 pub struct PreauthResponse {
-    pub preauths: u64,
+    pub preauths_hooks: u64,
 }
 
 #[derive(Serialize, Deserialize, Clone, PartialEq, JsonSchema, Debug)]

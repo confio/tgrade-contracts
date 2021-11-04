@@ -22,7 +22,7 @@ use crate::state::{
     PREAUTH_SLASHING, SLASHERS, WITHDRAW_ADJUSTMENT,
 };
 use tg_bindings::{request_privileges, Privilege, PrivilegeChangeMsg, TgradeMsg};
-use tg_utils::{members, validate_portion, Duration, ADMIN, HOOKS, PREAUTH, TOTAL};
+use tg_utils::{members, validate_portion, Duration, ADMIN, HOOKS, PREAUTH_HOOKS, TOTAL};
 
 pub type Response = cosmwasm_std::Response<TgradeMsg>;
 pub type SubMsg = cosmwasm_std::SubMsg<TgradeMsg>;
@@ -45,7 +45,7 @@ pub fn instantiate(
         deps,
         msg.admin,
         msg.members,
-        msg.preauths,
+        msg.preauths_hooks,
         msg.preauths_slashing,
         env.block.height,
         env.block.time,
@@ -63,7 +63,7 @@ pub fn create(
     mut deps: DepsMut,
     admin: Option<String>,
     members_list: Vec<Member>,
-    preauths: u64,
+    preauths_hooks: u64,
     preauths_slashing: u64,
     height: u64,
     time: Timestamp,
@@ -75,7 +75,7 @@ pub fn create(
         .transpose()?;
     ADMIN.set(deps.branch(), admin_addr)?;
 
-    PREAUTH.set_auth(deps.storage, preauths)?;
+    PREAUTH_HOOKS.set_auth(deps.storage, preauths_hooks)?;
     PREAUTH_SLASHING.set_auth(deps.storage, preauths_slashing)?;
 
     let data = Halflife {
@@ -187,7 +187,7 @@ pub fn execute_add_hook(
 ) -> Result<Response, ContractError> {
     // custom guard: using a preauth OR being admin
     if !ADMIN.is_admin(deps.as_ref(), &info.sender)? {
-        PREAUTH.use_auth(deps.storage)?;
+        PREAUTH_HOOKS.use_auth(deps.storage)?;
     }
 
     // add the hook
@@ -696,7 +696,7 @@ pub fn query(deps: Deps, env: Env, msg: QueryMsg) -> StdResult<Binary> {
             to_binary(&HooksResponse { hooks })
         }
         QueryMsg::Preauths {} => {
-            let preauths = PREAUTH.get_auth(deps.storage)?;
+            let preauths = PREAUTH_HOOKS.get_auth(deps.storage)?;
             to_binary(&PreauthResponse { preauths })
         }
         QueryMsg::WithdrawableFunds { owner } => to_binary(&query_withdrawable_funds(deps, owner)?),
@@ -879,7 +879,7 @@ mod tests {
                     weight: USER2_WEIGHT,
                 },
             ],
-            preauths: 1,
+            preauths_hooks: 1,
             preauths_slashing: 0,
             halflife: Some(Duration::new(HALFLIFE)),
             token: "usdc".to_owned(),
@@ -900,7 +900,7 @@ mod tests {
         let res = query_total_weight(deps.as_ref()).unwrap();
         assert_eq!(17, res.weight);
 
-        let preauths = PREAUTH.get_auth(&deps.storage).unwrap();
+        let preauths = PREAUTH_HOOKS.get_auth(&deps.storage).unwrap();
         assert_eq!(1, preauths);
     }
 
@@ -1075,7 +1075,7 @@ mod tests {
                     weight: USER2_WEIGHT,
                 },
             ],
-            preauths: 1,
+            preauths_hooks: 1,
             preauths_slashing: 0,
             halflife: None,
             token: "usdc".to_owned(),
@@ -1315,14 +1315,14 @@ mod tests {
         };
 
         // anyone can add the first one, until preauth is consume
-        assert_eq!(1, PREAUTH.get_auth(&deps.storage).unwrap());
+        assert_eq!(1, PREAUTH_HOOKS.get_auth(&deps.storage).unwrap());
         let user_info = mock_info(USER1, &[]);
         let _ = execute(deps.as_mut(), mock_env(), user_info, add_msg.clone()).unwrap();
         let hooks = HOOKS.list_hooks(&deps.storage).unwrap();
         assert_eq!(hooks, vec![contract1.clone()]);
 
         // non-admin cannot add hook without preauth
-        assert_eq!(0, PREAUTH.get_auth(&deps.storage).unwrap());
+        assert_eq!(0, PREAUTH_HOOKS.get_auth(&deps.storage).unwrap());
         let user_info = mock_info(USER1, &[]);
         let err = execute(
             deps.as_mut(),

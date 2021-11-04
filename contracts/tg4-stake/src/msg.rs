@@ -23,7 +23,7 @@ pub struct InstantiateMsg {
     pub admin: Option<String>,
     // or you can simply pre-authorize a number of hooks (to be done in following messages)
     #[serde(default)]
-    pub preauths: u64,
+    pub preauths_hooks: u64,
     // and you can pre-authorize a number of slashers the same way
     #[serde(default)]
     pub preauths_slashing: u64,
@@ -111,7 +111,7 @@ pub struct StakedResponse {
 
 #[derive(Serialize, Deserialize, Clone, PartialEq, JsonSchema, Debug)]
 pub struct PreauthResponse {
-    pub preauths: u64,
+    pub preauths_hooks: u64,
 }
 
 #[derive(Serialize, Deserialize, Clone, PartialEq, JsonSchema, Debug)]

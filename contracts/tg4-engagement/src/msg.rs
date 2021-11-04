@@ -14,7 +14,7 @@ pub struct InstantiateMsg {
     pub admin: Option<String>,
     pub members: Vec<Member>,
     #[serde(default)]
-    pub preauths: u64,
+    pub preauths_hooks: u64,
     #[serde(default)]
     pub preauths_slashing: u64,
     pub halflife: Option<Duration>,
