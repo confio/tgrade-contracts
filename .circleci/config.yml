@@ -8,6 +8,7 @@ workflows:
       - contract_tg4_stake
       - contract_tgrade_trusted_circle
       - contract_tgrade_gov_reflect
+      - contract_tgrade_oc_proposals
       - contract_tgrade_valset
       - contract_tgrade_vesting_account
       - package_bindings
@@ -168,6 +169,33 @@ jobs:
             - /usr/local/cargo/registry
             - target
           key: cargocache-tgrade-gov-reflect-rust:1.53.0-{{ checksum "~/project/Cargo.lock" }}
+
+  contract_tgrade_oc_proposals:
+    docker:
+      - image: rust:1.53.0
+    working_directory: ~/project/contracts/tgrade-oc-proposals
+    steps:
+      - checkout:
+          path: ~/project
+      - run:
+          name: Version information
+          command: rustc --version; cargo --version; rustup --version
+      - restore_cache:
+          keys:
+            - cargocache-tgrade-oc-proposals-rust:1.53.0-{{ checksum "~/project/Cargo.lock" }}
+      - run:
+          name: Unit Tests
+          environment:
+            RUST_BACKTRACE: 1
+          command: cargo unit-test --locked
+      - run:
+          name: Build and run schema generator
+          command: cargo schema --locked
+      - save_cache:
+          paths:
+            - /usr/local/cargo/registry
+            - target
+          key: cargocache-tgrade-oc-proposals-rust:1.53.0-{{ checksum "~/project/Cargo.lock" }}
 
   contract_tgrade_valset:
     docker:
