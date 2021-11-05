@@ -40,8 +40,13 @@ then
   ORIGINAL_OPTS="$ORIGINAL_OPTS --since-tag $TAG"
 fi
 
+echo "Git version tag: $TAG"
+
 cp CHANGELOG.md /tmp/CHANGELOG.md.$$
-sed -i -n "/^## \\[$TAG\\]/,\$p" CHANGELOG.md
+# Consolidate tag for matching changelog entries
+TAG=$(echo "$TAG" | sed 's/-\([A-Za-z]*\)[^A-Za-z]*/-\1/')
+echo "Consolidated tag: $TAG"
+sed -i -n "/^## \\[${TAG}[^]]*\\]/,\$p" CHANGELOG.md
 
 github_changelog_generator -u confio -p tgrade-contracts --base CHANGELOG.md $ORIGINAL_OPTS || cp /tmp/CHANGELOG.md.$$ CHANGELOG.md
 
