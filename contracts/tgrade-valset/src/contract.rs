@@ -25,12 +25,10 @@ use crate::msg::{
     ListActiveValidatorsResponse, ListValidatorResponse, OperatorResponse, QueryMsg,
     RewardsDistribution, RewardsInstantiateMsg, ValidatorMetadata, ValidatorResponse,
 };
-use crate::proto::MsgInstantiateContractResponse;
 use crate::rewards::pay_block_rewards;
 use crate::state::{
     operators, Config, EpochInfo, OperatorInfo, ValidatorInfo, CONFIG, EPOCH, JAIL, VALIDATORS,
 };
-use protobuf::Message;
 use tg_utils::ADMIN;
 
 // version info for migration info
@@ -612,7 +610,7 @@ pub fn reply(deps: DepsMut, env: Env, msg: Reply) -> Result<Response, ContractEr
 
 pub fn rewards_instantiate_reply(
     deps: DepsMut,
-    env: Env,
+    _env: Env,
     msg: Reply,
 ) -> Result<Response, ContractError> {
     let id = msg.id;
@@ -628,18 +626,10 @@ pub fn rewards_instantiate_reply(
         Ok(config)
     })?;
 
-    let response = InstantiateResponse {
+    let data = InstantiateResponse {
         rewards_contract: addr,
     };
-
-    let mut resp = MsgInstantiateContractResponse::new();
-    resp.set_contract_address(env.contract.address.to_string());
-    resp.set_data(to_binary(&response)?.to_vec());
-
-    let resp = Response::new().set_data(
-        resp.write_to_bytes()
-            .map_err(|err| ContractError::Proto(err.to_string()))?,
-    );
+    let resp = Response::new().set_data(to_binary(&data)?);
 
     Ok(resp)
 }
