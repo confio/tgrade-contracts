@@ -1,8 +1,8 @@
 # Changelog
 
-## [v0.5.0-beta3](https://github.com/confio/tgrade-contracts/tree/v0.5.0-beta3) (2021-11-04)
+## [v0.5.0-beta](https://github.com/confio/tgrade-contracts/tree/v0.5.0-beta3) (2021-11-04)
 
-[Full Changelog](https://github.com/confio/tgrade-contracts/compare/v0.5.0-beta2...v0.5.0-beta3)
+[Full Changelog](https://github.com/confio/tgrade-contracts/compare/v0.5.0-alpha.2...v0.5.0-beta3)
 
 **Changed:**
 
@@ -14,9 +14,6 @@
 - Set version: 0.5.0-beta3 [\#301](https://github.com/confio/tgrade-contracts/pull/301) ([maurolacy](https://github.com/maurolacy))
 - Slashing cleanup [\#296](https://github.com/confio/tgrade-contracts/pull/296) ([uint](https://github.com/uint))
 
-## [v0.5.0-beta2](https://github.com/confio/tgrade-contracts/tree/v0.5.0-beta2) (2021-11-04)
-
-[Full Changelog](https://github.com/confio/tgrade-contracts/compare/v0.5.0-beta...v0.5.0-beta2)
 
 **Added:**
 
@@ -45,6 +42,10 @@
 - \[tgrade-oc-proposals\] Remove the `Threshold` enum [\#242](https://github.com/confio/tgrade-contracts/issues/242)
 - Implement Oversight Community Proposals [\#192](https://github.com/confio/tgrade-contracts/issues/192)
 - tgrade-valset: Governance can slash \(and tombstone\) [\#132](https://github.com/confio/tgrade-contracts/issues/132)
+- tgrade-distribution: unknown address [\#253](https://github.com/confio/tgrade-contracts/issues/253)
+- tgrade-valset: return distribution contract address [\#248](https://github.com/confio/tgrade-contracts/issues/248)
+- tgrade-oc-proposals: Prepare backbones [\#240](https://github.com/confio/tgrade-contracts/issues/240)
+- trusted-circle: Flag to disable edit voting rules [\#236](https://github.com/confio/tgrade-contracts/issues/236)
 
 **Merged pull requests:**
 
@@ -61,20 +62,6 @@
 - tg4-stake: slashing [\#262](https://github.com/confio/tgrade-contracts/pull/262) ([uint](https://github.com/uint))
 - \[tgrade-oc-proposals\] Change the Propose arbitrary messages \(msgs field\) to an OversightProposal enum [\#254](https://github.com/confio/tgrade-contracts/pull/254) ([ueco-jb](https://github.com/ueco-jb))
 - Document contract architecture [\#235](https://github.com/confio/tgrade-contracts/pull/235) ([ethanfrey](https://github.com/ethanfrey))
-
-## [v0.5.0-beta](https://github.com/confio/tgrade-contracts/tree/v0.5.0-beta) (2021-10-28)
-
-[Full Changelog](https://github.com/confio/tgrade-contracts/compare/v0.5.0-alpha.2...v0.5.0-beta)
-
-**Closed issues:**
-
-- tgrade-distribution: unknown address [\#253](https://github.com/confio/tgrade-contracts/issues/253)
-- tgrade-valset: return distribution contract address [\#248](https://github.com/confio/tgrade-contracts/issues/248)
-- tgrade-oc-proposals: Prepare backbones [\#240](https://github.com/confio/tgrade-contracts/issues/240)
-- trusted-circle: Flag to disable edit voting rules [\#236](https://github.com/confio/tgrade-contracts/issues/236)
-
-**Merged pull requests:**
-
 - 0.5.0-beta release [\#267](https://github.com/confio/tgrade-contracts/pull/267) ([maurolacy](https://github.com/maurolacy))
 - Use reply de helper [\#266](https://github.com/confio/tgrade-contracts/pull/266) ([maurolacy](https://github.com/maurolacy))
 - Recreate tgrade-oc-proposals: Backbones [\#264](https://github.com/confio/tgrade-contracts/pull/264) ([ueco-jb](https://github.com/ueco-jb))
@@ -90,20 +77,9 @@
 - Vesting contract - handover multitests [\#230](https://github.com/confio/tgrade-contracts/pull/230) ([ueco-jb](https://github.com/ueco-jb))
 - Multitests in vesting contract [\#226](https://github.com/confio/tgrade-contracts/pull/226) ([ueco-jb](https://github.com/ueco-jb))
 
-## [v0.5.0-alpha.2](https://github.com/confio/tgrade-contracts/tree/v0.5.0-alpha.2) (2021-10-22)
+## [v0.5.0-alpha](https://github.com/confio/tgrade-contracts/tree/v0.5.0-alpha.2) (2021-10-22)
 
-[Full Changelog](https://github.com/confio/tgrade-contracts/compare/v0.5.0-alpha...v0.5.0-alpha.2)
-
-**Closed issues:**
-
-- \[tgrade-oc-proposals\] Remove extra `Threshold` types [\#241](https://github.com/confio/tgrade-contracts/issues/241)
-- Half-life queries [\#237](https://github.com/confio/tgrade-contracts/issues/237)
-- Add multi-test to vesting contract [\#219](https://github.com/confio/tgrade-contracts/issues/219)
-- \[tgrade-trusted-circle\] add deny list [\#189](https://github.com/confio/tgrade-contracts/issues/189)
-
-## [v0.5.0-alpha](https://github.com/confio/tgrade-contracts/tree/v0.5.0-alpha) (2021-10-18)
-
-[Full Changelog](https://github.com/confio/tgrade-contracts/compare/v0.4.1...v0.5.0-alpha)
+[Full Changelog](https://github.com/confio/tgrade-contracts/compare/v0.4.1...v0.5.0-alpha.2)
 
 **Implemented enhancements:**
 
@@ -113,6 +89,10 @@
 
 **Closed issues:**
 
+- \[tgrade-oc-proposals\] Remove extra `Threshold` types [\#241](https://github.com/confio/tgrade-contracts/issues/241)
+- Half-life queries [\#237](https://github.com/confio/tgrade-contracts/issues/237)
+- Add multi-test to vesting contract [\#219](https://github.com/confio/tgrade-contracts/issues/219)
+- \[tgrade-trusted-circle\] add deny list [\#189](https://github.com/confio/tgrade-contracts/issues/189)
 - Merge v0.4.1 to main [\#224](https://github.com/confio/tgrade-contracts/issues/224)
 - Show "Whitelist Trading Pair" as a proposal type on DSO home screen [\#188](https://github.com/confio/tgrade-contracts/issues/188)
 
