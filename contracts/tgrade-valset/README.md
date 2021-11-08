@@ -168,9 +168,9 @@ on `membership` contract.
 doesn't support multiple slashers. Only admin of `tgrade-valset` can ever slash on
 this contract (and he also always can do that).
 
-Because only the `membership` contract it slashed by implementation of `Slash`, it
-the `memebrship` contract itself is responsible to take care about aligning
-weight on validators and engagement contracts. However as the rewards distribution
+Because only the `membership` contract is slashed by this implementation of `Slash`,
+the `membership` contract itself is responsible for taking care of aligning
+weight on validators and engagement contracts. However, as the rewards distribution
 is not recalculated until the next epoch, the slashing would not affect the current
 epoch.
 
