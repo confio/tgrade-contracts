@@ -629,7 +629,7 @@ mod tests {
         rules: VotingRules,
         init_funds: Vec<Coin>,
         multisig_as_group_admin: bool,
-    ) -> (Addr, Addr, Addr) {
+    ) -> (Addr, Addr, Addr, Addr) {
         setup_test_case(app, rules, init_funds, multisig_as_group_admin)
     }
 
@@ -639,7 +639,7 @@ mod tests {
         rules: VotingRules,
         init_funds: Vec<Coin>,
         multisig_as_group_admin: bool,
-    ) -> (Addr, Addr, Addr) {
+    ) -> (Addr, Addr, Addr, Addr) {
         // 1. Instantiate group engagement contract with members (and OWNER as admin)
         let members = vec![
             member(OWNER, 0),
@@ -695,7 +695,7 @@ mod tests {
             app.send_tokens(Addr::unchecked(OWNER), flex_addr.clone(), &init_funds)
                 .unwrap();
         }
-        (flex_addr, group_addr, engagement_addr)
+        (flex_addr, group_addr, engagement_addr, valset_addr)
     }
 
     struct MockRulesBuilder {
@@ -853,7 +853,8 @@ mod tests {
             .threshold(Decimal::percent(80))
             .build();
         let voting_period = Duration::Time(rules.voting_period_secs());
-        let (flex_addr, _, _) = setup_test_case_fixed(&mut app, rules.clone(), init_funds, false);
+        let (flex_addr, _, _, _) =
+            setup_test_case_fixed(&mut app, rules.clone(), init_funds, false);
 
         // create proposal with 1 vote power
         let proposal = grant_voter1_engagement_point_proposal();
@@ -942,7 +943,7 @@ mod tests {
 
         // 51% required, which is 12 of the initial 23
         let rules = mock_rules().threshold(Decimal::percent(51)).build();
-        let (flex_addr, group_addr, _) = setup_test_case(&mut app, rules, init_funds, false);
+        let (flex_addr, group_addr, _, _) = setup_test_case(&mut app, rules, init_funds, false);
 
         // VOTER3 starts a proposal to send some tokens (3/12 votes)
         let proposal = grant_voter1_engagement_point_proposal();
@@ -1020,7 +1021,7 @@ mod tests {
             .quorum(Decimal::percent(33))
             .build();
         let voting_period = Duration::Time(rules.voting_period_secs());
-        let (flex_addr, group_addr, _) = setup_test_case(&mut app, rules, init_funds, false);
+        let (flex_addr, group_addr, _, _) = setup_test_case(&mut app, rules, init_funds, false);
 
         // VOTER3 starts a proposal to send some tokens (3 votes)
         let proposal = grant_voter1_engagement_point_proposal();
@@ -1083,7 +1084,7 @@ mod tests {
             .threshold(Decimal::percent(60))
             .quorum(Decimal::percent(80))
             .build();
-        let (flex_addr, _, _) = setup_test_case(
+        let (flex_addr, _, _, _) = setup_test_case(
             &mut app, // note that 60% yes is not enough to pass without 20% no as well
             rules, init_funds, false,
         );
