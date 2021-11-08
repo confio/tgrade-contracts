@@ -27,6 +27,7 @@ pub struct Config {
 #[serde(rename_all = "snake_case")]
 pub enum OversightProposal {
     GrantEngagement { member: Addr, points: u64 },
+    Slash { member: Addr, portion: Decimal },
 }
 
 #[derive(Serialize, Deserialize, Clone, PartialEq, JsonSchema, Debug)]

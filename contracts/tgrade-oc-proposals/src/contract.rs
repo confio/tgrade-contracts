@@ -198,7 +198,11 @@ pub fn execute_execute(
         return Err(ContractError::WrongExecuteStatus {});
     }
 
-    let engagement_contract = CONFIG.load(deps.storage)?.engagement_contract;
+    let Config {
+        engagement_contract,
+        valset_contract,
+        ..
+    } = CONFIG.load(deps.storage)?;
 
     let message = match prop.proposal {
         OversightProposal::GrantEngagement { ref member, points } => engagement_contract
@@ -206,6 +210,15 @@ pub fn execute_execute(
                 addr: member.to_string(),
                 points,
             })?)?,
+        OversightProposal::Slash {
+            ref member,
+            portion,
+        } => {
+            valset_contract.encode_raw_msg(to_binary(&tgrade_valset::msg::ExecuteMsg::Slash {
+                addr: member.to_string(),
+                portion,
+            })?)?
+        }
     };
 
     // set it to executed
@@ -487,7 +500,7 @@ mod tests {
             admin: Some(OWNER.into()),
             members,
             preauths_hooks: 0,
-            preauths_slashing: 0,
+            preauths_slashing: 1,
             halflife: None,
             token: ENGAGEMENT_TOKEN.to_owned(),
         };
@@ -506,7 +519,7 @@ mod tests {
             admin: admin.into(),
             members,
             preauths_hooks: 0,
-            preauths_slashing: 0,
+            preauths_slashing: 1,
             halflife: None,
             token: ENGAGEMENT_TOKEN.to_owned(),
         };

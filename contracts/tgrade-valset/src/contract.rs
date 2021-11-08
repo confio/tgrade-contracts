@@ -121,7 +121,6 @@ pub fn instantiate(
     let add_slasher = SlashMsg::AddSlasher {
         addr: env.contract.address.to_string(),
     };
-
     let add_slasher_msg = WasmMsg::Execute {
         contract_addr: msg.membership,
         msg: to_binary(&add_slasher)?,
