@@ -23,13 +23,13 @@ use crate::error::ContractError;
 use crate::msg::{
     ConfigResponse, EpochResponse, ExecuteMsg, InstantiateMsg, InstantiateResponse, JailingPeriod,
     ListActiveValidatorsResponse, ListValidatorResponse, OperatorResponse, QueryMsg,
-    RewardsDistribution, RewardsInstantiateMsg, Slashing, ValidatorMetadata, ValidatorResponse,
+    RewardsDistribution, RewardsInstantiateMsg, ValidatorMetadata, ValidatorResponse,
 };
 use crate::rewards::pay_block_rewards;
 use crate::state::{
     operators, Config, EpochInfo, OperatorInfo, ValidatorInfo, CONFIG, EPOCH, JAIL, VALIDATORS,
 };
-use tg_utils::ADMIN;
+use tg_utils::{SlashMsg, ADMIN};
 
 // version info for migration info
 const CONTRACT_NAME: &str = "crates.io:tgrade-valset";
@@ -116,8 +116,8 @@ pub fn instantiate(
         label: format!("rewards_distribution_{}", env.contract.address),
     };
 
-    let add_slasher = Slashing::AddSlasher {
-        addr: env.contract.address,
+    let add_slasher = SlashMsg::AddSlasher {
+        addr: env.contract.address.to_string(),
     };
 
     let add_slasher_msg = WasmMsg::Execute {
@@ -284,10 +284,9 @@ fn execute_slash(
 ) -> Result<Response, ContractError> {
     ADMIN.assert_admin(deps.as_ref(), &info.sender)?;
 
-    let addr = deps.api.addr_validate(&addr)?;
     let config = CONFIG.load(deps.storage)?;
 
-    let slash_msg = Slashing::Slash { addr, portion };
+    let slash_msg = SlashMsg::Slash { addr, portion };
     let slash_msg = to_binary(&slash_msg)?;
 
     let slash_msg = WasmMsg::Execute {
@@ -652,7 +651,7 @@ pub fn reply(deps: DepsMut, env: Env, msg: Reply) -> Result<Response, ContractEr
 
 pub fn rewards_instantiate_reply(
     deps: DepsMut,
-    env: Env,
+    _env: Env,
     msg: Reply,
 ) -> Result<Response, ContractError> {
     let id = msg.id;

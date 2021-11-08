@@ -142,6 +142,38 @@ is jailed, the response will contain a `jailed_until` field with either a single
 `forever` field (if this member will never be allowed to unjail himself),
 or an `until` field containing a timestamp, indicating since when the member can be unjailed.
 
+## Slashing
+
+The contract implements slashing semantics, but doesn't actually implement the
+full slashing interface. It reacts properly to the slash message:
+```json
+{
+  "slash": {
+    "addr": "contract_to_slash",
+    "portion": portion_to_slash
+  }
+}
+```
+
+Slashing is implemented by just forwarding the `Slash` message to the `membership`
+contract (which is set on instantiation - this is preasumed to be a mixer contract,
+but technically it can be any contract implementing `tg4` and `Slashing` interfaces).
+Obviously to be able to slash on the `membership` contracts, `tgrade-valset` has
+to register itself as a slasher, so on the instantiation it would send the
+`AddSlasher` message to the `membership` contract which has to succeed for the
+whole instantiation to succeed. Therefor proper `slashing_preauths` has to be set
+on `membership` contract.
+
+`tgrade-valsed` doesn't readct on `AddSlasher` nor `RemoveSlasher` messages, as it
+doesn't support multiple slashers. Only admin of `tgrade-valset` can ever slash on
+this contract (and he also always can do that).
+
+Because only the `membership` contract it slashed by implementation of `Slash`, it
+the `memebrship` contract itself is responsible to take care about aligning
+weight on validators and engagement contracts. However as the rewards distribution
+is not recalculated until the next epoch, the slashing would not affect the current
+epoch.
+
 ## Init
 
 ```rust
@@ -149,7 +181,9 @@ pub struct InstantiateMsg {
     /// Address allowed to jail, meant to be a OC voting contract. If `None`, then jailing is
     /// impossible in this contract.
     pub admin: Option<String>,
-    /// Address of a cw4 contract with the raw membership used to feed the validator set
+    /// Address of a tg4 contract with the raw membership used to feed the validator set.
+    /// Additionaly the contract has to implement the `Slashing` interface (the `AddSlasher`
+    /// and `Slash` messages would be send to it).
     pub membership: String,
     /// Minimum weight needed by an address in `membership` to be considered for the validator set.
     /// 0-weight members are always filtered out.

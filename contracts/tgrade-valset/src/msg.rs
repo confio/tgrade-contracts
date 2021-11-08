@@ -332,14 +332,6 @@ pub struct InstantiateResponse {
     pub rewards_contract: Addr,
 }
 
-/// Messages to be send in slashing process
-#[derive(Serialize, Deserialize, Clone, PartialEq, JsonSchema, Debug)]
-#[serde(rename_all = "snake_case")]
-pub enum Slashing {
-    AddSlasher { addr: Addr },
-    Slash { addr: Addr, portion: Decimal },
-}
-
 #[cfg(test)]
 mod test {
     use super::*;
