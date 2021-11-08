@@ -43,6 +43,7 @@ const REWARDS_INIT_REPLY_ID: u64 = 1;
 
 /// We use this custom message everywhere
 pub type Response = cosmwasm_std::Response<TgradeMsg>;
+pub type SubMsg = cosmwasm_std::SubMsg<TgradeMsg>;
 
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn instantiate(
@@ -727,16 +728,16 @@ mod evidence {
         Ok(None)
     }
 
-    pub fn slash_validator(config: &Config, validator: Addr) -> SubMsg {
+    pub fn slash_validator(config: &Config, addr: Addr) -> SubMsg {
 
         let slash_msg = SlashMsg::Slash { addr, portion };
         let slash_msg = to_binary(&slash_msg)?;
 
-        let slash_msg = WasmMsg::Execute {
+        SubMsg::new(WasmMsg::Execute {
             contract_addr: config.membership.addr().to_string(),
             msg: slash_msg,
             funds: vec![],
-        };
+        })
     }
 }
 
