@@ -16,8 +16,8 @@ use cw_storage_plus::Bound;
 
 use tg4::{Member, Tg4Contract};
 use tg_bindings::{
-    request_privileges, Ed25519Pubkey, Privilege, PrivilegeChangeMsg, Pubkey, TgradeMsg,
-    TgradeSudoMsg, ValidatorDiff, ValidatorUpdate,
+    request_privileges, Ed25519Pubkey, Evidence, EvidenceType, Privilege, PrivilegeChangeMsg,
+    Pubkey, TgradeMsg, TgradeSudoMsg, ValidatorDiff, ValidatorUpdate,
 };
 use tg_utils::Duration;
 
@@ -470,6 +470,7 @@ pub fn sudo(deps: DepsMut, env: Env, msg: TgradeSudoMsg) -> Result<Response, Con
     match msg {
         TgradeSudoMsg::PrivilegeChange(change) => Ok(privilege_change(deps, change)),
         TgradeSudoMsg::EndWithValidatorUpdate {} => end_block(deps, env),
+        TgradeSudoMsg::BeginBlock { evidence } => begin_block(deps, env, evidence),
         _ => Err(ContractError::UnknownSudoType {}),
     }
 }
@@ -702,6 +703,56 @@ fn calculate_diff(
         ValidatorDiff { diffs },
         RewardsDistribution::UpdateMembers { add, remove },
     )
+}
+
+mod evidence {
+    use super::*;
+
+    use std::convert::TryFrom;
+
+    use tg_bindings::{ToAddress, Validator};
+
+    pub fn find_matching_validator<'a>(
+        suspect: &Validator,
+        validators: &'a Vec<ValidatorInfo>,
+    ) -> Result<Option<&'a ValidatorInfo>, ContractError> {
+        for validator in validators {
+            let ed25519_pubkey = Ed25519Pubkey::try_from(validator.validator_pubkey.clone())?;
+            let hash = ed25519_pubkey.to_address();
+            let binary_hash = Binary::from(hash);
+            if binary_hash == suspect.address {
+                return Ok(Some(validator));
+            }
+        }
+        Ok(None)
+    }
+}
+
+fn begin_block(
+    deps: DepsMut,
+    _env: Env,
+    evidences: Vec<Evidence>,
+) -> Result<Response, ContractError> {
+    if evidences.is_empty() {
+        return Ok(Response::new());
+    }
+
+    let validators = VALIDATORS.load(deps.storage)?;
+
+    for evidence in evidences {
+        match evidence.evidence_type {
+            EvidenceType::DuplicateVote => {
+                if let Some(_validator) =
+                    evidence::find_matching_validator(&evidence.validator, &validators)?
+                {
+                    // do slashy slash and jaily jail
+                };
+            }
+            _ => (),
+        };
+    }
+
+    Ok(Response::new())
 }
 
 #[cfg_attr(not(feature = "library"), entry_point)]
