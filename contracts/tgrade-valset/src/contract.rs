@@ -726,6 +726,18 @@ mod evidence {
         }
         Ok(None)
     }
+
+    pub fn slash_validator(config: &Config, validator: Addr) -> SubMsg {
+
+        let slash_msg = SlashMsg::Slash { addr, portion };
+        let slash_msg = to_binary(&slash_msg)?;
+
+        let slash_msg = WasmMsg::Execute {
+            contract_addr: config.membership.addr().to_string(),
+            msg: slash_msg,
+            funds: vec![],
+        };
+    }
 }
 
 fn begin_block(
@@ -737,7 +749,10 @@ fn begin_block(
         return Ok(Response::new());
     }
 
+    let config = CONFIG.load(deps.storage)?;
     let validators = VALIDATORS.load(deps.storage)?;
+
+    let mut response = Response::new();
 
     for evidence in evidences {
         match evidence.evidence_type {
@@ -747,18 +762,23 @@ fn begin_block(
                 {
                     // do slashy slash and jaily jail
 
+
                     JAIL.save(
                         deps.storage,
                         &validator.operator,
                         &JailingPeriod::Forever {},
                     )?;
+
+                    response = response
+                        .add_attribute("action", "slash_and_jail")
+                        .add_attribute("validator", validator.operator.as_str());
                 };
             }
             _ => (),
         };
     }
 
-    Ok(Response::new())
+    Ok(response)
 }
 
 #[cfg_attr(not(feature = "library"), entry_point)]
