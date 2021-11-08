@@ -742,10 +742,16 @@ fn begin_block(
     for evidence in evidences {
         match evidence.evidence_type {
             EvidenceType::DuplicateVote => {
-                if let Some(_validator) =
+                if let Some(validator) =
                     evidence::find_matching_validator(&evidence.validator, &validators)?
                 {
                     // do slashy slash and jaily jail
+
+                    JAIL.save(
+                        deps.storage,
+                        &validator.operator,
+                        &JailingPeriod::Forever {},
+                    )?;
                 };
             }
             _ => (),
