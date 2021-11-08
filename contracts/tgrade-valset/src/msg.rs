@@ -195,6 +195,12 @@ pub enum ExecuteMsg {
         /// message (for convenience when unjailing self after the jail period).
         operator: Option<String>,
     },
+    /// To be called by admin only. Slashes a given address (by forwarding slash to both rewards
+    /// contract and engagement contract)
+    Slash {
+        addr: String,
+        portion: Decimal,
+    },
 }
 
 #[derive(Serialize, Deserialize, Clone, PartialEq, JsonSchema, Debug)]
