@@ -164,8 +164,8 @@ to register itself as a slasher, so on the instantiation it would send the
 whole instantiation to succeed. Therefore proper `slashing_preauths` has to be set
 on `membership` contract.
 
-`tgrade-valsed` doesn't readct on `AddSlasher` nor `RemoveSlasher` messages, as it
-doesn't support multiple slashers. Only admin of `tgrade-valset` can ever slash on
+`tgrade-valset` doesn't react to `AddSlasher` nor `RemoveSlasher` messages, as it
+doesn't support multiple slashers. Only the admin of `tgrade-valset` can ever slash on
 this contract (and he also always can do that).
 
 Because only the `membership` contract is slashed by this implementation of `Slash`,
