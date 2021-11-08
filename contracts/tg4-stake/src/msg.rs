@@ -41,7 +41,7 @@ pub enum ExecuteMsg {
     /// Unbond will start the unbonding process for the given number of tokens.
     /// The sender immediately loses weight from these tokens, and can claim them
     /// back to his wallet after `unbonding_period`
-    Unbond { tokens: Uint128 },
+    Unbond { tokens: Coin },
     /// Claim is used to claim your native tokens that you previously "unbonded"
     /// after the contract-defined waiting period (eg. 1 week)
     Claim {},

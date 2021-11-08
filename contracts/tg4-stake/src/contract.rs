@@ -158,27 +158,33 @@ pub fn execute_unbond(
     deps: DepsMut,
     env: Env,
     info: MessageInfo,
-    amount: Uint128,
+    amount: Coin,
 ) -> Result<Response, ContractError> {
-    // reduce the sender's stake - aborting if insufficient
-    let new_stake = STAKE.update(deps.storage, &info.sender, |stake| -> StdResult<_> {
-        Ok(stake.unwrap_or_default().checked_sub(amount)?)
-    })?;
-
     // provide them a claim
     let cfg = CONFIG.load(deps.storage)?;
+
+    if cfg.denom != amount.denom {
+        return Err(ContractError::InvalidDenom(amount.denom));
+    }
+
+    // reduce the sender's stake - aborting if insufficient
+    let new_stake = STAKE.update(deps.storage, &info.sender, |stake| -> StdResult<_> {
+        Ok(stake.unwrap_or_default().checked_sub(amount.amount)?)
+    })?;
+
     let completion = cfg.unbonding_period.after(&env.block);
     claims().create_claim(
         deps.storage,
         info.sender.clone(),
-        amount,
+        amount.amount,
         completion,
         env.block.height,
     )?;
 
     let mut res = Response::new()
         .add_attribute("action", "unbond")
-        .add_attribute("amount", amount)
+        .add_attribute("amount", amount.amount)
+        .add_attribute("denom", &amount.denom)
         .add_attribute("sender", &info.sender)
         .add_attribute("completion_time", completion.time().nanos().to_string());
     res.messages = update_membership(deps.storage, info.sender, new_stake, &cfg, env.block.height)?;
@@ -620,7 +626,7 @@ mod tests {
         for (addr, stake) in &[(USER1, user1), (USER2, user2), (USER3, user3)] {
             if *stake != 0 {
                 let msg = ExecuteMsg::Unbond {
-                    tokens: Uint128::new(*stake),
+                    tokens: coin(*stake, DENOM),
                 };
                 let info = mock_info(addr, &[]);
                 execute(deps.branch(), env.clone(), info, msg).unwrap();
@@ -909,7 +915,7 @@ mod tests {
 
         // error if try to unbond more than stake (USER2 has 5000 staked)
         let msg = ExecuteMsg::Unbond {
-            tokens: Uint128::new(5100),
+            tokens: coin(5100, DENOM),
         };
         let mut env = mock_env();
         env.block.height += 5;
@@ -1503,7 +1509,7 @@ mod tests {
 
         // check firing on unbond
         let msg = ExecuteMsg::Unbond {
-            tokens: Uint128::new(7_300),
+            tokens: coin(7_300, DENOM),
         };
         let info = mock_info(USER1, &[]);
         let res = execute(deps.as_mut(), mock_env(), info, msg).unwrap();
@@ -1582,7 +1588,7 @@ mod tests {
         for _ in 0..10 {
             env.block.time = env.block.time.plus_seconds(10);
             let msg = ExecuteMsg::Unbond {
-                tokens: Uint128::new(10),
+                tokens: coin(10, DENOM),
             };
             execute(deps.as_mut(), env.clone(), info.clone(), msg).unwrap();
         }
@@ -1843,6 +1849,26 @@ mod tests {
             // offset 6
             let resp = end_block(deps.as_mut(), env).unwrap();
             assert_transfers(resp, vec![(USER2, 100), (USER3, 50)]);
+        }
+
+        #[test]
+        fn unbound_with_invalid_denom_fails() {
+            let mut deps = mock_dependencies(&[]);
+            do_instantiate(deps.as_mut(), 2);
+
+            bond(deps.as_mut(), 5_000, 0, 0, 1);
+            let height_delta = 2;
+
+            let mut env = mock_env();
+            env.block.height += height_delta;
+
+            let msg = ExecuteMsg::Unbond {
+                tokens: coin(5_000, "invalid"),
+            };
+            let info = mock_info(USER1, &[]);
+            let err = execute(deps.as_mut(), env, info, msg).unwrap_err();
+
+            assert_eq!(ContractError::InvalidDenom("invalid".to_owned()), err);
         }
     }
 }
