@@ -161,7 +161,7 @@ but technically it can be any contract implementing `tg4` and `Slashing` interfa
 Obviously to be able to slash on the `membership` contracts, `tgrade-valset` has
 to register itself as a slasher, so on the instantiation it would send the
 `AddSlasher` message to the `membership` contract which has to succeed for the
-whole instantiation to succeed. Therefor proper `slashing_preauths` has to be set
+whole instantiation to succeed. Therefore proper `slashing_preauths` has to be set
 on `membership` contract.
 
 `tgrade-valsed` doesn't readct on `AddSlasher` nor `RemoveSlasher` messages, as it
