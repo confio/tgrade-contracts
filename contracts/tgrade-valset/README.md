@@ -182,8 +182,8 @@ pub struct InstantiateMsg {
     /// impossible in this contract.
     pub admin: Option<String>,
     /// Address of a tg4 contract with the raw membership used to feed the validator set.
-    /// Additionaly the contract has to implement the `Slashing` interface (the `AddSlasher`
-    /// and `Slash` messages would be send to it).
+    /// Additionally, the contract has to implement the `Slashing` interface (the `AddSlasher`
+    /// and `Slash` messages would be sent to it).
     pub membership: String,
     /// Minimum weight needed by an address in `membership` to be considered for the validator set.
     /// 0-weight members are always filtered out.
