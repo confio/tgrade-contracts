@@ -772,7 +772,6 @@ fn begin_block(
         if evidence.evidence_type == EvidenceType::DuplicateVote {
             // If there's a match between accused validator and one from contract's
             // list of validators, then slash his bonded tokens and jail forever.
-            dbg!("before find matching validators");
             if let Some(validator) =
                 evidence::find_matching_validator(&evidence.validator, &validators)?
             {
