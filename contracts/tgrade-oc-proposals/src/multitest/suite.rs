@@ -276,6 +276,17 @@ impl SuiteBuilder {
             .unwrap();
         }
 
+        // Set oc proposals contract's address as admin of valset contract
+        app.execute_contract(
+            owner.clone(),
+            valset_contract.clone(),
+            &Tg4ExecuteMsg::UpdateAdmin {
+                admin: Some(contract.to_string()),
+            },
+            &[],
+        )
+        .unwrap();
+
         app.next_block().unwrap();
 
         Suite {
@@ -329,6 +340,23 @@ impl Suite {
             OversightProposal::GrantEngagement {
                 member: Addr::unchecked(target),
                 points,
+            },
+        )
+    }
+
+    pub fn propose_slash(
+        &mut self,
+        executor: &str,
+        target: &str,
+        portion: Decimal,
+    ) -> AnyResult<AppResponse> {
+        self.propose(
+            executor,
+            "proposal title",
+            "proposal description",
+            OversightProposal::Slash {
+                member: Addr::unchecked(target),
+                portion,
             },
         )
     }

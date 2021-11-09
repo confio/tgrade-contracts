@@ -445,6 +445,7 @@ mod tests {
     const VOTER5: &str = "voter0005";
 
     const ENGAGEMENT_TOKEN: &str = "engagement";
+    const EPOCH_LENGTH: u64 = 100;
 
     fn member<T: Into<String>>(addr: T, weight: u64) -> Member {
         Member {
@@ -578,7 +579,7 @@ mod tests {
             admin: admin.into(),
             auto_unjail: false,
             distribution_contract: None,
-            epoch_length: 1,
+            epoch_length: EPOCH_LENGTH,
             epoch_reward: coin(1, ENGAGEMENT_TOKEN.to_string()),
             fee_percentage: Decimal::percent(20),
             initial_keys: operators,
@@ -597,7 +598,6 @@ mod tests {
             "valset",
             Some(OWNER.to_string()),
         );
-        println!("{:?}", res);
         res.unwrap()
     }
 
@@ -690,6 +690,20 @@ mod tests {
             app.update_block(next_block);
         }
 
+        // 4. Set oc-proposals as the admin of valset so that valset
+        // can be slashed.
+        let update_admin = Tg4ExecuteMsg::UpdateAdmin {
+            admin: Some(flex_addr.to_string()),
+        };
+        app.execute_contract(
+            Addr::unchecked(OWNER),
+            valset_addr.clone(),
+            &update_admin,
+            &[],
+        )
+        .unwrap();
+        app.update_block(next_block);
+
         // Bonus: set some funds on the multisig contract for future proposals
         if !init_funds.is_empty() {
             app.send_tokens(Addr::unchecked(OWNER), flex_addr.clone(), &init_funds)
@@ -739,7 +753,7 @@ mod tests {
         MockRulesBuilder::new()
     }
 
-    fn proposal_info() -> (OversightProposal, String, String) {
+    fn engagement_proposal_info() -> (OversightProposal, String, String) {
         let proposal = OversightProposal::GrantEngagement {
             member: Addr::unchecked(VOTER1),
             points: 10,
@@ -750,7 +764,26 @@ mod tests {
     }
 
     fn grant_voter1_engagement_point_proposal() -> ExecuteMsg {
-        let (proposal, title, description) = proposal_info();
+        let (proposal, title, description) = engagement_proposal_info();
+        ExecuteMsg::Propose {
+            title,
+            description,
+            proposal,
+        }
+    }
+
+    fn slash_proposal_info() -> (OversightProposal, String, String) {
+        let proposal = OversightProposal::Slash {
+            member: Addr::unchecked(VOTER1),
+            portion: Decimal::percent(40),
+        };
+        let title = "Slash a dude".to_string();
+        let description = "Slashing and thrashing".to_string();
+        (proposal, title, description)
+    }
+
+    fn slash_voter1_proposal() -> ExecuteMsg {
+        let (proposal, title, description) = slash_proposal_info();
         ExecuteMsg::Propose {
             title,
             description,
@@ -904,7 +937,7 @@ mod tests {
         assert_eq!(expected_info, info);
 
         // ensure the common features are set
-        let (expected_proposal, expected_title, expected_description) = proposal_info();
+        let (expected_proposal, expected_title, expected_description) = engagement_proposal_info();
         for prop in res.proposals {
             assert_eq!(prop.title, expected_title);
             assert_eq!(prop.description, expected_description);
@@ -922,7 +955,7 @@ mod tests {
             .unwrap();
         assert_eq!(1, res.proposals.len());
 
-        let (proposal, title, description) = proposal_info();
+        let (proposal, title, description) = engagement_proposal_info();
         let expected = ProposalResponse {
             id: proposal_id3,
             title,
