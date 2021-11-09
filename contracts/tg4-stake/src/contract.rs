@@ -85,7 +85,9 @@ pub fn execute(
         ExecuteMsg::AddHook { addr } => execute_add_hook(deps, info, addr),
         ExecuteMsg::RemoveHook { addr } => execute_remove_hook(deps, info, addr),
         ExecuteMsg::Bond {} => execute_bond(deps, env, info),
-        ExecuteMsg::Unbond { tokens: amount } => execute_unbond(deps, env, info, amount),
+        ExecuteMsg::Unbond {
+            tokens: Coin { amount, denom },
+        } => execute_unbond(deps, env, info, amount, denom),
         ExecuteMsg::Claim {} => execute_claim(deps, env, info),
         ExecuteMsg::AddSlasher { addr } => execute_add_slasher(deps, info, addr),
         ExecuteMsg::RemoveSlasher { addr } => execute_remove_slasher(deps, info, addr),
@@ -158,33 +160,34 @@ pub fn execute_unbond(
     deps: DepsMut,
     env: Env,
     info: MessageInfo,
-    amount: Coin,
+    amount: Uint128,
+    denom: String,
 ) -> Result<Response, ContractError> {
     // provide them a claim
     let cfg = CONFIG.load(deps.storage)?;
 
-    if cfg.denom != amount.denom {
-        return Err(ContractError::InvalidDenom(amount.denom));
+    if cfg.denom != denom {
+        return Err(ContractError::InvalidDenom(denom));
     }
 
     // reduce the sender's stake - aborting if insufficient
     let new_stake = STAKE.update(deps.storage, &info.sender, |stake| -> StdResult<_> {
-        Ok(stake.unwrap_or_default().checked_sub(amount.amount)?)
+        Ok(stake.unwrap_or_default().checked_sub(amount)?)
     })?;
 
     let completion = cfg.unbonding_period.after(&env.block);
     claims().create_claim(
         deps.storage,
         info.sender.clone(),
-        amount.amount,
+        amount,
         completion,
         env.block.height,
     )?;
 
     let mut res = Response::new()
         .add_attribute("action", "unbond")
-        .add_attribute("amount", amount.amount)
-        .add_attribute("denom", &amount.denom)
+        .add_attribute("amount", amount)
+        .add_attribute("denom", &denom)
         .add_attribute("sender", &info.sender)
         .add_attribute("completion_time", completion.time().nanos().to_string());
     res.messages = update_membership(deps.storage, info.sender, new_stake, &cfg, env.block.height)?;
