@@ -714,6 +714,11 @@ mod evidence {
 
     use tg_bindings::{ToAddress, Validator};
 
+    /// Validator struct contains only hash of first 20 bytes of validator's pub key
+    /// (long story short, that's API's fault, we don't have much to say here), while
+    /// contract keeps only pub keys. To match potential reported suspect, this function
+    /// computes sha256 hashes for all existing validator and compares result with suspect.
+    /// It is acceptable approach, since it shouldn't happen too often.
     pub fn find_matching_validator<'a>(
         suspect: &Validator,
         validators: &'a Vec<ValidatorInfo>,
@@ -749,6 +754,7 @@ fn begin_block(
     _env: Env,
     evidences: Vec<Evidence>,
 ) -> Result<Response, ContractError> {
+    // Early exit saves couple loads from below if there are no evidences at all.
     if evidences.is_empty() {
         return Ok(Response::new());
     }
@@ -761,6 +767,8 @@ fn begin_block(
     for evidence in evidences {
         match evidence.evidence_type {
             EvidenceType::DuplicateVote => {
+                // If there's a match between accused validator and one from contract's
+                // list of validators, then slash his bonded tokens and jail forever.
                 if let Some(validator) =
                     evidence::find_matching_validator(&evidence.validator, &validators)?
                 {
