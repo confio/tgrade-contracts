@@ -72,6 +72,7 @@ pub fn instantiate(
         fee_percentage: msg.fee_percentage,
         auto_unjail: msg.auto_unjail,
         validators_reward_ratio: msg.validators_reward_ratio,
+        double_sign_slash_ratio: msg.double_sign_slash_ratio,
         distribution_contract: msg
             .distribution_contract
             .clone()
@@ -728,16 +729,18 @@ mod evidence {
         Ok(None)
     }
 
-    pub fn slash_validator(config: &Config, addr: Addr) -> SubMsg {
-
-        let slash_msg = SlashMsg::Slash { addr, portion };
+    pub fn slash_validator_msg(config: &Config, addr: String) -> Result<SubMsg, ContractError> {
+        let slash_msg = SlashMsg::Slash {
+            addr,
+            portion: config.double_sign_slash_ratio,
+        };
         let slash_msg = to_binary(&slash_msg)?;
 
-        SubMsg::new(WasmMsg::Execute {
+        Ok(SubMsg::new(WasmMsg::Execute {
             contract_addr: config.membership.addr().to_string(),
             msg: slash_msg,
             funds: vec![],
-        })
+        }))
     }
 }
 
@@ -761,8 +764,8 @@ fn begin_block(
                 if let Some(validator) =
                     evidence::find_matching_validator(&evidence.validator, &validators)?
                 {
-                    // do slashy slash and jaily jail
-
+                    let sub_msg =
+                        evidence::slash_validator_msg(&config, validator.operator.to_string())?;
 
                     JAIL.save(
                         deps.storage,
@@ -772,7 +775,8 @@ fn begin_block(
 
                     response = response
                         .add_attribute("action", "slash_and_jail")
-                        .add_attribute("validator", validator.operator.as_str());
+                        .add_attribute("validator", validator.operator.as_str())
+                        .add_submessage(sub_msg);
                 };
             }
             _ => (),

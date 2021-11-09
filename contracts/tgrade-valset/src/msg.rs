@@ -68,7 +68,7 @@ pub struct InstantiateMsg {
     /// Validator who are caught on double signing, are jailed forever and their bonded tokens are
     /// slashed based on this value.
     #[serde(default = "default_double_sign_slash")]
-    pub validators_double_sign_slash: Decimal,
+    pub double_sign_slash_ratio: Decimal,
 
     /// Address where part of the reward for non-validators is sent for further distribution. It is
     /// required to handle the `Distribute {}` message (eg. tg4-engagement contract) which would
