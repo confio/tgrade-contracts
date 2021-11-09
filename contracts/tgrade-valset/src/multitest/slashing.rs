@@ -117,3 +117,20 @@ fn non_admin_cant_slash() {
     assert_eq!(suite.token_balance(actors[1]).unwrap(), 1000);
     assert_eq!(suite.token_balance(actors[2]).unwrap(), 1000);
 }
+
+#[test]
+fn non_validator_query_fails() {
+    let actors = vec!["member1", "member2", "member3", "member4"];
+
+    let members = vec![actors[0], actors[2]];
+
+    let suite = SuiteBuilder::new()
+        .with_operators(&[(members[0], 20), (members[1], 10)], &[])
+        .build();
+
+    // Confirm not a valid query for a non-validator
+    let slashing = suite.list_validator_slashing(actors[1]).unwrap_err();
+    assert!(slashing
+        .to_string()
+        .contains(&format!("Never a validator: {}", actors[1])));
+}

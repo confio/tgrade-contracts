@@ -444,7 +444,9 @@ fn list_validator_slashing(
 ) -> Result<ListValidatorSlashingResponse, ContractError> {
     let addr = deps.api.addr_validate(&operator)?;
     // Fails if never a validator (which is correct)
-    let start_height = VALIDATOR_START_HEIGHT.load(deps.storage, &addr)?;
+    let start_height = VALIDATOR_START_HEIGHT
+        .load(deps.storage, &addr)
+        .map_err(|_| ContractError::NeverAValidator(operator.clone()))?;
     let slashing = VALIDATOR_SLASHING
         .may_load(deps.storage, &addr)?
         .unwrap_or_default();
