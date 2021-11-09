@@ -144,7 +144,14 @@ pub fn execute(
     info: MessageInfo,
     msg: ExecuteMsg,
 ) -> Result<Response, ContractError> {
+    let api = deps.api;
+
     match msg {
+        ExecuteMsg::UpdateAdmin { admin } => Ok(ADMIN.execute_update_admin(
+            deps,
+            info,
+            admin.map(|admin| api.addr_validate(&admin)).transpose()?,
+        )?),
         ExecuteMsg::RegisterValidatorKey { pubkey, metadata } => {
             execute_register_validator_key(deps, env, info, pubkey, metadata)
         }
