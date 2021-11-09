@@ -86,16 +86,31 @@ pub const EPOCH: Item<EpochInfo> = Item::new("epoch");
 /// This will be empty only on the first run.
 pub const VALIDATORS: Item<Vec<ValidatorInfo>> = Item::new("validators");
 
+/// Map of operator addr to block height it initially became a validator. If operator doesn't
+/// appear in this map, he was never in the validator set.
+pub const VALIDATOR_START_HEIGHT: Map<&Addr, u64> = Map::new("start_height");
+
+/// Map of slashing events per operator address.
+pub const VALIDATOR_SLASHING: Map<&Addr, Vec<ValidatorSlashing>> = Map::new("validator_slashing");
+
 /// Map of jailed operator addr to jail expiration time. If operator doesn't appear in this map he
 /// is not jailed
 pub const JAIL: Map<&Addr, JailingPeriod> = Map::new("jail");
 
-/// This stores the immutible info for an operator. Both their Tendermint key as well as
-/// their metadata
+/// This stores the immutable info for an operator. Both their Tendermint key as well as
+/// their metadata.
 #[derive(Serialize, Deserialize, Clone, JsonSchema, Debug, PartialEq)]
 pub struct OperatorInfo {
     pub pubkey: Ed25519Pubkey,
     pub metadata: ValidatorMetadata,
+}
+
+/// This defines the stored and returned data for a slashing event.
+#[derive(Serialize, Deserialize, Clone, PartialEq, JsonSchema, Debug)]
+pub struct ValidatorSlashing {
+    /// Block height of slashing event
+    pub slash_height: u64,
+    pub portion: Decimal,
 }
 
 /// All this to get a unique secondary index on the pubkey, so we can ensure uniqueness.
