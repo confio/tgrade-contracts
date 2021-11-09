@@ -6,7 +6,7 @@ use cosmwasm_std::{coin, Addr, Coin, CosmosMsg, Decimal, StdResult, Timestamp};
 use cw_multi_test::{next_block, AppResponse, Contract, ContractWrapper, CosmosRouter, Executor};
 use derivative::Derivative;
 use tg4::Member;
-use tg_bindings::{TgradeMsg, ValidatorDiff};
+use tg_bindings::{Evidence, TgradeMsg, ValidatorDiff};
 use tg_bindings_test::TgradeApp;
 use tg_utils::Duration;
 
@@ -309,6 +309,16 @@ impl Suite {
         self.app.update_block(next_block);
         let (_, diff) = self.app.end_block()?;
         self.app.begin_block(vec![])?;
+        Ok(diff)
+    }
+
+    pub fn next_block_with_evidence(
+        &mut self,
+        evidences: Vec<Evidence>,
+    ) -> AnyResult<Option<ValidatorDiff>> {
+        self.app.update_block(next_block);
+        let (_, diff) = self.app.end_block()?;
+        self.app.begin_block(evidences)?;
         Ok(diff)
     }
 

@@ -721,7 +721,7 @@ mod evidence {
     /// It is acceptable approach, since it shouldn't happen too often.
     pub fn find_matching_validator<'a>(
         suspect: &Validator,
-        validators: &'a Vec<ValidatorInfo>,
+        validators: &'a [ValidatorInfo],
     ) -> Result<Option<&'a ValidatorInfo>, ContractError> {
         for validator in validators {
             let ed25519_pubkey = Ed25519Pubkey::try_from(validator.validator_pubkey.clone())?;
@@ -767,30 +767,27 @@ fn begin_block(
     let mut response = Response::new();
 
     for evidence in evidences {
-        match evidence.evidence_type {
-            EvidenceType::DuplicateVote => {
-                // If there's a match between accused validator and one from contract's
-                // list of validators, then slash his bonded tokens and jail forever.
-                if let Some(validator) =
-                    evidence::find_matching_validator(&evidence.validator, &validators)?
-                {
-                    let sub_msg =
-                        evidence::slash_validator_msg(&config, validator.operator.to_string())?;
+        if evidence.evidence_type == EvidenceType::DuplicateVote {
+            // If there's a match between accused validator and one from contract's
+            // list of validators, then slash his bonded tokens and jail forever.
+            if let Some(validator) =
+                evidence::find_matching_validator(&evidence.validator, &validators)?
+            {
+                let sub_msg =
+                    evidence::slash_validator_msg(&config, validator.operator.to_string())?;
 
-                    JAIL.save(
-                        deps.storage,
-                        &validator.operator,
-                        &JailingPeriod::Forever {},
-                    )?;
+                JAIL.save(
+                    deps.storage,
+                    &validator.operator,
+                    &JailingPeriod::Forever {},
+                )?;
 
-                    response = response
-                        .add_attribute("action", "slash_and_jail")
-                        .add_attribute("validator", validator.operator.as_str())
-                        .add_submessage(sub_msg);
-                };
-            }
-            _ => (),
-        };
+                response = response
+                    .add_attribute("action", "slash_and_jail")
+                    .add_attribute("validator", validator.operator.as_str())
+                    .add_submessage(sub_msg);
+            };
+        }
     }
 
     Ok(response)
