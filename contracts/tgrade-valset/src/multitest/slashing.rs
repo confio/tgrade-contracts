@@ -23,9 +23,25 @@ fn admin_can_slash() {
 
     let admin = suite.admin().to_owned();
 
+    // Confirm there are no slashing events for actors[0]
+    let slashing = suite.list_validator_slashing(actors[0]).unwrap();
+    assert_eq!(slashing.addr, actors[0]);
+    assert_eq!(slashing.start_height, 0);
+    assert_eq!(slashing.slashing.len(), 0);
+
+    // Slash him
     suite
         .slash(&admin, actors[0], Decimal::percent(50))
         .unwrap();
+
+    // Confirm slashing event
+    let slashing = suite.list_validator_slashing(actors[0]).unwrap();
+    assert_eq!(slashing.addr, actors[0]);
+    assert_eq!(slashing.start_height, 0);
+    assert_eq!(slashing.slashing.len(), 1);
+    let actor0_slash = &slashing.slashing[0];
+    assert_eq!(actor0_slash.slash_height, 1);
+    assert_eq!(actor0_slash.portion, Decimal::percent(50));
 
     // First epoch. Rewards are not slashed yet, but validators and their weights should be
     // recalculated
@@ -80,6 +96,12 @@ fn non_admin_cant_slash() {
         ContractError::AdminError(AdminError::NotAdmin {}),
         err.downcast().unwrap()
     );
+
+    // Confirm not a slashing event
+    let slashing = suite.list_validator_slashing(actors[0]).unwrap();
+    assert_eq!(slashing.addr, actors[0]);
+    assert_eq!(slashing.start_height, 0);
+    assert_eq!(slashing.slashing.len(), 0);
 
     // Going two epochs to ensure validators recalculation after slashing. No distributions shall
     // be affected.
