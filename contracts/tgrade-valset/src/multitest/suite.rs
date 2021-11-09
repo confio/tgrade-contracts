@@ -306,10 +306,7 @@ impl Suite {
     }
 
     pub fn next_block(&mut self) -> AnyResult<Option<ValidatorDiff>> {
-        self.app.update_block(next_block);
-        let (_, diff) = self.app.end_block()?;
-        self.app.begin_block(vec![])?;
-        Ok(diff)
+        self.next_block_with_evidence(vec![])
     }
 
     pub fn next_block_with_evidence(

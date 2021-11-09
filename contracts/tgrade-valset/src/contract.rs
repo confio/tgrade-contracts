@@ -480,8 +480,11 @@ pub fn sudo(deps: DepsMut, env: Env, msg: TgradeSudoMsg) -> Result<Response, Con
 fn privilege_change(_deps: DepsMut, change: PrivilegeChangeMsg) -> Response {
     match change {
         PrivilegeChangeMsg::Promoted {} => {
-            let msgs =
-                request_privileges(&[Privilege::ValidatorSetUpdater, Privilege::TokenMinter]);
+            let msgs = request_privileges(&[
+                Privilege::ValidatorSetUpdater,
+                Privilege::TokenMinter,
+                Privilege::BeginBlocker,
+            ]);
             Response::new().add_submessages(msgs)
         }
         PrivilegeChangeMsg::Demoted {} => {
@@ -765,11 +768,11 @@ fn begin_block(
     let validators = VALIDATORS.load(deps.storage)?;
 
     let mut response = Response::new();
-
     for evidence in evidences {
         if evidence.evidence_type == EvidenceType::DuplicateVote {
             // If there's a match between accused validator and one from contract's
             // list of validators, then slash his bonded tokens and jail forever.
+            dbg!("before find matching validators");
             if let Some(validator) =
                 evidence::find_matching_validator(&evidence.validator, &validators)?
             {

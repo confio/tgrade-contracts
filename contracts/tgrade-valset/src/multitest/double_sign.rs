@@ -1,8 +1,9 @@
 use cosmwasm_std::Binary;
 use tg_bindings::{Ed25519Pubkey, Evidence, EvidenceType, ToAddress, Validator};
 
-use super::helpers::mock_pubkey;
+use super::helpers::{assert_operators, mock_pubkey};
 use super::suite::SuiteBuilder;
+use crate::msg::JailingPeriod;
 
 use std::convert::TryFrom;
 
@@ -22,7 +23,7 @@ fn double_sign_evidence_slash_and_jail() {
     let evidence = Evidence {
         evidence_type: EvidenceType::DuplicateVote,
         validator: Validator {
-            address: Binary(evidence_hash.to_vec()),
+            address: Binary::from(evidence_hash.to_vec()),
             power: 20,
         },
         height: 3,
@@ -31,4 +32,14 @@ fn double_sign_evidence_slash_and_jail() {
     };
 
     suite.next_block_with_evidence(vec![evidence]).unwrap();
+
+    // Just verify validators are actually jailed in the process
+    assert_operators(
+        &suite.list_validators(None, None).unwrap(),
+        &[
+            (members[0], Some(JailingPeriod::Forever {})),
+            (members[1], None),
+            (members[2], None),
+        ],
+    );
 }
