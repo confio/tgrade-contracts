@@ -120,6 +120,7 @@ fn init_msg(
         fee_percentage: Decimal::zero(),
         auto_unjail: false,
         validators_reward_ratio: Decimal::one(),
+        double_sign_slash_ratio: Decimal::percent(50),
         distribution_contract: None,
         rewards_code_id,
     }
@@ -174,6 +175,7 @@ fn init_and_query_state() {
             fee_percentage: Decimal::zero(),
             auto_unjail: false,
             validators_reward_ratio: Decimal::one(),
+            double_sign_slash_ratio: Decimal::percent(50),
             distribution_contract: None,
             rewards_contract: cfg.rewards_contract.clone(),
         }

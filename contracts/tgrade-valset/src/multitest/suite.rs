@@ -68,6 +68,8 @@ pub struct SuiteBuilder {
     /// How much reward is going to validators, and how much to non-validators engaged operators
     #[derivative(Default(value = "Decimal::one()"))]
     validators_reward_ratio: Decimal,
+    #[derivative(Default(value = "Decimal::percent(50)"))]
+    double_sign_slash_ratio: Decimal,
     /// Configuration of `distribution_contract` if any
     distribution_config: Option<DistributionConfig>,
 }
@@ -231,6 +233,7 @@ impl SuiteBuilder {
                     fee_percentage: self.fee_percentage,
                     auto_unjail: self.auto_unjail,
                     validators_reward_ratio: self.validators_reward_ratio,
+                    double_sign_slash_ratio: self.double_sign_slash_ratio,
                     distribution_contract: distribution_contract
                         .as_ref()
                         .map(|addr| addr.to_string()),

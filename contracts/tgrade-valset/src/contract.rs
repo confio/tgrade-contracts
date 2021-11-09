@@ -749,6 +749,8 @@ mod evidence {
     }
 }
 
+/// If some validators are caught on malicious behavior (for example double signing),
+/// they are reported and punished on begin of next block.
 fn begin_block(
     deps: DepsMut,
     _env: Env,
