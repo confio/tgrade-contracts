@@ -120,3 +120,31 @@ fn double_sign_evidence_doesnt_affect_engagement_rewards() {
     assert_eq!(suite.token_balance(members[0].0).unwrap(), 2250);
     assert_eq!(suite.token_balance(members[1].0).unwrap(), 2250);
 }
+
+#[test]
+fn double_sign_evidence_doesnt_match() {
+    let actors = vec!["member1", "member2"];
+    let members = vec![(actors[0], 10), (actors[1], 10)];
+
+    let mut suite = SuiteBuilder::new()
+        .with_operators(&[members[0], members[1]], &[])
+        .with_epoch_reward(coin(1500, "usdc"))
+        .build();
+
+    let evidence = create_evidence_for_member(("random member", 10));
+
+    suite.next_block_with_evidence(vec![evidence]).unwrap();
+
+    // Hashes provided by evidence didn't match any existing validator, so no slashing and
+    // jailing occured
+    assert_operators(
+        &suite.list_validators(None, None).unwrap(),
+        &[(members[0].0, None), (members[1].0, None)],
+    );
+    suite.advance_epoch().unwrap();
+    suite.advance_epoch().unwrap();
+    suite.withdraw_validation_reward(members[0].0).unwrap();
+    suite.withdraw_validation_reward(members[1].0).unwrap();
+    assert_eq!(suite.token_balance(members[0].0).unwrap(), 2250);
+    assert_eq!(suite.token_balance(members[1].0).unwrap(), 2250);
+}
