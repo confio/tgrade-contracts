@@ -64,7 +64,8 @@ The following messages have been added to handle un/staking tokens:
 
 `Unbond{tokens}` - starts the unbonding process for the given number 
   of tokens. The sender immediately loses weight from these tokens,
-  and can claim them back to his wallet after `unbonding_period`
+  and can claim them back to his wallet after `unbonding_period`. `tokens`
+  is a structure of `{ amount: token_amount, denom: token_denom }`.
 
 `Claim{}` -  used to claim your native tokens that you previously "unbonded"
 after the contract-defined waiting period (e.g. 1 week)

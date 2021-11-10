@@ -1,5 +1,15 @@
 # Changelog
 
+## Unreleased
+
+[Full Changelog](https://github.com/confio/tgrade-contracts/compare/v0.5.0-beta3...main)
+
+**Changed:**
+
+- BREAKING: The `tokens` field on `Unbound` message for `tg4-stake` contracts changed from being `Uint128`
+  (unbond tokens amount) to the structure of `{ amount: Uint128, denom: String }`. If `denom` doesn't
+  match the staking denom, unbounding would fail.
+
 ## [v0.5.0-beta](https://github.com/confio/tgrade-contracts/tree/v0.5.0-beta3) (2021-11-04)
 
 [Full Changelog](https://github.com/confio/tgrade-contracts/compare/v0.5.0-alpha.2...v0.5.0-beta3)

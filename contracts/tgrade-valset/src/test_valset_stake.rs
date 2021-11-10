@@ -142,7 +142,7 @@ fn unbond(app: &mut BasicApp<TgradeMsg>, addr: &Addr, stake_addr: &Addr, tokens:
             addr.clone(),
             stake_addr.clone(),
             &ExecuteMsg::Unbond {
-                tokens: Uint128::new(tokens),
+                tokens: coin(tokens, BOND_DENOM),
             },
             &[],
         )
