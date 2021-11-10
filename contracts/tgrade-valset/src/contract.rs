@@ -287,8 +287,25 @@ fn execute_unjail(
     Ok(res)
 }
 
-fn execute_slash(
+fn store_slashing_event(
     deps: DepsMut,
+    env: &Env,
+    addr: Addr,
+    portion: Decimal,
+) -> Result<(), ContractError> {
+    let mut slashing = VALIDATOR_SLASHING
+        .may_load(deps.storage, &addr)?
+        .unwrap_or_default();
+    slashing.push(ValidatorSlashing {
+        slash_height: env.block.height,
+        portion,
+    });
+    VALIDATOR_SLASHING.save(deps.storage, &addr, &slashing)?;
+    Ok(())
+}
+
+fn execute_slash(
+    mut deps: DepsMut,
     env: Env,
     info: MessageInfo,
     operator: String,
@@ -298,14 +315,7 @@ fn execute_slash(
 
     // Store slashing event
     let addr = Addr::unchecked(&operator);
-    let mut slashing = VALIDATOR_SLASHING
-        .may_load(deps.storage, &addr)?
-        .unwrap_or_default();
-    slashing.push(ValidatorSlashing {
-        slash_height: env.block.height,
-        portion,
-    });
-    VALIDATOR_SLASHING.save(deps.storage, &addr, &slashing)?;
+    store_slashing_event(deps.branch(), &env, addr, portion)?;
 
     let config = CONFIG.load(deps.storage)?;
 
@@ -472,7 +482,7 @@ pub fn sudo(deps: DepsMut, env: Env, msg: TgradeSudoMsg) -> Result<Response, Con
     match msg {
         TgradeSudoMsg::PrivilegeChange(change) => Ok(privilege_change(deps, change)),
         TgradeSudoMsg::EndWithValidatorUpdate {} => end_block(deps, env),
-        TgradeSudoMsg::BeginBlock { evidence } => begin_block(deps, evidence),
+        TgradeSudoMsg::BeginBlock { evidence } => begin_block(deps, env, evidence),
         _ => Err(ContractError::UnknownSudoType {}),
     }
 }
@@ -754,7 +764,11 @@ mod evidence {
 
 /// If some validators are caught on malicious behavior (for example double signing),
 /// they are reported and punished on begin of next block.
-fn begin_block(deps: DepsMut, evidences: Vec<Evidence>) -> Result<Response, ContractError> {
+fn begin_block(
+    mut deps: DepsMut,
+    env: Env,
+    evidences: Vec<Evidence>,
+) -> Result<Response, ContractError> {
     // Early exit saves couple loads from below if there are no evidences at all.
     if evidences.is_empty() {
         return Ok(Response::new());
@@ -776,13 +790,20 @@ fn begin_block(deps: DepsMut, evidences: Vec<Evidence>) -> Result<Response, Cont
             // then jail and slash that validator
             if let Some(validator) = evidence::find_matching_validator(&validator, &validators)? {
                 // If validator started after height from evidence, ignore
+                dbg!(validator.clone());
                 let start_height = VALIDATOR_START_HEIGHT.load(deps.storage, &validator.operator);
-                if start_height.is_err() || start_height.unwrap() > evidence_height {
+                if start_height.is_err() || dbg!(start_height.unwrap()) > dbg!(evidence_height) {
                     return Ok(());
                 }
 
                 let sub_msg =
                     evidence::slash_validator_msg(&config, validator.operator.to_string())?;
+                store_slashing_event(
+                    deps.branch(),
+                    &env,
+                    validator.operator.clone(),
+                    config.double_sign_slash_ratio,
+                )?;
 
                 JAIL.save(
                     deps.storage,

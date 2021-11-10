@@ -4,7 +4,7 @@ use tg_bindings::{Ed25519Pubkey, Evidence, EvidenceType, ToAddress, Validator};
 
 use super::helpers::{assert_operators, mock_pubkey};
 use super::suite::SuiteBuilder;
-use crate::msg::JailingPeriod;
+use crate::msg::{JailingPeriod, ValidatorMetadata};
 
 use std::convert::TryFrom;
 
@@ -26,7 +26,7 @@ fn create_evidence_for_member(member: (&str, u64), height: u64) -> Evidence {
 }
 
 #[test]
-fn double_sign_evidence_slash_and_jail() {
+fn evidence_slash_and_jail() {
     let members = vec![("member1", 10), ("member2", 10)];
 
     let mut suite = SuiteBuilder::new()
@@ -83,7 +83,7 @@ fn double_sign_evidence_slash_and_jail() {
 }
 
 #[test]
-fn double_sign_evidence_doesnt_affect_engagement_rewards() {
+fn evidence_doesnt_affect_engagement_rewards() {
     let members = vec![("member1", 10), ("member2", 10)];
 
     let mut suite = SuiteBuilder::new()
@@ -120,7 +120,7 @@ fn double_sign_evidence_doesnt_affect_engagement_rewards() {
 }
 
 #[test]
-fn double_sign_evidence_doesnt_match() {
+fn evidence_doesnt_match() {
     let members = vec![("member1", 10), ("member2", 10)];
 
     let mut suite = SuiteBuilder::new()
@@ -147,7 +147,7 @@ fn double_sign_evidence_doesnt_match() {
 }
 
 #[test]
-fn double_sign_multiple_evidences() {
+fn multiple_evidences() {
     let members = vec![("member1", 10), ("member2", 10), ("member3", 10)];
 
     let mut suite = SuiteBuilder::new()
@@ -167,6 +167,70 @@ fn double_sign_multiple_evidences() {
         &[
             (members[0].0, Some(JailingPeriod::Forever {})),
             (members[1].0, None),
+            (members[2].0, Some(JailingPeriod::Forever {})),
+        ],
+    );
+}
+
+#[test]
+fn evidence_with_not_matching_date() {
+    let members = vec![("member1", 10), ("member2", 10), ("member3", 10)];
+
+    let mut suite = SuiteBuilder::new()
+        .with_operators(&[members[0], members[1]], &[])
+        .with_epoch_reward(coin(1500, "usdc"))
+        .build();
+
+    println!("1# EVIDENCE");
+    let first_evidence = create_evidence_for_member(members[2], suite.height());
+
+    let meta = ValidatorMetadata {
+        moniker: "funny boy".to_owned(),
+        identity: Some("Secret identity".to_owned()),
+        website: Some("https://www.funny.boy.rs".to_owned()),
+        security_contact: Some("funny@boy.rs".to_owned()),
+        details: Some("Comedian".to_owned()),
+    };
+    let pubkey = mock_pubkey(members[2].0.as_bytes());
+    suite
+        .register_validator_key(members[2].0, pubkey, meta)
+        .unwrap();
+
+    suite.advance_epoch().unwrap();
+
+    println!("2# EVIDENCE");
+    let second_evidence = create_evidence_for_member(members[1], suite.height());
+
+    suite
+        .next_block_with_evidence(vec![first_evidence, second_evidence])
+        .unwrap();
+
+    // First validator did nothing
+    // Second was reported as second_evidence
+    // Third was reported as first_evidence, but since he was registered later,
+    // he's dismissed
+    assert_operators(
+        &suite.list_validators(None, None).unwrap(),
+        &[
+            (members[0].0, None),
+            (members[1].0, Some(JailingPeriod::Forever {})),
+            (members[2].0, None),
+        ],
+    );
+
+    println!("3# EVIDENCE");
+    let third_evidence = create_evidence_for_member(members[2], suite.height());
+    suite
+        .next_block_with_evidence(vec![third_evidence])
+        .unwrap();
+
+    // Third validator can still be punished, if evidence provides correct date
+    // (after his registration)
+    assert_operators(
+        &suite.list_validators(None, None).unwrap(),
+        &[
+            (members[0].0, None),
+            (members[1].0, Some(JailingPeriod::Forever {})),
             (members[2].0, Some(JailingPeriod::Forever {})),
         ],
     );

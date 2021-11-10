@@ -6,7 +6,7 @@ use cosmwasm_std::{coin, Addr, Coin, CosmosMsg, Decimal, StdResult, Timestamp};
 use cw_multi_test::{next_block, AppResponse, Contract, ContractWrapper, CosmosRouter, Executor};
 use derivative::Derivative;
 use tg4::Member;
-use tg_bindings::{Evidence, TgradeMsg, ValidatorDiff};
+use tg_bindings::{Evidence, Pubkey, TgradeMsg, ValidatorDiff};
 use tg_bindings_test::TgradeApp;
 use tg_utils::Duration;
 
@@ -371,6 +371,20 @@ impl Suite {
             &ExecuteMsg::Unjail {
                 operator: operator.into().map(str::to_owned),
             },
+            &[],
+        )
+    }
+
+    pub fn register_validator_key(
+        &mut self,
+        executor: &str,
+        pubkey: Pubkey,
+        metadata: ValidatorMetadata,
+    ) -> AnyResult<AppResponse> {
+        self.app.execute_contract(
+            Addr::unchecked(executor),
+            self.valset.clone(),
+            &ExecuteMsg::RegisterValidatorKey { pubkey, metadata },
             &[],
         )
     }
