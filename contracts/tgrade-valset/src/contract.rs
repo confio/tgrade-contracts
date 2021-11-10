@@ -775,11 +775,18 @@ fn begin_block(
             EvidenceType::DuplicateVote => Some((e.validator.clone(), e.height)),
             _ => None,
         })
-        // TODO: Evidence's height will be used in follow-up
-        .map(|(validator, _)| {
+        .map(|(validator, evidence_height)| {
             // If there's match between evidence validator's hash and one from list of validators,
             // then jail and slash that validator
             if let Some(validator) = evidence::find_matching_validator(&validator, &validators)? {
+                // If validator started after height from evidence, ignore
+                let start_height = VALIDATOR_START_HEIGHT
+                    .load(deps.storage, &validator.operator)
+                    .ok();
+                if start_height.is_none() || start_height.unwrap() < evidence_height {
+                    return Ok(());
+                }
+
                 let sub_msg =
                     evidence::slash_validator_msg(&config, validator.operator.to_string())?;
 
