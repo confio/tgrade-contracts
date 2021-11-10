@@ -723,8 +723,6 @@ fn calculate_diff(
 mod evidence {
     use super::*;
 
-    use std::convert::TryFrom;
-
     use tg_bindings::{ToAddress, Validator};
 
     /// Validator struct contains only hash of first 20 bytes of validator's pub key
@@ -732,16 +730,21 @@ mod evidence {
     /// suspect, this function computes sha256 hashes for all existing validator and
     /// compares result with suspect. It is acceptable approach, since it shouldn't
     /// happen too often.
-    pub fn find_matching_validator<'a>(
+    pub fn find_matching_validator(
+        deps: Deps,
         suspect: &Validator,
-        validators: &'a [ValidatorInfo],
-    ) -> Result<Option<&'a ValidatorInfo>, ContractError> {
-        for validator in validators {
-            let ed25519_pubkey = Ed25519Pubkey::try_from(validator.validator_pubkey.clone())?;
+    ) -> Result<Option<Addr>, ContractError> {
+        for operator in operators()
+            .idx
+            .pubkey
+            .range(deps.storage, None, None, Order::Ascending)
+        {
+            let ed25519_pubkey = operator?.1.pubkey.clone();
             let hash = ed25519_pubkey.to_address();
             let binary_hash = Binary::from(hash);
             if binary_hash == suspect.address {
-                return Ok(Some(validator));
+                let addr = Addr::unchecked(&binary_hash.to_string());
+                return Ok(Some(addr));
             }
         }
         Ok(None)
@@ -775,7 +778,6 @@ fn begin_block(
     }
 
     let config = CONFIG.load(deps.storage)?;
-    let validators = VALIDATORS.load(deps.storage)?;
 
     let mut response = Response::new();
 
@@ -788,33 +790,28 @@ fn begin_block(
         .map(|(validator, evidence_height)| {
             // If there's match between evidence validator's hash and one from list of validators,
             // then jail and slash that validator
-            if let Some(validator) = evidence::find_matching_validator(&validator, &validators)? {
+            if let Some(validator) = evidence::find_matching_validator(deps.as_ref(), &validator)? {
                 // If validator started after height from evidence, ignore
-                dbg!(validator.clone());
-                let start_height = VALIDATOR_START_HEIGHT.load(deps.storage, &validator.operator);
-                if start_height.is_err() || dbg!(start_height.unwrap()) > dbg!(evidence_height) {
+                let start_height = VALIDATOR_START_HEIGHT.load(deps.storage, &validator);
+                println!("start height: {:?}", start_height);
+                if start_height.is_err() || start_height.unwrap() > evidence_height {
                     return Ok(());
                 }
 
-                let sub_msg =
-                    evidence::slash_validator_msg(&config, validator.operator.to_string())?;
+                let sub_msg = evidence::slash_validator_msg(&config, validator.to_string())?;
                 store_slashing_event(
                     deps.branch(),
                     &env,
-                    validator.operator.clone(),
+                    validator.clone(),
                     config.double_sign_slash_ratio,
                 )?;
 
-                JAIL.save(
-                    deps.storage,
-                    &validator.operator,
-                    &JailingPeriod::Forever {},
-                )?;
+                JAIL.save(deps.storage, &validator, &JailingPeriod::Forever {})?;
 
                 response = response
                     .clone()
                     .add_attribute("action", "slash_and_jail")
-                    .add_attribute("validator", validator.operator.as_str())
+                    .add_attribute("validator", validator.as_str())
                     .add_submessage(sub_msg);
             }
             Ok(())
