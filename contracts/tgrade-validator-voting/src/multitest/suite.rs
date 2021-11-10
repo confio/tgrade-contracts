@@ -247,23 +247,6 @@ impl Suite {
         )
     }
 
-    pub fn propose_grant_engagement(
-        &mut self,
-        executor: &str,
-        target: &str,
-        points: u64,
-    ) -> AnyResult<AppResponse> {
-        self.propose(
-            executor,
-            "proposal title",
-            "proposal description",
-            OversightProposal::GrantEngagement {
-                member: Addr::unchecked(target),
-                points,
-            },
-        )
-    }
-
     pub fn execute(&mut self, executor: &str, proposal_id: u64) -> AnyResult<AppResponse> {
         self.app.execute_contract(
             Addr::unchecked(executor),
