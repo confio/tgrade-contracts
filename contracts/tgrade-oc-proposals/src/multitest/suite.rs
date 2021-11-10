@@ -1,10 +1,10 @@
 use anyhow::Result as AnyResult;
 
-use cosmwasm_std::{coin, Addr, Binary, Decimal};
+use cosmwasm_std::{coin, Addr, Binary, Coin, Decimal, StdResult};
 use cw3::{Status, Vote, VoteInfo, VoteListResponse, VoteResponse, VoterResponse};
 use cw_multi_test::{AppResponse, Contract, ContractWrapper, Executor};
 use tg4::{Member, MemberResponse, Tg4ExecuteMsg, Tg4QueryMsg};
-use tg_bindings::TgradeMsg;
+use tg_bindings::{TgradeMsg, ValidatorDiff};
 use tg_bindings_test::TgradeApp;
 
 use crate::error::ContractError;
@@ -90,6 +90,7 @@ pub struct SuiteBuilder {
     group_members: Vec<Member>,
     rules: VotingRules,
     multisig_as_group_admin: bool,
+    epoch_reward: Coin,
 }
 
 impl SuiteBuilder {
@@ -104,6 +105,7 @@ impl SuiteBuilder {
                 allow_end_early: false,
             },
             multisig_as_group_admin: false,
+            epoch_reward: coin(5, "BTC"),
         }
     }
 
@@ -133,10 +135,16 @@ impl SuiteBuilder {
         self
     }
 
+    pub fn with_epoch_reward(mut self, epoch_reward: Coin) -> Self {
+        self.epoch_reward = epoch_reward;
+        self
+    }
+
     #[track_caller]
     pub fn build(self) -> Suite {
         let owner = Addr::unchecked("owner");
         let mut app = TgradeApp::new(owner.as_str());
+        let epoch_length = 100;
 
         // start from genesis
         app.back_to_genesis();
@@ -219,15 +227,15 @@ impl SuiteBuilder {
                     admin: Some(owner.to_string()),
                     auto_unjail: false,
                     distribution_contract: None,
-                    epoch_length: 1,
-                    epoch_reward: coin(1, "engagement".to_string()),
-                    fee_percentage: Decimal::percent(20),
+                    epoch_length,
+                    epoch_reward: self.epoch_reward,
+                    fee_percentage: Decimal::zero(),
                     initial_keys: operators,
-                    max_validators: 1,
+                    max_validators: 9999,
                     membership: group_contract.to_string(),
                     min_weight: 1,
-                    rewards_code_id: 1,
-                    scaling: Some(1),
+                    rewards_code_id: engagement_id,
+                    scaling: None,
                     validators_reward_ratio: Decimal::one(),
                 },
                 &[],
@@ -287,6 +295,18 @@ impl SuiteBuilder {
         )
         .unwrap();
 
+        // Get the rewards contract from valset
+        let resp: tgrade_valset::state::Config = app
+            .wrap()
+            .query_wasm_smart(
+                valset_contract.clone(),
+                &tgrade_valset::msg::QueryMsg::Config {},
+            )
+            .unwrap();
+        let rewards_contract = resp.rewards_contract;
+
+        app.promote(owner.as_str(), valset_contract.as_str())
+            .unwrap();
         app.next_block().unwrap();
 
         Suite {
@@ -295,6 +315,8 @@ impl SuiteBuilder {
             engagement_contract,
             group_contract,
             owner,
+            epoch_length,
+            rewards_contract,
         }
     }
 }
@@ -305,6 +327,8 @@ pub struct Suite {
     engagement_contract: Addr,
     group_contract: Addr,
     owner: Addr,
+    epoch_length: u64,
+    rewards_contract: Addr,
 }
 
 impl Suite {
@@ -386,6 +410,13 @@ impl Suite {
             &ExecuteMsg::Close { proposal_id },
             &[],
         )
+    }
+
+    pub fn advance_epoch(&mut self) -> AnyResult<Option<ValidatorDiff>> {
+        self.app.advance_seconds(self.epoch_length);
+        let (_, diff) = self.app.end_block()?;
+        self.app.begin_block(vec![])?;
+        Ok(diff)
     }
 
     fn query_engagement_points(
@@ -475,5 +506,27 @@ impl Suite {
             .filter(|&v| v.vote == Vote::Yes)
             .map(|v| v.weight)
             .sum()
+    }
+
+    pub fn withdraw_validation_reward(&mut self, executor: &str) -> AnyResult<AppResponse> {
+        self.app.execute_contract(
+            Addr::unchecked(executor),
+            self.rewards_contract.clone(),
+            &tg4_engagement::msg::ExecuteMsg::WithdrawFunds {
+                owner: None,
+                receiver: None,
+            },
+            &[],
+        )
+    }
+
+    /// Shortcut for querying reward token balance of contract
+    pub fn token_balance(&self, owner: &str, token: &str) -> StdResult<u128> {
+        let amount = self
+            .app
+            .wrap()
+            .query_balance(&Addr::unchecked(owner), token)?
+            .amount;
+        Ok(amount.into())
     }
 }

@@ -558,40 +558,11 @@ mod tests {
     }
 
     // uploads code and returns address of engagement contract
-    fn instantiate_distribution(
-        app: &mut TgradeApp,
-        halflife: impl Into<Option<tg_utils::Duration>>,
-        admin: impl Into<Option<String>>,
-        members: Vec<Member>,
-    ) -> Addr {
-        let distribution_id = app.store_code(contract_engagement());
-
-        let msg = tg4_engagement::msg::InstantiateMsg {
-            admin: admin.into(),
-            members,
-            preauths_hooks: 0,
-            preauths_slashing: 1,
-            halflife: halflife.into(),
-            token: ENGAGEMENT_TOKEN.to_string(),
-        };
-        let res = app.instantiate_contract(
-            distribution_id,
-            Addr::unchecked(OWNER),
-            &msg,
-            &[],
-            "distribution",
-            Some(OWNER.to_string()),
-        );
-        res.unwrap()
-    }
-
-    // uploads code and returns address of engagement contract
     fn instantiate_valset(
         app: &mut TgradeApp,
         group: impl ToString,
         admin: impl Into<Option<String>>,
         members: Vec<Member>,
-        distribution: impl Into<Option<String>>,
         engagement_id: u64,
     ) -> Addr {
         // TODO: could we instead just reuse the test suite developed for tgrade_valset?
@@ -611,7 +582,7 @@ mod tests {
         let msg = tgrade_valset::msg::InstantiateMsg {
             admin: admin.into(),
             auto_unjail: false,
-            distribution_contract: distribution.into(),
+            distribution_contract: None,
             epoch_length: EPOCH_LENGTH,
             epoch_reward: coin(506, ENGAGEMENT_TOKEN.to_string()),
             fee_percentage: Decimal::zero(),
@@ -685,14 +656,11 @@ mod tests {
         let group_addr = instantiate_group(app, members.clone());
         let (engagement_addr, engagement_code_id) =
             instantiate_engagement(app, OWNER.to_string(), members.clone());
-        let distribution_addr =
-            instantiate_distribution(app, None, OWNER.to_string(), members.clone());
         let valset_addr = instantiate_valset(
             app,
             group_addr.clone(),
             OWNER.to_string(),
             members,
-            distribution_addr.to_string(),
             engagement_code_id,
         );
         app.update_block(next_block);
@@ -817,25 +785,6 @@ mod tests {
         }
     }
 
-    fn slash_proposal_info() -> (OversightProposal, String, String) {
-        let proposal = OversightProposal::Slash {
-            member: Addr::unchecked(VOTER2),
-            portion: Decimal::percent(50),
-        };
-        let title = "Slash a dude".to_string();
-        let description = "Slashing and thrashing".to_string();
-        (proposal, title, description)
-    }
-
-    fn slash_voter2_proposal() -> ExecuteMsg {
-        let (proposal, title, description) = slash_proposal_info();
-        ExecuteMsg::Propose {
-            title,
-            description,
-            proposal,
-        }
-    }
-
     #[test]
     fn test_instantiate_works() {
         let mut app = mock_app(&[]);
@@ -849,7 +798,6 @@ mod tests {
             group_addr.clone(),
             OWNER.to_string(),
             vec![member(OWNER, 1)],
-            None,
             engagement_code_id,
         );
         let flex_id = app.store_code(contract_flex());
@@ -1205,112 +1153,5 @@ mod tests {
         app.execute_contract(Addr::unchecked(VOTER3), flex_addr.clone(), &no_vote, &[])
             .unwrap();
         assert_eq!(prop_status(&app), Status::Passed);
-    }
-
-    #[test]
-    fn executing_slashing_proposals_works() {
-        let init_funds = coins(10, "BTC");
-        let mut app = mock_app(&init_funds);
-
-        let rules = mock_rules()
-            .threshold(Decimal::percent(50))
-            .quorum(Decimal::percent(1))
-            .build();
-        let (flex_addr, group_addr, _, valset_addr) =
-            setup_test_case(&mut app, rules, init_funds, false);
-
-        let resp: tgrade_valset::state::Config = app
-            .wrap()
-            .query_wasm_smart(valset_addr, &tgrade_valset::msg::QueryMsg::Config {})
-            .unwrap();
-        let rewards_contract = resp.rewards_contract;
-
-        // Next epoch
-        app.advance_seconds(EPOCH_LENGTH);
-        app.end_block().unwrap();
-        app.begin_block(vec![]).unwrap();
-
-        // create and pass the slashing proposal
-        let proposal = slash_voter2_proposal();
-        let res = app
-            .execute_contract(Addr::unchecked(VOTER4), flex_addr.clone(), &proposal, &[])
-            .unwrap();
-        // Get the proposal id from the logs
-        let proposal_id: u64 = res.custom_attrs(1)[2].value.parse().unwrap();
-        let prop_status = |app: &TgradeApp| -> Status {
-            let query_prop = QueryMsg::Proposal { proposal_id };
-            let prop: ProposalResponse = app
-                .wrap()
-                .query_wasm_smart(&flex_addr, &query_prop)
-                .unwrap();
-            prop.status
-        };
-        assert_eq!(prop_status(&app), Status::Passed);
-        // execute the slash
-        let slash_msg = ExecuteMsg::Execute { proposal_id };
-        app.execute_contract(Addr::unchecked(VOTER3), flex_addr, &slash_msg, &[])
-            .unwrap();
-
-        // Next epoch
-        app.advance_seconds(EPOCH_LENGTH);
-        app.end_block().unwrap();
-        app.begin_block(vec![]).unwrap();
-
-        // Let's withdraw the funds for VOTER1 and check the amount.
-        app.execute_contract(
-            Addr::unchecked(VOTER2),
-            rewards_contract.clone(),
-            &tg4_engagement::msg::ExecuteMsg::WithdrawFunds {
-                owner: None,
-                receiver: None,
-            },
-            &[],
-        )
-        .unwrap();
-
-        // total_weight = 23
-        // epoch_reward = 506
-        // voter2_weight = 2
-        // epoch_reward / total_weight * voter2_weight = 44
-        // the slash isn't yet applied to this epoch's rewards
-        assert_eq!(
-            app.wrap()
-                .query_balance(&Addr::unchecked(VOTER2), ENGAGEMENT_TOKEN)
-                .unwrap()
-                .amount
-                .u128(),
-            44
-        );
-
-        // Next epoch
-        app.advance_seconds(EPOCH_LENGTH);
-        app.end_block().unwrap();
-        app.begin_block(vec![]).unwrap();
-
-        // Let's withdraw the funds for VOTER1 and check the amount.
-        app.execute_contract(
-            Addr::unchecked(VOTER2),
-            rewards_contract.clone(),
-            &tg4_engagement::msg::ExecuteMsg::WithdrawFunds {
-                owner: None,
-                receiver: None,
-            },
-            &[],
-        )
-        .unwrap();
-
-        // values have changed with the slash
-        // total_weight = 22
-        // epoch_reward = 506
-        // voter2_weight = 1
-        // epoch_reward / total_weight * voter2_weight = 23
-        assert_eq!(
-            app.wrap()
-                .query_balance(&Addr::unchecked(VOTER2), ENGAGEMENT_TOKEN)
-                .unwrap()
-                .amount
-                .u128(),
-            44 + 23
-        );
     }
 }
