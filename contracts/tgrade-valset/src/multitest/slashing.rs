@@ -18,9 +18,8 @@ fn admin_can_slash() {
             Decimal::percent(50),
             &[(engagement[0], 20), (engagement[1], 10)],
             None,
-        );
-    panic!("{:?}", suite);
-    let suite = suite.build();
+        )
+        .build();
 
     let admin = suite.admin().to_owned();
 
