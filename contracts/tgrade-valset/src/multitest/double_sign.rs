@@ -8,7 +8,7 @@ use crate::msg::JailingPeriod;
 
 use std::convert::TryFrom;
 
-fn create_evidence_for_member(member: (&str, u64)) -> Evidence {
+fn create_evidence_for_member(member: (&str, u64), height: u64) -> Evidence {
     let evidence_pubkey = mock_pubkey(member.0.as_bytes());
     let ed25519_pubkey = Ed25519Pubkey::try_from(evidence_pubkey).unwrap();
     let evidence_hash = ed25519_pubkey.to_address();
@@ -19,7 +19,7 @@ fn create_evidence_for_member(member: (&str, u64)) -> Evidence {
             address: Binary::from(evidence_hash.to_vec()),
             power: member.1,
         },
-        height: 3,
+        height,
         time: 3,
         total_voting_power: 20,
     }
@@ -34,7 +34,7 @@ fn double_sign_evidence_slash_and_jail() {
         .with_epoch_reward(coin(1500, "usdc"))
         .build();
 
-    let evidence = create_evidence_for_member(members[0]);
+    let evidence = create_evidence_for_member(members[0], suite.height());
 
     suite.next_block_with_evidence(vec![evidence]).unwrap();
 
@@ -92,7 +92,7 @@ fn double_sign_evidence_doesnt_affect_engagement_rewards() {
         .with_distribution(Decimal::percent(50), &[members[0], members[1]], None)
         .build();
 
-    let evidence = create_evidence_for_member(members[0]);
+    let evidence = create_evidence_for_member(members[0], suite.height());
 
     suite.next_block_with_evidence(vec![evidence]).unwrap();
 
@@ -128,7 +128,7 @@ fn double_sign_evidence_doesnt_match() {
         .with_epoch_reward(coin(1500, "usdc"))
         .build();
 
-    let evidence = create_evidence_for_member(("random member", 10));
+    let evidence = create_evidence_for_member(("random member", 10), suite.height());
 
     suite.next_block_with_evidence(vec![evidence]).unwrap();
 
@@ -155,8 +155,8 @@ fn double_sign_multiple_evidences() {
         .with_epoch_reward(coin(1500, "usdc"))
         .build();
 
-    let first_evidence = create_evidence_for_member(members[0]);
-    let second_evidence = create_evidence_for_member(members[2]);
+    let first_evidence = create_evidence_for_member(members[0], suite.height());
+    let second_evidence = create_evidence_for_member(members[2], suite.height());
 
     suite
         .next_block_with_evidence(vec![first_evidence, second_evidence])

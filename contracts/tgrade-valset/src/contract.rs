@@ -472,7 +472,7 @@ pub fn sudo(deps: DepsMut, env: Env, msg: TgradeSudoMsg) -> Result<Response, Con
     match msg {
         TgradeSudoMsg::PrivilegeChange(change) => Ok(privilege_change(deps, change)),
         TgradeSudoMsg::EndWithValidatorUpdate {} => end_block(deps, env),
-        TgradeSudoMsg::BeginBlock { evidence } => begin_block(deps, env, evidence),
+        TgradeSudoMsg::BeginBlock { evidence } => begin_block(deps, evidence),
         _ => Err(ContractError::UnknownSudoType {}),
     }
 }
@@ -754,11 +754,7 @@ mod evidence {
 
 /// If some validators are caught on malicious behavior (for example double signing),
 /// they are reported and punished on begin of next block.
-fn begin_block(
-    deps: DepsMut,
-    _env: Env,
-    evidences: Vec<Evidence>,
-) -> Result<Response, ContractError> {
+fn begin_block(deps: DepsMut, evidences: Vec<Evidence>) -> Result<Response, ContractError> {
     // Early exit saves couple loads from below if there are no evidences at all.
     if evidences.is_empty() {
         return Ok(Response::new());
@@ -780,10 +776,8 @@ fn begin_block(
             // then jail and slash that validator
             if let Some(validator) = evidence::find_matching_validator(&validator, &validators)? {
                 // If validator started after height from evidence, ignore
-                let start_height = VALIDATOR_START_HEIGHT
-                    .load(deps.storage, &validator.operator)
-                    .ok();
-                if start_height.is_none() || start_height.unwrap() < evidence_height {
+                let start_height = VALIDATOR_START_HEIGHT.load(deps.storage, &validator.operator);
+                if start_height.is_err() || start_height.unwrap() > evidence_height {
                     return Ok(());
                 }
 

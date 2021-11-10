@@ -338,6 +338,11 @@ impl Suite {
         self.app.block_info().time
     }
 
+    /// Height of current block
+    pub fn height(&self) -> u64 {
+        self.app.block_info().height
+    }
+
     pub fn jail(
         &mut self,
         executor: &str,
