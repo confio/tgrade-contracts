@@ -768,13 +768,15 @@ fn begin_block(
     let validators = VALIDATORS.load(deps.storage)?;
 
     let mut response = Response::new();
-    for evidence in evidences {
-        if evidence.evidence_type == EvidenceType::DuplicateVote {
-            // If there's a match between accused validator and one from contract's
-            // list of validators, then slash his bonded tokens and jail forever.
-            if let Some(validator) =
-                evidence::find_matching_validator(&evidence.validator, &validators)?
-            {
+
+    evidences
+        .iter()
+        .flat_map(|e| match e.evidence_type {
+            EvidenceType::DuplicateVote => Some((e.validator.clone(), e.height)),
+            _ => None,
+        })
+        .map(|(validator, _)| {
+            if let Some(validator) = evidence::find_matching_validator(&validator, &validators)? {
                 let sub_msg =
                     evidence::slash_validator_msg(&config, validator.operator.to_string())?;
 
@@ -785,12 +787,14 @@ fn begin_block(
                 )?;
 
                 response = response
+                    .clone()
                     .add_attribute("action", "slash_and_jail")
                     .add_attribute("validator", validator.operator.as_str())
                     .add_submessage(sub_msg);
-            };
-        }
-    }
+            }
+            Ok(())
+        })
+        .collect::<Result<Vec<()>, ContractError>>()?;
 
     Ok(response)
 }
