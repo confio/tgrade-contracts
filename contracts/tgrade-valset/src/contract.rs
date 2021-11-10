@@ -775,6 +775,7 @@ fn begin_block(
             EvidenceType::DuplicateVote => Some((e.validator.clone(), e.height)),
             _ => None,
         })
+        // TODO: Evidence's height will be used in follow-up
         .map(|(validator, _)| {
             if let Some(validator) = evidence::find_matching_validator(&validator, &validators)? {
                 let sub_msg =

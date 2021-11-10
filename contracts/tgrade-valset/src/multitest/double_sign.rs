@@ -27,8 +27,7 @@ fn create_evidence_for_member(member: (&str, u64)) -> Evidence {
 
 #[test]
 fn double_sign_evidence_slash_and_jail() {
-    let actors = vec!["member1", "member2"];
-    let members = vec![(actors[0], 10), (actors[1], 10)];
+    let members = vec![("member1", 10), ("member2", 10)];
 
     let mut suite = SuiteBuilder::new()
         .with_operators(&[members[0], members[1]], &[])
@@ -85,8 +84,7 @@ fn double_sign_evidence_slash_and_jail() {
 
 #[test]
 fn double_sign_evidence_doesnt_affect_engagement_rewards() {
-    let actors = vec!["member1", "member2"];
-    let members = vec![(actors[0], 10), (actors[1], 10)];
+    let members = vec![("member1", 10), ("member2", 10)];
 
     let mut suite = SuiteBuilder::new()
         .with_operators(&[members[0], members[1]], &[])
@@ -123,8 +121,7 @@ fn double_sign_evidence_doesnt_affect_engagement_rewards() {
 
 #[test]
 fn double_sign_evidence_doesnt_match() {
-    let actors = vec!["member1", "member2"];
-    let members = vec![(actors[0], 10), (actors[1], 10)];
+    let members = vec![("member1", 10), ("member2", 10)];
 
     let mut suite = SuiteBuilder::new()
         .with_operators(&[members[0], members[1]], &[])
@@ -147,4 +144,30 @@ fn double_sign_evidence_doesnt_match() {
     suite.withdraw_validation_reward(members[1].0).unwrap();
     assert_eq!(suite.token_balance(members[0].0).unwrap(), 2250);
     assert_eq!(suite.token_balance(members[1].0).unwrap(), 2250);
+}
+
+#[test]
+fn double_sign_multiple_evidences() {
+    let members = vec![("member1", 10), ("member2", 10), ("member3", 10)];
+
+    let mut suite = SuiteBuilder::new()
+        .with_operators(&[members[0], members[1], members[2]], &[])
+        .with_epoch_reward(coin(1500, "usdc"))
+        .build();
+
+    let first_evidence = create_evidence_for_member(members[0]);
+    let second_evidence = create_evidence_for_member(members[2]);
+
+    suite
+        .next_block_with_evidence(vec![first_evidence, second_evidence])
+        .unwrap();
+
+    assert_operators(
+        &suite.list_validators(None, None).unwrap(),
+        &[
+            (members[0].0, Some(JailingPeriod::Forever {})),
+            (members[1].0, None),
+            (members[2].0, Some(JailingPeriod::Forever {})),
+        ],
+    );
 }
