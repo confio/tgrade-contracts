@@ -65,7 +65,7 @@ pub struct InstantiateMsg {
     #[serde(default = "default_validators_reward_ratio")]
     pub validators_reward_ratio: Decimal,
 
-    /// Validator who are caught on double signing, are jailed forever and their bonded tokens are
+    /// Validators who are caught double signing are jailed forever and their bonded tokens are
     /// slashed based on this value.
     #[serde(default = "default_double_sign_slash")]
     pub double_sign_slash_ratio: Decimal,

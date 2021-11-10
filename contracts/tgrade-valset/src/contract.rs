@@ -718,10 +718,10 @@ mod evidence {
     use tg_bindings::{ToAddress, Validator};
 
     /// Validator struct contains only hash of first 20 bytes of validator's pub key
-    /// (long story short, that's API's fault, we don't have much to say here), while
-    /// contract keeps only pub keys. To match potential reported suspect, this function
-    /// computes sha256 hashes for all existing validator and compares result with suspect.
-    /// It is acceptable approach, since it shouldn't happen too often.
+    /// (sha256), while contract keeps only pub keys. To match potential reported
+    /// suspect, this function computes sha256 hashes for all existing validator and
+    /// compares result with suspect. It is acceptable approach, since it shouldn't
+    /// happen too often.
     pub fn find_matching_validator<'a>(
         suspect: &Validator,
         validators: &'a [ValidatorInfo],
@@ -777,6 +777,8 @@ fn begin_block(
         })
         // TODO: Evidence's height will be used in follow-up
         .map(|(validator, _)| {
+            // If there's match between evidence validator's hash and one from list of validators,
+            // then jail and slash that validator
             if let Some(validator) = evidence::find_matching_validator(&validator, &validators)? {
                 let sub_msg =
                     evidence::slash_validator_msg(&config, validator.operator.to_string())?;

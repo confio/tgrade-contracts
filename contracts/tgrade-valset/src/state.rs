@@ -46,7 +46,7 @@ pub struct Config {
     /// This value is in range of `[0-1]`, `1` (or `100%`) by default.
     pub validators_reward_ratio: Decimal,
 
-    /// Validator who are caught on double signing, are jailed forever and their bonded tokens are
+    /// Validators who are caught double signing are jailed forever and their bonded tokens are
     /// slashed based on this value.
     pub double_sign_slash_ratio: Decimal,
 
