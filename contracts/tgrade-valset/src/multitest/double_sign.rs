@@ -15,7 +15,7 @@ fn double_sign_evidence_slash_and_jail() {
 
     let mut suite = SuiteBuilder::new()
         .with_operators(&[members[0], members[1]], &[])
-        .with_epoch_reward(coin(1000, "usdc"))
+        .with_epoch_reward(coin(3000, "usdc"))
         .with_distribution(Decimal::percent(50), &[members[0], members[1]], None)
         .build();
 
@@ -36,10 +36,10 @@ fn double_sign_evidence_slash_and_jail() {
 
     suite.next_block_with_evidence(vec![evidence]).unwrap();
 
-    suite.withdraw_engagement_reward(members[0].0).unwrap();
-    suite.withdraw_engagement_reward(members[1].0).unwrap();
-    assert_eq!(suite.token_balance(members[0].0).unwrap(), 250);
-    assert_eq!(suite.token_balance(members[1].0).unwrap(), 250);
+    suite.withdraw_validation_reward(members[0].0).unwrap();
+    suite.withdraw_validation_reward(members[1].0).unwrap();
+    assert_eq!(suite.token_balance(members[0].0).unwrap(), 750);
+    assert_eq!(suite.token_balance(members[1].0).unwrap(), 750);
 
     // Just verify validators are actually jailed in the process
     assert_operators(
@@ -52,14 +52,23 @@ fn double_sign_evidence_slash_and_jail() {
 
     suite.advance_epoch().unwrap();
 
-    suite.withdraw_engagement_reward(members[0].0).unwrap();
-    suite.withdraw_engagement_reward(members[1].0).unwrap();
-    assert_eq!(suite.token_balance(members[0].0).unwrap(), 500);
-    assert_eq!(suite.token_balance(members[1].0).unwrap(), 500);
+    suite.withdraw_validation_reward(members[0].0).unwrap();
+    suite.withdraw_validation_reward(members[1].0).unwrap();
+    assert_eq!(suite.token_balance(members[0].0).unwrap(), 1500);
+    assert_eq!(suite.token_balance(members[1].0).unwrap(), 1500);
+
+    let admin = suite.admin().to_owned();
+    suite.unjail(&admin, members[0].0).unwrap();
 
     suite.advance_epoch().unwrap();
-    suite.withdraw_engagement_reward(members[0].0).unwrap();
-    suite.withdraw_engagement_reward(members[1].0).unwrap();
-    assert_eq!(suite.token_balance(members[0].0).unwrap(), 750);
-    assert_eq!(suite.token_balance(members[1].0).unwrap(), 750);
+    suite.withdraw_validation_reward(members[0].0).unwrap();
+    suite.withdraw_validation_reward(members[1].0).unwrap();
+    assert_eq!(suite.token_balance(members[0].0).unwrap(), 1500);
+    assert_eq!(suite.token_balance(members[1].0).unwrap(), 3000);
+
+    suite.advance_epoch().unwrap();
+    suite.withdraw_validation_reward(members[0].0).unwrap();
+    suite.withdraw_validation_reward(members[1].0).unwrap();
+    assert_eq!(suite.token_balance(members[0].0).unwrap(), 2000);
+    assert_eq!(suite.token_balance(members[1].0).unwrap(), 4000);
 }
