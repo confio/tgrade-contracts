@@ -22,12 +22,14 @@ use tg_utils::Duration;
 use crate::error::ContractError;
 use crate::msg::{
     ConfigResponse, EpochResponse, ExecuteMsg, InstantiateMsg, InstantiateResponse, JailingPeriod,
-    ListActiveValidatorsResponse, ListValidatorResponse, OperatorResponse, QueryMsg,
-    RewardsDistribution, RewardsInstantiateMsg, ValidatorMetadata, ValidatorResponse,
+    ListActiveValidatorsResponse, ListValidatorResponse, ListValidatorSlashingResponse,
+    OperatorResponse, QueryMsg, RewardsDistribution, RewardsInstantiateMsg, ValidatorMetadata,
+    ValidatorResponse,
 };
 use crate::rewards::pay_block_rewards;
 use crate::state::{
-    operators, Config, EpochInfo, OperatorInfo, ValidatorInfo, CONFIG, EPOCH, JAIL, VALIDATORS,
+    operators, Config, EpochInfo, OperatorInfo, ValidatorInfo, ValidatorSlashing, CONFIG, EPOCH,
+    JAIL, VALIDATORS, VALIDATOR_SLASHING, VALIDATOR_START_HEIGHT,
 };
 use tg_utils::{SlashMsg, ADMIN};
 
@@ -277,16 +279,30 @@ fn execute_unjail(
 
 fn execute_slash(
     deps: DepsMut,
-    _env: Env,
+    env: Env,
     info: MessageInfo,
-    addr: String,
+    operator: String,
     portion: Decimal,
 ) -> Result<Response, ContractError> {
     ADMIN.assert_admin(deps.as_ref(), &info.sender)?;
 
+    // Store slashing event
+    let addr = Addr::unchecked(&operator);
+    let mut slashing = VALIDATOR_SLASHING
+        .may_load(deps.storage, &addr)?
+        .unwrap_or_default();
+    slashing.push(ValidatorSlashing {
+        slash_height: env.block.height,
+        portion,
+    });
+    VALIDATOR_SLASHING.save(deps.storage, &addr, &slashing)?;
+
     let config = CONFIG.load(deps.storage)?;
 
-    let slash_msg = SlashMsg::Slash { addr, portion };
+    let slash_msg = SlashMsg::Slash {
+        addr: operator,
+        portion,
+    };
     let slash_msg = to_binary(&slash_msg)?;
 
     let slash_msg = WasmMsg::Execute {
@@ -317,6 +333,9 @@ pub fn query(deps: Deps, env: Env, msg: QueryMsg) -> Result<Binary, ContractErro
         QueryMsg::ListActiveValidators {} => Ok(to_binary(&list_active_validators(deps, env)?)?),
         QueryMsg::SimulateActiveValidators {} => {
             Ok(to_binary(&simulate_active_validators(deps, env)?)?)
+        }
+        QueryMsg::ListValidatorSlashing { operator } => {
+            Ok(to_binary(&list_validator_slashing(deps, env, operator)?)?)
         }
     }
 }
@@ -418,6 +437,26 @@ fn simulate_active_validators(
     Ok(ListActiveValidatorsResponse { validators })
 }
 
+fn list_validator_slashing(
+    deps: Deps,
+    _env: Env,
+    operator: String,
+) -> Result<ListValidatorSlashingResponse, ContractError> {
+    let addr = deps.api.addr_validate(&operator)?;
+    // Fails if never a validator (which is correct)
+    let start_height = VALIDATOR_START_HEIGHT
+        .load(deps.storage, &addr)
+        .map_err(|_| ContractError::NeverAValidator(operator.clone()))?;
+    let slashing = VALIDATOR_SLASHING
+        .may_load(deps.storage, &addr)?
+        .unwrap_or_default();
+    Ok(ListValidatorSlashingResponse {
+        addr: operator,
+        start_height,
+        slashing,
+    })
+}
+
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn sudo(deps: DepsMut, env: Env, msg: TgradeSudoMsg) -> Result<Response, ContractError> {
     match msg {
@@ -483,7 +522,23 @@ fn end_block(deps: DepsMut, env: Env) -> Result<Response, ContractError> {
     // determine the diff to send back to tendermint
     let (diff, update_members) = calculate_diff(validators, old_validators);
 
-    // provide payment if there is rewards to give
+    // Store starting heights of new validators
+    match &update_members {
+        RewardsDistribution::UpdateMembers { add, .. } => {
+            for member in add {
+                let addr = Addr::unchecked(member.addr.clone());
+                if VALIDATOR_START_HEIGHT
+                    .may_load(deps.storage, &addr)?
+                    .is_none()
+                {
+                    VALIDATOR_START_HEIGHT.save(deps.storage, &addr, &env.block.height)?;
+                }
+            }
+        }
+        _ => unreachable!(),
+    }
+
+    // provide payment if there are rewards to give
     let mut res = Response::new().set_data(to_binary(&diff)?);
     if pay_epochs > 0 {
         res.messages = pay_block_rewards(deps, env, pay_epochs, &cfg)?
@@ -500,8 +555,8 @@ fn end_block(deps: DepsMut, env: Env) -> Result<Response, ContractError> {
 
 const QUERY_LIMIT: Option<u32> = Some(30);
 
-/// Selects validators to be used for incomming epoch. Returns vector of validators info paired
-/// with vector of addresses to be unjailed (always empty if auto unjailing is disabled).
+/// Selects validators to be used for incoming epoch. Returns vector of validators info paired
+/// with vector of addresses to be un-jailed (always empty if auto un-jailing is disabled).
 fn calculate_validators(
     deps: Deps,
     env: &Env,

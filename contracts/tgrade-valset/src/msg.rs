@@ -7,7 +7,7 @@ use tg_bindings::{Ed25519Pubkey, Pubkey};
 use tg_utils::{Duration, Expiration};
 
 use crate::error::ContractError;
-use crate::state::{Config, OperatorInfo, ValidatorInfo};
+use crate::state::{Config, OperatorInfo, ValidatorInfo, ValidatorSlashing};
 use cosmwasm_std::{Addr, BlockInfo, Coin, Decimal};
 
 #[derive(Serialize, Deserialize, Clone, PartialEq, JsonSchema, Debug)]
@@ -211,9 +211,11 @@ pub enum QueryMsg {
     /// Returns EpochResponse - get info on current and next epochs
     Epoch {},
 
-    /// Returns the validator key and associated metadata (if present) for the given operator
+    /// Returns the validator key and associated metadata (if present) for the given operator.
+    /// Returns ValidatorResponse
     Validator { operator: String },
-    /// Paginate over all operators, using operator address as pagination
+    /// Paginate over all operators, using operator address as pagination.
+    /// Returns Vec<OperatorResponse>
     ListValidators {
         start_after: Option<String>,
         limit: Option<u32>,
@@ -227,6 +229,10 @@ pub enum QueryMsg {
     /// we recalculated end block right now.
     /// Also returns ListActiveValidatorsResponse
     SimulateActiveValidators {},
+
+    /// Returns a list of validator slashing events.
+    /// Returns ListValidatorSlashingResponse
+    ListValidatorSlashing { operator: String },
 }
 
 pub type ConfigResponse = Config;
@@ -297,6 +303,16 @@ pub struct ListValidatorResponse {
 #[derive(Serialize, Deserialize, Clone, PartialEq, JsonSchema, Debug)]
 pub struct ListActiveValidatorsResponse {
     pub validators: Vec<ValidatorInfo>,
+}
+
+#[derive(Serialize, Deserialize, Clone, PartialEq, JsonSchema, Debug)]
+pub struct ListValidatorSlashingResponse {
+    /// Operator address
+    pub addr: String,
+    /// Block height of first validator addition to validators set
+    pub start_height: u64,
+    /// Slashing events, if any
+    pub slashing: Vec<ValidatorSlashing>,
 }
 
 /// Messages sent by this contract to an external contract

@@ -62,6 +62,9 @@ pub enum ContractError {
 
     #[error("Unrecognised reply id: {0}")]
     UnrecognisedReply(u64),
+
+    #[error("Never a validator: {0}")]
+    NeverAValidator(String),
 }
 
 impl From<Ed25519PubkeyConversionError> for ContractError {

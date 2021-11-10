@@ -464,6 +464,17 @@ impl Suite {
         Ok(resp.validators)
     }
 
+    pub fn list_validator_slashing(&self, addr: &str) -> StdResult<ListValidatorSlashingResponse> {
+        let resp = self.app.wrap().query_wasm_smart(
+            self.valset.clone(),
+            &QueryMsg::ListValidatorSlashing {
+                operator: addr.to_owned(),
+            },
+        )?;
+
+        Ok(resp)
+    }
+
     pub fn simulate_active_validators(&self) -> StdResult<Vec<ValidatorInfo>> {
         let resp: ListActiveValidatorsResponse = self
             .app
