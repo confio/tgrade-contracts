@@ -733,21 +733,23 @@ mod evidence {
     pub fn find_matching_validator(
         deps: Deps,
         suspect: &Validator,
+        evidence_height: u64,
     ) -> Result<Option<Addr>, ContractError> {
-        for operator in operators()
-            .idx
-            .pubkey
+        let addr: Option<Addr> = VALIDATOR_START_HEIGHT
             .range(deps.storage, None, None, Order::Ascending)
-        {
-            let ed25519_pubkey = operator?.1.pubkey.clone();
-            let hash = ed25519_pubkey.to_address();
-            let binary_hash = Binary::from(hash);
-            if binary_hash == suspect.address {
-                let addr = Addr::unchecked(std::str::from_utf8(&ed25519_pubkey.to_vec()).unwrap());
-                return Ok(Some(addr));
-            }
-        }
-        Ok(None)
+            .filter_map(|item| item.ok())
+            .filter(|item| item.1 < evidence_height)
+            .find_map(|item| {
+                let addr = Addr::unchecked(std::str::from_utf8(&item.0).unwrap());
+                let operator = operators().may_load(deps.storage, &addr).unwrap().unwrap();
+                let hash = Binary::from(operator.pubkey.to_address());
+                if hash == suspect.address {
+                    return Some(addr);
+                }
+                None
+            });
+
+        Ok(addr)
     }
 
     pub fn slash_validator_msg(config: &Config, addr: String) -> Result<SubMsg, ContractError> {
@@ -790,13 +792,9 @@ fn begin_block(
         .map(|(validator, evidence_height)| {
             // If there's match between evidence validator's hash and one from list of validators,
             // then jail and slash that validator
-            if let Some(validator) = evidence::find_matching_validator(deps.as_ref(), &validator)? {
-                // If validator started after height from evidence, ignore
-                let start_height = VALIDATOR_START_HEIGHT.load(deps.storage, &validator);
-                if start_height.is_err() || start_height.unwrap() > evidence_height {
-                    return Ok(());
-                }
-
+            if let Some(validator) =
+                evidence::find_matching_validator(deps.as_ref(), &validator, evidence_height)?
+            {
                 let sub_msg = evidence::slash_validator_msg(&config, validator.to_string())?;
                 store_slashing_event(
                     deps.branch(),

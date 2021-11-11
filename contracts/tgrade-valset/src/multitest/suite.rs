@@ -86,7 +86,7 @@ impl SuiteBuilder {
         self
     }
 
-    // Methods generates proper pubkeys, but requires address length to be exactly 32 bytes,
+    // Method generates proper pubkeys, but requires address length to be exactly 32 bytes,
     // otherwise it will panic.
     pub fn with_operators_pubkeys(mut self, members: &[(&str, u64)], non_members: &[&str]) -> Self {
         let members = members
