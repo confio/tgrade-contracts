@@ -13,6 +13,7 @@ use cw3::{
 use cw_storage_plus::Bound;
 use tg4::Tg4Contract;
 use tg_bindings::TgradeMsg;
+use tg_utils::SlashMsg;
 
 use crate::error::ContractError;
 use crate::msg::{ExecuteMsg, InstantiateMsg, QueryMsg};
@@ -47,12 +48,19 @@ pub fn instantiate(
                 addr: msg.engagement_addr.clone(),
             }
         })?);
+
+    let valset_contract = Tg4Contract(deps.api.addr_validate(&msg.valset_addr).map_err(|_| {
+        ContractError::InvalidEngagementContract {
+            addr: msg.valset_addr.clone(),
+        }
+    })?);
     set_contract_version(deps.storage, CONTRACT_NAME, CONTRACT_VERSION)?;
 
     let cfg = Config {
         rules: msg.rules,
         group_contract,
         engagement_contract,
+        valset_contract,
     };
 
     cfg.rules.validate()?;
@@ -191,7 +199,11 @@ pub fn execute_execute(
         return Err(ContractError::WrongExecuteStatus {});
     }
 
-    let engagement_contract = CONFIG.load(deps.storage)?.engagement_contract;
+    let Config {
+        engagement_contract,
+        valset_contract,
+        ..
+    } = CONFIG.load(deps.storage)?;
 
     let message = match prop.proposal {
         OversightProposal::GrantEngagement { ref member, points } => engagement_contract
@@ -199,6 +211,13 @@ pub fn execute_execute(
                 addr: member.to_string(),
                 points,
             })?)?,
+        OversightProposal::Slash {
+            ref member,
+            portion,
+        } => valset_contract.encode_raw_msg(to_binary(&SlashMsg::Slash {
+            addr: member.to_string(),
+            portion,
+        })?)?,
     };
 
     // set it to executed
@@ -408,7 +427,7 @@ fn list_voters(
 
 #[cfg(test)]
 mod tests {
-    use cosmwasm_std::{coins, Addr, Coin, Decimal};
+    use cosmwasm_std::{coin, coins, Addr, Coin, Decimal};
 
     use cw0::Duration;
     use cw_multi_test::{next_block, Contract, ContractWrapper, Executor};
@@ -425,6 +444,7 @@ mod tests {
     const VOTER5: &str = "voter0005";
 
     const ENGAGEMENT_TOKEN: &str = "engagement";
+    const EPOCH_LENGTH: u64 = 100;
 
     fn member<T: Into<String>>(addr: T, weight: u64) -> Member {
         Member {
@@ -451,6 +471,17 @@ mod tests {
         Box::new(contract)
     }
 
+    pub fn contract_valset() -> Box<dyn Contract<TgradeMsg>> {
+        let contract = ContractWrapper::new(
+            tgrade_valset::contract::execute,
+            tgrade_valset::contract::instantiate,
+            tgrade_valset::contract::query,
+        )
+        .with_sudo(tgrade_valset::contract::sudo)
+        .with_reply(tgrade_valset::contract::reply);
+        Box::new(contract)
+    }
+
     fn mock_app(init_funds: &[Coin]) -> TgradeApp {
         let mut app = TgradeApp::new(OWNER);
         app.init_modules(|router, _, storage| {
@@ -469,7 +500,7 @@ mod tests {
             admin: Some(OWNER.into()),
             members,
             preauths_hooks: 0,
-            preauths_slashing: 0,
+            preauths_slashing: 1,
             halflife: None,
             token: ENGAGEMENT_TOKEN.to_owned(),
         };
@@ -480,27 +511,97 @@ mod tests {
     // uploads code and returns address of engagement contract
     fn instantiate_engagement(
         app: &mut TgradeApp,
-        admin: Option<String>,
+        admin: impl Into<Option<String>>,
         members: Vec<Member>,
-    ) -> Addr {
+    ) -> (Addr, u64) {
         let engagement_id = app.store_code(contract_engagement());
         let msg = tg4_engagement::msg::InstantiateMsg {
-            admin,
+            admin: admin.into(),
             members,
             preauths_hooks: 0,
-            preauths_slashing: 0,
+            preauths_slashing: 1,
             halflife: None,
             token: ENGAGEMENT_TOKEN.to_owned(),
         };
-        app.instantiate_contract(
-            engagement_id,
+        let addr = app
+            .instantiate_contract(
+                engagement_id,
+                Addr::unchecked(OWNER),
+                &msg,
+                &[],
+                "engagement",
+                None,
+            )
+            .unwrap();
+
+        (addr, engagement_id)
+    }
+
+    pub fn mock_pubkey(base: &[u8]) -> tg_bindings::Pubkey {
+        const ED25519_PUBKEY_LENGTH: usize = 32;
+
+        let copies = (ED25519_PUBKEY_LENGTH / base.len()) + 1;
+        let mut raw = base.repeat(copies);
+        raw.truncate(ED25519_PUBKEY_LENGTH);
+        tg_bindings::Pubkey::Ed25519(Binary(raw))
+    }
+
+    use tgrade_valset::msg::ValidatorMetadata;
+
+    pub fn mock_metadata(seed: &str) -> ValidatorMetadata {
+        ValidatorMetadata {
+            moniker: seed.into(),
+            details: Some(format!("I'm really {}", seed)),
+            ..ValidatorMetadata::default()
+        }
+    }
+
+    // uploads code and returns address of engagement contract
+    fn instantiate_valset(
+        app: &mut TgradeApp,
+        group: impl ToString,
+        admin: impl Into<Option<String>>,
+        members: Vec<Member>,
+        engagement_id: u64,
+    ) -> Addr {
+        // TODO: could we instead just reuse the test suite developed for tgrade_valset?
+        // or make those mocks more composable?
+        use tgrade_valset::msg::OperatorInitInfo;
+
+        let valset_id = app.store_code(contract_valset());
+        let operators: Vec<_> = members
+            .iter()
+            .map(|member| OperatorInitInfo {
+                operator: member.addr.clone(),
+                validator_pubkey: mock_pubkey(member.addr.as_bytes()),
+                metadata: mock_metadata(&member.addr),
+            })
+            .collect();
+
+        let msg = tgrade_valset::msg::InstantiateMsg {
+            admin: admin.into(),
+            auto_unjail: false,
+            distribution_contract: None,
+            epoch_length: EPOCH_LENGTH,
+            epoch_reward: coin(506, ENGAGEMENT_TOKEN.to_string()),
+            fee_percentage: Decimal::zero(),
+            initial_keys: operators,
+            max_validators: 55,
+            membership: group.to_string(),
+            min_weight: 1,
+            rewards_code_id: engagement_id,
+            scaling: None,
+            validators_reward_ratio: Decimal::one(),
+        };
+        let res = app.instantiate_contract(
+            valset_id,
             Addr::unchecked(OWNER),
             &msg,
             &[],
-            "engagement",
-            None,
-        )
-        .unwrap()
+            "valset",
+            Some(OWNER.to_string()),
+        );
+        res.unwrap()
     }
 
     #[track_caller]
@@ -508,12 +609,14 @@ mod tests {
         app: &mut TgradeApp,
         group: Addr,
         engagement: Addr,
+        valset: Addr,
         rules: VotingRules,
     ) -> Addr {
         let flex_id = app.store_code(contract_flex());
         let msg = crate::msg::InstantiateMsg {
             group_addr: group.to_string(),
             engagement_addr: engagement.to_string(),
+            valset_addr: valset.to_string(),
             rules,
         };
         app.instantiate_contract(flex_id, Addr::unchecked(OWNER), &msg, &[], "flex", None)
@@ -529,7 +632,7 @@ mod tests {
         rules: VotingRules,
         init_funds: Vec<Coin>,
         multisig_as_group_admin: bool,
-    ) -> (Addr, Addr, Addr) {
+    ) -> (Addr, Addr, Addr, Addr) {
         setup_test_case(app, rules, init_funds, multisig_as_group_admin)
     }
 
@@ -539,7 +642,7 @@ mod tests {
         rules: VotingRules,
         init_funds: Vec<Coin>,
         multisig_as_group_admin: bool,
-    ) -> (Addr, Addr, Addr) {
+    ) -> (Addr, Addr, Addr, Addr) {
         // 1. Instantiate group engagement contract with members (and OWNER as admin)
         let members = vec![
             member(OWNER, 0),
@@ -548,13 +651,27 @@ mod tests {
             member(VOTER3, 3),
             member(VOTER4, 12), // so that he alone can pass a 50 / 52% threshold proposal
             member(VOTER5, 5),
-        ];
+        ]; // 23
         let group_addr = instantiate_group(app, members.clone());
-        let engagement_addr = instantiate_engagement(app, Some(OWNER.to_string()), members);
+        let (engagement_addr, engagement_code_id) =
+            instantiate_engagement(app, OWNER.to_string(), members.clone());
+        let valset_addr = instantiate_valset(
+            app,
+            group_addr.clone(),
+            OWNER.to_string(),
+            members,
+            engagement_code_id,
+        );
         app.update_block(next_block);
 
         // 2. Set up Multisig backed by this group
-        let flex_addr = instantiate_flex(app, group_addr.clone(), engagement_addr.clone(), rules);
+        let flex_addr = instantiate_flex(
+            app,
+            group_addr.clone(),
+            engagement_addr.clone(),
+            valset_addr.clone(),
+            rules,
+        );
 
         // 2.5 Set oc proposals contract's address as admin of engagement contract
         app.execute_contract(
@@ -583,12 +700,28 @@ mod tests {
             app.update_block(next_block);
         }
 
+        // 4. Set oc-proposals as the admin of valset so that valset
+        // can be slashed.
+        let update_admin = Tg4ExecuteMsg::UpdateAdmin {
+            admin: Some(flex_addr.to_string()),
+        };
+        app.execute_contract(
+            Addr::unchecked(OWNER),
+            valset_addr.clone(),
+            &update_admin,
+            &[],
+        )
+        .unwrap();
+
+        app.promote(OWNER, valset_addr.as_str()).unwrap();
+        app.update_block(next_block);
+
         // Bonus: set some funds on the multisig contract for future proposals
         if !init_funds.is_empty() {
             app.send_tokens(Addr::unchecked(OWNER), flex_addr.clone(), &init_funds)
                 .unwrap();
         }
-        (flex_addr, group_addr, engagement_addr)
+        (flex_addr, group_addr, engagement_addr, valset_addr)
     }
 
     struct MockRulesBuilder {
@@ -632,7 +765,7 @@ mod tests {
         MockRulesBuilder::new()
     }
 
-    fn proposal_info() -> (OversightProposal, String, String) {
+    fn engagement_proposal_info() -> (OversightProposal, String, String) {
         let proposal = OversightProposal::GrantEngagement {
             member: Addr::unchecked(VOTER1),
             points: 10,
@@ -643,7 +776,7 @@ mod tests {
     }
 
     fn grant_voter1_engagement_point_proposal() -> ExecuteMsg {
-        let (proposal, title, description) = proposal_info();
+        let (proposal, title, description) = engagement_proposal_info();
         ExecuteMsg::Propose {
             title,
             description,
@@ -657,8 +790,15 @@ mod tests {
 
         // make a simple group
         let group_addr = instantiate_group(&mut app, vec![member(OWNER, 1)]);
-        let engagement_addr =
-            instantiate_engagement(&mut app, Some(OWNER.to_string()), vec![member(OWNER, 1)]);
+        let (engagement_addr, engagement_code_id) =
+            instantiate_engagement(&mut app, OWNER.to_string(), vec![member(OWNER, 1)]);
+        let valset_addr = instantiate_valset(
+            &mut app,
+            group_addr.clone(),
+            OWNER.to_string(),
+            vec![member(OWNER, 1)],
+            engagement_code_id,
+        );
         let flex_id = app.store_code(contract_flex());
 
         // Zero required weight fails
@@ -666,6 +806,7 @@ mod tests {
             group_addr: group_addr.to_string(),
             engagement_addr: engagement_addr.to_string(),
             rules: mock_rules().threshold(Decimal::zero()).build(),
+            valset_addr: valset_addr.to_string(),
         };
         let err = app
             .instantiate_contract(
@@ -687,6 +828,7 @@ mod tests {
             group_addr: group_addr.to_string(),
             engagement_addr: engagement_addr.to_string(),
             rules: mock_rules().build(),
+            valset_addr: valset_addr.to_string(),
         };
         let flex_addr = app
             .instantiate_contract(
@@ -738,7 +880,8 @@ mod tests {
             .threshold(Decimal::percent(80))
             .build();
         let voting_period = Duration::Time(rules.voting_period_secs());
-        let (flex_addr, _, _) = setup_test_case_fixed(&mut app, rules.clone(), init_funds, false);
+        let (flex_addr, _, _, _) =
+            setup_test_case_fixed(&mut app, rules.clone(), init_funds, false);
 
         // create proposal with 1 vote power
         let proposal = grant_voter1_engagement_point_proposal();
@@ -788,7 +931,7 @@ mod tests {
         assert_eq!(expected_info, info);
 
         // ensure the common features are set
-        let (expected_proposal, expected_title, expected_description) = proposal_info();
+        let (expected_proposal, expected_title, expected_description) = engagement_proposal_info();
         for prop in res.proposals {
             assert_eq!(prop.title, expected_title);
             assert_eq!(prop.description, expected_description);
@@ -806,7 +949,7 @@ mod tests {
             .unwrap();
         assert_eq!(1, res.proposals.len());
 
-        let (proposal, title, description) = proposal_info();
+        let (proposal, title, description) = engagement_proposal_info();
         let expected = ProposalResponse {
             id: proposal_id3,
             title,
@@ -827,7 +970,7 @@ mod tests {
 
         // 51% required, which is 12 of the initial 23
         let rules = mock_rules().threshold(Decimal::percent(51)).build();
-        let (flex_addr, group_addr, _) = setup_test_case(&mut app, rules, init_funds, false);
+        let (flex_addr, group_addr, _, _) = setup_test_case(&mut app, rules, init_funds, false);
 
         // VOTER3 starts a proposal to send some tokens (3/12 votes)
         let proposal = grant_voter1_engagement_point_proposal();
@@ -905,7 +1048,7 @@ mod tests {
             .quorum(Decimal::percent(33))
             .build();
         let voting_period = Duration::Time(rules.voting_period_secs());
-        let (flex_addr, group_addr, _) = setup_test_case(&mut app, rules, init_funds, false);
+        let (flex_addr, group_addr, _, _) = setup_test_case(&mut app, rules, init_funds, false);
 
         // VOTER3 starts a proposal to send some tokens (3 votes)
         let proposal = grant_voter1_engagement_point_proposal();
@@ -968,7 +1111,7 @@ mod tests {
             .threshold(Decimal::percent(60))
             .quorum(Decimal::percent(80))
             .build();
-        let (flex_addr, _, _) = setup_test_case(
+        let (flex_addr, _, _, _) = setup_test_case(
             &mut app, // note that 60% yes is not enough to pass without 20% no as well
             rules, init_funds, false,
         );

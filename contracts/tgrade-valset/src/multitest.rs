@@ -1,3 +1,4 @@
+mod admin;
 mod contract;
 mod helpers;
 mod jailing;

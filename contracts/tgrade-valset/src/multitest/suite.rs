@@ -373,6 +373,21 @@ impl Suite {
         )
     }
 
+    pub fn update_admin(
+        &mut self,
+        executor: &str,
+        admin: impl Into<Option<String>>,
+    ) -> AnyResult<AppResponse> {
+        self.app.execute_contract(
+            Addr::unchecked(executor),
+            self.valset.clone(),
+            &ExecuteMsg::UpdateAdmin {
+                admin: admin.into(),
+            },
+            &[],
+        )
+    }
+
     pub fn slash(
         &mut self,
         executor: &str,

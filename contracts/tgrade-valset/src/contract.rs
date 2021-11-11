@@ -2,9 +2,11 @@ use std::cmp::max;
 use std::collections::BTreeSet;
 use std::convert::TryInto;
 
+#[cfg(not(feature = "library"))]
+use cosmwasm_std::entry_point;
 use cosmwasm_std::{
-    entry_point, to_binary, Addr, Binary, BlockInfo, Decimal, Deps, DepsMut, Env, MessageInfo,
-    Order, Reply, StdError, StdResult, SubMsg, Timestamp, WasmMsg,
+    to_binary, Addr, Binary, BlockInfo, Decimal, Deps, DepsMut, Env, MessageInfo, Order, Reply,
+    StdError, StdResult, SubMsg, Timestamp, WasmMsg,
 };
 
 use cw0::{maybe_addr, parse_reply_instantiate_data};
@@ -121,7 +123,6 @@ pub fn instantiate(
     let add_slasher = SlashMsg::AddSlasher {
         addr: env.contract.address.to_string(),
     };
-
     let add_slasher_msg = WasmMsg::Execute {
         contract_addr: msg.membership,
         msg: to_binary(&add_slasher)?,
@@ -145,7 +146,14 @@ pub fn execute(
     info: MessageInfo,
     msg: ExecuteMsg,
 ) -> Result<Response, ContractError> {
+    let api = deps.api;
+
     match msg {
+        ExecuteMsg::UpdateAdmin { admin } => Ok(ADMIN.execute_update_admin(
+            deps,
+            info,
+            admin.map(|admin| api.addr_validate(&admin)).transpose()?,
+        )?),
         ExecuteMsg::RegisterValidatorKey { pubkey, metadata } => {
             execute_register_validator_key(deps, env, info, pubkey, metadata)
         }

@@ -1570,8 +1570,10 @@ dependencies = [
  "serde",
  "tg-bindings",
  "tg-bindings-test",
+ "tg-utils",
  "tg4",
  "tg4-engagement",
+ "tgrade-valset",
  "thiserror",
 ]
 

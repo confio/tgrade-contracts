@@ -12,6 +12,8 @@ pub struct InstantiateMsg {
     pub group_addr: String,
     // this is the engagement contract that contains list for engagement rewards
     pub engagement_addr: String,
+    // this is the valset contract that we execute slashing on
+    pub valset_addr: String,
 }
 
 // TODO: add some T variants? Maybe good enough as fixed Empty for now
