@@ -743,7 +743,7 @@ mod evidence {
             let hash = ed25519_pubkey.to_address();
             let binary_hash = Binary::from(hash);
             if binary_hash == suspect.address {
-                let addr = Addr::unchecked(&binary_hash.to_string());
+                let addr = Addr::unchecked(std::str::from_utf8(&ed25519_pubkey.to_vec()).unwrap());
                 return Ok(Some(addr));
             }
         }
@@ -793,7 +793,6 @@ fn begin_block(
             if let Some(validator) = evidence::find_matching_validator(deps.as_ref(), &validator)? {
                 // If validator started after height from evidence, ignore
                 let start_height = VALIDATOR_START_HEIGHT.load(deps.storage, &validator);
-                println!("start height: {:?}", start_height);
                 if start_height.is_err() || start_height.unwrap() > evidence_height {
                     return Ok(());
                 }

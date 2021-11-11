@@ -1,8 +1,8 @@
-use super::helpers::{mock_metadata, mock_pubkey};
+use super::helpers::{addr_to_pubkey, mock_metadata, mock_pubkey};
 use crate::state::Config;
 use crate::{msg::*, state::ValidatorInfo};
 use anyhow::{bail, Result as AnyResult};
-use cosmwasm_std::{coin, Addr, Binary, Coin, CosmosMsg, Decimal, StdResult, Timestamp};
+use cosmwasm_std::{coin, Addr, Coin, CosmosMsg, Decimal, StdResult, Timestamp};
 use cw_multi_test::{next_block, AppResponse, Contract, ContractWrapper, CosmosRouter, Executor};
 use derivative::Derivative;
 use tg4::Member;
@@ -88,10 +88,9 @@ impl SuiteBuilder {
     }
 
     pub fn with_operators_pubkeys(mut self, members: &[(&str, u64)], non_members: &[&str]) -> Self {
-        let members = members.iter().map(|(addr, weight)| {
-            let pubkey = Pubkey::Ed25519(Binary((*addr).as_bytes().to_vec()));
-            ((*addr).to_owned(), Some(pubkey), *weight)
-        });
+        let members = members
+            .iter()
+            .map(|(addr, weight)| ((*addr).to_owned(), Some(addr_to_pubkey(addr)), *weight));
         self.member_operators.extend(members);
 
         let non_members = non_members.iter().copied().map(str::to_owned);

@@ -2,7 +2,7 @@ use cosmwasm_std::coin;
 use cosmwasm_std::{Binary, Decimal};
 use tg_bindings::{Ed25519Pubkey, Evidence, EvidenceType, ToAddress, Validator};
 
-use super::helpers::{assert_operators, mock_pubkey};
+use super::helpers::{addr_to_pubkey, assert_operators, mock_pubkey};
 use super::suite::SuiteBuilder;
 use crate::msg::{JailingPeriod, ValidatorMetadata};
 
@@ -27,10 +27,13 @@ fn create_evidence_for_member(member: (&str, u64), height: u64) -> Evidence {
 
 #[test]
 fn evidence_slash_and_jail() {
-    let members = vec![("member1", 10), ("member2", 10)];
+    let members = vec![
+        ("reallylongaddresstofit32charact1", 10),
+        ("reallylongaddresstofit32charact2", 10),
+    ];
 
     let mut suite = SuiteBuilder::new()
-        .with_operators(&[members[0], members[1]], &[])
+        .with_operators_pubkeys(&[members[0], members[1]], &[])
         .with_epoch_reward(coin(1500, "usdc"))
         .build();
 
@@ -84,10 +87,13 @@ fn evidence_slash_and_jail() {
 
 #[test]
 fn evidence_doesnt_affect_engagement_rewards() {
-    let members = vec![("member1", 10), ("member2", 10)];
+    let members = vec![
+        ("reallylongaddresstofit32charact1", 10),
+        ("reallylongaddresstofit32charact2", 10),
+    ];
 
     let mut suite = SuiteBuilder::new()
-        .with_operators(&[members[0], members[1]], &[])
+        .with_operators_pubkeys(&[members[0], members[1]], &[])
         .with_epoch_reward(coin(3000, "usdc"))
         .with_distribution(Decimal::percent(50), &[members[0], members[1]], None)
         .build();
@@ -121,10 +127,13 @@ fn evidence_doesnt_affect_engagement_rewards() {
 
 #[test]
 fn evidence_doesnt_match() {
-    let members = vec![("member1", 10), ("member2", 10)];
+    let members = vec![
+        ("reallylongaddresstofit32charact1", 10),
+        ("reallylongaddresstofit32charact2", 10),
+    ];
 
     let mut suite = SuiteBuilder::new()
-        .with_operators(&[members[0], members[1]], &[])
+        .with_operators_pubkeys(&[members[0], members[1]], &[])
         .with_epoch_reward(coin(1500, "usdc"))
         .build();
 
@@ -148,10 +157,14 @@ fn evidence_doesnt_match() {
 
 #[test]
 fn multiple_evidences() {
-    let members = vec![("member1", 10), ("member2", 10), ("member3", 10)];
+    let members = vec![
+        ("reallylongaddresstofit32charact1", 10),
+        ("reallylongaddresstofit32charact2", 10),
+        ("reallylongaddresstofit32charact3", 10),
+    ];
 
     let mut suite = SuiteBuilder::new()
-        .with_operators(&[members[0], members[1], members[2]], &[])
+        .with_operators_pubkeys(&[members[0], members[1], members[2]], &[])
         .with_epoch_reward(coin(1500, "usdc"))
         .build();
 
@@ -174,14 +187,17 @@ fn multiple_evidences() {
 
 #[test]
 fn evidence_with_not_matching_date() {
-    let members = vec![("member1", 10), ("member2", 10), ("member3", 10)];
+    let members = vec![
+        ("reallylongaddresstofit32charact1", 10),
+        ("reallylongaddresstofit32charact2", 10),
+        ("reallylongaddresstofit32charact3", 10),
+    ];
 
     let mut suite = SuiteBuilder::new()
-        .with_operators(&[members[0], members[1]], &[])
+        .with_operators_pubkeys(&[members[0], members[1]], &[])
         .with_epoch_reward(coin(1500, "usdc"))
         .build();
 
-    println!("1# EVIDENCE");
     let first_evidence = create_evidence_for_member(members[2], suite.height());
 
     let meta = ValidatorMetadata {
@@ -191,14 +207,13 @@ fn evidence_with_not_matching_date() {
         security_contact: Some("funny@boy.rs".to_owned()),
         details: Some("Comedian".to_owned()),
     };
-    let pubkey = mock_pubkey(members[2].0.as_bytes());
+    let pubkey = addr_to_pubkey(members[2].0);
     suite
         .register_validator_key(members[2].0, pubkey, meta)
         .unwrap();
 
     suite.advance_epoch().unwrap();
 
-    println!("2# EVIDENCE");
     let second_evidence = create_evidence_for_member(members[1], suite.height());
 
     suite
@@ -215,23 +230,6 @@ fn evidence_with_not_matching_date() {
             (members[0].0, None),
             (members[1].0, Some(JailingPeriod::Forever {})),
             (members[2].0, None),
-        ],
-    );
-
-    println!("3# EVIDENCE");
-    let third_evidence = create_evidence_for_member(members[2], suite.height());
-    suite
-        .next_block_with_evidence(vec![third_evidence])
-        .unwrap();
-
-    // Third validator can still be punished, if evidence provides correct date
-    // (after his registration)
-    assert_operators(
-        &suite.list_validators(None, None).unwrap(),
-        &[
-            (members[0].0, None),
-            (members[1].0, Some(JailingPeriod::Forever {})),
-            (members[2].0, Some(JailingPeriod::Forever {})),
         ],
     );
 }
