@@ -81,21 +81,27 @@ impl SuiteBuilder {
             .map(|(addr, weight)| ((*addr).to_owned(), None, *weight));
         self.member_operators.extend(members);
 
-        let non_members = non_members.iter().copied().map(str::to_owned);
-        self.non_member_operators.extend(non_members);
+        self = self.with_non_members(non_members);
 
         self
     }
 
+    // Methods generates proper pubkeys, but requires address length to be exactly 32 bytes,
+    // otherwise it will panic.
     pub fn with_operators_pubkeys(mut self, members: &[(&str, u64)], non_members: &[&str]) -> Self {
         let members = members
             .iter()
             .map(|(addr, weight)| ((*addr).to_owned(), Some(addr_to_pubkey(addr)), *weight));
         self.member_operators.extend(members);
 
+        self = self.with_non_members(non_members);
+
+        self
+    }
+
+    fn with_non_members(mut self, non_members: &[&str]) -> Self {
         let non_members = non_members.iter().copied().map(str::to_owned);
         self.non_member_operators.extend(non_members);
-
         self
     }
 
@@ -166,10 +172,11 @@ impl SuiteBuilder {
 
         let operators: Vec<_> = {
             let members = self.member_operators.iter().map(|member| {
-                let pubkey = if let Some(pubkey) = member.1.clone() {
-                    pubkey
-                } else {
-                    mock_pubkey(member.0.as_bytes())
+                // If pubkey was previously generated, assign it
+                // Otherwise, mock value
+                let pubkey = match member.1.clone() {
+                    Some(pubkey) => pubkey,
+                    None => mock_pubkey(member.0.as_bytes()),
                 };
                 OperatorInitInfo {
                     operator: member.0.clone(),
