@@ -13,6 +13,7 @@ use cw3::{
 use cw_storage_plus::Bound;
 use tg4::Tg4Contract;
 use tg_bindings::TgradeMsg;
+use tg_utils::SlashMsg;
 
 use crate::error::ContractError;
 use crate::msg::{ExecuteMsg, InstantiateMsg, QueryMsg};
@@ -213,12 +214,10 @@ pub fn execute_execute(
         OversightProposal::Slash {
             ref member,
             portion,
-        } => {
-            valset_contract.encode_raw_msg(to_binary(&tgrade_valset::msg::ExecuteMsg::Slash {
-                addr: member.to_string(),
-                portion,
-            })?)?
-        }
+        } => valset_contract.encode_raw_msg(to_binary(&SlashMsg::Slash {
+            addr: member.to_string(),
+            portion,
+        })?)?,
     };
 
     // set it to executed
