@@ -738,9 +738,11 @@ mod evidence {
         let addr: Option<Addr> = VALIDATOR_START_HEIGHT
             .range(deps.storage, None, None, Order::Ascending)
             .filter_map(|item| item.ok())
+            // Makes sure validator was active before evidence was reported
             .filter(|item| item.1 < evidence_height)
             .find_map(|item| {
                 let addr = match std::str::from_utf8(&item.0) {
+                    // Recreating address from Vec<u8>
                     Ok(s) => Addr::unchecked(s),
                     Err(_) => return None,
                 };
