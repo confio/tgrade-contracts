@@ -6,7 +6,7 @@ use std::convert::TryInto;
 use cosmwasm_std::entry_point;
 use cosmwasm_std::{
     to_binary, Addr, Binary, BlockInfo, Decimal, Deps, DepsMut, Env, MessageInfo, Order, Reply,
-    StdError, StdResult, SubMsg, Timestamp, WasmMsg,
+    StdError, StdResult, Timestamp, WasmMsg,
 };
 
 use cw0::{maybe_addr, parse_reply_instantiate_data};
@@ -737,12 +737,13 @@ mod evidence {
     ) -> Result<Option<Addr>, ContractError> {
         let addr: Option<Addr> = VALIDATOR_START_HEIGHT
             .range(deps.storage, None, None, Order::Ascending)
+            // Filters only Ok results - range_de should deprecate this
             .filter_map(|item| item.ok())
             // Makes sure validator was active before evidence was reported
-            .filter(|item| item.1 < evidence_height)
-            .find_map(|item| {
-                let addr = match std::str::from_utf8(&item.0) {
-                    // Recreating address from Vec<u8>
+            .filter(|(_, start_height)| *start_height < evidence_height)
+            .find_map(|(addr, _)| {
+                // Recreating address from Vec<u8>
+                let addr = match std::str::from_utf8(&addr) {
                     Ok(s) => Addr::unchecked(s),
                     Err(_) => return None,
                 };

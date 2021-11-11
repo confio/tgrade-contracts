@@ -8,8 +8,8 @@ use crate::msg::{JailingPeriod, ValidatorMetadata};
 
 use std::convert::TryFrom;
 
-fn create_evidence_for_member(member: (&str, u64), height: u64) -> Evidence {
-    let evidence_pubkey = mock_pubkey(member.0.as_bytes());
+fn create_evidence_for_member((address, power): (&str, u64), height: u64) -> Evidence {
+    let evidence_pubkey = mock_pubkey(address.as_bytes());
     let ed25519_pubkey = Ed25519Pubkey::try_from(evidence_pubkey).unwrap();
     let evidence_hash = ed25519_pubkey.to_address();
 
@@ -17,7 +17,7 @@ fn create_evidence_for_member(member: (&str, u64), height: u64) -> Evidence {
         evidence_type: EvidenceType::DuplicateVote,
         validator: Validator {
             address: Binary::from(evidence_hash.to_vec()),
-            power: member.1,
+            power,
         },
         height,
         time: 3,
