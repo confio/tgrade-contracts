@@ -740,8 +740,11 @@ mod evidence {
             .filter_map(|item| item.ok())
             .filter(|item| item.1 < evidence_height)
             .find_map(|item| {
-                let addr = Addr::unchecked(std::str::from_utf8(&item.0).unwrap());
-                let operator = operators().may_load(deps.storage, &addr).unwrap().unwrap();
+                let addr = match std::str::from_utf8(&item.0) {
+                    Ok(s) => Addr::unchecked(s),
+                    Err(_) => return None,
+                };
+                let operator = operators().load(deps.storage, &addr).ok()?;
                 let hash = Binary::from(operator.pubkey.to_address());
                 if hash == suspect.address {
                     return Some(addr);
