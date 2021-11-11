@@ -2,7 +2,7 @@ use super::helpers::{mock_metadata, mock_pubkey};
 use crate::state::Config;
 use crate::{msg::*, state::ValidatorInfo};
 use anyhow::{bail, Result as AnyResult};
-use cosmwasm_std::{coin, Addr, Coin, CosmosMsg, Decimal, StdResult, Timestamp};
+use cosmwasm_std::{coin, Addr, Binary, Coin, CosmosMsg, Decimal, StdResult, Timestamp};
 use cw_multi_test::{next_block, AppResponse, Contract, ContractWrapper, CosmosRouter, Executor};
 use derivative::Derivative;
 use tg4::Member;
@@ -43,7 +43,7 @@ struct DistributionConfig {
 #[derivative(Default = "new")]
 pub struct SuiteBuilder {
     /// Valset operators pairs: `(addr, weight)`
-    member_operators: Vec<(String, u64)>,
+    member_operators: Vec<(String, Option<Pubkey>, u64)>,
     /// Valset operators included in `initial_keys`, but not members of cw4 group (addresses only,
     /// no weights)
     non_member_operators: Vec<String>,
@@ -78,7 +78,20 @@ impl SuiteBuilder {
     pub fn with_operators(mut self, members: &[(&str, u64)], non_members: &[&str]) -> Self {
         let members = members
             .iter()
-            .map(|(addr, weight)| ((*addr).to_owned(), *weight));
+            .map(|(addr, weight)| ((*addr).to_owned(), None, *weight));
+        self.member_operators.extend(members);
+
+        let non_members = non_members.iter().copied().map(str::to_owned);
+        self.non_member_operators.extend(non_members);
+
+        self
+    }
+
+    pub fn with_operators_pubkeys(mut self, members: &[(&str, u64)], non_members: &[&str]) -> Self {
+        let members = members.iter().map(|(addr, weight)| {
+            let pubkey = Pubkey::Ed25519(Binary((*addr).as_bytes().to_vec()));
+            ((*addr).to_owned(), Some(pubkey), *weight)
+        });
         self.member_operators.extend(members);
 
         let non_members = non_members.iter().copied().map(str::to_owned);
@@ -147,15 +160,23 @@ impl SuiteBuilder {
 
         let members: Vec<_> = self
             .member_operators
+            .clone()
             .into_iter()
-            .map(|(addr, weight)| Member { addr, weight })
+            .map(|(addr, _, weight)| Member { addr, weight })
             .collect();
 
         let operators: Vec<_> = {
-            let members = members.iter().map(|member| OperatorInitInfo {
-                operator: member.addr.clone(),
-                validator_pubkey: mock_pubkey(member.addr.as_bytes()),
-                metadata: mock_metadata(&member.addr),
+            let members = self.member_operators.iter().map(|member| {
+                let pubkey = if let Some(pubkey) = member.1.clone() {
+                    pubkey
+                } else {
+                    mock_pubkey(member.0.as_bytes())
+                };
+                OperatorInitInfo {
+                    operator: member.0.clone(),
+                    validator_pubkey: pubkey,
+                    metadata: mock_metadata(&member.0),
+                }
             });
 
             let non_members = self
