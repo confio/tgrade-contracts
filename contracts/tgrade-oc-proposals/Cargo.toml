@@ -1,6 +1,6 @@
 [package]
 name = "tgrade-oc-proposals"
-version = "0.5.0-beta3"
+version = "0.5.0-beta4"
 authors = ["Ethan Frey <ethanfrey@users.noreply.github.com>"]
 edition = "2018"
 description = "Implementing tgrade-oc-proposals"
@@ -24,7 +24,7 @@ serde = { version = "1", default-features = false, features = ["derive"] }
 tg4 = { path = "../../packages/tg4", version = "0.5.0-alpha" }
 tg4-engagement = { path = "../tg4-engagement", version = "0.5.0-alpha", features = ["library"] }
 tg-bindings = { path = "../../packages/bindings", version = "0.5.0-alpha" }
-tg-utils = { version = "0.5.0-beta3", path = "../../packages/utils" }
+tg-utils = { version = "0.5.0-beta4", path = "../../packages/utils" }
 thiserror = { version = "1" }
 
 [dev-dependencies]
