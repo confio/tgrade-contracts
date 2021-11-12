@@ -555,7 +555,11 @@ fn end_block(deps: DepsMut, env: Env) -> Result<Response, ContractError> {
                     .may_load(deps.storage, &addr)?
                     .is_none()
                 {
-                    VALIDATOR_START_HEIGHT.save(deps.storage, &addr, &env.block.height)?;
+                    // see https://github.com/confio/tgrade-contracts/pull/309#discussion_r748164514
+                    // for details
+                    // Validator is added on an epoch boundary only. But next block contains proof of
+                    // the new validator
+                    VALIDATOR_START_HEIGHT.save(deps.storage, &addr, &(env.block.height + 1))?;
                 }
             }
         }
@@ -734,28 +738,27 @@ mod evidence {
         deps: Deps,
         suspect: &Validator,
         evidence_height: u64,
-    ) -> Result<Option<Addr>, ContractError> {
-        let addr: Option<Addr> = VALIDATOR_START_HEIGHT
+    ) -> Result<Option<Addr>, cosmwasm_std::StdError> {
+        VALIDATOR_START_HEIGHT
             .range(deps.storage, None, None, Order::Ascending)
-            // Filters only Ok results - range_de should deprecate this
-            .filter_map(|item| item.ok())
-            // Makes sure validator was active before evidence was reported
-            .filter(|(_, start_height)| *start_height < evidence_height)
-            .find_map(|(addr, _)| {
-                // Recreating address from Vec<u8>
-                let addr = match std::str::from_utf8(&addr) {
-                    Ok(s) => Addr::unchecked(s),
-                    Err(_) => return None,
-                };
-                let operator = operators().load(deps.storage, &addr).ok()?;
-                let hash = Binary::from(operator.pubkey.to_address());
-                if hash == suspect.address {
-                    return Some(addr);
-                }
-                None
-            });
-
-        Ok(addr)
+            .find_map(|r| {
+                r.and_then(|(addr, start_height)| {
+                    // Makes sure validator was active before evidence was reported
+                    if start_height >= evidence_height {
+                        return Ok(None);
+                    }
+                    // Recreating address from Vec<u8>
+                    let addr = Addr::unchecked(std::str::from_utf8(&addr)?);
+                    let operator = operators().load(deps.storage, &addr)?;
+                    let hash = Binary::from(operator.pubkey.to_address());
+                    if hash == suspect.address {
+                        return Ok(Some(addr));
+                    }
+                    Ok(None)
+                })
+                .transpose()
+            })
+            .transpose()
     }
 
     pub fn slash_validator_msg(config: &Config, addr: String) -> Result<SubMsg, ContractError> {

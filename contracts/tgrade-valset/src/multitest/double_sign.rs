@@ -37,7 +37,8 @@ fn evidence_slash_and_jail() {
         .with_epoch_reward(coin(1500, "usdc"))
         .build();
 
-    let evidence = create_evidence_for_member(members[0], suite.height());
+    // height + 1 because validator couldn't start validating in same block he joined
+    let evidence = create_evidence_for_member(members[0], suite.height() + 1);
 
     suite.next_block_with_evidence(vec![evidence]).unwrap();
 
@@ -98,7 +99,7 @@ fn evidence_doesnt_affect_engagement_rewards() {
         .with_distribution(Decimal::percent(50), &[members[0], members[1]], None)
         .build();
 
-    let evidence = create_evidence_for_member(members[0], suite.height());
+    let evidence = create_evidence_for_member(members[0], suite.height() + 1);
 
     suite.next_block_with_evidence(vec![evidence]).unwrap();
 
@@ -168,8 +169,8 @@ fn multiple_evidences() {
         .with_epoch_reward(coin(1500, "usdc"))
         .build();
 
-    let first_evidence = create_evidence_for_member(members[0], suite.height());
-    let second_evidence = create_evidence_for_member(members[2], suite.height());
+    let first_evidence = create_evidence_for_member(members[0], suite.height() + 1);
+    let second_evidence = create_evidence_for_member(members[2], suite.height() + 1);
 
     suite
         .next_block_with_evidence(vec![first_evidence, second_evidence])
