@@ -737,23 +737,26 @@ mod evidence {
     ) -> Result<Option<Addr>, ContractError> {
         let addr: Option<Addr> = VALIDATOR_START_HEIGHT
             .range(deps.storage, None, None, Order::Ascending)
-            // Filters only Ok results - range_de should deprecate this
-            .filter_map(|item| item.ok())
             // Makes sure validator was active before evidence was reported
-            .filter(|(_, start_height)| *start_height < evidence_height)
-            .find_map(|(addr, _)| {
-                // Recreating address from Vec<u8>
-                let addr = match std::str::from_utf8(&addr) {
-                    Ok(s) => Addr::unchecked(s),
-                    Err(_) => return None,
-                };
-                let operator = operators().load(deps.storage, &addr).ok()?;
-                let hash = Binary::from(operator.pubkey.to_address());
-                if hash == suspect.address {
-                    return Some(addr);
-                }
-                None
-            });
+            .filter(|r| {
+                r.as_ref().map(|(_, start_height)| *start_height < evidence_height)
+                    .unwrap_or(true)
+            })
+            .find_map(|r| {
+                move || -> Result<_, ContractError> {
+                    let (addr, _) = r?;
+                    // Recreating address from Vec<u8>
+                    let addr = Addr::unchecked(std::str::from_utf8(&addr)?);
+                    let operator = operators().load(deps.storage, &addr)?;
+                    let hash = Binary::from(operator.pubkey.to_address());
+                    if hash == suspect.address {
+                        return Ok(Some(addr));
+                    }
+                    Ok(None)
+                }()
+                .transpose()
+            })
+            .transpose()?;
 
         Ok(addr)
     }
