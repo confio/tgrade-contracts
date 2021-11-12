@@ -1,4 +1,4 @@
-use super::helpers::{mock_metadata, mock_pubkey};
+use super::helpers::{addr_to_pubkey, mock_metadata, mock_pubkey};
 use crate::state::Config;
 use crate::{msg::*, state::ValidatorInfo};
 use anyhow::{bail, Result as AnyResult};
@@ -6,7 +6,7 @@ use cosmwasm_std::{coin, Addr, Coin, CosmosMsg, Decimal, StdResult, Timestamp};
 use cw_multi_test::{next_block, AppResponse, Contract, ContractWrapper, CosmosRouter, Executor};
 use derivative::Derivative;
 use tg4::Member;
-use tg_bindings::{TgradeMsg, ValidatorDiff};
+use tg_bindings::{Evidence, Pubkey, TgradeMsg, ValidatorDiff};
 use tg_bindings_test::TgradeApp;
 use tg_utils::Duration;
 
@@ -43,7 +43,7 @@ struct DistributionConfig {
 #[derivative(Default = "new")]
 pub struct SuiteBuilder {
     /// Valset operators pairs: `(addr, weight)`
-    member_operators: Vec<(String, u64)>,
+    member_operators: Vec<(String, Option<Pubkey>, u64)>,
     /// Valset operators included in `initial_keys`, but not members of cw4 group (addresses only,
     /// no weights)
     non_member_operators: Vec<String>,
@@ -68,6 +68,8 @@ pub struct SuiteBuilder {
     /// How much reward is going to validators, and how much to non-validators engaged operators
     #[derivative(Default(value = "Decimal::one()"))]
     validators_reward_ratio: Decimal,
+    #[derivative(Default(value = "Decimal::percent(50)"))]
+    double_sign_slash_ratio: Decimal,
     /// Configuration of `distribution_contract` if any
     distribution_config: Option<DistributionConfig>,
 }
@@ -76,12 +78,30 @@ impl SuiteBuilder {
     pub fn with_operators(mut self, members: &[(&str, u64)], non_members: &[&str]) -> Self {
         let members = members
             .iter()
-            .map(|(addr, weight)| ((*addr).to_owned(), *weight));
+            .map(|(addr, weight)| ((*addr).to_owned(), None, *weight));
         self.member_operators.extend(members);
 
+        self = self.with_non_members(non_members);
+
+        self
+    }
+
+    // Method generates proper pubkeys, but requires address length to be exactly 32 bytes,
+    // otherwise it will panic.
+    pub fn with_operators_pubkeys(mut self, members: &[(&str, u64)], non_members: &[&str]) -> Self {
+        let members = members
+            .iter()
+            .map(|(addr, weight)| ((*addr).to_owned(), Some(addr_to_pubkey(addr)), *weight));
+        self.member_operators.extend(members);
+
+        self = self.with_non_members(non_members);
+
+        self
+    }
+
+    fn with_non_members(mut self, non_members: &[&str]) -> Self {
         let non_members = non_members.iter().copied().map(str::to_owned);
         self.non_member_operators.extend(non_members);
-
         self
     }
 
@@ -145,15 +165,24 @@ impl SuiteBuilder {
 
         let members: Vec<_> = self
             .member_operators
+            .clone()
             .into_iter()
-            .map(|(addr, weight)| Member { addr, weight })
+            .map(|(addr, _, weight)| Member { addr, weight })
             .collect();
 
         let operators: Vec<_> = {
-            let members = members.iter().map(|member| OperatorInitInfo {
-                operator: member.addr.clone(),
-                validator_pubkey: mock_pubkey(member.addr.as_bytes()),
-                metadata: mock_metadata(&member.addr),
+            let members = self.member_operators.iter().map(|member| {
+                // If pubkey was previously generated, assign it
+                // Otherwise, mock value
+                let pubkey = match member.1.clone() {
+                    Some(pubkey) => pubkey,
+                    None => mock_pubkey(member.0.as_bytes()),
+                };
+                OperatorInitInfo {
+                    operator: member.0.clone(),
+                    validator_pubkey: pubkey,
+                    metadata: mock_metadata(&member.0),
+                }
             });
 
             let non_members = self
@@ -231,6 +260,7 @@ impl SuiteBuilder {
                     fee_percentage: self.fee_percentage,
                     auto_unjail: self.auto_unjail,
                     validators_reward_ratio: self.validators_reward_ratio,
+                    double_sign_slash_ratio: self.double_sign_slash_ratio,
                     distribution_contract: distribution_contract
                         .as_ref()
                         .map(|addr| addr.to_string()),
@@ -303,9 +333,16 @@ impl Suite {
     }
 
     pub fn next_block(&mut self) -> AnyResult<Option<ValidatorDiff>> {
+        self.next_block_with_evidence(vec![])
+    }
+
+    pub fn next_block_with_evidence(
+        &mut self,
+        evidences: Vec<Evidence>,
+    ) -> AnyResult<Option<ValidatorDiff>> {
         self.app.update_block(next_block);
         let (_, diff) = self.app.end_block()?;
-        self.app.begin_block(vec![])?;
+        self.app.begin_block(evidences)?;
         Ok(diff)
     }
 
@@ -326,6 +363,11 @@ impl Suite {
     /// Timestamp of current block
     pub fn timestamp(&self) -> Timestamp {
         self.app.block_info().time
+    }
+
+    /// Height of current block
+    pub fn height(&self) -> u64 {
+        self.app.block_info().height
     }
 
     pub fn jail(
@@ -356,6 +398,20 @@ impl Suite {
             &ExecuteMsg::Unjail {
                 operator: operator.into().map(str::to_owned),
             },
+            &[],
+        )
+    }
+
+    pub fn register_validator_key(
+        &mut self,
+        executor: &str,
+        pubkey: Pubkey,
+        metadata: ValidatorMetadata,
+    ) -> AnyResult<AppResponse> {
+        self.app.execute_contract(
+            Addr::unchecked(executor),
+            self.valset.clone(),
+            &ExecuteMsg::RegisterValidatorKey { pubkey, metadata },
             &[],
         )
     }

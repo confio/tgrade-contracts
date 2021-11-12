@@ -4,6 +4,12 @@ use tg_bindings::Pubkey;
 use crate::msg::{JailingPeriod, OperatorResponse, ValidatorMetadata};
 use crate::state::ValidatorInfo;
 
+// Converts address to valid public key
+// Requires addr to be exactly 32 bytes long, panics otherwise
+pub fn addr_to_pubkey(addr: &str) -> Pubkey {
+    Pubkey::Ed25519(Binary((*addr).as_bytes().to_vec()))
+}
+
 pub fn mock_pubkey(base: &[u8]) -> Pubkey {
     const ED25519_PUBKEY_LENGTH: usize = 32;
 

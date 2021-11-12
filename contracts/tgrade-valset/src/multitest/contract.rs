@@ -33,6 +33,7 @@ fn initialization() {
             fee_percentage: Decimal::zero(),
             auto_unjail: false,
             validators_reward_ratio: Decimal::one(),
+            double_sign_slash_ratio: Decimal::percent(50),
             distribution_contract: None,
             // This one it is basically assumed is set correctly. Other tests tests if behavior
             // of relation between those contract is correct

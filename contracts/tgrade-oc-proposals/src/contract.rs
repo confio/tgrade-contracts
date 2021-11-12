@@ -592,6 +592,7 @@ mod tests {
             rewards_code_id: engagement_id,
             scaling: None,
             validators_reward_ratio: Decimal::one(),
+            double_sign_slash_ratio: Decimal::percent(50),
         };
         let res = app.instantiate_contract(
             valset_id,

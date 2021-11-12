@@ -65,6 +65,11 @@ pub struct InstantiateMsg {
     #[serde(default = "default_validators_reward_ratio")]
     pub validators_reward_ratio: Decimal,
 
+    /// Validators who are caught double signing are jailed forever and their bonded tokens are
+    /// slashed based on this value.
+    #[serde(default = "default_double_sign_slash")]
+    pub double_sign_slash_ratio: Decimal,
+
     /// Address where part of the reward for non-validators is sent for further distribution. It is
     /// required to handle the `Distribute {}` message (eg. tg4-engagement contract) which would
     /// distribute the funds sent with this message.
@@ -90,6 +95,10 @@ pub fn default_fee_percentage() -> Decimal {
 
 pub fn default_validators_reward_ratio() -> Decimal {
     Decimal::one()
+}
+
+pub fn default_double_sign_slash() -> Decimal {
+    Decimal::percent(50)
 }
 
 impl InstantiateMsg {
@@ -380,6 +389,7 @@ mod test {
             fee_percentage: Decimal::zero(),
             auto_unjail: false,
             validators_reward_ratio: Decimal::one(),
+            double_sign_slash_ratio: Decimal::percent(50),
             distribution_contract: None,
             rewards_code_id: 0,
         };

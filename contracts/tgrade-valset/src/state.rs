@@ -46,6 +46,10 @@ pub struct Config {
     /// This value is in range of `[0-1]`, `1` (or `100%`) by default.
     pub validators_reward_ratio: Decimal,
 
+    /// Validators who are caught double signing are jailed forever and their bonded tokens are
+    /// slashed based on this value.
+    pub double_sign_slash_ratio: Decimal,
+
     /// Address where part of reward for non-validators is send for further distribution. It is
     /// required to handle `distribute {}` message (eg. tg4-engagement contract) which would
     /// distribute funds send with this message.

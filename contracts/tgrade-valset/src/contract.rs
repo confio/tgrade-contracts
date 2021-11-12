@@ -6,7 +6,7 @@ use std::convert::TryInto;
 use cosmwasm_std::entry_point;
 use cosmwasm_std::{
     to_binary, Addr, Binary, BlockInfo, Decimal, Deps, DepsMut, Env, MessageInfo, Order, Reply,
-    StdError, StdResult, SubMsg, Timestamp, WasmMsg,
+    StdError, StdResult, Timestamp, WasmMsg,
 };
 
 use cw0::{maybe_addr, parse_reply_instantiate_data};
@@ -16,8 +16,8 @@ use cw_storage_plus::Bound;
 
 use tg4::{Member, Tg4Contract};
 use tg_bindings::{
-    request_privileges, Ed25519Pubkey, Privilege, PrivilegeChangeMsg, Pubkey, TgradeMsg,
-    TgradeSudoMsg, ValidatorDiff, ValidatorUpdate,
+    request_privileges, Ed25519Pubkey, Evidence, EvidenceType, Privilege, PrivilegeChangeMsg,
+    Pubkey, TgradeMsg, TgradeSudoMsg, ValidatorDiff, ValidatorUpdate,
 };
 use tg_utils::Duration;
 
@@ -43,6 +43,7 @@ const REWARDS_INIT_REPLY_ID: u64 = 1;
 
 /// We use this custom message everywhere
 pub type Response = cosmwasm_std::Response<TgradeMsg>;
+pub type SubMsg = cosmwasm_std::SubMsg<TgradeMsg>;
 
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn instantiate(
@@ -71,6 +72,7 @@ pub fn instantiate(
         fee_percentage: msg.fee_percentage,
         auto_unjail: msg.auto_unjail,
         validators_reward_ratio: msg.validators_reward_ratio,
+        double_sign_slash_ratio: msg.double_sign_slash_ratio,
         distribution_contract: msg
             .distribution_contract
             .clone()
@@ -285,8 +287,25 @@ fn execute_unjail(
     Ok(res)
 }
 
-fn execute_slash(
+fn store_slashing_event(
     deps: DepsMut,
+    env: &Env,
+    addr: Addr,
+    portion: Decimal,
+) -> Result<(), ContractError> {
+    let mut slashing = VALIDATOR_SLASHING
+        .may_load(deps.storage, &addr)?
+        .unwrap_or_default();
+    slashing.push(ValidatorSlashing {
+        slash_height: env.block.height,
+        portion,
+    });
+    VALIDATOR_SLASHING.save(deps.storage, &addr, &slashing)?;
+    Ok(())
+}
+
+fn execute_slash(
+    mut deps: DepsMut,
     env: Env,
     info: MessageInfo,
     operator: String,
@@ -296,14 +315,7 @@ fn execute_slash(
 
     // Store slashing event
     let addr = Addr::unchecked(&operator);
-    let mut slashing = VALIDATOR_SLASHING
-        .may_load(deps.storage, &addr)?
-        .unwrap_or_default();
-    slashing.push(ValidatorSlashing {
-        slash_height: env.block.height,
-        portion,
-    });
-    VALIDATOR_SLASHING.save(deps.storage, &addr, &slashing)?;
+    store_slashing_event(deps.branch(), &env, addr, portion)?;
 
     let config = CONFIG.load(deps.storage)?;
 
@@ -470,6 +482,7 @@ pub fn sudo(deps: DepsMut, env: Env, msg: TgradeSudoMsg) -> Result<Response, Con
     match msg {
         TgradeSudoMsg::PrivilegeChange(change) => Ok(privilege_change(deps, change)),
         TgradeSudoMsg::EndWithValidatorUpdate {} => end_block(deps, env),
+        TgradeSudoMsg::BeginBlock { evidence } => begin_block(deps, env, evidence),
         _ => Err(ContractError::UnknownSudoType {}),
     }
 }
@@ -477,8 +490,11 @@ pub fn sudo(deps: DepsMut, env: Env, msg: TgradeSudoMsg) -> Result<Response, Con
 fn privilege_change(_deps: DepsMut, change: PrivilegeChangeMsg) -> Response {
     match change {
         PrivilegeChangeMsg::Promoted {} => {
-            let msgs =
-                request_privileges(&[Privilege::ValidatorSetUpdater, Privilege::TokenMinter]);
+            let msgs = request_privileges(&[
+                Privilege::ValidatorSetUpdater,
+                Privilege::TokenMinter,
+                Privilege::BeginBlocker,
+            ]);
             Response::new().add_submessages(msgs)
         }
         PrivilegeChangeMsg::Demoted {} => {
@@ -702,6 +718,110 @@ fn calculate_diff(
         ValidatorDiff { diffs },
         RewardsDistribution::UpdateMembers { add, remove },
     )
+}
+
+mod evidence {
+    use super::*;
+
+    use tg_bindings::{ToAddress, Validator};
+
+    /// Validator struct contains only hash of first 20 bytes of validator's pub key
+    /// (sha256), while contract keeps only pub keys. To match potential reported
+    /// suspect, this function computes sha256 hashes for all existing validator and
+    /// compares result with suspect. It is acceptable approach, since it shouldn't
+    /// happen too often.
+    pub fn find_matching_validator(
+        deps: Deps,
+        suspect: &Validator,
+        evidence_height: u64,
+    ) -> Result<Option<Addr>, ContractError> {
+        let addr: Option<Addr> = VALIDATOR_START_HEIGHT
+            .range(deps.storage, None, None, Order::Ascending)
+            // Filters only Ok results - range_de should deprecate this
+            .filter_map(|item| item.ok())
+            // Makes sure validator was active before evidence was reported
+            .filter(|(_, start_height)| *start_height < evidence_height)
+            .find_map(|(addr, _)| {
+                // Recreating address from Vec<u8>
+                let addr = match std::str::from_utf8(&addr) {
+                    Ok(s) => Addr::unchecked(s),
+                    Err(_) => return None,
+                };
+                let operator = operators().load(deps.storage, &addr).ok()?;
+                let hash = Binary::from(operator.pubkey.to_address());
+                if hash == suspect.address {
+                    return Some(addr);
+                }
+                None
+            });
+
+        Ok(addr)
+    }
+
+    pub fn slash_validator_msg(config: &Config, addr: String) -> Result<SubMsg, ContractError> {
+        let slash_msg = SlashMsg::Slash {
+            addr,
+            portion: config.double_sign_slash_ratio,
+        };
+        let slash_msg = to_binary(&slash_msg)?;
+
+        Ok(SubMsg::new(WasmMsg::Execute {
+            contract_addr: config.membership.addr().to_string(),
+            msg: slash_msg,
+            funds: vec![],
+        }))
+    }
+}
+
+/// If some validators are caught on malicious behavior (for example double signing),
+/// they are reported and punished on begin of next block.
+fn begin_block(
+    mut deps: DepsMut,
+    env: Env,
+    evidences: Vec<Evidence>,
+) -> Result<Response, ContractError> {
+    // Early exit saves couple loads from below if there are no evidences at all.
+    if evidences.is_empty() {
+        return Ok(Response::new());
+    }
+
+    let config = CONFIG.load(deps.storage)?;
+
+    let mut response = Response::new();
+
+    evidences
+        .iter()
+        .flat_map(|e| match e.evidence_type {
+            EvidenceType::DuplicateVote => Some((e.validator.clone(), e.height)),
+            _ => None,
+        })
+        .map(|(validator, evidence_height)| {
+            // If there's match between evidence validator's hash and one from list of validators,
+            // then jail and slash that validator
+            if let Some(validator) =
+                evidence::find_matching_validator(deps.as_ref(), &validator, evidence_height)?
+            {
+                let sub_msg = evidence::slash_validator_msg(&config, validator.to_string())?;
+                store_slashing_event(
+                    deps.branch(),
+                    &env,
+                    validator.clone(),
+                    config.double_sign_slash_ratio,
+                )?;
+
+                JAIL.save(deps.storage, &validator, &JailingPeriod::Forever {})?;
+
+                response = response
+                    .clone()
+                    .add_attribute("action", "slash_and_jail")
+                    .add_attribute("validator", validator.as_str())
+                    .add_submessage(sub_msg);
+            }
+            Ok(())
+        })
+        .collect::<Result<Vec<()>, ContractError>>()?;
+
+    Ok(response)
 }
 
 #[cfg_attr(not(feature = "library"), entry_point)]
