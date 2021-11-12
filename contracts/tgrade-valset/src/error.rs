@@ -9,9 +9,6 @@ pub enum ContractError {
     #[error("{0}")]
     Std(#[from] StdError),
 
-    #[error("Conversion from UTF-8 failed")]
-    FromUtf8(#[from] std::str::Utf8Error),
-
     #[error("{0}")]
     AdminError(#[from] AdminError),
 

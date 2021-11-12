@@ -738,17 +738,15 @@ mod evidence {
         deps: Deps,
         suspect: &Validator,
         evidence_height: u64,
-    ) -> Result<Option<Addr>, ContractError> {
-        let addr: Option<Addr> = VALIDATOR_START_HEIGHT
+    ) -> Result<Option<Addr>, cosmwasm_std::StdError> {
+        VALIDATOR_START_HEIGHT
             .range(deps.storage, None, None, Order::Ascending)
-            // Makes sure validator was active before evidence was reported
-            .filter(|r| {
-                r.as_ref()
-                    .map(|(_, start_height)| *start_height < evidence_height)
-                    .unwrap_or(true)
-            })
             .find_map(|r| {
-                r.and_then(|(addr, _)| {
+                r.and_then(|(addr, start_height)| {
+                    // Makes sure validator was active before evidence was reported
+                    if start_height >= evidence_height {
+                        return Ok(None);
+                    }
                     // Recreating address from Vec<u8>
                     let addr = Addr::unchecked(std::str::from_utf8(&addr)?);
                     let operator = operators().load(deps.storage, &addr)?;
@@ -760,9 +758,7 @@ mod evidence {
                 })
                 .transpose()
             })
-            .transpose()?;
-
-        Ok(addr)
+            .transpose()
     }
 
     pub fn slash_validator_msg(config: &Config, addr: String) -> Result<SubMsg, ContractError> {
