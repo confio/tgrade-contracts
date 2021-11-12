@@ -1577,7 +1577,6 @@ dependencies = [
  "cosmwasm-schema",
  "cosmwasm-std",
  "cw-multi-test",
- "cw-storage-plus",
  "cw0",
  "cw2",
  "cw3",
@@ -1586,10 +1585,10 @@ dependencies = [
  "tg-bindings",
  "tg-bindings-test",
  "tg-utils",
+ "tg-voting-contract",
  "tg4",
  "tg4-engagement",
  "tgrade-valset",
- "thiserror",
 ]
 
 [[package]]

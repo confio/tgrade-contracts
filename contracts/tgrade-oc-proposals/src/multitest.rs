@@ -1,7 +1,7 @@
 mod suite;
 
-use crate::error::ContractError;
 use suite::{get_proposal_id, member, RulesBuilder, SuiteBuilder};
+use tg_voting_contract::ContractError;
 
 use cosmwasm_std::{Decimal, StdError};
 use cw3::{Status, Vote, VoteInfo};

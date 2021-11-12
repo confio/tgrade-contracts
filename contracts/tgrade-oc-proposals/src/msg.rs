@@ -3,7 +3,8 @@ use serde::{Deserialize, Serialize};
 
 use cw3::Vote;
 
-use crate::state::{OversightProposal, VotingRules};
+use crate::state::OversightProposal;
+use tg_voting_contract::state::VotingRules;
 
 #[derive(Serialize, Deserialize, Clone, PartialEq, JsonSchema, Debug)]
 pub struct InstantiateMsg {

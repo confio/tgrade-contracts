@@ -14,18 +14,16 @@ backtraces = ["cosmwasm-std/backtraces"]
 library = []
 
 [dependencies]
-cw0 = "0.10.2"
 cw2 = "0.10.2"
 cw3 = "0.10.2"
-cw-storage-plus = "0.10.2"
 cosmwasm-std = "1.0.0-beta"
 schemars = "0.8.1"
 serde = { version = "1", default-features = false, features = ["derive"] }
 tg4 = { path = "../../packages/tg4", version = "0.5.0-alpha" }
 tg4-engagement = { path = "../tg4-engagement", version = "0.5.0-alpha", features = ["library"] }
 tg-bindings = { path = "../../packages/bindings", version = "0.5.0-alpha" }
-tg-utils = { version = "0.5.0-beta4", path = "../../packages/utils" }
-thiserror = { version = "1" }
+tg-utils = { version = "0.5.0-beta3", path = "../../packages/utils" }
+tg-voting-contract = { version = "0.5.0-beta3", path = "../../packages/voting-contract" }
 
 [dev-dependencies]
 anyhow = "1"
@@ -33,3 +31,4 @@ cosmwasm-schema = "1.0.0-beta"
 cw-multi-test = "0.10.2"
 tg-bindings-test = { version = "0.5.0-alpha", path = "../../packages/bindings-test" }
 tgrade-valset = { path = "../tgrade-valset", version = "0.5.0-alpha", features = ["library"] }
+cw0 = "0.10.2"

@@ -7,9 +7,10 @@ use tg4::{Member, MemberResponse, Tg4ExecuteMsg, Tg4QueryMsg};
 use tg_bindings::{TgradeMsg, ValidatorDiff};
 use tg_bindings_test::TgradeApp;
 
-use crate::error::ContractError;
 use crate::msg::*;
-use crate::state::{OversightProposal, ProposalResponse, VotingRules};
+use crate::state::OversightProposal;
+use tg_voting_contract::state::{ProposalResponse, VotingRules};
+use tg_voting_contract::ContractError;
 
 pub fn member<T: Into<String>>(addr: T, weight: u64) -> Member {
     Member {
@@ -441,7 +442,7 @@ impl Suite {
     }
 
     pub fn query_proposal_status(&mut self, proposal_id: u64) -> Result<Status, ContractError> {
-        let prop: ProposalResponse = self
+        let prop: ProposalResponse<OversightProposal> = self
             .app
             .wrap()
             .query_wasm_smart(self.contract.clone(), &QueryMsg::Proposal { proposal_id })?;
