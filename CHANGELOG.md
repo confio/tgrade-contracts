@@ -1,14 +1,35 @@
 # Changelog
 
-## Unreleased
+## [Unreleased](https://github.com/confio/tgrade-contracts/tree/HEAD)
 
-[Full Changelog](https://github.com/confio/tgrade-contracts/compare/v0.5.0-beta3...main)
+[Full Changelog](https://github.com/confio/tgrade-contracts/compare/v0.5.0-beta3...HEAD)
 
 **Changed:**
 
 - BREAKING: The `tokens` field on `Unbound` message for `tg4-stake` contracts changed from being `Uint128`
   (unbond tokens amount) to the structure of `{ amount: Uint128, denom: String }`. If `denom` doesn't
   match the staking denom, unbounding would fail.
+
+**Closed issues:**
+
+- Add a CHANGELOG [\#300](https://github.com/confio/tgrade-contracts/issues/300)
+- Add slashing queries [\#280](https://github.com/confio/tgrade-contracts/issues/280)
+- \[tgrade-oc-proposals\] Add slash proposal [\#279](https://github.com/confio/tgrade-contracts/issues/279)
+- Add slashing to tgrade-valset [\#259](https://github.com/confio/tgrade-contracts/issues/259)
+- Stake contract unbound with coin type  [\#127](https://github.com/confio/tgrade-contracts/issues/127)
+- tgrade-valset: ValidatorSet contract slashes on double-sign evidence [\#10](https://github.com/confio/tgrade-contracts/issues/10)
+
+**Merged pull requests:**
+
+- Validator Set: slash and jail validator on double sign evidence [\#309](https://github.com/confio/tgrade-contracts/pull/309) ([ueco-jb](https://github.com/ueco-jb))
+- tg-validator-voting: Contract created [\#308](https://github.com/confio/tgrade-contracts/pull/308) ([hashedone](https://github.com/hashedone))
+- Slashing query [\#307](https://github.com/confio/tgrade-contracts/pull/307) ([maurolacy](https://github.com/maurolacy))
+- tgrade-stake: Proper denom required on unbounding tokens [\#306](https://github.com/confio/tgrade-contracts/pull/306) ([hashedone](https://github.com/hashedone))
+- Add CircleCI job for testing oc-proposals [\#304](https://github.com/confio/tgrade-contracts/pull/304) ([uint](https://github.com/uint))
+- tgrade-oc-proposals: slashing proposals [\#303](https://github.com/confio/tgrade-contracts/pull/303) ([uint](https://github.com/uint))
+- Add changelog [\#302](https://github.com/confio/tgrade-contracts/pull/302) ([maurolacy](https://github.com/maurolacy))
+- tgrade-valset: Forwarding slashing to sub-contracts [\#299](https://github.com/confio/tgrade-contracts/pull/299) ([hashedone](https://github.com/hashedone))
+- Distribution contract addr improvement 2 [\#268](https://github.com/confio/tgrade-contracts/pull/268) ([maurolacy](https://github.com/maurolacy))
 
 ## [v0.5.0-beta](https://github.com/confio/tgrade-contracts/tree/v0.5.0-beta3) (2021-11-04)
 
