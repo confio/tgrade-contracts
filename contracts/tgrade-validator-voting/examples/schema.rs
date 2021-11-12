@@ -2,9 +2,10 @@ use std::env::current_dir;
 use std::fs::create_dir_all;
 
 use cosmwasm_schema::{export_schema, export_schema_with_title, remove_schemas, schema_for};
+use cosmwasm_std::Empty;
 
+use tg_voting_contract::state::{ProposalListResponse, ProposalResponse};
 use tgrade_validator_voting::msg::{ExecuteMsg, InstantiateMsg, QueryMsg};
-use tgrade_validator_voting::state::{OversightProposal, ProposalListResponse, ProposalResponse};
 
 fn main() {
     let mut out_dir = current_dir().unwrap();
@@ -15,7 +16,7 @@ fn main() {
     export_schema(&schema_for!(InstantiateMsg), &out_dir);
     export_schema_with_title(&schema_for!(ExecuteMsg), &out_dir, "ExecuteMsg");
     export_schema_with_title(&schema_for!(QueryMsg), &out_dir, "QueryMsg");
-    export_schema(&schema_for!(OversightProposal), &out_dir);
-    export_schema(&schema_for!(ProposalResponse), &out_dir);
-    export_schema(&schema_for!(ProposalListResponse), &out_dir);
+    export_schema_with_title(&schema_for!(Empty), &out_dir, "Proposal");
+    export_schema(&schema_for!(ProposalResponse<Empty>), &out_dir);
+    export_schema(&schema_for!(ProposalListResponse<Empty>), &out_dir);
 }

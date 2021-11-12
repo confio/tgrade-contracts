@@ -1,9 +1,10 @@
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
+use cosmwasm_std::Empty;
 use cw3::Vote;
 
-use crate::state::{OversightProposal, VotingRules};
+use tg_voting_contract::state::VotingRules;
 
 #[derive(Serialize, Deserialize, Clone, PartialEq, JsonSchema, Debug)]
 pub struct InstantiateMsg {
@@ -21,7 +22,7 @@ pub enum ExecuteMsg {
     Propose {
         title: String,
         description: String,
-        proposal: OversightProposal,
+        proposal: Empty,
     },
     Vote {
         proposal_id: u64,

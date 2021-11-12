@@ -27,7 +27,7 @@ const CONTRACT_VERSION: &str = env!("CARGO_PKG_VERSION");
 
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn instantiate(
-    mut deps: DepsMut,
+    deps: DepsMut,
     _env: Env,
     _info: MessageInfo,
     msg: InstantiateMsg,
@@ -38,7 +38,7 @@ pub fn instantiate(
         engagement_contract: Tg4Contract(deps.api.addr_validate(&msg.engagement_addr)?),
         valset_contract: Tg4Contract(deps.api.addr_validate(&msg.valset_addr)?),
     };
-    tg_voting_contract::instantiate(deps.branch(), msg.rules, &msg.group_addr, config)
+    tg_voting_contract::instantiate(deps, msg.rules, &msg.group_addr, config)
 }
 
 #[cfg_attr(not(feature = "library"), entry_point)]
