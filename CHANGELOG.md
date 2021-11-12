@@ -2,13 +2,19 @@
 
 ## [Unreleased](https://github.com/confio/tgrade-contracts/tree/HEAD)
 
-[Full Changelog](https://github.com/confio/tgrade-contracts/compare/v0.5.0-beta3...HEAD)
+[Full Changelog](https://github.com/confio/tgrade-contracts/compare/v0.5.0-beta4...HEAD)
+
+## [v0.5.0-beta](https://github.com/confio/tgrade-contracts/tree/v0.5.0-beta4) (2021-11-12)
+
+[Full Changelog](https://github.com/confio/tgrade-contracts/compare/v0.5.0-alpha.2...v0.5.0-beta4)
 
 **Changed:**
 
 - BREAKING: The `tokens` field on `Unbound` message for `tg4-stake` contracts changed from being `Uint128`
   (unbond tokens amount) to the structure of `{ amount: Uint128, denom: String }`. If `denom` doesn't
   match the staking denom, unbounding would fail.
+- The `preauths` field of `InstantiateMsg`s is renamed to `preauths_hooks`. Pre-auth fields are also changed from
+  `Option<u64>` to `u64` with a default of zero.
 
 **Closed issues:**
 
@@ -18,49 +24,6 @@
 - Add slashing to tgrade-valset [\#259](https://github.com/confio/tgrade-contracts/issues/259)
 - Stake contract unbound with coin type  [\#127](https://github.com/confio/tgrade-contracts/issues/127)
 - tgrade-valset: ValidatorSet contract slashes on double-sign evidence [\#10](https://github.com/confio/tgrade-contracts/issues/10)
-
-**Merged pull requests:**
-
-- Validator Set: slash and jail validator on double sign evidence [\#309](https://github.com/confio/tgrade-contracts/pull/309) ([ueco-jb](https://github.com/ueco-jb))
-- tg-validator-voting: Contract created [\#308](https://github.com/confio/tgrade-contracts/pull/308) ([hashedone](https://github.com/hashedone))
-- Slashing query [\#307](https://github.com/confio/tgrade-contracts/pull/307) ([maurolacy](https://github.com/maurolacy))
-- tgrade-stake: Proper denom required on unbounding tokens [\#306](https://github.com/confio/tgrade-contracts/pull/306) ([hashedone](https://github.com/hashedone))
-- Add CircleCI job for testing oc-proposals [\#304](https://github.com/confio/tgrade-contracts/pull/304) ([uint](https://github.com/uint))
-- tgrade-oc-proposals: slashing proposals [\#303](https://github.com/confio/tgrade-contracts/pull/303) ([uint](https://github.com/uint))
-- Add changelog [\#302](https://github.com/confio/tgrade-contracts/pull/302) ([maurolacy](https://github.com/maurolacy))
-- tgrade-valset: Forwarding slashing to sub-contracts [\#299](https://github.com/confio/tgrade-contracts/pull/299) ([hashedone](https://github.com/hashedone))
-- Distribution contract addr improvement 2 [\#268](https://github.com/confio/tgrade-contracts/pull/268) ([maurolacy](https://github.com/maurolacy))
-
-## [v0.5.0-beta](https://github.com/confio/tgrade-contracts/tree/v0.5.0-beta3) (2021-11-04)
-
-[Full Changelog](https://github.com/confio/tgrade-contracts/compare/v0.5.0-alpha.2...v0.5.0-beta3)
-
-**Changed:**
-
-- The `preauths` field of `InstantiateMsg`s is renamed to `preauths_hooks`. Pre-auth fields are also changed from
-  `Option<u64>` to `u64` with a default of zero.
-
-**Merged pull requests:**
-
-- Set version: 0.5.0-beta3 [\#301](https://github.com/confio/tgrade-contracts/pull/301) ([maurolacy](https://github.com/maurolacy))
-- Slashing cleanup [\#296](https://github.com/confio/tgrade-contracts/pull/296) ([uint](https://github.com/uint))
-
-
-**Added:**
-
-- Working `tgrade-oc-proposals` contract.
-- Added slashing to tg4-mixer and managed engagement and staking contracts.
-
-**Implemented enhancements:**
-
-- tgrade-oc-proposals: Rewrite tests using multitest framework [\#271](https://github.com/confio/tgrade-contracts/issues/271)
-
-**Fixed bugs:**
-
-- OC proposals - bring back group address [\#277](https://github.com/confio/tgrade-contracts/pull/277) ([ueco-jb](https://github.com/ueco-jb))
-
-**Closed issues:**
-
 - Implement `is_voting_member` helper [\#298](https://github.com/confio/tgrade-contracts/issues/298)
 - Verify only voting members can create proposals [\#284](https://github.com/confio/tgrade-contracts/issues/284)
 - \[tgrade-oc-proposals\] Fix `group_addr` vs `engagement_addr` [\#276](https://github.com/confio/tgrade-contracts/issues/276)
@@ -80,6 +43,17 @@
 
 **Merged pull requests:**
 
+- Validator Set: slash and jail validator on double sign evidence [\#309](https://github.com/confio/tgrade-contracts/pull/309) ([ueco-jb](https://github.com/ueco-jb))
+- tg-validator-voting: Contract created [\#308](https://github.com/confio/tgrade-contracts/pull/308) ([hashedone](https://github.com/hashedone))
+- Slashing query [\#307](https://github.com/confio/tgrade-contracts/pull/307) ([maurolacy](https://github.com/maurolacy))
+- tgrade-stake: Proper denom required on unbounding tokens [\#306](https://github.com/confio/tgrade-contracts/pull/306) ([hashedone](https://github.com/hashedone))
+- Add CircleCI job for testing oc-proposals [\#304](https://github.com/confio/tgrade-contracts/pull/304) ([uint](https://github.com/uint))
+- tgrade-oc-proposals: slashing proposals [\#303](https://github.com/confio/tgrade-contracts/pull/303) ([uint](https://github.com/uint))
+- Add changelog [\#302](https://github.com/confio/tgrade-contracts/pull/302) ([maurolacy](https://github.com/maurolacy))
+- tgrade-valset: Forwarding slashing to sub-contracts [\#299](https://github.com/confio/tgrade-contracts/pull/299) ([hashedone](https://github.com/hashedone))
+- Distribution contract addr improvement 2 [\#268](https://github.com/confio/tgrade-contracts/pull/268) ([maurolacy](https://github.com/maurolacy))
+- Set version: 0.5.0-beta3 [\#301](https://github.com/confio/tgrade-contracts/pull/301) ([maurolacy](https://github.com/maurolacy))
+- Slashing cleanup [\#296](https://github.com/confio/tgrade-contracts/pull/296) ([uint](https://github.com/uint))
 - Beta2 release [\#297](https://github.com/confio/tgrade-contracts/pull/297) ([maurolacy](https://github.com/maurolacy))
 - Slashing for tg4 mixer [\#295](https://github.com/confio/tgrade-contracts/pull/295) ([uint](https://github.com/uint))
 - OC proposals - better voting rules creation in multitest [\#294](https://github.com/confio/tgrade-contracts/pull/294) ([ueco-jb](https://github.com/ueco-jb))
@@ -107,6 +81,20 @@
 - Vesting contract - add account balance to token info [\#231](https://github.com/confio/tgrade-contracts/pull/231) ([ueco-jb](https://github.com/ueco-jb))
 - Vesting contract - handover multitests [\#230](https://github.com/confio/tgrade-contracts/pull/230) ([ueco-jb](https://github.com/ueco-jb))
 - Multitests in vesting contract [\#226](https://github.com/confio/tgrade-contracts/pull/226) ([ueco-jb](https://github.com/ueco-jb))
+
+
+**Added:**
+
+- Working `tgrade-oc-proposals` contract.
+- Added slashing to tg4-mixer and managed engagement and staking contracts.
+
+**Implemented enhancements:**
+
+- tgrade-oc-proposals: Rewrite tests using multitest framework [\#271](https://github.com/confio/tgrade-contracts/issues/271)
+
+**Fixed bugs:**
+
+- OC proposals - bring back group address [\#277](https://github.com/confio/tgrade-contracts/pull/277) ([ueco-jb](https://github.com/ueco-jb))
 
 ## [v0.5.0-alpha](https://github.com/confio/tgrade-contracts/tree/v0.5.0-alpha.2) (2021-10-22)
 
