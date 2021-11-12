@@ -748,8 +748,7 @@ mod evidence {
                     .unwrap_or(true)
             })
             .find_map(|r| {
-                move || -> Result<_, ContractError> {
-                    let (addr, _) = r?;
+                r.and_then(|(addr, _)| {
                     // Recreating address from Vec<u8>
                     let addr = Addr::unchecked(std::str::from_utf8(&addr)?);
                     let operator = operators().load(deps.storage, &addr)?;
@@ -758,7 +757,7 @@ mod evidence {
                         return Ok(Some(addr));
                     }
                     Ok(None)
-                }()
+                })
                 .transpose()
             })
             .transpose()?;
