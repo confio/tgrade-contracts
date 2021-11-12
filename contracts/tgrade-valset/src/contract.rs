@@ -555,7 +555,11 @@ fn end_block(deps: DepsMut, env: Env) -> Result<Response, ContractError> {
                     .may_load(deps.storage, &addr)?
                     .is_none()
                 {
-                    VALIDATOR_START_HEIGHT.save(deps.storage, &addr, &env.block.height)?;
+                    // see https://github.com/confio/tgrade-contracts/pull/309#discussion_r748164514
+                    // for details
+                    // Validator is added on an epoch boundary only. But next block contains proof of
+                    // the new validator
+                    VALIDATOR_START_HEIGHT.save(deps.storage, &addr, &(env.block.height + 1))?;
                 }
             }
         }
@@ -739,7 +743,8 @@ mod evidence {
             .range(deps.storage, None, None, Order::Ascending)
             // Makes sure validator was active before evidence was reported
             .filter(|r| {
-                r.as_ref().map(|(_, start_height)| *start_height < evidence_height)
+                r.as_ref()
+                    .map(|(_, start_height)| *start_height < evidence_height)
                     .unwrap_or(true)
             })
             .find_map(|r| {

@@ -26,7 +26,7 @@ fn admin_can_slash() {
     // Confirm there are no slashing events for actors[0]
     let slashing = suite.list_validator_slashing(actors[0]).unwrap();
     assert_eq!(slashing.addr, actors[0]);
-    assert_eq!(slashing.start_height, 0);
+    assert_eq!(slashing.start_height, 1);
     assert_eq!(slashing.slashing.len(), 0);
 
     // Slash him
@@ -37,7 +37,7 @@ fn admin_can_slash() {
     // Confirm slashing event
     let slashing = suite.list_validator_slashing(actors[0]).unwrap();
     assert_eq!(slashing.addr, actors[0]);
-    assert_eq!(slashing.start_height, 0);
+    assert_eq!(slashing.start_height, 1);
     assert_eq!(slashing.slashing.len(), 1);
     let actor0_slash = &slashing.slashing[0];
     assert_eq!(actor0_slash.slash_height, 1);
@@ -100,7 +100,7 @@ fn non_admin_cant_slash() {
     // Confirm not a slashing event
     let slashing = suite.list_validator_slashing(actors[0]).unwrap();
     assert_eq!(slashing.addr, actors[0]);
-    assert_eq!(slashing.start_height, 0);
+    assert_eq!(slashing.start_height, 1);
     assert_eq!(slashing.slashing.len(), 0);
 
     // Going two epochs to ensure validators recalculation after slashing. No distributions shall
