@@ -1464,6 +1464,22 @@ dependencies = [
 ]
 
 [[package]]
+name = "tg-voting-contract"
+version = "0.5.0-beta3"
+dependencies = [
+ "cosmwasm-std",
+ "cw-storage-plus",
+ "cw0",
+ "cw3",
+ "schemars",
+ "serde",
+ "tg-bindings",
+ "tg4",
+ "tg4-engagement",
+ "thiserror",
+]
+
+[[package]]
 name = "tg4"
 version = "0.5.0-beta4"
 dependencies = [

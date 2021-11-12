@@ -1,0 +1,23 @@
+[package]
+name = "tg-voting-contract"
+version = "0.5.0-beta3"
+authors = ["Bartłomiej Kuras <bart.k@confio.gmbh>"]
+edition = "2018"
+description = "Generic utils for building voting contracts fot tgrade"
+repository = "https://github.com/confio/tgrade-contracts"
+homepage = "https://tgrade.finance"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+cw0 = "0.10.2"
+cw3 = "0.10.2"
+cw-storage-plus = "0.10.2"
+cosmwasm-std = "1.0.0-beta"
+schemars = "0.8.1"
+serde = { version = "1", default-features = false, features = ["derive"] }
+tg4 = { path = "../tg4", version = "0.5.0-alpha" }
+tg4-engagement = { path = "../../contracts/tg4-engagement", version = "0.5.0-alpha", features = ["library"] }
+tg-bindings = { path = "../bindings", version = "0.5.0-alpha" }
+thiserror = { version = "1" }
+
