@@ -12,7 +12,7 @@ use cw3::{
 };
 use cw_storage_plus::Bound;
 use tg4::Tg4Contract;
-use tg_bindings::TgradeMsg;
+use tg_bindings::{request_privileges, Privilege, PrivilegeChangeMsg, TgradeMsg, TgradeSudoMsg};
 
 use crate::error::ContractError;
 use crate::msg::{ExecuteMsg, InstantiateMsg, QueryMsg};
@@ -388,4 +388,25 @@ fn list_voters(
         })
         .collect();
     Ok(VoterListResponse { voters })
+}
+
+#[cfg_attr(not(feature = "library"), entry_point)]
+pub fn sudo(deps: DepsMut, _env: Env, msg: TgradeSudoMsg) -> Result<Response, ContractError> {
+    match msg {
+        TgradeSudoMsg::PrivilegeChange(change) => Ok(privilege_change(deps, change)),
+        _ => Err(ContractError::UnknownSudoType {}),
+    }
+}
+
+fn privilege_change(_deps: DepsMut, change: PrivilegeChangeMsg) -> Response {
+    match change {
+        PrivilegeChangeMsg::Promoted {} => {
+            let msgs = request_privileges(&[Privilege::GovProposalExecutor]);
+            Response::new().add_submessages(msgs)
+        }
+        PrivilegeChangeMsg::Demoted {} => {
+            // TODO: signal this is frozen?
+            Response::new()
+        }
+    }
 }

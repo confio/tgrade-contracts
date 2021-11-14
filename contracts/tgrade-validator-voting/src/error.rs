@@ -27,6 +27,9 @@ pub enum ContractError {
     #[error("Invalid voting period, must be 1-365 days: {0}")]
     InvalidVotingPeriod(u32),
 
+    #[error("Received system callback we didn't expect")]
+    UnknownSudoType {},
+
     #[error("Proposal is not open")]
     NotOpen {},
 

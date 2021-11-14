@@ -207,6 +207,7 @@ impl SuiteBuilder {
             .unwrap();
         }
 
+        app.promote(owner.as_str(), contract.as_str()).unwrap();
         app.next_block().unwrap();
 
         Suite {
