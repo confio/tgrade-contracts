@@ -3,7 +3,7 @@ name = "tg-voting-contract"
 version = "0.5.0-beta3"
 authors = ["Bartłomiej Kuras <bart.k@confio.gmbh>"]
 edition = "2018"
-description = "Generic utils for building voting contracts fot tgrade"
+description = "Generic utils for building voting contracts for tgrade"
 repository = "https://github.com/confio/tgrade-contracts"
 homepage = "https://tgrade.finance"
 
