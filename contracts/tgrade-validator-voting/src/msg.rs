@@ -3,7 +3,7 @@ use serde::{Deserialize, Serialize};
 
 use cw3::Vote;
 
-use crate::state::{OversightProposal, VotingRules};
+use crate::state::{ValidatorProposal, VotingRules};
 
 #[derive(Serialize, Deserialize, Clone, PartialEq, JsonSchema, Debug)]
 pub struct InstantiateMsg {
@@ -21,7 +21,7 @@ pub enum ExecuteMsg {
     Propose {
         title: String,
         description: String,
-        proposal: OversightProposal,
+        proposal: ValidatorProposal,
     },
     Vote {
         proposal_id: u64,

@@ -7,6 +7,7 @@ use cw0::Expiration;
 use cw3::{Status, Vote};
 use cw_storage_plus::{Item, Map, U64Key};
 use tg4::Tg4Contract;
+use tg_bindings::ProtoAny;
 
 use crate::ContractError;
 
@@ -24,7 +25,31 @@ pub struct Config {
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 #[serde(rename_all = "snake_case")]
-pub enum OversightProposal {}
+pub enum ValidatorProposal {
+    RegisterUpgrade {
+        /// Sets the name for the upgrade. This name will be used by the upgraded
+        /// version of the software to apply any special "on-upgrade" commands during
+        /// the first BeginBlock method after the upgrade is applied.
+        name: String,
+        /// The height at which the upgrade must be performed.
+        /// (Time-based upgrades are not supported due to instability)
+        height: u64,
+        /// Any application specific upgrade info to be included on-chain
+        /// such as a git commit that validators could automatically upgrade to
+        info: String,
+        // See https://github.com/cosmos/cosmos-sdk/blob/v0.42.3/proto/cosmos/upgrade/v1beta1/upgrade.proto#L37-L42
+        upgraded_client_state: ProtoAny,
+    },
+    CancelUpgrade {},
+    PinCodes {
+        /// all code ids that should be pinned in cache for high performance
+        code_ids: Vec<u64>,
+    },
+    UnpinCodes {
+        /// all code ids that should be removed from cache to free space
+        code_ids: Vec<u64>,
+    },
+}
 
 #[derive(Serialize, Deserialize, Clone, PartialEq, JsonSchema, Debug)]
 pub struct Proposal {
@@ -32,7 +57,7 @@ pub struct Proposal {
     pub description: String,
     pub start_height: u64,
     pub expires: Expiration,
-    pub proposal: OversightProposal,
+    pub proposal: ValidatorProposal,
     pub status: Status,
     /// pass requirements
     pub rules: VotingRules,
@@ -50,7 +75,7 @@ pub struct ProposalResponse {
     pub id: u64,
     pub title: String,
     pub description: String,
-    pub proposal: OversightProposal,
+    pub proposal: ValidatorProposal,
     pub status: Status,
     pub expires: Expiration,
     pub rules: VotingRules,

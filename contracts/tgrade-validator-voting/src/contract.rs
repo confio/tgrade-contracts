@@ -12,13 +12,15 @@ use cw3::{
 };
 use cw_storage_plus::Bound;
 use tg4::Tg4Contract;
-use tg_bindings::{request_privileges, Privilege, PrivilegeChangeMsg, TgradeMsg, TgradeSudoMsg};
+use tg_bindings::{
+    request_privileges, GovProposal, Privilege, PrivilegeChangeMsg, TgradeMsg, TgradeSudoMsg,
+};
 
 use crate::error::ContractError;
 use crate::msg::{ExecuteMsg, InstantiateMsg, QueryMsg};
 use crate::state::{
-    next_id, parse_id, Ballot, Config, OversightProposal, Proposal, ProposalListResponse,
-    ProposalResponse, Votes, VotingRules, BALLOTS, CONFIG, PROPOSALS,
+    next_id, parse_id, Ballot, Config, Proposal, ProposalListResponse, ProposalResponse,
+    ValidatorProposal, Votes, VotingRules, BALLOTS, CONFIG, PROPOSALS,
 };
 
 pub type Response = cosmwasm_std::Response<TgradeMsg>;
@@ -86,7 +88,7 @@ pub fn execute_propose(
     info: MessageInfo,
     title: String,
     description: String,
-    proposal: OversightProposal,
+    proposal: ValidatorProposal,
 ) -> Result<Response, ContractError> {
     let cfg = CONFIG.load(deps.storage)?;
 
@@ -191,10 +193,35 @@ pub fn execute_execute(
         return Err(ContractError::WrongExecuteStatus {});
     }
 
-    // dispatch all proposed messages
+    // Map the validator proposal to a GovProposal.
+    // TODO: do these need to be separate things?
+    let gov_proposal = match prop.proposal {
+        ValidatorProposal::RegisterUpgrade {
+            name,
+            height,
+            info,
+            upgraded_client_state,
+        } => GovProposal::RegisterUpgrade {
+            name,
+            height,
+            info,
+            upgraded_client_state,
+        },
+        ValidatorProposal::CancelUpgrade {} => GovProposal::CancelUpgrade {},
+        ValidatorProposal::PinCodes { code_ids } => GovProposal::PinCodes { code_ids },
+        ValidatorProposal::UnpinCodes { code_ids } => GovProposal::UnpinCodes { code_ids },
+    };
+
+    let msg = TgradeMsg::ExecuteGovProposal {
+        title: prop.title,
+        description: prop.description,
+        proposal: gov_proposal,
+    };
+
     Ok(Response::new()
         .add_attribute("action", "execute")
-        .add_attribute("sender", info.sender))
+        .add_attribute("sender", info.sender)
+        .add_message(msg))
 }
 
 pub fn execute_close(

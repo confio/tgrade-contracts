@@ -9,7 +9,7 @@ use tg_bindings_test::TgradeApp;
 
 use crate::error::ContractError;
 use crate::msg::*;
-use crate::state::{OversightProposal, ProposalResponse, VotingRules};
+use crate::state::{ProposalResponse, ValidatorProposal, VotingRules};
 
 pub fn member<T: Into<String>>(addr: T, weight: u64) -> Member {
     Member {
@@ -27,7 +27,8 @@ fn contract_oc_proposals() -> Box<dyn Contract<TgradeMsg>> {
         crate::contract::execute,
         crate::contract::instantiate,
         crate::contract::query,
-    );
+    )
+    .with_sudo(crate::contract::sudo);
 
     Box::new(contract)
 }
@@ -90,7 +91,7 @@ impl SuiteBuilder {
                 voting_period: 0,
                 quorum: Decimal::zero(),
                 threshold: Decimal::zero(),
-                allow_end_early: false,
+                allow_end_early: true,
             },
             multisig_as_group_admin: false,
         }
@@ -229,12 +230,12 @@ pub struct Suite {
 }
 
 impl Suite {
-    fn propose(
+    pub fn propose(
         &mut self,
         executor: &str,
         title: &str,
         description: &str,
-        proposal: OversightProposal,
+        proposal: ValidatorProposal,
     ) -> AnyResult<AppResponse> {
         self.app.execute_contract(
             Addr::unchecked(executor),
