@@ -9,12 +9,6 @@ pub enum ContractError {
     #[error("Group contract invalid address '{addr}'")]
     InvalidGroup { addr: String },
 
-    #[error("Engagement contract invalid address '{addr}'")]
-    InvalidEngagementContract { addr: String },
-
-    #[error("To pass grant engagement proposal, contract must be admin of tg4-engagement")]
-    ContractIsNotEngagementAdmin,
-
     #[error("Unauthorized")]
     Unauthorized {},
 
