@@ -120,8 +120,22 @@ impl Tg4Contract {
         }
     }
 
-    /// Check if this address is a member, and if its weight is >= 1
-    pub fn is_voting_member<T: Into<String>>(
+    /// Check if this address is a member
+    pub fn is_voting_member(&self, querier: &QuerierWrapper, member: &str) -> StdResult<u64> {
+        self.is_member(querier, &Addr::unchecked(member))?.map_or(
+            Err(StdError::generic_err("Unauthorized")),
+            |member_weight| {
+                if member_weight < 1 {
+                    Err(StdError::generic_err("Unauthorized"))
+                } else {
+                    Ok(member_weight)
+                }
+            },
+        )
+    }
+
+    /// Check if this address was a member, and if its weight is >= 1
+    pub fn was_voting_member<T: Into<String>>(
         &self,
         querier: &QuerierWrapper,
         member: T,

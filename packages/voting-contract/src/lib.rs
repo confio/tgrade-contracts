@@ -58,9 +58,9 @@ where
 
     // Only members of the multisig can create a proposal
     // Additional check if weight >= 1
-    let vote_power =
-        cfg.group_contract
-            .is_voting_member(&deps.querier, &info.sender, env.block.height)?;
+    let vote_power = cfg
+        .group_contract
+        .is_voting_member(&deps.querier, info.sender.as_str())?;
 
     // calculate expiry time
     let expires = Expiration::AtTime(env.block.time.plus_seconds(cfg.rules.voting_period_secs()));
@@ -119,7 +119,7 @@ where
     let cfg = CONFIG.load(deps.storage)?;
     let vote_power =
         cfg.group_contract
-            .is_voting_member(&deps.querier, &info.sender, prop.start_height)?;
+            .was_voting_member(&deps.querier, &info.sender, prop.start_height)?;
 
     // cast vote if no vote previously cast
     BALLOTS.update(
