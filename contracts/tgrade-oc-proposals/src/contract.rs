@@ -1,6 +1,8 @@
 #[cfg(not(feature = "library"))]
 use cosmwasm_std::entry_point;
-use cosmwasm_std::{to_binary, Binary, Deps, DepsMut, Env, MessageInfo, StdResult};
+use cosmwasm_std::{
+    to_binary, Binary, BlockInfo, Deps, DepsMut, Env, MessageInfo, Order, StdResult, WasmMsg,
+};
 
 use cw2::set_contract_version;
 use cw3::Status;
@@ -110,6 +112,15 @@ pub fn execute_execute(
             addr: member.to_string(),
             portion,
         })?)?,
+        OversightProposal::MigrateContract {
+            ref contract_address,
+            new_code_id,
+            msg,
+        } => SubMsg::new(WasmMsg::Migrate {
+            contract_addr: contract_address.to_string(),
+            new_code_id,
+            msg,
+        }),
     };
 
     // set it to executed
