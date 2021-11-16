@@ -7,12 +7,12 @@ use cw3::Status;
 use tg_bindings::TgradeMsg;
 
 use crate::msg::{ExecuteMsg, InstantiateMsg, QueryMsg};
+use crate::ContractError;
 
 use tg_voting_contract::state::proposals;
 use tg_voting_contract::{
     close as execute_close, list_proposals, list_voters, list_votes, propose as execute_propose,
     query_proposal, query_rules, query_vote, query_voter, reverse_proposals, vote as execute_vote,
-    ContractError,
 };
 
 pub type Response = cosmwasm_std::Response<TgradeMsg>;
@@ -31,6 +31,7 @@ pub fn instantiate(
 ) -> Result<Response, ContractError> {
     set_contract_version(deps.storage, CONTRACT_NAME, CONTRACT_VERSION)?;
     tg_voting_contract::instantiate(deps, msg.rules, &msg.group_addr, Empty {})
+        .map_err(ContractError::from)
 }
 
 #[cfg_attr(not(feature = "library"), entry_point)]
@@ -45,12 +46,16 @@ pub fn execute(
             title,
             description,
             proposal,
-        } => execute_propose::<Empty, Empty>(deps, env, info, title, description, proposal),
+        } => execute_propose::<Empty, Empty>(deps, env, info, title, description, proposal)
+            .map_err(ContractError::from),
         ExecuteMsg::Vote { proposal_id, vote } => {
             execute_vote::<Empty, Empty>(deps, env, info, proposal_id, vote)
+                .map_err(ContractError::from)
         }
         ExecuteMsg::Execute { proposal_id } => execute_execute(deps, info, proposal_id),
-        ExecuteMsg::Close { proposal_id } => execute_close::<Empty>(deps, env, info, proposal_id),
+        ExecuteMsg::Close { proposal_id } => {
+            execute_close::<Empty>(deps, env, info, proposal_id).map_err(ContractError::from)
+        }
     }
 }
 

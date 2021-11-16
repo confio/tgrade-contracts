@@ -1629,6 +1629,7 @@ dependencies = [
  "serde",
  "tg-bindings",
  "tg-voting-contract",
+ "thiserror",
 ]
 
 [[package]]
