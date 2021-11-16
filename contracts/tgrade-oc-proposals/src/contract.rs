@@ -40,7 +40,7 @@ pub fn instantiate(
         .map_err(|_| ContractError::InvalidEngagementContract(msg.engagement_addr.clone()))?;
     let valset_contract = deps
         .api
-        .addr_validate(&msg.engagement_addr)
+        .addr_validate(&msg.valset_addr)
         .map_err(|_| ContractError::InvalidValsetContract(msg.valset_addr.clone()))?;
 
     let config = Config {
