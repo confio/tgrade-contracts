@@ -1,7 +1,8 @@
 mod suite;
 
+use crate::ContractError;
 use suite::{get_proposal_id, member, RulesBuilder, SuiteBuilder};
-use tg_voting_contract::ContractError;
+use tg_voting_contract::ContractError as VotingError;
 
 use cosmwasm_std::{Decimal, StdError};
 use cw3::{Status, Vote, VoteInfo};
@@ -119,7 +120,10 @@ fn grant_engagement_reward() {
 
     // Passed proposals cannot be closed
     let err = suite.close(members[0], proposal_id).unwrap_err();
-    assert_eq!(ContractError::WrongCloseStatus {}, err.downcast().unwrap());
+    assert_eq!(
+        ContractError::Voting(VotingError::WrongCloseStatus {}),
+        err.downcast().unwrap()
+    );
 
     // Anybody can execute Passed proposal
     let response = suite.execute("anybody", proposal_id).unwrap();
@@ -137,7 +141,10 @@ fn grant_engagement_reward() {
 
     // Closing Executed proposal fails
     let err = suite.close(members[0], proposal_id).unwrap_err();
-    assert_eq!(ContractError::WrongCloseStatus {}, err.downcast().unwrap());
+    assert_eq!(
+        ContractError::Voting(VotingError::WrongCloseStatus {}),
+        err.downcast().unwrap()
+    );
 }
 
 #[test]
@@ -244,7 +251,10 @@ fn close_proposal() {
 
     // Non-expired proposals cannot be closed
     let err = suite.close("anybody", proposal_id).unwrap_err();
-    assert_eq!(ContractError::NotExpired {}, err.downcast().unwrap());
+    assert_eq!(
+        ContractError::Voting(VotingError::NotExpired {}),
+        err.downcast().unwrap()
+    );
 
     // Move time forward so proposal expires
     suite.app.advance_seconds(rules.voting_period_secs());
@@ -262,7 +272,10 @@ fn close_proposal() {
 
     // Closing second time causes error
     let err = suite.close("anybody", proposal_id).unwrap_err();
-    assert_eq!(ContractError::WrongCloseStatus {}, err.downcast().unwrap());
+    assert_eq!(
+        ContractError::Voting(VotingError::WrongCloseStatus {}),
+        err.downcast().unwrap()
+    );
 }
 
 mod voting {
@@ -295,7 +308,10 @@ mod voting {
 
         // Owner cannot vote (again)
         let err = suite.vote(members[0], proposal_id, Vote::Yes).unwrap_err();
-        assert_eq!(ContractError::AlreadyVoted {}, err.downcast().unwrap());
+        assert_eq!(
+            ContractError::Voting(VotingError::AlreadyVoted {}),
+            err.downcast().unwrap()
+        );
 
         // Only voters can vote
         let err = suite
@@ -329,7 +345,10 @@ mod voting {
         );
 
         let err = suite.vote(members[1], proposal_id, Vote::Yes).unwrap_err();
-        assert_eq!(ContractError::AlreadyVoted {}, err.downcast().unwrap());
+        assert_eq!(
+            ContractError::Voting(VotingError::AlreadyVoted {}),
+            err.downcast().unwrap()
+        );
 
         // Powerful voter supports it, so it passes
         let response = suite.vote(members[3], proposal_id, Vote::Yes).unwrap();
@@ -345,7 +364,10 @@ mod voting {
 
         // Non-open proposals cannot be voted
         let err = suite.vote(members[2], proposal_id, Vote::Yes).unwrap_err();
-        assert_eq!(ContractError::NotOpen {}, err.downcast().unwrap());
+        assert_eq!(
+            ContractError::Voting(VotingError::NotOpen {}),
+            err.downcast().unwrap()
+        );
     }
 
     #[test]
@@ -372,7 +394,10 @@ mod voting {
         suite.app.advance_seconds(rules.voting_period_secs());
 
         let err = suite.vote(members[1], proposal_id, Vote::Yes).unwrap_err();
-        assert_eq!(ContractError::Expired {}, err.downcast().unwrap());
+        assert_eq!(
+            ContractError::Voting(VotingError::Expired {}),
+            err.downcast().unwrap()
+        );
     }
 
     #[test]

@@ -10,12 +10,12 @@ use tg_utils::SlashMsg;
 
 use crate::msg::{ExecuteMsg, InstantiateMsg, QueryMsg};
 use crate::state::{Config, OversightProposal};
+use crate::ContractError;
 
 use tg_voting_contract::state::{config, proposals, Config as VotingConfig};
 use tg_voting_contract::{
     close as execute_close, list_proposals, list_voters, list_votes, propose as execute_propose,
     query_proposal, query_rules, query_vote, query_voter, reverse_proposals, vote as execute_vote,
-    ContractError,
 };
 
 pub type Response = cosmwasm_std::Response<TgradeMsg>;
@@ -34,11 +34,22 @@ pub fn instantiate(
 ) -> Result<Response, ContractError> {
     set_contract_version(deps.storage, CONTRACT_NAME, CONTRACT_VERSION)?;
 
+    let engagement_contract = deps
+        .api
+        .addr_validate(&msg.engagement_addr)
+        .map_err(|_| ContractError::InvalidEngagementContract(msg.engagement_addr.clone()))?;
+    let valset_contract = deps
+        .api
+        .addr_validate(&msg.engagement_addr)
+        .map_err(|_| ContractError::InvalidValsetContract(msg.valset_addr.clone()))?;
+
     let config = Config {
-        engagement_contract: Tg4Contract(deps.api.addr_validate(&msg.engagement_addr)?),
-        valset_contract: Tg4Contract(deps.api.addr_validate(&msg.valset_addr)?),
+        engagement_contract: Tg4Contract(engagement_contract),
+        valset_contract: Tg4Contract(valset_contract),
     };
+
     tg_voting_contract::instantiate(deps, msg.rules, &msg.group_addr, config)
+        .map_err(ContractError::from)
 }
 
 #[cfg_attr(not(feature = "library"), entry_point)]
@@ -60,13 +71,16 @@ pub fn execute(
             title,
             description,
             proposal,
-        ),
+        )
+        .map_err(ContractError::from),
         ExecuteMsg::Vote { proposal_id, vote } => {
             execute_vote::<OversightProposal, Config>(deps, env, info, proposal_id, vote)
+                .map_err(ContractError::from)
         }
         ExecuteMsg::Execute { proposal_id } => execute_execute(deps, info, proposal_id),
         ExecuteMsg::Close { proposal_id } => {
             execute_close::<OversightProposal>(deps, env, info, proposal_id)
+                .map_err(ContractError::from)
         }
     }
 }
@@ -572,7 +586,9 @@ mod tests {
             )
             .unwrap_err();
         assert_eq!(
-            ContractError::InvalidThreshold(Decimal::zero()),
+            ContractError::Voting(tg_voting_contract::ContractError::InvalidThreshold(
+                Decimal::zero()
+            )),
             err.downcast().unwrap()
         );
 
