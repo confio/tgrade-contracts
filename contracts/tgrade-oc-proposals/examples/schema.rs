@@ -4,7 +4,10 @@ use std::fs::create_dir_all;
 use cosmwasm_schema::{export_schema, export_schema_with_title, remove_schemas, schema_for};
 
 use tgrade_oc_proposals::msg::{ExecuteMsg, InstantiateMsg, QueryMsg};
-use tgrade_oc_proposals::state::{OversightProposal, ProposalListResponse, ProposalResponse};
+use tgrade_oc_proposals::state::OversightProposal;
+
+type ProposalResponse = tg_voting_contract::state::ProposalResponse<OversightProposal>;
+type ProposalListResponse = tg_voting_contract::state::ProposalListResponse<OversightProposal>;
 
 fn main() {
     let mut out_dir = current_dir().unwrap();

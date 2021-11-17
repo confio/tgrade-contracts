@@ -14,6 +14,7 @@ use crate::ContractError;
 // Note: `10u128.pow(9)` fails as "u128::pow` is not yet stable as a const fn"
 const PRECISION_FACTOR: u128 = 1_000_000_000;
 
+/// Contract configuration. Custom config is added to avoid double-fetching config on execution.
 #[derive(Serialize, Deserialize, Clone, PartialEq, JsonSchema, Debug)]
 pub struct Config {
     pub rules: VotingRules,
@@ -196,7 +197,7 @@ pub struct Ballot {
 }
 
 // unique items
-pub const CONFIG: Item<Config> = Item::new("config");
+pub const CONFIG: Item<Config> = Item::new("voting_config");
 pub const PROPOSAL_COUNT: Item<u64> = Item::new("proposal_count");
 
 // multiple-item map

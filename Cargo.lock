@@ -1465,7 +1465,7 @@ dependencies = [
 
 [[package]]
 name = "tg-voting-contract"
-version = "0.5.0-beta3"
+version = "0.5.0-beta4"
 dependencies = [
  "cosmwasm-std",
  "cw-storage-plus",
@@ -1586,6 +1586,7 @@ dependencies = [
  "tg-bindings",
  "tg-bindings-test",
  "tg-utils",
+ "tg-voting-contract",
  "tg4",
  "tg4-engagement",
  "tgrade-valset",
@@ -1621,20 +1622,14 @@ dependencies = [
 name = "tgrade-validator-voting"
 version = "0.5.0-beta4"
 dependencies = [
- "anyhow",
  "cosmwasm-schema",
  "cosmwasm-std",
- "cw-multi-test",
- "cw-storage-plus",
- "cw0",
  "cw2",
  "cw3",
  "schemars",
  "serde",
  "tg-bindings",
- "tg-bindings-test",
- "tg4",
- "tg4-engagement",
+ "tg-voting-contract",
  "thiserror",
 ]
 
