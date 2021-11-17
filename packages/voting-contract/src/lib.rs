@@ -13,23 +13,19 @@ use cw_storage_plus::Bound;
 use serde::de::DeserializeOwned;
 use serde::Serialize;
 use state::{
-    config, next_id, parse_id, proposals, Ballot, Config, Proposal, ProposalListResponse,
-    ProposalResponse, Votes, VotingRules, BALLOTS,
+    next_id, parse_id, proposals, Ballot, Config, Proposal, ProposalListResponse, ProposalResponse,
+    Votes, VotingRules, BALLOTS, CONFIG,
 };
 use tg4::Tg4Contract;
 use tg_bindings::TgradeMsg;
 
 type Response = cosmwasm_std::Response<TgradeMsg>;
 
-pub fn instantiate<C>(
+pub fn instantiate(
     deps: DepsMut,
     rules: VotingRules,
     group_addr: &str,
-    ext: C,
-) -> Result<Response, ContractError>
-where
-    C: Serialize + DeserializeOwned,
-{
+) -> Result<Response, ContractError> {
     let group_contract = Tg4Contract(deps.api.addr_validate(group_addr).map_err(|_| {
         ContractError::InvalidGroup {
             addr: group_addr.to_owned(),
@@ -39,16 +35,15 @@ where
     let cfg = Config {
         rules,
         group_contract,
-        ext,
     };
 
     cfg.rules.validate()?;
-    config().save(deps.storage, &cfg)?;
+    CONFIG.save(deps.storage, &cfg)?;
 
     Ok(Response::default())
 }
 
-pub fn propose<P, C>(
+pub fn propose<P>(
     deps: DepsMut,
     env: Env,
     info: MessageInfo,
@@ -58,9 +53,8 @@ pub fn propose<P, C>(
 ) -> Result<Response, ContractError>
 where
     P: DeserializeOwned + Serialize,
-    C: DeserializeOwned + Serialize,
 {
-    let cfg = config::<C>().load(deps.storage)?;
+    let cfg = CONFIG.load(deps.storage)?;
 
     // Only members of the multisig can create a proposal
     // Additional check if weight >= 1
@@ -101,7 +95,7 @@ where
         .add_attribute("status", format!("{:?}", prop.status)))
 }
 
-pub fn vote<P, C>(
+pub fn vote<P>(
     deps: DepsMut,
     env: Env,
     info: MessageInfo,
@@ -110,7 +104,6 @@ pub fn vote<P, C>(
 ) -> Result<Response, ContractError>
 where
     P: Serialize + DeserializeOwned,
-    C: Serialize + DeserializeOwned,
 {
     // ensure proposal exists and can be voted on
     let mut prop = proposals().load(deps.storage, proposal_id.into())?;
@@ -123,7 +116,7 @@ where
 
     // use a snapshot of "start of proposal"
     // Must be a member of voting group and have voting power >= 1
-    let cfg = config::<C>().load(deps.storage)?;
+    let cfg = CONFIG.load(deps.storage)?;
     let vote_power =
         cfg.group_contract
             .was_voting_member(&deps.querier, &info.sender, prop.start_height)?;
@@ -185,11 +178,8 @@ where
         .add_attribute("proposal_id", proposal_id.to_string()))
 }
 
-pub fn query_rules<C>(deps: Deps) -> StdResult<VotingRules>
-where
-    C: Serialize + DeserializeOwned,
-{
-    let cfg = config::<C>().load(deps.storage)?;
+pub fn query_rules(deps: Deps) -> StdResult<VotingRules> {
+    let cfg = CONFIG.load(deps.storage)?;
     Ok(cfg.rules)
 }
 
@@ -303,26 +293,20 @@ pub fn list_votes(
     Ok(VoteListResponse { votes: votes? })
 }
 
-pub fn query_voter<C>(deps: Deps, voter: String) -> StdResult<VoterResponse>
-where
-    C: Serialize + DeserializeOwned,
-{
-    let cfg = config::<C>().load(deps.storage)?;
+pub fn query_voter(deps: Deps, voter: String) -> StdResult<VoterResponse> {
+    let cfg = CONFIG.load(deps.storage)?;
     let voter_addr = deps.api.addr_validate(&voter)?;
     let weight = cfg.group_contract.is_member(&deps.querier, &voter_addr)?;
 
     Ok(VoterResponse { weight })
 }
 
-pub fn list_voters<C>(
+pub fn list_voters(
     deps: Deps,
     start_after: Option<String>,
     limit: Option<u32>,
-) -> StdResult<VoterListResponse>
-where
-    C: Serialize + DeserializeOwned,
-{
-    let cfg = config::<C>().load(deps.storage)?;
+) -> StdResult<VoterListResponse> {
+    let cfg = CONFIG.load(deps.storage)?;
     let voters = cfg
         .group_contract
         .list_members(&deps.querier, start_after, limit)?

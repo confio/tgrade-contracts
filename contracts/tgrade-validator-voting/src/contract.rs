@@ -30,8 +30,7 @@ pub fn instantiate(
     msg: InstantiateMsg,
 ) -> Result<Response, ContractError> {
     set_contract_version(deps.storage, CONTRACT_NAME, CONTRACT_VERSION)?;
-    tg_voting_contract::instantiate(deps, msg.rules, &msg.group_addr, Empty {})
-        .map_err(ContractError::from)
+    tg_voting_contract::instantiate(deps, msg.rules, &msg.group_addr).map_err(ContractError::from)
 }
 
 #[cfg_attr(not(feature = "library"), entry_point)]
@@ -41,19 +40,20 @@ pub fn execute(
     info: MessageInfo,
     msg: ExecuteMsg,
 ) -> Result<Response, ContractError> {
+    use ExecuteMsg::*;
+
     match msg {
-        ExecuteMsg::Propose {
+        Propose {
             title,
             description,
             proposal,
-        } => execute_propose::<Empty, Empty>(deps, env, info, title, description, proposal)
+        } => execute_propose::<Empty>(deps, env, info, title, description, proposal)
             .map_err(ContractError::from),
-        ExecuteMsg::Vote { proposal_id, vote } => {
-            execute_vote::<Empty, Empty>(deps, env, info, proposal_id, vote)
-                .map_err(ContractError::from)
+        Vote { proposal_id, vote } => {
+            execute_vote::<Empty>(deps, env, info, proposal_id, vote).map_err(ContractError::from)
         }
-        ExecuteMsg::Execute { proposal_id } => execute_execute(deps, info, proposal_id),
-        ExecuteMsg::Close { proposal_id } => {
+        Execute { proposal_id } => execute_execute(deps, info, proposal_id),
+        Close { proposal_id } => {
             execute_close::<Empty>(deps, env, info, proposal_id).map_err(ContractError::from)
         }
     }
@@ -89,19 +89,19 @@ fn align_limit(limit: Option<u32>) -> usize {
 
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn query(deps: Deps, env: Env, msg: QueryMsg) -> StdResult<Binary> {
+    use QueryMsg::*;
+
     match msg {
-        QueryMsg::Rules {} => to_binary(&query_rules::<Empty>(deps)?),
-        QueryMsg::Proposal { proposal_id } => {
-            to_binary(&query_proposal::<Empty>(deps, env, proposal_id)?)
-        }
-        QueryMsg::Vote { proposal_id, voter } => to_binary(&query_vote(deps, proposal_id, voter)?),
-        QueryMsg::ListProposals { start_after, limit } => to_binary(&list_proposals::<Empty>(
+        Rules {} => to_binary(&query_rules(deps)?),
+        Proposal { proposal_id } => to_binary(&query_proposal::<Empty>(deps, env, proposal_id)?),
+        Vote { proposal_id, voter } => to_binary(&query_vote(deps, proposal_id, voter)?),
+        ListProposals { start_after, limit } => to_binary(&list_proposals::<Empty>(
             deps,
             env,
             start_after,
             align_limit(limit),
         )?),
-        QueryMsg::ReverseProposals {
+        ReverseProposals {
             start_before,
             limit,
         } => to_binary(&reverse_proposals::<Empty>(
@@ -110,7 +110,7 @@ pub fn query(deps: Deps, env: Env, msg: QueryMsg) -> StdResult<Binary> {
             start_before,
             align_limit(limit),
         )?),
-        QueryMsg::ListVotes {
+        ListVotes {
             proposal_id,
             start_after,
             limit,
@@ -120,9 +120,7 @@ pub fn query(deps: Deps, env: Env, msg: QueryMsg) -> StdResult<Binary> {
             start_after,
             align_limit(limit),
         )?),
-        QueryMsg::Voter { address } => to_binary(&query_voter::<Empty>(deps, address)?),
-        QueryMsg::ListVoters { start_after, limit } => {
-            to_binary(&list_voters::<Empty>(deps, start_after, limit)?)
-        }
+        Voter { address } => to_binary(&query_voter(deps, address)?),
+        ListVoters { start_after, limit } => to_binary(&list_voters(deps, start_after, limit)?),
     }
 }
