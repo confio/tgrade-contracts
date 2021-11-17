@@ -30,8 +30,7 @@ pub fn instantiate(
     msg: InstantiateMsg,
 ) -> Result<Response, ContractError> {
     set_contract_version(deps.storage, CONTRACT_NAME, CONTRACT_VERSION)?;
-    tg_voting_contract::instantiate(deps, msg.rules, &msg.group_addr, Empty {})
-        .map_err(ContractError::from)
+    tg_voting_contract::instantiate(deps, msg.rules, &msg.group_addr).map_err(ContractError::from)
 }
 
 #[cfg_attr(not(feature = "library"), entry_point)]
@@ -46,11 +45,10 @@ pub fn execute(
             title,
             description,
             proposal,
-        } => execute_propose::<Empty, Empty>(deps, env, info, title, description, proposal)
+        } => execute_propose::<Empty>(deps, env, info, title, description, proposal)
             .map_err(ContractError::from),
         ExecuteMsg::Vote { proposal_id, vote } => {
-            execute_vote::<Empty, Empty>(deps, env, info, proposal_id, vote)
-                .map_err(ContractError::from)
+            execute_vote::<Empty>(deps, env, info, proposal_id, vote).map_err(ContractError::from)
         }
         ExecuteMsg::Execute { proposal_id } => execute_execute(deps, info, proposal_id),
         ExecuteMsg::Close { proposal_id } => {
@@ -90,7 +88,7 @@ fn align_limit(limit: Option<u32>) -> usize {
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn query(deps: Deps, env: Env, msg: QueryMsg) -> StdResult<Binary> {
     match msg {
-        QueryMsg::Rules {} => to_binary(&query_rules::<Empty>(deps)?),
+        QueryMsg::Rules {} => to_binary(&query_rules(deps)?),
         QueryMsg::Proposal { proposal_id } => {
             to_binary(&query_proposal::<Empty>(deps, env, proposal_id)?)
         }
@@ -120,9 +118,9 @@ pub fn query(deps: Deps, env: Env, msg: QueryMsg) -> StdResult<Binary> {
             start_after,
             align_limit(limit),
         )?),
-        QueryMsg::Voter { address } => to_binary(&query_voter::<Empty>(deps, address)?),
+        QueryMsg::Voter { address } => to_binary(&query_voter(deps, address)?),
         QueryMsg::ListVoters { start_after, limit } => {
-            to_binary(&list_voters::<Empty>(deps, start_after, limit)?)
+            to_binary(&list_voters(deps, start_after, limit)?)
         }
     }
 }
