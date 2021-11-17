@@ -1,7 +1,7 @@
 #[cfg(not(feature = "library"))]
 use cosmwasm_std::entry_point;
 use cosmwasm_std::{
-    to_binary, Binary, BlockInfo, Deps, DepsMut, Env, MessageInfo, Order, StdResult, WasmMsg,
+    to_binary, Binary, BlockInfo, Addr, Deps, DepsMut, Env, MessageInfo, Order, StdResult, WasmMsg,
 };
 
 use cw2::set_contract_version;
@@ -80,6 +80,22 @@ pub fn execute(
     }
 }
 
+fn confirm_admin_in_contract(deps: Deps, sender: &Addr, contract_address: &Addr) -> Result<(), ContractError> {
+    use cosmwasm_std::{to_vec, WasmQuery, Empty, QueryRequest, ContractInfoResponse, from_slice};
+    let admin_query = QueryRequest::<Empty>::Wasm(WasmQuery::ContractInfo {
+        contract_addr: contract_address.to_string(),
+    });
+    let resp: ContractInfoResponse = from_slice(&deps.querier.raw_query(&to_vec(&admin_query).unwrap()).unwrap().unwrap()).unwrap();
+    println!("Resp! \n{:?}", resp);
+    if let Some(admin) = resp.admin {
+        if admin == sender.to_string() {
+            return Ok(());
+        }
+    }
+
+    Err(ContractError::Unauthorized {})
+}
+
 pub fn execute_execute(
     deps: DepsMut,
     info: MessageInfo,
@@ -99,7 +115,7 @@ pub fn execute_execute(
         valset_contract,
     } = CONFIG.load(deps.storage)?;
 
-    let message = match prop.proposal {
+    let message = match prop.proposal.clone() {
         OversightProposal::GrantEngagement { ref member, points } => engagement_contract
             .encode_raw_msg(to_binary(&tg4_engagement::ExecuteMsg::AddPoints {
                 addr: member.to_string(),
@@ -119,7 +135,7 @@ pub fn execute_execute(
         } => SubMsg::new(WasmMsg::Migrate {
             contract_addr: contract_address.to_string(),
             new_code_id,
-            msg,
+            msg: msg.clone(),
         }),
     };
 
