@@ -40,24 +40,25 @@ pub struct Config {
     #[serde(default)]
     pub auto_unjail: bool,
 
-    /// Fraction of how much reward is distributed between validators. Remainder is send to the
-    /// `distribution_contract` with `Distribute` message, which should perform distribution of
-    /// send funds between non-validator basing on their engagement.
-    /// This value is in range of `[0-1]`, `1` (or `100%`) by default.
-    pub validators_reward_ratio: Decimal,
-
     /// Validators who are caught double signing are jailed forever and their bonded tokens are
     /// slashed based on this value.
     pub double_sign_slash_ratio: Decimal,
 
-    /// Address where part of reward for non-validators is send for further distribution. It is
-    /// required to handle `distribute {}` message (eg. tg4-engagement contract) which would
-    /// distribute funds send with this message.
-    /// If no account is provided, `validators_reward_ratio` has to be `1`.
-    pub distribution_contract: Option<Addr>,
+    /// Addresses where part of the reward for non-validators is sent for further distribution. These are
+    /// required to handle the `Distribute {}` message (eg. tg4-engagement contract) which would
+    /// distribute the funds sent with this message.
+    /// The sum of ratios here has to be in the [0, 1] range. The remainder is sent to validators via the
+    /// rewards contract.
+    pub distribution_contracts: Vec<DistributionContract>,
 
     /// Address of contract for rewards distribution.
     pub rewards_contract: Addr,
+}
+
+#[derive(Serialize, Deserialize, Clone, PartialEq, JsonSchema, Debug)]
+pub struct DistributionContract {
+    pub contract: Addr,
+    pub ratio: Decimal,
 }
 
 #[derive(Serialize, Deserialize, Clone, PartialEq, JsonSchema, Debug)]

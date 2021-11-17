@@ -244,6 +244,14 @@ impl SuiteBuilder {
         });
 
         let valset_id = app.store_code(contract_valset());
+        let valset_distribution_contracts = match &distribution_contract {
+            Some(addr) => vec![UnvalidatedDistributionContract {
+                contract: addr.to_string(),
+                ratio: Decimal::one() - self.validators_reward_ratio,
+            }],
+            None => vec![],
+        };
+
         let valset = app
             .instantiate_contract(
                 valset_id,
@@ -259,11 +267,10 @@ impl SuiteBuilder {
                     scaling: self.scaling,
                     fee_percentage: self.fee_percentage,
                     auto_unjail: self.auto_unjail,
-                    validators_reward_ratio: self.validators_reward_ratio,
                     double_sign_slash_ratio: self.double_sign_slash_ratio,
-                    distribution_contract: distribution_contract
-                        .as_ref()
-                        .map(|addr| addr.to_string()),
+                    distribution_contracts: UnvalidatedDistributionContracts {
+                        inner: valset_distribution_contracts,
+                    },
                     rewards_code_id: engagement_id,
                 },
                 &[],

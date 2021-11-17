@@ -62,6 +62,7 @@ pub fn instantiate(
     membership
         .total_weight(&deps.querier)
         .map_err(|_| ContractError::InvalidTg4Contract {})?;
+    let distribution_contracts = msg.distribution_contracts.validate(deps.api)?;
 
     let cfg = Config {
         membership,
@@ -71,13 +72,8 @@ pub fn instantiate(
         epoch_reward: msg.epoch_reward,
         fee_percentage: msg.fee_percentage,
         auto_unjail: msg.auto_unjail,
-        validators_reward_ratio: msg.validators_reward_ratio,
         double_sign_slash_ratio: msg.double_sign_slash_ratio,
-        distribution_contract: msg
-            .distribution_contract
-            .clone()
-            .map(|addr| deps.api.addr_validate(&addr))
-            .transpose()?,
+        distribution_contracts,
         // Will be overwritten in reply for rewards contract instantiation
         rewards_contract: Addr::unchecked(""),
     };
