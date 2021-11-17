@@ -9,6 +9,9 @@ pub enum ContractError {
     #[error("{0}")]
     Voting(tg_voting_contract::ContractError),
 
+    #[error("Received system callback we didn't expect")]
+    UnknownSudoType {},
+
     #[error("Proposal must have passed and not yet been executed")]
     WrongExecuteStatus {},
 }
