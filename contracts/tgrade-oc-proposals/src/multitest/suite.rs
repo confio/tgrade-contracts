@@ -387,24 +387,6 @@ impl Suite {
         )
     }
 
-    // pub fn propose_migrate(
-    //     &mut self,
-    //     executor: &str,
-    //     contract: &str,
-    //     new_code_id: u64,
-    // ) -> AnyResult<AppResponse> {
-    //     self.propose(
-    //         executor,
-    //         "proposal title",
-    //         "proposal description",
-    //         OversightProposal::MigrateContract {
-    //             contract_address: Addr::unchecked(contract),
-    //             new_code_id,
-    //             msg: to_binary(&MigrateMsg {}).unwrap(),
-    //         },
-    //     )
-    // }
-
     pub fn execute(&mut self, executor: &str, proposal_id: u64) -> AnyResult<AppResponse> {
         self.app.execute_contract(
             Addr::unchecked(executor),
@@ -549,27 +531,4 @@ impl Suite {
             .amount;
         Ok(amount.into())
     }
-
-    // pub fn create_group_contract(&mut self, owner: &str) -> (u64, Addr) {
-    //     let group_id = self.app.store_code(contract_engagement());
-    //     let group_contract = self
-    //         .app
-    //         .instantiate_contract(
-    //             group_id,
-    //             Addr::unchecked(owner),
-    //             &tg4_engagement::msg::InstantiateMsg {
-    //                 admin: Some(owner.to_string()),
-    //                 members: vec![],
-    //                 preauths_hooks: 0,
-    //                 preauths_slashing: 1,
-    //                 halflife: None,
-    //                 token: "GROUP".to_owned(),
-    //             },
-    //             &[],
-    //             "group",
-    //             Some(self.contract.to_string()),
-    //         )
-    //         .unwrap();
-    //     (group_id, group_contract)
-    // }
 }

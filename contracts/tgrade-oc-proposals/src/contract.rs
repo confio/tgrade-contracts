@@ -12,7 +12,7 @@ use crate::msg::{ExecuteMsg, InstantiateMsg, QueryMsg};
 use crate::state::{Config, OversightProposal, CONFIG};
 use crate::ContractError;
 
-use tg_voting_contract::state::{proposals, Proposal};
+use tg_voting_contract::state::proposals;
 use tg_voting_contract::{
     close as execute_close, list_proposals, list_voters, list_votes, propose as execute_propose,
     query_proposal, query_rules, query_vote, query_voter, reverse_proposals, vote as execute_vote,
@@ -85,8 +85,7 @@ pub fn execute_execute(
 ) -> Result<Response, ContractError> {
     // anyone can trigger this if the vote passed
 
-    let mut prop: Proposal<OversightProposal> =
-        proposals().load(deps.storage, proposal_id.into())?;
+    let mut prop = proposals().load(deps.storage, proposal_id.into())?;
     // we allow execution even after the proposal "expiration" as long as all vote come in before
     // that point. If it was approved on time, it can be executed any time.
     if prop.status != Status::Passed {
@@ -98,7 +97,7 @@ pub fn execute_execute(
         valset_contract,
     } = CONFIG.load(deps.storage)?;
 
-    let message = match prop.proposal.clone() {
+    let message = match prop.proposal {
         OversightProposal::GrantEngagement { ref member, points } => engagement_contract
             .encode_raw_msg(to_binary(&tg4_engagement::ExecuteMsg::AddPoints {
                 addr: member.to_string(),

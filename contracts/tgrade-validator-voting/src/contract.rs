@@ -252,7 +252,66 @@ mod tests {
     use cw0::Expiration;
     use tg_voting_contract::state::{Proposal, Votes, VotingRules};
 
+    use serde::Serialize;
+
     use super::*;
+
+    #[derive(Serialize)]
+    struct DummyMigrateMsg {}
+
+    #[test]
+    fn register_migrate() {
+        let mut deps = mock_dependencies();
+        let env = mock_env();
+        proposals()
+            .save(
+                &mut deps.storage,
+                1.into(),
+                &Proposal {
+                    title: "MigrateContract".to_owned(),
+                    description: "MigrateContract testing proposal".to_owned(),
+                    start_height: env.block.height,
+                    expires: Expiration::Never {},
+                    proposal: ValidatorProposal::MigrateContract {
+                        contract: "target_contract".to_owned(),
+                        code_id: 13,
+                        migrate_msg: to_binary(&DummyMigrateMsg {}).unwrap(),
+                    },
+                    status: Status::Passed,
+                    rules: VotingRules {
+                        voting_period: 1,
+                        quorum: Decimal::percent(50),
+                        threshold: Decimal::percent(40),
+                        allow_end_early: true,
+                    },
+                    total_weight: 20,
+                    votes: Votes {
+                        yes: 20,
+                        no: 0,
+                        abstain: 0,
+                        veto: 0,
+                    },
+                },
+            )
+            .unwrap();
+
+        let res = execute_execute(deps.as_mut(), env, mock_info("sender", &[]), 1).unwrap();
+        assert_eq!(
+            res.messages,
+            vec![SubMsg::new(CosmosMsg::Custom(
+                TgradeMsg::ExecuteGovProposal {
+                    title: "MigrateContract".to_owned(),
+                    description: "MigrateContract testing proposal".to_owned(),
+                    proposal: GovProposal::MigrateContract {
+                        run_as: "cosmos2contract".to_owned(),
+                        contract: "target_contract".to_owned(),
+                        code_id: 13,
+                        migrate_msg: Binary(vec![123, 125])
+                    }
+                }
+            ))]
+        );
+    }
 
     #[test]
     fn register_cancel_upgrade() {
