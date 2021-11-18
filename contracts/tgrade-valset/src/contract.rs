@@ -473,10 +473,12 @@ fn list_validator_slashing(
     let slashing = VALIDATOR_SLASHING
         .may_load(deps.storage, &addr)?
         .unwrap_or_default();
+    let tombstoned = JAIL.may_load(deps.storage, &addr)? == Some(JailingPeriod::Forever {});
     Ok(ListValidatorSlashingResponse {
         addr: operator,
         start_height,
         slashing,
+        tombstoned,
     })
 }
 
