@@ -1,12 +1,14 @@
 #[cfg(not(feature = "library"))]
 use cosmwasm_std::entry_point;
-use cosmwasm_std::{to_binary, Binary, Deps, DepsMut, Empty, Env, MessageInfo, StdResult};
+use cosmwasm_std::{to_binary, Binary, Deps, DepsMut, Env, MessageInfo, StdResult};
 
 use cw2::set_contract_version;
 use cw3::Status;
-use tg_bindings::TgradeMsg;
+use tg_bindings::{
+    request_privileges, GovProposal, Privilege, PrivilegeChangeMsg, TgradeMsg, TgradeSudoMsg,
+};
 
-use crate::msg::{ExecuteMsg, InstantiateMsg, QueryMsg};
+use crate::msg::{ExecuteMsg, InstantiateMsg, QueryMsg, ValidatorProposal};
 use crate::ContractError;
 
 use tg_voting_contract::state::proposals;
@@ -47,15 +49,15 @@ pub fn execute(
             title,
             description,
             proposal,
-        } => execute_propose::<Empty>(deps, env, info, title, description, proposal)
+        } => execute_propose(deps, env, info, title, description, proposal)
             .map_err(ContractError::from),
         Vote { proposal_id, vote } => {
-            execute_vote::<Empty>(deps, env, info, proposal_id, vote).map_err(ContractError::from)
+            execute_vote::<ValidatorProposal>(deps, env, info, proposal_id, vote)
+                .map_err(ContractError::from)
         }
         Execute { proposal_id } => execute_execute(deps, info, proposal_id),
-        Close { proposal_id } => {
-            execute_close::<Empty>(deps, env, info, proposal_id).map_err(ContractError::from)
-        }
+        Close { proposal_id } => execute_close::<ValidatorProposal>(deps, env, info, proposal_id)
+            .map_err(ContractError::from),
     }
 }
 
@@ -64,19 +66,43 @@ pub fn execute_execute(
     info: MessageInfo,
     proposal_id: u64,
 ) -> Result<Response, ContractError> {
+    use ValidatorProposal::*;
     // anyone can trigger this if the vote passed
 
-    let prop = proposals::<Empty>().load(deps.storage, proposal_id.into())?;
+    let prop = proposals::<ValidatorProposal>().load(deps.storage, proposal_id.into())?;
     // we allow execution even after the proposal "expiration" as long as all vote come in before
     // that point. If it was approved on time, it can be executed any time.
     if prop.status != Status::Passed {
         return Err(ContractError::WrongExecuteStatus {});
     }
 
-    // dispatch all proposed messages
+    let gov_proposal = match prop.proposal {
+        RegisterUpgrade {
+            name,
+            height,
+            info,
+            upgraded_client_state,
+        } => GovProposal::RegisterUpgrade {
+            name,
+            height,
+            info,
+            upgraded_client_state,
+        },
+        CancelUpgrade {} => GovProposal::CancelUpgrade {},
+        PinCodes { code_ids } => GovProposal::PinCodes { code_ids },
+        UnpinCodes { code_ids } => GovProposal::UnpinCodes { code_ids },
+    };
+
+    let msg = TgradeMsg::ExecuteGovProposal {
+        title: prop.title,
+        description: prop.description,
+        proposal: gov_proposal,
+    };
+
     Ok(Response::new()
         .add_attribute("action", "execute")
-        .add_attribute("sender", info.sender))
+        .add_attribute("sender", info.sender)
+        .add_message(msg))
 }
 
 fn align_limit(limit: Option<u32>) -> usize {
@@ -93,9 +119,13 @@ pub fn query(deps: Deps, env: Env, msg: QueryMsg) -> StdResult<Binary> {
 
     match msg {
         Rules {} => to_binary(&query_rules(deps)?),
-        Proposal { proposal_id } => to_binary(&query_proposal::<Empty>(deps, env, proposal_id)?),
+        Proposal { proposal_id } => to_binary(&query_proposal::<ValidatorProposal>(
+            deps,
+            env,
+            proposal_id,
+        )?),
         Vote { proposal_id, voter } => to_binary(&query_vote(deps, proposal_id, voter)?),
-        ListProposals { start_after, limit } => to_binary(&list_proposals::<Empty>(
+        ListProposals { start_after, limit } => to_binary(&list_proposals::<ValidatorProposal>(
             deps,
             env,
             start_after,
@@ -104,7 +134,7 @@ pub fn query(deps: Deps, env: Env, msg: QueryMsg) -> StdResult<Binary> {
         ReverseProposals {
             start_before,
             limit,
-        } => to_binary(&reverse_proposals::<Empty>(
+        } => to_binary(&reverse_proposals::<ValidatorProposal>(
             deps,
             env,
             start_before,
@@ -122,5 +152,170 @@ pub fn query(deps: Deps, env: Env, msg: QueryMsg) -> StdResult<Binary> {
         )?),
         Voter { address } => to_binary(&query_voter(deps, address)?),
         ListVoters { start_after, limit } => to_binary(&list_voters(deps, start_after, limit)?),
+    }
+}
+
+#[cfg_attr(not(feature = "library"), entry_point)]
+pub fn sudo(deps: DepsMut, _env: Env, msg: TgradeSudoMsg) -> Result<Response, ContractError> {
+    match msg {
+        TgradeSudoMsg::PrivilegeChange(change) => Ok(privilege_change(deps, change)),
+        _ => Err(ContractError::UnsupportedSudoType {}),
+    }
+}
+
+fn privilege_change(_deps: DepsMut, change: PrivilegeChangeMsg) -> Response {
+    match change {
+        PrivilegeChangeMsg::Promoted {} => {
+            let msgs = request_privileges(&[Privilege::GovProposalExecutor]);
+            Response::new().add_submessages(msgs)
+        }
+        PrivilegeChangeMsg::Demoted {} => Response::new(),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use cosmwasm_std::{
+        testing::{mock_dependencies, mock_env, mock_info},
+        CosmosMsg, Decimal, SubMsg,
+    };
+    use cw0::Expiration;
+    use tg_voting_contract::state::{Proposal, Votes, VotingRules};
+
+    use super::*;
+
+    #[test]
+    fn register_cancel_upgrade() {
+        let mut deps = mock_dependencies();
+        let env = mock_env();
+        proposals()
+            .save(
+                &mut deps.storage,
+                1.into(),
+                &Proposal {
+                    title: "CancelUpgrade".to_owned(),
+                    description: "CancelUpgrade testing proposal".to_owned(),
+                    start_height: env.block.height,
+                    expires: Expiration::Never {},
+                    proposal: ValidatorProposal::CancelUpgrade {},
+                    status: Status::Passed,
+                    rules: VotingRules {
+                        voting_period: 1,
+                        quorum: Decimal::percent(50),
+                        threshold: Decimal::percent(40),
+                        allow_end_early: true,
+                    },
+                    total_weight: 20,
+                    votes: Votes {
+                        yes: 20,
+                        no: 0,
+                        abstain: 0,
+                        veto: 0,
+                    },
+                },
+            )
+            .unwrap();
+
+        let res = execute_execute(deps.as_mut(), mock_info("sender", &[]), 1).unwrap();
+        assert_eq!(
+            res.messages,
+            vec![SubMsg::new(CosmosMsg::Custom(
+                TgradeMsg::ExecuteGovProposal {
+                    title: "CancelUpgrade".to_owned(),
+                    description: "CancelUpgrade testing proposal".to_owned(),
+                    proposal: GovProposal::CancelUpgrade {}
+                }
+            ))]
+        );
+    }
+
+    #[test]
+    fn register_pin_codes() {
+        let mut deps = mock_dependencies();
+        let env = mock_env();
+        proposals()
+            .save(
+                &mut deps.storage,
+                1.into(),
+                &Proposal {
+                    title: "PinCodes".to_owned(),
+                    description: "PinCodes testing proposal".to_owned(),
+                    start_height: env.block.height,
+                    expires: Expiration::Never {},
+                    proposal: ValidatorProposal::PinCodes { code_ids: vec![] },
+                    status: Status::Passed,
+                    rules: VotingRules {
+                        voting_period: 1,
+                        quorum: Decimal::percent(50),
+                        threshold: Decimal::percent(40),
+                        allow_end_early: true,
+                    },
+                    total_weight: 20,
+                    votes: Votes {
+                        yes: 20,
+                        no: 0,
+                        abstain: 0,
+                        veto: 0,
+                    },
+                },
+            )
+            .unwrap();
+
+        let res = execute_execute(deps.as_mut(), mock_info("sender", &[]), 1).unwrap();
+        assert_eq!(
+            res.messages,
+            vec![SubMsg::new(CosmosMsg::Custom(
+                TgradeMsg::ExecuteGovProposal {
+                    title: "PinCodes".to_owned(),
+                    description: "PinCodes testing proposal".to_owned(),
+                    proposal: GovProposal::PinCodes { code_ids: vec![] }
+                }
+            ))]
+        );
+    }
+
+    #[test]
+    fn register_unpin_codes() {
+        let mut deps = mock_dependencies();
+        let env = mock_env();
+        proposals()
+            .save(
+                &mut deps.storage,
+                1.into(),
+                &Proposal {
+                    title: "UnpinCodes".to_owned(),
+                    description: "UnpinCodes testing proposal".to_owned(),
+                    start_height: env.block.height,
+                    expires: Expiration::Never {},
+                    proposal: ValidatorProposal::UnpinCodes { code_ids: vec![] },
+                    status: Status::Passed,
+                    rules: VotingRules {
+                        voting_period: 1,
+                        quorum: Decimal::percent(50),
+                        threshold: Decimal::percent(40),
+                        allow_end_early: true,
+                    },
+                    total_weight: 20,
+                    votes: Votes {
+                        yes: 20,
+                        no: 0,
+                        abstain: 0,
+                        veto: 0,
+                    },
+                },
+            )
+            .unwrap();
+
+        let res = execute_execute(deps.as_mut(), mock_info("sender", &[]), 1).unwrap();
+        assert_eq!(
+            res.messages,
+            vec![SubMsg::new(CosmosMsg::Custom(
+                TgradeMsg::ExecuteGovProposal {
+                    title: "UnpinCodes".to_owned(),
+                    description: "UnpinCodes testing proposal".to_owned(),
+                    proposal: GovProposal::UnpinCodes { code_ids: vec![] }
+                }
+            ))]
+        );
     }
 }

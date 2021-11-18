@@ -1639,6 +1639,7 @@ version = "0.5.0-beta4"
 dependencies = [
  "cosmwasm-schema",
  "cosmwasm-std",
+ "cw0",
  "cw2",
  "cw3",
  "schemars",
