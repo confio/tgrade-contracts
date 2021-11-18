@@ -353,7 +353,7 @@ mod tests {
 
     #[test]
     fn update_consensus_block_params() {
-        let mut deps = mock_dependencies(&[]);
+        let mut deps = mock_dependencies();
         let env = mock_env();
         proposals()
             .save(
@@ -403,7 +403,7 @@ mod tests {
 
     #[test]
     fn update_consensus_evidence_params() {
-        let mut deps = mock_dependencies(&[]);
+        let mut deps = mock_dependencies();
         let env = mock_env();
         proposals()
             .save(
