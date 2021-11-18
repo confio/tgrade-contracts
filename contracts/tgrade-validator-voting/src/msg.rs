@@ -62,6 +62,23 @@ pub enum ValidatorProposal {
         /// all code ids that should be removed from cache to free space
         code_ids: Vec<u64>,
     },
+    UpdateConsensusBlockParams {
+        /// Maximum number of bytes (over all tx) to be included in a block
+        max_bytes: Option<i64>,
+        /// Maximum gas (over all tx) to be executed in one block.
+        /// If set, more txs may be included in a block, but when executing, all tx after this is limit
+        /// are consumed will immediately error
+        max_gas: Option<i64>,
+    },
+    UpdateConsensusEvidenceParams {
+        /// Max age of evidence, in blocks.
+        max_age_num_blocks: Option<i64>,
+        /// Max age of evidence, in seconds.
+        /// It should correspond with an app's "unbonding period"
+        max_age_duration: Option<i64>,
+        /// Maximum number of bytes of evidence to be included in a block
+        max_bytes: Option<i64>,
+    },
 }
 
 // We can also add this as a cw3 extension
