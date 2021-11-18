@@ -172,3 +172,150 @@ fn privilege_change(_deps: DepsMut, change: PrivilegeChangeMsg) -> Response {
         PrivilegeChangeMsg::Demoted {} => Response::new(),
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use cosmwasm_std::{
+        testing::{mock_dependencies, mock_env, mock_info},
+        CosmosMsg, Decimal, SubMsg,
+    };
+    use cw0::Expiration;
+    use tg_voting_contract::state::{Proposal, Votes, VotingRules};
+
+    use super::*;
+
+    #[test]
+    fn register_cancel_upgrade() {
+        let mut deps = mock_dependencies(&[]);
+        let env = mock_env();
+        proposals()
+            .save(
+                &mut deps.storage,
+                1.into(),
+                &Proposal {
+                    title: "CancelUpgrade".to_owned(),
+                    description: "CancelUpgrade testing proposal".to_owned(),
+                    start_height: env.block.height,
+                    expires: Expiration::Never {},
+                    proposal: ValidatorProposal::CancelUpgrade {},
+                    status: Status::Passed,
+                    rules: VotingRules {
+                        voting_period: 1,
+                        quorum: Decimal::percent(50),
+                        threshold: Decimal::percent(40),
+                        allow_end_early: true,
+                    },
+                    total_weight: 20,
+                    votes: Votes {
+                        yes: 20,
+                        no: 0,
+                        abstain: 0,
+                        veto: 0,
+                    },
+                },
+            )
+            .unwrap();
+
+        let res = execute_execute(deps.as_mut(), mock_info("sender", &[]), 1).unwrap();
+        assert_eq!(
+            res.messages,
+            vec![SubMsg::new(CosmosMsg::Custom(
+                TgradeMsg::ExecuteGovProposal {
+                    title: "CancelUpgrade".to_owned(),
+                    description: "CancelUpgrade testing proposal".to_owned(),
+                    proposal: GovProposal::CancelUpgrade {}
+                }
+            ))]
+        );
+    }
+
+    #[test]
+    fn register_pin_codes() {
+        let mut deps = mock_dependencies(&[]);
+        let env = mock_env();
+        proposals()
+            .save(
+                &mut deps.storage,
+                1.into(),
+                &Proposal {
+                    title: "PinCodes".to_owned(),
+                    description: "PinCodes testing proposal".to_owned(),
+                    start_height: env.block.height,
+                    expires: Expiration::Never {},
+                    proposal: ValidatorProposal::PinCodes { code_ids: vec![] },
+                    status: Status::Passed,
+                    rules: VotingRules {
+                        voting_period: 1,
+                        quorum: Decimal::percent(50),
+                        threshold: Decimal::percent(40),
+                        allow_end_early: true,
+                    },
+                    total_weight: 20,
+                    votes: Votes {
+                        yes: 20,
+                        no: 0,
+                        abstain: 0,
+                        veto: 0,
+                    },
+                },
+            )
+            .unwrap();
+
+        let res = execute_execute(deps.as_mut(), mock_info("sender", &[]), 1).unwrap();
+        assert_eq!(
+            res.messages,
+            vec![SubMsg::new(CosmosMsg::Custom(
+                TgradeMsg::ExecuteGovProposal {
+                    title: "PinCodes".to_owned(),
+                    description: "PinCodes testing proposal".to_owned(),
+                    proposal: GovProposal::PinCodes { code_ids: vec![] }
+                }
+            ))]
+        );
+    }
+
+    #[test]
+    fn register_unpin_codes() {
+        let mut deps = mock_dependencies(&[]);
+        let env = mock_env();
+        proposals()
+            .save(
+                &mut deps.storage,
+                1.into(),
+                &Proposal {
+                    title: "UnpinCodes".to_owned(),
+                    description: "UnpinCodes testing proposal".to_owned(),
+                    start_height: env.block.height,
+                    expires: Expiration::Never {},
+                    proposal: ValidatorProposal::UnpinCodes { code_ids: vec![] },
+                    status: Status::Passed,
+                    rules: VotingRules {
+                        voting_period: 1,
+                        quorum: Decimal::percent(50),
+                        threshold: Decimal::percent(40),
+                        allow_end_early: true,
+                    },
+                    total_weight: 20,
+                    votes: Votes {
+                        yes: 20,
+                        no: 0,
+                        abstain: 0,
+                        veto: 0,
+                    },
+                },
+            )
+            .unwrap();
+
+        let res = execute_execute(deps.as_mut(), mock_info("sender", &[]), 1).unwrap();
+        assert_eq!(
+            res.messages,
+            vec![SubMsg::new(CosmosMsg::Custom(
+                TgradeMsg::ExecuteGovProposal {
+                    title: "UnpinCodes".to_owned(),
+                    description: "UnpinCodes testing proposal".to_owned(),
+                    proposal: GovProposal::UnpinCodes { code_ids: vec![] }
+                }
+            ))]
+        );
+    }
+}
