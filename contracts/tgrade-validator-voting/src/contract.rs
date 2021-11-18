@@ -50,20 +50,52 @@ pub fn execute(
             title,
             description,
             proposal,
-        } => execute_propose(deps, env, info, title, description, proposal)
-            .map_err(ContractError::from),
+        } => {
+            // Migrate contract needs confirming that sender (proposing member) is an admin
+            // of target contract
+            if let ValidatorProposal::MigrateContract { ref contract, .. } = proposal {
+                confirm_admin_in_contract(deps.as_ref(), &env, contract.clone())?;
+            };
+            execute_propose(deps, env, info, title, description, proposal)
+                .map_err(ContractError::from)
+        }
         Vote { proposal_id, vote } => {
             execute_vote::<ValidatorProposal>(deps, env, info, proposal_id, vote)
                 .map_err(ContractError::from)
         }
-        Execute { proposal_id } => execute_execute(deps, info, proposal_id),
+        Execute { proposal_id } => execute_execute(deps, env, info, proposal_id),
         Close { proposal_id } => execute_close::<ValidatorProposal>(deps, env, info, proposal_id)
             .map_err(ContractError::from),
     }
 }
 
+fn confirm_admin_in_contract(
+    deps: Deps,
+    env: &Env,
+    contract_addr: String,
+) -> Result<(), ContractError> {
+    use cosmwasm_std::{from_slice, to_vec, ContractInfoResponse, Empty, QueryRequest, WasmQuery};
+    let admin_query = QueryRequest::<Empty>::Wasm(WasmQuery::ContractInfo { contract_addr });
+    let resp: ContractInfoResponse = from_slice(
+        &deps
+            .querier
+            .raw_query(&to_vec(&admin_query).unwrap())
+            .unwrap()
+            .unwrap(),
+    )
+    .unwrap();
+    if let Some(admin) = resp.admin {
+        if admin == env.contract.address {
+            return Ok(());
+        }
+    }
+
+    Err(ContractError::Unauthorized {})
+}
+
 pub fn execute_execute(
     deps: DepsMut,
+    env: Env,
     info: MessageInfo,
     proposal_id: u64,
 ) -> Result<Response, ContractError> {
@@ -126,6 +158,12 @@ pub fn execute_execute(
                 max_bytes,
             }),
         }),
+        // } => GovProposal::MigrateContract {
+        //     run_as: env.contract.address.to_string(),
+        //     contract,
+        //     code_id,
+        //     migrate_msg,
+        // },
     };
 
     Ok(Response::new()
@@ -248,7 +286,7 @@ mod tests {
             )
             .unwrap();
 
-        let res = execute_execute(deps.as_mut(), mock_info("sender", &[]), 1).unwrap();
+        let res = execute_execute(deps.as_mut(), env, mock_info("sender", &[]), 1).unwrap();
         assert_eq!(
             res.messages,
             vec![SubMsg::new(CosmosMsg::Custom(
@@ -293,7 +331,7 @@ mod tests {
             )
             .unwrap();
 
-        let res = execute_execute(deps.as_mut(), mock_info("sender", &[]), 1).unwrap();
+        let res = execute_execute(deps.as_mut(), env, mock_info("sender", &[]), 1).unwrap();
         assert_eq!(
             res.messages,
             vec![SubMsg::new(CosmosMsg::Custom(
@@ -338,7 +376,7 @@ mod tests {
             )
             .unwrap();
 
-        let res = execute_execute(deps.as_mut(), mock_info("sender", &[]), 1).unwrap();
+        let res = execute_execute(deps.as_mut(), env, mock_info("sender", &[]), 1).unwrap();
         assert_eq!(
             res.messages,
             vec![SubMsg::new(CosmosMsg::Custom(

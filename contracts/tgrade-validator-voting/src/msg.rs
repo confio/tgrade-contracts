@@ -1,6 +1,7 @@
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
+use cosmwasm_std::Binary;
 use cw3::Vote;
 
 use tg_bindings::ProtoAny;
@@ -78,6 +79,14 @@ pub enum ValidatorProposal {
         max_age_duration: Option<i64>,
         /// Maximum number of bytes of evidence to be included in a block
         max_bytes: Option<i64>,
+    },
+    MigrateContract {
+        /// the contract address to be migrated
+        contract: String,
+        /// a reference to the new WASM code that it should be migrated to
+        code_id: u64,
+        /// encoded message to be passed to perform the migration
+        migrate_msg: Binary,
     },
 }
 

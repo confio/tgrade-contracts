@@ -1,8 +1,6 @@
 #[cfg(not(feature = "library"))]
 use cosmwasm_std::entry_point;
-use cosmwasm_std::{
-    to_binary, Addr, Binary, Deps, DepsMut, Env, MessageInfo, StdResult, WasmMsg,
-};
+use cosmwasm_std::{to_binary, Binary, Deps, DepsMut, Env, MessageInfo, StdResult};
 
 use cw2::set_contract_version;
 use cw3::Status;
@@ -14,7 +12,7 @@ use crate::msg::{ExecuteMsg, InstantiateMsg, QueryMsg};
 use crate::state::{Config, OversightProposal, CONFIG};
 use crate::ContractError;
 
-use tg_voting_contract::state::{Proposal, proposals};
+use tg_voting_contract::state::{proposals, Proposal};
 use tg_voting_contract::{
     close as execute_close, list_proposals, list_voters, list_votes, propose as execute_propose,
     query_proposal, query_rules, query_vote, query_voter, reverse_proposals, vote as execute_vote,
@@ -68,15 +66,8 @@ pub fn execute(
             title,
             description,
             proposal,
-        } => {
-            // Migrate contract needs confirming that sender (proposing member) is an admin
-            // of target contract
-            if let OversightProposal::MigrateContract { ref contract_address, .. } = proposal {
-                confirm_admin_in_contract(deps.as_ref(), &env, contract_address)?;
-            };
-            execute_propose::<OversightProposal>(deps, env, info, title, description, proposal)
-                .map_err(ContractError::from)
-        }
+        } => execute_propose::<OversightProposal>(deps, env, info, title, description, proposal)
+            .map_err(ContractError::from),
         Vote { proposal_id, vote } => {
             execute_vote::<OversightProposal>(deps, env, info, proposal_id, vote)
                 .map_err(ContractError::from)
@@ -87,32 +78,6 @@ pub fn execute(
     }
 }
 
-fn confirm_admin_in_contract(
-    deps: Deps,
-    env: &Env,
-    contract_address: &Addr,
-) -> Result<(), ContractError> {
-    use cosmwasm_std::{from_slice, to_vec, ContractInfoResponse, Empty, QueryRequest, WasmQuery};
-    let admin_query = QueryRequest::<Empty>::Wasm(WasmQuery::ContractInfo {
-        contract_addr: contract_address.to_string(),
-    });
-    let resp: ContractInfoResponse = from_slice(
-        &deps
-            .querier
-            .raw_query(&to_vec(&admin_query).unwrap())
-            .unwrap()
-            .unwrap(),
-    )
-    .unwrap();
-    if let Some(admin) = resp.admin {
-        if admin == env.contract.address {
-            return Ok(());
-        }
-    }
-
-    Err(ContractError::Unauthorized {})
-}
-
 pub fn execute_execute(
     deps: DepsMut,
     info: MessageInfo,
@@ -120,7 +85,8 @@ pub fn execute_execute(
 ) -> Result<Response, ContractError> {
     // anyone can trigger this if the vote passed
 
-    let mut prop: Proposal<OversightProposal> = proposals().load(deps.storage, proposal_id.into())?;
+    let mut prop: Proposal<OversightProposal> =
+        proposals().load(deps.storage, proposal_id.into())?;
     // we allow execution even after the proposal "expiration" as long as all vote come in before
     // that point. If it was approved on time, it can be executed any time.
     if prop.status != Status::Passed {
@@ -145,15 +111,6 @@ pub fn execute_execute(
             addr: member.to_string(),
             portion,
         })?)?,
-        OversightProposal::MigrateContract {
-            ref contract_address,
-            new_code_id,
-            msg,
-        } => SubMsg::new(WasmMsg::Migrate {
-            contract_addr: contract_address.to_string(),
-            new_code_id,
-            msg,
-        }),
     };
 
     // set it to executed
@@ -217,16 +174,6 @@ pub fn query(deps: Deps, env: Env, msg: QueryMsg) -> StdResult<Binary> {
         ListVoters { start_after, limit } => to_binary(&list_voters(deps, start_after, limit)?),
     }
 }
-
-#[cfg_attr(not(feature = "library"), entry_point)]
-pub fn migrate(
-    deps: DepsMut,
-    env: Env,
-    msg: MigrateMsg,
-) -> Result<Response, ContractError> {
-
-}
-
 
 #[cfg(test)]
 mod tests {
