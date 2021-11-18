@@ -72,3 +72,8 @@ pub enum QueryMsg {
         limit: Option<u32>,
     },
 }
+
+// Message that supposed to be send along with MigrateContract proposal
+#[derive(Serialize, Deserialize, Clone, PartialEq, JsonSchema, Debug)]
+#[serde(rename_all = "snake_case")]
+pub struct MigrateMsg { }

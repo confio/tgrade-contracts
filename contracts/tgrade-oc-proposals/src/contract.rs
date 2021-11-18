@@ -72,7 +72,7 @@ pub fn execute(
             // Migrate contract needs confirming that sender (proposing member) is an admin
             // of target contract
             if let OversightProposal::MigrateContract { ref contract_address, .. } = proposal {
-                confirm_admin_in_contract(deps.as_ref(), &info.sender, contract_address)?;
+                confirm_admin_in_contract(deps.as_ref(), &env, contract_address)?;
             };
             execute_propose::<OversightProposal>(deps, env, info, title, description, proposal)
                 .map_err(ContractError::from)
@@ -89,7 +89,7 @@ pub fn execute(
 
 fn confirm_admin_in_contract(
     deps: Deps,
-    sender: &Addr,
+    env: &Env,
     contract_address: &Addr,
 ) -> Result<(), ContractError> {
     use cosmwasm_std::{from_slice, to_vec, ContractInfoResponse, Empty, QueryRequest, WasmQuery};
@@ -104,9 +104,8 @@ fn confirm_admin_in_contract(
             .unwrap(),
     )
     .unwrap();
-    println!("Resp! \n{:?}", resp);
     if let Some(admin) = resp.admin {
-        if admin == *sender {
+        if admin == env.contract.address {
             return Ok(());
         }
     }
@@ -218,6 +217,16 @@ pub fn query(deps: Deps, env: Env, msg: QueryMsg) -> StdResult<Binary> {
         ListVoters { start_after, limit } => to_binary(&list_voters(deps, start_after, limit)?),
     }
 }
+
+#[cfg_attr(not(feature = "library"), entry_point)]
+pub fn migrate(
+    deps: DepsMut,
+    env: Env,
+    msg: MigrateMsg,
+) -> Result<Response, ContractError> {
+
+}
+
 
 #[cfg(test)]
 mod tests {

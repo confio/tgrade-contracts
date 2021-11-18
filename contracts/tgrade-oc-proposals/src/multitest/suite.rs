@@ -1,6 +1,6 @@
 use anyhow::Result as AnyResult;
 
-use cosmwasm_std::{coin, Addr, Binary, Coin, Decimal, StdResult};
+use cosmwasm_std::{coin, Addr, Binary, Coin, Decimal, StdResult, to_binary};
 use cw3::{Status, Vote, VoteInfo, VoteListResponse, VoteResponse, VoterResponse};
 use cw_multi_test::{AppResponse, Contract, ContractWrapper, Executor};
 use tg4::{Member, MemberResponse, Tg4ExecuteMsg, Tg4QueryMsg};
@@ -400,7 +400,7 @@ impl Suite {
             OversightProposal::MigrateContract {
                 contract_address: Addr::unchecked(contract),
                 new_code_id,
-                msg: Binary::from(vec![]),
+                msg: to_binary(&MigrateMsg {}).unwrap(),
             },
         )
     }
@@ -567,7 +567,7 @@ impl Suite {
                 },
                 &[],
                 "group",
-                Some(owner.to_string()),
+                Some(self.contract.to_string()),
             )
             .unwrap();
         (group_id, group_contract)
