@@ -1557,6 +1557,21 @@ dependencies = [
 ]
 
 [[package]]
+name = "tgrade-community-pool"
+version = "0.5.0-beta4"
+dependencies = [
+ "cosmwasm-schema",
+ "cosmwasm-std",
+ "cw2",
+ "cw3",
+ "schemars",
+ "serde",
+ "tg-bindings",
+ "tg-voting-contract",
+ "thiserror",
+]
+
+[[package]]
 name = "tgrade-gov-reflect"
 version = "0.5.0-beta4"
 dependencies = [
