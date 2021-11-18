@@ -550,9 +550,10 @@ impl Suite {
         Ok(amount.into())
     }
 
-    pub fn create_group_contract(&mut self, owner: &str, ) -> (u64, Addr) {
+    pub fn create_group_contract(&mut self, owner: &str) -> (u64, Addr) {
         let group_id = self.app.store_code(contract_engagement());
-        let group_contract = self.app
+        let group_contract = self
+            .app
             .instantiate_contract(
                 group_id,
                 Addr::unchecked(owner),

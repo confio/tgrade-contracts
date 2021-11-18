@@ -15,6 +15,9 @@ pub enum ContractError {
     #[error("Invalid valset contract address: {0}")]
     InvalidValsetContract(String),
 
+    #[error("Unauthorized")]
+    Unauthorized {},
+
     #[error("Proposal must have passed and not yet been executed")]
     WrongExecuteStatus {},
 }

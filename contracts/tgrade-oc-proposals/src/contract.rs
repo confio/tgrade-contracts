@@ -1,7 +1,7 @@
 #[cfg(not(feature = "library"))]
 use cosmwasm_std::entry_point;
 use cosmwasm_std::{
-    to_binary, Binary, BlockInfo, Addr, Deps, DepsMut, Env, MessageInfo, Order, StdResult, WasmMsg,
+    to_binary, Addr, Binary, Deps, DepsMut, Env, MessageInfo, StdResult, WasmMsg,
 };
 
 use cw2::set_contract_version;
@@ -14,7 +14,7 @@ use crate::msg::{ExecuteMsg, InstantiateMsg, QueryMsg};
 use crate::state::{Config, OversightProposal, CONFIG};
 use crate::ContractError;
 
-use tg_voting_contract::state::proposals;
+use tg_voting_contract::state::{Proposal, proposals};
 use tg_voting_contract::{
     close as execute_close, list_proposals, list_voters, list_votes, propose as execute_propose,
     query_proposal, query_rules, query_vote, query_voter, reverse_proposals, vote as execute_vote,
@@ -68,8 +68,15 @@ pub fn execute(
             title,
             description,
             proposal,
-        } => execute_propose::<OversightProposal>(deps, env, info, title, description, proposal)
-            .map_err(ContractError::from),
+        } => {
+            // Migrate contract needs confirming that sender (proposing member) is an admin
+            // of target contract
+            if let OversightProposal::MigrateContract { ref contract_address, .. } = proposal {
+                confirm_admin_in_contract(deps.as_ref(), &info.sender, contract_address)?;
+            };
+            execute_propose::<OversightProposal>(deps, env, info, title, description, proposal)
+                .map_err(ContractError::from)
+        }
         Vote { proposal_id, vote } => {
             execute_vote::<OversightProposal>(deps, env, info, proposal_id, vote)
                 .map_err(ContractError::from)
@@ -80,15 +87,26 @@ pub fn execute(
     }
 }
 
-fn confirm_admin_in_contract(deps: Deps, sender: &Addr, contract_address: &Addr) -> Result<(), ContractError> {
-    use cosmwasm_std::{to_vec, WasmQuery, Empty, QueryRequest, ContractInfoResponse, from_slice};
+fn confirm_admin_in_contract(
+    deps: Deps,
+    sender: &Addr,
+    contract_address: &Addr,
+) -> Result<(), ContractError> {
+    use cosmwasm_std::{from_slice, to_vec, ContractInfoResponse, Empty, QueryRequest, WasmQuery};
     let admin_query = QueryRequest::<Empty>::Wasm(WasmQuery::ContractInfo {
         contract_addr: contract_address.to_string(),
     });
-    let resp: ContractInfoResponse = from_slice(&deps.querier.raw_query(&to_vec(&admin_query).unwrap()).unwrap().unwrap()).unwrap();
+    let resp: ContractInfoResponse = from_slice(
+        &deps
+            .querier
+            .raw_query(&to_vec(&admin_query).unwrap())
+            .unwrap()
+            .unwrap(),
+    )
+    .unwrap();
     println!("Resp! \n{:?}", resp);
     if let Some(admin) = resp.admin {
-        if admin == sender.to_string() {
+        if admin == *sender {
             return Ok(());
         }
     }
@@ -103,7 +121,7 @@ pub fn execute_execute(
 ) -> Result<Response, ContractError> {
     // anyone can trigger this if the vote passed
 
-    let mut prop = proposals().load(deps.storage, proposal_id.into())?;
+    let mut prop: Proposal<OversightProposal> = proposals().load(deps.storage, proposal_id.into())?;
     // we allow execution even after the proposal "expiration" as long as all vote come in before
     // that point. If it was approved on time, it can be executed any time.
     if prop.status != Status::Passed {
@@ -135,7 +153,7 @@ pub fn execute_execute(
         } => SubMsg::new(WasmMsg::Migrate {
             contract_addr: contract_address.to_string(),
             new_code_id,
-            msg: msg.clone(),
+            msg,
         }),
     };
 
