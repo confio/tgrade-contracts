@@ -10,8 +10,8 @@ The first step to create an tgrade-community-pool contract is to instantiate
 a tg4 contract with the desired member set.
 
 We want to put some block rewards into the hands of the community via a
-community pool, in order to provide more engagement and to a way decentralize
-the chain more.
+community pool, in order to provide more engagement and to decentralize the
+chain more.
 
 The engagement point holders can make spending proposals, which can be voted on
 by engagement holders.
