@@ -441,7 +441,7 @@ mod tests {
         }
 
         fn build(self) -> Suite {
-            let mut deps = mock_dependencies(&[]);
+            let mut deps = mock_dependencies();
             let owner = mock_info(self.recipient.as_str(), &self.coins);
 
             let instantiate_message = InstantiateMsg {
@@ -744,7 +744,7 @@ mod tests {
 
     #[test]
     fn instantiate_without_tokens() {
-        let mut deps = mock_dependencies(&[]);
+        let mut deps = mock_dependencies();
         let owner = mock_info(OWNER, &[]);
 
         let instantiate_message = InstantiateMsg {

@@ -639,7 +639,7 @@ mod tests {
 
     #[test]
     fn proper_instantiation() {
-        let mut deps = mock_dependencies(&[]);
+        let mut deps = mock_dependencies();
         default_instantiate(deps.as_mut());
 
         // it worked, let's query the state
@@ -652,7 +652,7 @@ mod tests {
 
     #[test]
     fn unbonding_period_query_works() {
-        let mut deps = mock_dependencies(&[]);
+        let mut deps = mock_dependencies();
         default_instantiate(deps.as_mut());
 
         let raw = query(deps.as_ref(), mock_env(), QueryMsg::UnbondingPeriod {}).unwrap();
@@ -719,7 +719,7 @@ mod tests {
 
     #[test]
     fn bond_stake_adds_membership() {
-        let mut deps = mock_dependencies(&[]);
+        let mut deps = mock_dependencies();
         default_instantiate(deps.as_mut());
         let height = mock_env().block.height;
 
@@ -749,7 +749,7 @@ mod tests {
 
     #[test]
     fn try_member_queries() {
-        let mut deps = mock_dependencies(&[]);
+        let mut deps = mock_dependencies();
         default_instantiate(deps.as_mut());
 
         bond(deps.as_mut(), 12_000, 7_500, 4_000, 1);
@@ -817,7 +817,7 @@ mod tests {
 
     #[test]
     fn try_list_members_by_weight() {
-        let mut deps = mock_dependencies(&[]);
+        let mut deps = mock_dependencies();
         default_instantiate(deps.as_mut());
 
         bond(deps.as_mut(), 11_000, 6_500, 5_000, 1);
@@ -892,7 +892,7 @@ mod tests {
 
     #[test]
     fn unbond_stake_update_membership() {
-        let mut deps = mock_dependencies(&[]);
+        let mut deps = mock_dependencies();
         default_instantiate(deps.as_mut());
         let height = mock_env().block.height;
 
@@ -937,7 +937,7 @@ mod tests {
     #[test]
     fn raw_queries_work() {
         // add will over-write and remove have no effect
-        let mut deps = mock_dependencies(&[]);
+        let mut deps = mock_dependencies();
         default_instantiate(deps.as_mut());
         // Set values as (11, 6, None)
         bond(deps.as_mut(), 11_000, 6_000, 0, 1);
@@ -971,7 +971,7 @@ mod tests {
 
     #[test]
     fn unbond_claim_workflow() {
-        let mut deps = mock_dependencies(&[]);
+        let mut deps = mock_dependencies();
         default_instantiate(deps.as_mut());
 
         // create some data
@@ -1155,7 +1155,7 @@ mod tests {
     #[test]
     fn add_remove_hooks() {
         // add will over-write and remove have no effect
-        let mut deps = mock_dependencies(&[]);
+        let mut deps = mock_dependencies();
         default_instantiate(deps.as_mut());
 
         let hooks = HOOKS.list_hooks(&deps.storage).unwrap();
@@ -1227,7 +1227,7 @@ mod tests {
 
     #[test]
     fn add_remove_slashers() {
-        let mut deps = mock_dependencies(&[]);
+        let mut deps = mock_dependencies();
         default_instantiate(deps.as_mut());
 
         let slashers = SLASHERS.list_slashers(&deps.storage).unwrap();
@@ -1363,7 +1363,7 @@ mod tests {
 
     #[test]
     fn slashing_bonded_tokens_works() {
-        let mut deps = mock_dependencies(&[]);
+        let mut deps = mock_dependencies();
         default_instantiate(deps.as_mut());
         let cfg = CONFIG.load(&deps.storage).unwrap();
         let slasher = add_slasher(deps.as_mut());
@@ -1383,7 +1383,7 @@ mod tests {
 
     #[test]
     fn slashing_claims_works() {
-        let mut deps = mock_dependencies(&[]);
+        let mut deps = mock_dependencies();
         default_instantiate(deps.as_mut());
         let cfg = CONFIG.load(&deps.storage).unwrap();
         let slasher = add_slasher(deps.as_mut());
@@ -1423,7 +1423,7 @@ mod tests {
 
     #[test]
     fn random_user_cannot_slash() {
-        let mut deps = mock_dependencies(&[]);
+        let mut deps = mock_dependencies();
         default_instantiate(deps.as_mut());
         let _slasher = add_slasher(deps.as_mut());
 
@@ -1437,7 +1437,7 @@ mod tests {
 
     #[test]
     fn admin_cannot_slash() {
-        let mut deps = mock_dependencies(&[]);
+        let mut deps = mock_dependencies();
         default_instantiate(deps.as_mut());
         let _slasher = add_slasher(deps.as_mut());
 
@@ -1451,7 +1451,7 @@ mod tests {
 
     #[test]
     fn removed_slasher_cannot_slash() {
-        let mut deps = mock_dependencies(&[]);
+        let mut deps = mock_dependencies();
         default_instantiate(deps.as_mut());
 
         // Add, then remove a slasher
@@ -1468,7 +1468,7 @@ mod tests {
 
     #[test]
     fn hooks_fire() {
-        let mut deps = mock_dependencies(&[]);
+        let mut deps = mock_dependencies();
         default_instantiate(deps.as_mut());
 
         let hooks = HOOKS.list_hooks(&deps.storage).unwrap();
@@ -1536,7 +1536,7 @@ mod tests {
 
     #[test]
     fn only_bond_valid_coins() {
-        let mut deps = mock_dependencies(&[]);
+        let mut deps = mock_dependencies();
         default_instantiate(deps.as_mut());
 
         // cannot bond with 0 coins
@@ -1563,7 +1563,7 @@ mod tests {
     #[test]
     fn ensure_bonding_edge_cases() {
         // use min_bond 0, tokens_per_weight 500
-        let mut deps = mock_dependencies(&[]);
+        let mut deps = mock_dependencies();
         do_instantiate(deps.as_mut(), Uint128::new(100), Uint128::zero(), 5, 0);
 
         // setting 50 tokens, gives us Some(0) weight
@@ -1578,7 +1578,7 @@ mod tests {
 
     #[test]
     fn paginated_claim_query() {
-        let mut deps = mock_dependencies(&[]);
+        let mut deps = mock_dependencies();
         default_instantiate(deps.as_mut());
 
         // create some data
@@ -1689,7 +1689,7 @@ mod tests {
 
         #[test]
         fn single_claim() {
-            let mut deps = mock_dependencies(&[]);
+            let mut deps = mock_dependencies();
             do_instantiate(deps.as_mut(), 2);
 
             bond(deps.as_mut(), 12_000, 7_500, 4_000, 1);
@@ -1706,7 +1706,7 @@ mod tests {
 
         #[test]
         fn multiple_users_claims() {
-            let mut deps = mock_dependencies(&[]);
+            let mut deps = mock_dependencies();
             do_instantiate(deps.as_mut(), 4);
 
             bond(deps.as_mut(), 12_000, 7_500, 4_000, 1);
@@ -1724,7 +1724,7 @@ mod tests {
 
         #[test]
         fn single_user_multiple_claims() {
-            let mut deps = mock_dependencies(&[]);
+            let mut deps = mock_dependencies();
             do_instantiate(deps.as_mut(), 3);
 
             bond(deps.as_mut(), 12_000, 7_500, 4_000, 1);
@@ -1742,7 +1742,7 @@ mod tests {
 
         #[test]
         fn only_expired_claims() {
-            let mut deps = mock_dependencies(&[]);
+            let mut deps = mock_dependencies();
             do_instantiate(deps.as_mut(), 3);
 
             bond(deps.as_mut(), 12_000, 7_500, 4_000, 1);
@@ -1767,7 +1767,7 @@ mod tests {
 
         #[test]
         fn claim_returned_once() {
-            let mut deps = mock_dependencies(&[]);
+            let mut deps = mock_dependencies();
             do_instantiate(deps.as_mut(), 5);
 
             bond(deps.as_mut(), 12_000, 7_500, 4_000, 1);
@@ -1803,7 +1803,7 @@ mod tests {
 
         #[test]
         fn up_to_limit_claims_returned() {
-            let mut deps = mock_dependencies(&[]);
+            let mut deps = mock_dependencies();
             do_instantiate(deps.as_mut(), 2);
 
             bond(deps.as_mut(), 12_000, 7_500, 4_000, 1);
@@ -1856,7 +1856,7 @@ mod tests {
 
         #[test]
         fn unbound_with_invalid_denom_fails() {
-            let mut deps = mock_dependencies(&[]);
+            let mut deps = mock_dependencies();
             do_instantiate(deps.as_mut(), 2);
 
             bond(deps.as_mut(), 5_000, 0, 0, 1);

@@ -114,7 +114,7 @@ mod tests {
 
     #[test]
     fn proper_initialization() {
-        let mut deps = mock_dependencies(&[]);
+        let mut deps = mock_dependencies();
 
         let msg = InstantiateMsg {};
         let info = mock_info("creator", &coins(1000, "earth"));
@@ -131,7 +131,7 @@ mod tests {
 
     #[test]
     fn reflect_messages() {
-        let mut deps = mock_dependencies(&[]);
+        let mut deps = mock_dependencies();
         let creator = "admin";
 
         let msg = InstantiateMsg {};
@@ -159,7 +159,7 @@ mod tests {
 
     #[test]
     fn reflect_proposal() {
-        let mut deps = mock_dependencies(&[]);
+        let mut deps = mock_dependencies();
         let creator = "admin";
 
         let msg = InstantiateMsg {};
@@ -189,32 +189,4 @@ mod tests {
         assert_eq!(res.messages.len(), 1);
         assert_eq!(&res.messages[0].msg, &expected);
     }
-
-    // #[test]
-    // fn reset() {
-    //     let mut deps = mock_dependencies(&coins(2, "token"));
-    //
-    //     let msg = InstantiateMsg { count: 17 };
-    //     let info = mock_info("creator", &coins(2, "token"));
-    //     let _res = instantiate(deps.as_mut(), mock_env(), info, msg).unwrap();
-    //
-    //     // beneficiary can release it
-    //     let unauth_info = mock_info("anyone", &coins(2, "token"));
-    //     let msg = ExecuteMsg::Reset { count: 5 };
-    //     let res = execute(deps.as_mut(), mock_env(), unauth_info, msg);
-    //     match res {
-    //         Err(ContractError::Unauthorized {}) => {}
-    //         _ => panic!("Must return unauthorized error"),
-    //     }
-    //
-    //     // only the original creator can reset the counter
-    //     let auth_info = mock_info("creator", &coins(2, "token"));
-    //     let msg = ExecuteMsg::Reset { count: 5 };
-    //     let _res = execute(deps.as_mut(), mock_env(), auth_info, msg).unwrap();
-    //
-    //     // should now be 5
-    //     let res = query(deps.as_ref(), mock_env(), QueryMsg::GetCount {}).unwrap();
-    //     let value: CountResponse = from_binary(&res).unwrap();
-    //     assert_eq!(5, value.count);
-    // }
 }

@@ -92,7 +92,7 @@ mod test {
 
     #[test]
     fn add_and_remove_hooks() {
-        let mut deps = mock_dependencies(&[]);
+        let mut deps = mock_dependencies();
         assert_count(deps.as_ref(), 0);
 
         // add a new hook
@@ -133,7 +133,7 @@ mod test {
                 amount: coins(12345, "bonus"),
             }))
         };
-        let mut deps = mock_dependencies(&[]);
+        let mut deps = mock_dependencies();
         let storage = deps.as_mut().storage;
 
         HOOKS.add_hook(storage, Addr::unchecked("some")).unwrap();
