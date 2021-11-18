@@ -159,7 +159,7 @@ pub fn query(deps: Deps, env: Env, msg: QueryMsg) -> StdResult<Binary> {
 pub fn sudo(deps: DepsMut, _env: Env, msg: TgradeSudoMsg) -> Result<Response, ContractError> {
     match msg {
         TgradeSudoMsg::PrivilegeChange(change) => Ok(privilege_change(deps, change)),
-        _ => Err(ContractError::UnknownSudoType {}),
+        _ => Err(ContractError::UnsupportedSudoType {}),
     }
 }
 
