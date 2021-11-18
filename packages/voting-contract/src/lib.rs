@@ -198,6 +198,8 @@ where
         status,
         expires: prop.expires,
         rules,
+        total_weight: prop.total_weight,
+        votes: prop.votes,
     })
 }
 
@@ -215,6 +217,8 @@ fn map_proposal<P>(
         status,
         expires: prop.expires,
         rules: prop.rules,
+        total_weight: prop.total_weight,
+        votes: prop.votes,
     })
 }
 
