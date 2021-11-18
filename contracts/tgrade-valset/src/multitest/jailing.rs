@@ -70,7 +70,8 @@ fn admin_can_unjail_almost_anyone() {
         ContractError::UnjailFromJailForeverForbidden {},
         err.downcast().unwrap()
     );
-    // But also if it did
+
+    // But can unjail if time was finite and expired
     suite.unjail(&admin, members[2]).unwrap();
     // Admin can also unjail someone who is not even jailed - it does nothing, but doesn't
     // fail
