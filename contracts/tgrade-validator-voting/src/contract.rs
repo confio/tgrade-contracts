@@ -448,6 +448,34 @@ mod tests {
         );
     }
 
+    // use std::marker::PhantomData;
+    // use cosmwasm_std::OwnedDeps;
+    // use cosmwasm_std::{ContractInfoResponse, SystemResult, Empty};
+    // use cosmwasm_std::testing::{MockApi, MockStorage, MockQuerier};
+    // fn deps_with_querier_mock(admin: &str) -> OwnedDeps<MockStorage, MockApi, MockQuerier<Empty>, Empty> {
+    //     let mut response = ContractInfoResponse::default();
+    //     // {
+    //     //         code_id: 1,
+    //     //         creator: "creator".to_owned(),
+    //     //         admin: Some(admin.to_owned()),
+    //     //         pinned: false,
+    //     //         ibc_port: None,
+    //     //     };
+    //     let querier = MockQuerier::new(&[("cosmos2contract", &[])])
+    //         .with_custom_handler(|query| SystemResult::Ok(to_binary(&response)).unwrap());
+    //     OwnedDeps {
+    //         storage: MockStorage::default(),
+    //         api: MockApi::default(),
+    //         querier: querier,
+    //         custom_query_type: PhantomData,
+    //     }
+    // }
+
+    // #[test]
+    // fn propose_migrate() {
+
+    // }
+
     #[test]
     fn update_consensus_block_params() {
         let mut deps = mock_dependencies();
