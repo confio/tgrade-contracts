@@ -85,7 +85,8 @@ fn confirm_admin_in_contract(
     )
     .unwrap();
     if let Some(admin) = resp.admin {
-        if admin == env.contract.address {
+        if dbg!(admin) == dbg!(env.contract.address.clone()) {
+            dbg!("okay then!");
             return Ok(());
         }
     }

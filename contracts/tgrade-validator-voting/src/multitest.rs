@@ -1,4 +1,5 @@
 mod suite;
+mod hackatom;
 
 use crate::ContractError;
 use suite::{get_proposal_id, member, SuiteBuilder};
