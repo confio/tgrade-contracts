@@ -311,7 +311,7 @@ fn assert_payment(messages: Vec<SubMsg>, to_addr: &str, amount: u128) {
 
 #[test]
 fn non_voting_deposit_return_propose_leave() {
-    let mut deps = mock_dependencies(&[]);
+    let mut deps = mock_dependencies();
     setup_bdd(deps.as_mut());
 
     // assert non-voting member
@@ -336,7 +336,7 @@ fn non_voting_deposit_return_propose_leave() {
 
 #[test]
 fn non_member_deposit_return_propose_leave() {
-    let mut deps = mock_dependencies(&[]);
+    let mut deps = mock_dependencies();
     setup_bdd(deps.as_mut());
 
     // assert non-voting member
@@ -357,7 +357,7 @@ fn non_member_deposit_return_propose_leave() {
 
 #[test]
 fn pending_broke_deposit_return_propose() {
-    let mut deps = mock_dependencies(&[]);
+    let mut deps = mock_dependencies();
     setup_bdd(deps.as_mut());
 
     // assert non-voting member
@@ -376,7 +376,7 @@ fn pending_broke_deposit_return_propose() {
 
 #[test]
 fn pending_broke_leave() {
-    let mut deps = mock_dependencies(&[]);
+    let mut deps = mock_dependencies();
     setup_bdd(deps.as_mut());
 
     // assert non-voting member
@@ -391,7 +391,7 @@ fn pending_broke_leave() {
 
 #[test]
 fn pending_some_deposit_return_propose_leave() {
-    let mut deps = mock_dependencies(&[]);
+    let mut deps = mock_dependencies();
     setup_bdd(deps.as_mut());
 
     // assert non-voting member
@@ -416,7 +416,7 @@ fn pending_some_deposit_return_propose_leave() {
 
 #[test]
 fn pending_paid_deposit_return_propose_leave() {
-    let mut deps = mock_dependencies(&[]);
+    let mut deps = mock_dependencies();
     setup_bdd(deps.as_mut());
 
     // assert non-voting member
@@ -441,7 +441,7 @@ fn pending_paid_deposit_return_propose_leave() {
 
 #[test]
 fn pending_paid_timeout_to_voter() {
-    let mut deps = mock_dependencies(&[]);
+    let mut deps = mock_dependencies();
     setup_bdd(deps.as_mut());
 
     execute(
@@ -462,7 +462,7 @@ fn pending_paid_timeout_to_voter() {
 
 #[test]
 fn voting_deposit_return_propose_leave() {
-    let mut deps = mock_dependencies(&[]);
+    let mut deps = mock_dependencies();
     setup_bdd(deps.as_mut());
 
     // assert voting member
@@ -492,7 +492,7 @@ fn voting_deposit_return_propose_leave() {
 
 #[test]
 fn leaving_deposit_return_propose_leave() {
-    let mut deps = mock_dependencies(&[]);
+    let mut deps = mock_dependencies();
     setup_bdd(deps.as_mut());
 
     // assert non-voting member
@@ -513,7 +513,7 @@ fn leaving_deposit_return_propose_leave() {
 
 #[test]
 fn leaving_return_after_timeout() {
-    let mut deps = mock_dependencies(&[]);
+    let mut deps = mock_dependencies();
     setup_bdd(deps.as_mut());
 
     // assert non-voting member
@@ -540,7 +540,7 @@ fn leaving_return_after_timeout() {
 // more...
 #[test]
 fn re_adding_existing_members() {
-    let mut deps = mock_dependencies(&[]);
+    let mut deps = mock_dependencies();
     setup_bdd(deps.as_mut());
 
     // NO OP: add non-voting who is already voting
@@ -604,7 +604,7 @@ fn re_adding_existing_members() {
 
 #[test]
 fn remove_existing_members() {
-    let mut deps = mock_dependencies(&[]);
+    let mut deps = mock_dependencies();
     setup_bdd(deps.as_mut());
 
     // FAIL: remove voting member
@@ -647,7 +647,7 @@ fn remove_existing_members() {
 
 #[test]
 fn edit_trusted_circle_increase_escrow_voting_demoted_after_grace_period() {
-    let mut deps = mock_dependencies(&[]);
+    let mut deps = mock_dependencies();
     let env = mock_env();
     setup_bdd(deps.as_mut());
 
@@ -714,7 +714,7 @@ fn edit_trusted_circle_increase_escrow_voting_demoted_after_grace_period() {
 
 #[test]
 fn edit_trusted_circle_decrease_escrow_pending_promoted_after_grace_period() {
-    let mut deps = mock_dependencies(&[]);
+    let mut deps = mock_dependencies();
     let env = mock_env();
     setup_bdd(deps.as_mut());
 
@@ -800,7 +800,7 @@ fn edit_trusted_circle_decrease_escrow_pending_promoted_after_grace_period() {
 
 #[test]
 fn edit_trusted_circle_increase_escrow_enforced_before_new_proposal() {
-    let mut deps = mock_dependencies(&[]);
+    let mut deps = mock_dependencies();
     let env = mock_env();
     setup_bdd(deps.as_mut());
 
@@ -822,7 +822,7 @@ fn edit_trusted_circle_increase_escrow_enforced_before_new_proposal() {
 
 #[test]
 fn punish_member_slashing() {
-    let mut deps = mock_dependencies(&[]);
+    let mut deps = mock_dependencies();
     let env = mock_env();
     setup_bdd(deps.as_mut());
 
@@ -893,7 +893,7 @@ fn punish_member_slashing() {
 
 #[test]
 fn punish_member_expulsion() {
-    let mut deps = mock_dependencies(&[]);
+    let mut deps = mock_dependencies();
     let env = mock_env();
     setup_bdd(deps.as_mut());
 
