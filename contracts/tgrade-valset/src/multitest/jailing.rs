@@ -51,7 +51,7 @@ fn only_admin_can_jail() {
 }
 
 #[test]
-fn admin_can_unjail_anyone() {
+fn admin_can_unjail_almost_anyone() {
     let members = vec!["member1", "member2", "member3", "member4"];
     let mut suite = SuiteBuilder::new()
         .with_operators(&members_init(&members, &[2, 3, 5, 8]), &[])
@@ -64,9 +64,14 @@ fn admin_can_unjail_anyone() {
 
     suite.next_block().unwrap();
 
-    // Admin can unjail if unjailing period didn't expire
-    suite.unjail(&admin, members[1]).unwrap();
-    // But also if it did
+    // Admin can't unjail if jailing period is set to forever
+    let err = suite.unjail(&admin, members[1]).unwrap_err();
+    assert_eq!(
+        ContractError::UnjailFromJailForeverForbidden {},
+        err.downcast().unwrap()
+    );
+
+    // But can unjail if time was finite and expired
     suite.unjail(&admin, members[2]).unwrap();
     // Admin can also unjail someone who is not even jailed - it does nothing, but doesn't
     // fail
@@ -77,7 +82,7 @@ fn admin_can_unjail_anyone() {
         &suite.list_validators(None, None).unwrap(),
         &[
             (members[0], None),
-            (members[1], None),
+            (members[1], Some(JailingPeriod::Forever {})),
             (members[2], None),
             (members[3], None),
         ],
@@ -161,7 +166,7 @@ fn jailed_validators_are_ignored_on_selection() {
 
     // Jailing operators as test prerequirements
     suite.jail(&admin, members[0], Duration::new(3600)).unwrap();
-    suite.jail(&admin, members[1], None).unwrap();
+    suite.jail(&admin, members[1], Duration::new(7200)).unwrap();
 
     // Move forward a bit
     suite.next_block().unwrap();

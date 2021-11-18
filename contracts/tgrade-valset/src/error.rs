@@ -65,6 +65,9 @@ pub enum ContractError {
 
     #[error("Never a validator: {0}")]
     NeverAValidator(String),
+
+    #[error("Cannot unjail validator who's been jailed forever")]
+    UnjailFromJailForeverForbidden {},
 }
 
 impl From<Ed25519PubkeyConversionError> for ContractError {
