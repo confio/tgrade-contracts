@@ -186,7 +186,7 @@ mod tests {
 
     #[test]
     fn register_cancel_upgrade() {
-        let mut deps = mock_dependencies(&[]);
+        let mut deps = mock_dependencies();
         let env = mock_env();
         proposals()
             .save(
@@ -231,7 +231,7 @@ mod tests {
 
     #[test]
     fn register_pin_codes() {
-        let mut deps = mock_dependencies(&[]);
+        let mut deps = mock_dependencies();
         let env = mock_env();
         proposals()
             .save(
@@ -276,7 +276,7 @@ mod tests {
 
     #[test]
     fn register_unpin_codes() {
-        let mut deps = mock_dependencies(&[]);
+        let mut deps = mock_dependencies();
         let env = mock_env();
         proposals()
             .save(
