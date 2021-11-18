@@ -1,4 +1,4 @@
-mod suite;
+pub mod suite;
 
 use crate::ContractError;
 use suite::{get_proposal_id, member, RulesBuilder, SuiteBuilder};
