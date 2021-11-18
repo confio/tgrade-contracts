@@ -183,7 +183,7 @@ mod tests {
     use cw_multi_test::{next_block, Contract, ContractWrapper, Executor};
     use tg4::{Member, Tg4ExecuteMsg};
     use tg_bindings_test::TgradeApp;
-    use tg_voting_contract::state::VotingRules;
+    use tg_voting_contract::state::{Votes, VotingRules};
 
     use super::*;
 
@@ -715,6 +715,13 @@ mod tests {
             expires: voting_period.after(&proposed_at),
             status: Status::Open,
             rules,
+            total_weight: 23,
+            votes: Votes {
+                yes: 2,
+                no: 0,
+                abstain: 0,
+                veto: 0,
+            },
         };
         assert_eq!(&expected, &res.proposals[0]);
     }

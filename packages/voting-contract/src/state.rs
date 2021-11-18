@@ -50,6 +50,8 @@ pub struct ProposalResponse<P> {
     pub status: Status,
     pub expires: Expiration,
     pub rules: VotingRules,
+    pub total_weight: u64,
+    pub votes: Votes,
 }
 
 #[derive(Serialize, Deserialize, Clone, PartialEq, JsonSchema, Debug)]
