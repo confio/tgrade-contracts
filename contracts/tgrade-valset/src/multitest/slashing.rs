@@ -28,6 +28,7 @@ fn admin_can_slash() {
     assert_eq!(slashing.addr, actors[0]);
     assert_eq!(slashing.start_height, 1);
     assert_eq!(slashing.slashing.len(), 0);
+    assert!(!slashing.tombstoned);
 
     // Slash him
     suite

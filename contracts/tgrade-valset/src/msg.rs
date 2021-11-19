@@ -326,6 +326,9 @@ pub struct ListValidatorSlashingResponse {
     pub start_height: u64,
     /// Slashing events, if any
     pub slashing: Vec<ValidatorSlashing>,
+    /// Whether or not a validator has been tombstoned (killed out of
+    /// validator set)
+    pub tombstoned: bool,
 }
 
 /// Messages sent by this contract to an external contract

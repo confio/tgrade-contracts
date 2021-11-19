@@ -65,25 +65,12 @@ fn evidence_slash_and_jail() {
     assert_eq!(suite.token_balance(members[0].0).unwrap(), 1500);
     assert_eq!(suite.token_balance(members[1].0).unwrap(), 1500);
 
-    // Unjail, so slashing could be confirmed
-    let admin = suite.admin().to_owned();
-    suite.unjail(&admin, members[0].0).unwrap();
-
     // Whole reward (1500) went to non-jailed at the time validator
     suite.advance_epoch().unwrap();
     suite.withdraw_validation_reward(members[0].0).unwrap();
     suite.withdraw_validation_reward(members[1].0).unwrap();
     assert_eq!(suite.token_balance(members[0].0).unwrap(), 1500);
     assert_eq!(suite.token_balance(members[1].0).unwrap(), 3000);
-
-    // First evidence of slashing
-    // Default slashing for double sign is 50%, so initial weight 10-10
-    // now became 5-10, hence rewards are now 500 and 1000.
-    suite.advance_epoch().unwrap();
-    suite.withdraw_validation_reward(members[0].0).unwrap();
-    suite.withdraw_validation_reward(members[1].0).unwrap();
-    assert_eq!(suite.token_balance(members[0].0).unwrap(), 2000);
-    assert_eq!(suite.token_balance(members[1].0).unwrap(), 4000);
 }
 
 #[test]

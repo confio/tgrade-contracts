@@ -272,6 +272,9 @@ fn execute_unjail(
         Err(err) => return Err(err.into()),
         // Operator is not jailed, unjailing does nothing and succeeds
         Ok(None) => (),
+        Ok(Some(JailingPeriod::Forever {})) => {
+            return Err(ContractError::UnjailFromJailForeverForbidden {});
+        }
         // Jailing period expired or called by admin - can unjail
         Ok(Some(expiration)) if (expiration.is_expired(&env.block) || is_admin) => {
             JAIL.remove(deps.storage, operator);
@@ -470,10 +473,12 @@ fn list_validator_slashing(
     let slashing = VALIDATOR_SLASHING
         .may_load(deps.storage, &addr)?
         .unwrap_or_default();
+    let tombstoned = JAIL.may_load(deps.storage, &addr)? == Some(JailingPeriod::Forever {});
     Ok(ListValidatorSlashingResponse {
         addr: operator,
         start_height,
         slashing,
+        tombstoned,
     })
 }
 
