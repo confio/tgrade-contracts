@@ -1,19 +1,21 @@
 //! Simplified contract which when executed releases the funds to beneficiary
 
-use cosmwasm_std::{
-    to_binary, BankMsg, Binary, Deps, DepsMut, Empty, Env, MessageInfo, Response, StdError,
-};
+use cosmwasm_std::{to_binary, BankMsg, Binary, Deps, DepsMut, Env, MessageInfo, StdError};
 use cw_storage_plus::Item;
 use serde::{Deserialize, Serialize};
+use tg_bindings::TgradeMsg;
 
-use crate::{test_helpers::EmptyMsg, Contract, ContractWrapper};
-use schemars::JsonSchema;
-use std::fmt;
+use cw_multi_test::{Contract, ContractWrapper};
+
+pub type Response = cosmwasm_std::Response<TgradeMsg>;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct InstantiateMsg {
     pub beneficiary: String,
 }
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ExecuteMsg {}
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct MigrateMsg {
@@ -44,7 +46,7 @@ fn execute(
     deps: DepsMut,
     env: Env,
     _info: MessageInfo,
-    _msg: EmptyMsg,
+    _msg: ExecuteMsg,
 ) -> Result<Response, StdError> {
     let init = HACKATOM.load(deps.storage)?;
     let balance = deps.querier.query_all_balances(env.contract.address)?;
@@ -75,18 +77,7 @@ fn migrate(deps: DepsMut, _env: Env, msg: MigrateMsg) -> Result<Response, StdErr
     Ok(resp)
 }
 
-pub fn contract() -> Box<dyn Contract<Empty>> {
+pub fn contract() -> Box<dyn Contract<TgradeMsg>> {
     let contract = ContractWrapper::new(execute, instantiate, query).with_migrate(migrate);
     Box::new(contract)
 }
-
-#[allow(dead_code)]
-pub fn custom_contract<C>() -> Box<dyn Contract<C>>
-where
-    C: Clone + fmt::Debug + PartialEq + JsonSchema + 'static,
-{
-    let contract =
-        ContractWrapper::new_with_empty(execute, instantiate, query).with_migrate_empty(migrate);
-    Box::new(contract)
-}
-

@@ -1,23 +1,16 @@
 use anyhow::Result as AnyResult;
 
-use cosmwasm_std::{coin, Addr, Binary, Coin, Decimal, StdResult};
+use cosmwasm_std::{to_binary, Addr, Decimal};
 use cw3::{Status, Vote};
 use cw_multi_test::{AppResponse, Contract, ContractWrapper, Executor};
-use tg4::{Member, Tg4ExecuteMsg, Tg4QueryMsg};
+use tg4::{Member, Tg4ExecuteMsg};
 use tg_bindings::TgradeMsg;
 use tg_bindings_test::TgradeApp;
 
-use crate::msg::*;
 use crate::msg::ValidatorProposal;
+use crate::msg::*;
 use tg_voting_contract::state::{ProposalResponse, VotingRules};
 use tg_voting_contract::ContractError;
-
-pub fn member<T: Into<String>>(addr: T, weight: u64) -> Member {
-    Member {
-        addr: addr.into(),
-        weight,
-    }
-}
 
 pub fn get_proposal_id(response: &AppResponse) -> Result<u64, std::num::ParseIntError> {
     response.custom_attrs(1)[2].value.parse()
@@ -120,7 +113,6 @@ impl SuiteBuilder {
     pub fn build(self) -> Suite {
         let owner = Addr::unchecked("owner");
         let mut app = TgradeApp::new(owner.as_str());
-        let epoch_length = 100;
 
         // start from genesis
         app.back_to_genesis();
@@ -174,12 +166,12 @@ impl SuiteBuilder {
                     rules: self.rules,
                 },
                 &[],
-                "oc-proposals",
+                "validator-proposals",
                 None,
             )
             .unwrap();
 
-        // Set oc proposals contract's address as admin of engagement contract
+        // Set validator proposals contract's address as admin of engagement contract
         app.execute_contract(
             owner.clone(),
             engagement_contract.clone(),
@@ -207,7 +199,7 @@ pub struct Suite {
     pub contract: Addr,
     engagement_contract: Addr,
     group_contract: Addr,
-    owner: Addr,
+    pub owner: Addr,
 }
 
 impl Suite {
@@ -230,11 +222,12 @@ impl Suite {
         )
     }
 
-        pub fn propose_migrate(
+    fn propose_migrate(
         &mut self,
         executor: &str,
         contract: &str,
         code_id: u64,
+        migrate_msg: crate::multitest::hackatom::MigrateMsg,
     ) -> AnyResult<AppResponse> {
         self.propose(
             executor,
@@ -243,7 +236,7 @@ impl Suite {
             ValidatorProposal::MigrateContract {
                 contract: contract.to_owned(),
                 code_id,
-                migrate_msg: Binary::from(vec![]),
+                migrate_msg: to_binary(&migrate_msg)?,
             },
         )
     }
@@ -283,25 +276,51 @@ impl Suite {
         Ok(prop.status)
     }
 
-    pub fn create_group_contract(&mut self) -> (u64, Addr) {
-        let group_id = self.app.store_code(contract_engagement());
-        let group_contract = self.app
+    pub fn instantiate_hackatom_contract(
+        &mut self,
+        owner: Addr,
+        hackatom_id: u64,
+        beneficiary: &str,
+    ) -> Addr {
+        use crate::multitest::hackatom;
+        self.app
             .instantiate_contract(
-                group_id,
-                self.owner.clone(),
-                &tg4_engagement::msg::InstantiateMsg {
-                    admin: Some(self.owner.to_string()),
-                    members: vec![],
-                    preauths_hooks: 0,
-                    preauths_slashing: 1,
-                    halflife: None,
-                    token: "GROUP".to_owned(),
+                hackatom_id,
+                owner.clone(),
+                &hackatom::InstantiateMsg {
+                    beneficiary: beneficiary.to_owned(),
                 },
                 &[],
-                "group",
-                Some(self.contract.to_string()),
+                "hackatom",
+                Some(owner.to_string()),
             )
-            .unwrap();
-        (group_id, group_contract)
+            .unwrap()
+    }
+
+    pub fn query_beneficiary(&mut self, hackatom: Addr) -> Result<String, ContractError> {
+        use crate::multitest::hackatom::{InstantiateMsg, QueryMsg};
+        let query_result: InstantiateMsg = self
+            .app
+            .wrap()
+            .query_wasm_smart(hackatom, &QueryMsg::Beneficiary {})?;
+        Ok(query_result.beneficiary)
+    }
+
+    pub fn propose_migrate_hackatom(
+        &mut self,
+        sender: Addr,
+        contract_to_migrate: Addr,
+        new_beneficiary: &str,
+        new_code_id: u64,
+    ) -> AnyResult<AppResponse> {
+        use crate::multitest::hackatom::MigrateMsg;
+        self.propose_migrate(
+            sender.as_str(),
+            contract_to_migrate.as_str(),
+            new_code_id,
+            MigrateMsg {
+                new_guy: new_beneficiary.to_owned(),
+            },
+        )
     }
 }

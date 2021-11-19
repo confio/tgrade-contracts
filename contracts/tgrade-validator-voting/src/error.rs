@@ -15,7 +15,7 @@ pub enum ContractError {
     #[error("Proposal must have passed and not yet been executed")]
     WrongExecuteStatus {},
 
-    #[error("Unauthorized")]
+    #[error("Unauthorized !!!!!!!!!")]
     Unauthorized {},
 }
 

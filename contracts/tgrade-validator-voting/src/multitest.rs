@@ -1,17 +1,15 @@
-mod suite;
 mod hackatom;
+mod suite;
 
-use crate::ContractError;
-use suite::{get_proposal_id, member, SuiteBuilder};
-use tg_voting_contract::ContractError as VotingError;
 use suite::RulesBuilder;
+use suite::{get_proposal_id, SuiteBuilder};
 
-use cosmwasm_std::{Decimal, StdError};
-use cw3::{Status, Vote, VoteInfo};
+use cosmwasm_std::Decimal;
+use cw3::Status;
 
 #[test]
 fn migrate_contract() {
-    let members = vec!["owner", "voter1",];
+    let members = vec!["owner", "voter1"];
 
     let rules = RulesBuilder::new()
         .with_threshold(Decimal::percent(50))
@@ -23,12 +21,37 @@ fn migrate_contract() {
         .with_voting_rules(rules)
         .build();
 
-    let (contract_id, contract_addr) = suite.create_group_contract();
+    let validator_contract = suite.contract.clone();
+    let owner = suite.owner.clone();
 
-    let proposal = suite.propose_migrate(members[0], contract_addr.as_str(), contract_id).unwrap();
+    let hack1 = suite.app.store_code(hackatom::contract());
+    let hack2 = suite.app.store_code(hackatom::contract());
+
+    let beneficiary = "beneficiary";
+    let new_beneficiary = "new_beneficiary";
+
+    // Instantiate hackatom contract with Validator Contract as an admin
+    let hackatom_contract =
+        suite.instantiate_hackatom_contract(validator_contract.clone(), hack1, beneficiary);
+    let res = suite.query_beneficiary(hackatom_contract.clone()).unwrap();
+    assert_eq!(res, beneficiary.to_owned());
+
+    // Propose hackatom migration; "owner" is a sender of message with voting power 2 (66%)
+    let proposal = suite
+        .propose_migrate_hackatom(owner.clone(), hackatom_contract.clone(), new_beneficiary, hack2)
+        .unwrap();
     let proposal_id: u64 = get_proposal_id(&proposal).unwrap();
 
-    suite.execute(members[0], proposal_id).unwrap();
     let proposal_status = suite.query_proposal_status(proposal_id).unwrap();
     assert_eq!(proposal_status, Status::Passed);
+
+    // Execute migration; Validator Contract is a sender of this message, although I think it doesn't matter
+    suite
+        .execute(validator_contract.as_str(), proposal_id)
+        .unwrap();
+    let proposal_status = suite.query_proposal_status(proposal_id).unwrap();
+    assert_eq!(proposal_status, Status::Executed);
+
+    let res = suite.query_beneficiary(hackatom_contract).unwrap();
+    assert_eq!(res, new_beneficiary.to_owned());
 }

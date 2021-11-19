@@ -86,7 +86,6 @@ fn confirm_admin_in_contract(
     .unwrap();
     if let Some(admin) = resp.admin {
         if dbg!(admin) == dbg!(env.contract.address.clone()) {
-            dbg!("okay then!");
             return Ok(());
         }
     }
@@ -104,6 +103,7 @@ pub fn execute_execute(
     // anyone can trigger this if the vote passed
 
     let prop = proposals::<ValidatorProposal>().load(deps.storage, proposal_id.into())?;
+
     // we allow execution even after the proposal "expiration" as long as all vote come in before
     // that point. If it was approved on time, it can be executed any time.
     if prop.status != Status::Passed {
