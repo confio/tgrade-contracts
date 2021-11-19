@@ -5,7 +5,8 @@ use cosmwasm_std::{to_binary, Binary, Deps, DepsMut, Env, MessageInfo, StdResult
 use cw2::set_contract_version;
 use cw3::Status;
 use tg_bindings::{
-    request_privileges, GovProposal, Privilege, PrivilegeChangeMsg, TgradeMsg, TgradeSudoMsg,
+    request_privileges, BlockParams, ConsensusParams, EvidenceParams, GovProposal, Privilege,
+    PrivilegeChangeMsg, TgradeMsg, TgradeSudoMsg,
 };
 
 use crate::msg::{ExecuteMsg, InstantiateMsg, QueryMsg, ValidatorProposal};
@@ -76,27 +77,55 @@ pub fn execute_execute(
         return Err(ContractError::WrongExecuteStatus {});
     }
 
-    let gov_proposal = match prop.proposal {
+    let msg = match prop.proposal {
         RegisterUpgrade {
             name,
             height,
             info,
             upgraded_client_state,
-        } => GovProposal::RegisterUpgrade {
-            name,
-            height,
-            info,
-            upgraded_client_state,
+        } => TgradeMsg::ExecuteGovProposal {
+            title: prop.title,
+            description: prop.description,
+            proposal: GovProposal::RegisterUpgrade {
+                name,
+                height,
+                info,
+                upgraded_client_state,
+            },
         },
-        CancelUpgrade {} => GovProposal::CancelUpgrade {},
-        PinCodes { code_ids } => GovProposal::PinCodes { code_ids },
-        UnpinCodes { code_ids } => GovProposal::UnpinCodes { code_ids },
-    };
-
-    let msg = TgradeMsg::ExecuteGovProposal {
-        title: prop.title,
-        description: prop.description,
-        proposal: gov_proposal,
+        CancelUpgrade {} => TgradeMsg::ExecuteGovProposal {
+            title: prop.title,
+            description: prop.description,
+            proposal: GovProposal::CancelUpgrade {},
+        },
+        PinCodes { code_ids } => TgradeMsg::ExecuteGovProposal {
+            title: prop.title,
+            description: prop.description,
+            proposal: GovProposal::PinCodes { code_ids },
+        },
+        UnpinCodes { code_ids } => TgradeMsg::ExecuteGovProposal {
+            title: prop.title,
+            description: prop.description,
+            proposal: GovProposal::UnpinCodes { code_ids },
+        },
+        UpdateConsensusBlockParams { max_bytes, max_gas } => {
+            TgradeMsg::ConsensusParams(ConsensusParams {
+                block: Some(BlockParams { max_bytes, max_gas }),
+                evidence: None,
+            })
+        }
+        UpdateConsensusEvidenceParams {
+            max_age_num_blocks,
+            max_age_duration,
+            max_bytes,
+        } => TgradeMsg::ConsensusParams(ConsensusParams {
+            block: None,
+            evidence: Some(EvidenceParams {
+                max_age_num_blocks,
+                max_age_duration,
+                max_bytes,
+            }),
+        }),
     };
 
     Ok(Response::new()
@@ -166,7 +195,10 @@ pub fn sudo(deps: DepsMut, _env: Env, msg: TgradeSudoMsg) -> Result<Response, Co
 fn privilege_change(_deps: DepsMut, change: PrivilegeChangeMsg) -> Response {
     match change {
         PrivilegeChangeMsg::Promoted {} => {
-            let msgs = request_privileges(&[Privilege::GovProposalExecutor]);
+            let msgs = request_privileges(&[
+                Privilege::GovProposalExecutor,
+                Privilege::ConsensusParamChanger,
+            ]);
             Response::new().add_submessages(msgs)
         }
         PrivilegeChangeMsg::Demoted {} => Response::new(),
@@ -316,6 +348,108 @@ mod tests {
                     proposal: GovProposal::UnpinCodes { code_ids: vec![] }
                 }
             ))]
+        );
+    }
+
+    #[test]
+    fn update_consensus_block_params() {
+        let mut deps = mock_dependencies();
+        let env = mock_env();
+        proposals()
+            .save(
+                &mut deps.storage,
+                1.into(),
+                &Proposal {
+                    title: "UnpinCodes".to_owned(),
+                    description: "UnpinCodes testing proposal".to_owned(),
+                    start_height: env.block.height,
+                    expires: Expiration::Never {},
+                    proposal: ValidatorProposal::UpdateConsensusBlockParams {
+                        max_bytes: Some(120),
+                        max_gas: Some(240),
+                    },
+                    status: Status::Passed,
+                    rules: VotingRules {
+                        voting_period: 1,
+                        quorum: Decimal::percent(50),
+                        threshold: Decimal::percent(40),
+                        allow_end_early: true,
+                    },
+                    total_weight: 20,
+                    votes: Votes {
+                        yes: 20,
+                        no: 0,
+                        abstain: 0,
+                        veto: 0,
+                    },
+                },
+            )
+            .unwrap();
+
+        let res = execute_execute(deps.as_mut(), mock_info("sender", &[]), 1).unwrap();
+        assert_eq!(
+            res.messages,
+            vec![SubMsg::new(CosmosMsg::Custom(TgradeMsg::ConsensusParams(
+                ConsensusParams {
+                    block: Some(BlockParams {
+                        max_bytes: Some(120),
+                        max_gas: Some(240),
+                    }),
+                    evidence: None,
+                }
+            )))]
+        );
+    }
+
+    #[test]
+    fn update_consensus_evidence_params() {
+        let mut deps = mock_dependencies();
+        let env = mock_env();
+        proposals()
+            .save(
+                &mut deps.storage,
+                1.into(),
+                &Proposal {
+                    title: "UnpinCodes".to_owned(),
+                    description: "UnpinCodes testing proposal".to_owned(),
+                    start_height: env.block.height,
+                    expires: Expiration::Never {},
+                    proposal: ValidatorProposal::UpdateConsensusEvidenceParams {
+                        max_age_num_blocks: Some(10),
+                        max_age_duration: Some(100),
+                        max_bytes: Some(256),
+                    },
+                    status: Status::Passed,
+                    rules: VotingRules {
+                        voting_period: 1,
+                        quorum: Decimal::percent(50),
+                        threshold: Decimal::percent(40),
+                        allow_end_early: true,
+                    },
+                    total_weight: 20,
+                    votes: Votes {
+                        yes: 20,
+                        no: 0,
+                        abstain: 0,
+                        veto: 0,
+                    },
+                },
+            )
+            .unwrap();
+
+        let res = execute_execute(deps.as_mut(), mock_info("sender", &[]), 1).unwrap();
+        assert_eq!(
+            res.messages,
+            vec![SubMsg::new(CosmosMsg::Custom(TgradeMsg::ConsensusParams(
+                ConsensusParams {
+                    block: None,
+                    evidence: Some(EvidenceParams {
+                        max_age_num_blocks: Some(10),
+                        max_age_duration: Some(100),
+                        max_bytes: Some(256),
+                    }),
+                }
+            )))]
         );
     }
 }
