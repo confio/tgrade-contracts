@@ -300,7 +300,7 @@ mod tests {
         tg_bindings::Pubkey::Ed25519(Binary(raw))
     }
 
-    use tgrade_valset::msg::ValidatorMetadata;
+    use tgrade_valset::msg::{UnvalidatedDistributionContracts, ValidatorMetadata};
 
     pub fn mock_metadata(seed: &str) -> ValidatorMetadata {
         ValidatorMetadata {
@@ -335,7 +335,7 @@ mod tests {
         let msg = tgrade_valset::msg::InstantiateMsg {
             admin: admin.into(),
             auto_unjail: false,
-            distribution_contract: None,
+            distribution_contracts: UnvalidatedDistributionContracts::default(),
             epoch_length: EPOCH_LENGTH,
             epoch_reward: coin(506, ENGAGEMENT_TOKEN.to_string()),
             fee_percentage: Decimal::zero(),
@@ -345,7 +345,6 @@ mod tests {
             min_weight: 1,
             rewards_code_id: engagement_id,
             scaling: None,
-            validators_reward_ratio: Decimal::one(),
             double_sign_slash_ratio: Decimal::percent(50),
         };
         let res = app.instantiate_contract(
