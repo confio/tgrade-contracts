@@ -110,12 +110,9 @@ impl Module for TgradeModule {
                 }
 
                 // if we are privileged (even an empty array), we can auto-add more
-                let mut powers =
-                    PRIVILEGES
-                        .may_load(storage, &sender)?
-                        .ok_or(TgradeError::Unauthorized(
-                            "Admin privileges required".to_owned(),
-                        ))?;
+                let mut powers = PRIVILEGES.may_load(storage, &sender)?.ok_or_else(|| {
+                    TgradeError::Unauthorized("Admin privileges required".to_owned())
+                })?;
                 powers.push(add);
                 PRIVILEGES.save(storage, &sender, &powers)?;
                 Ok(AppResponse::default())
