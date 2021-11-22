@@ -35,7 +35,7 @@ cd CONTRACT_NAME
 
 # remove unneeded files
 rm -rf .circleci .github .git
-rm .cargo-ok .editorconfig .gitignore rustfmt.toml 
+rm .cargo-ok .editorconfig .gitignore rustfmt.toml
 rm Developing.md Importing.md Publishing.md LICENSE NOTICE
 
 # regenerate schema for CI tests
@@ -48,3 +48,19 @@ Then add it to CI, by editing `.circleci/config.yml`. Just copy the `contract_tg
 rename it, pointing to your new contract.
 
 Finally, update `Cargo.toml` to use the current version used by all other contracts in this repo.
+
+## Debugging
+
+Sometimes errors might be not helpful enough, or actual error with vague description might come from
+depths of other tgrade or cosmwasm related dependencies.
+In such case you might want to check backtraces.
+
+Make sure you have `nightly` installed:
+```bash
+$ rustup install nightly
+```
+and then run:
+```bash
+$ RUST_BACKTRACE=1 cargo +nightly test --features backtraces
+```
+to get more detailed backtraces.
