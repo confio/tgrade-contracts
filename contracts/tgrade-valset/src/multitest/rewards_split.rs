@@ -9,7 +9,7 @@ fn no_fees_divisible_reward() {
         .with_operators(&[(members[0], 2), (members[1], 3)], &[])
         .with_epoch_reward(coin(1000, "usdc"))
         .with_distribution(
-            Decimal::percent(60),
+            Decimal::percent(40),
             &[(engagement[0], 3), (engagement[1], 7)],
             None,
         )
@@ -42,7 +42,7 @@ fn no_fees_invidivisible_reward() {
         .with_operators(&[(members[0], 2), (members[1], 3)], &[])
         .with_epoch_reward(coin(1009, "usdc"))
         .with_distribution(
-            Decimal::percent(60),
+            Decimal::percent(40),
             &[(engagement[0], 3), (engagement[1], 7)],
             None,
         )
@@ -63,7 +63,7 @@ fn no_fees_invidivisible_reward() {
     // * dist2: 0.4 * 0.7 = 0.28 * 1009 = 282
     assert_eq!(suite.token_balance(members[0]).unwrap(), 242);
     assert_eq!(suite.token_balance(members[1]).unwrap(), 363);
-    assert_eq!(suite.token_balance(engagement[0]).unwrap(), 121);
+    assert_eq!(suite.token_balance(engagement[0]).unwrap(), 120);
     assert_eq!(suite.token_balance(engagement[1]).unwrap(), 282);
 }
 
@@ -75,7 +75,7 @@ fn fees_divisible_reward() {
         .with_operators(&[(members[0], 2), (members[1], 3)], &[])
         .with_epoch_reward(coin(1000, "usdc"))
         .with_distribution(
-            Decimal::percent(60),
+            Decimal::percent(40),
             &[(engagement[0], 3), (engagement[1], 7)],
             None,
         )
@@ -110,7 +110,7 @@ fn fees_with_fee_reduction() {
         .with_epoch_reward(coin(1000, "usdc"))
         .with_fee_percentage(Decimal::percent(50))
         .with_distribution(
-            Decimal::percent(60),
+            Decimal::percent(40),
             &[(engagement[0], 3), (engagement[1], 7)],
             None,
         )
@@ -145,7 +145,7 @@ fn jailed_validators_not_rewarded() {
         .with_operators(&[(members[0], 2), (members[1], 3)], &[])
         .with_epoch_reward(coin(1000, "usdc"))
         .with_distribution(
-            Decimal::percent(60),
+            Decimal::percent(40),
             &[(engagement[0], 3), (engagement[1], 7)],
             None,
         )
