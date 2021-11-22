@@ -1,7 +1,7 @@
 use anyhow::Result as AnyResult;
 
 use cosmwasm_std::{to_binary, Addr, Decimal};
-use cw3::{Status, Vote};
+use cw3::Status;
 use cw_multi_test::{AppResponse, Contract, ContractWrapper, Executor};
 use tg4::{Member, Tg4ExecuteMsg};
 use tg_bindings::TgradeMsg;
@@ -21,7 +21,8 @@ fn contract_validator_proposals() -> Box<dyn Contract<TgradeMsg>> {
         crate::contract::execute,
         crate::contract::instantiate,
         crate::contract::query,
-    );
+    )
+    .with_sudo(crate::contract::sudo);
 
     Box::new(contract)
 }
@@ -90,14 +91,6 @@ impl SuiteBuilder {
 
     pub fn with_group_member(mut self, addr: &str, weight: u64) -> Self {
         self.group_members.push(Member {
-            addr: addr.to_owned(),
-            weight,
-        });
-        self
-    }
-
-    pub fn with_engagement_member(mut self, addr: &str, weight: u64) -> Self {
-        self.engagement_members.push(Member {
             addr: addr.to_owned(),
             weight,
         });
@@ -182,13 +175,14 @@ impl SuiteBuilder {
         )
         .unwrap();
 
+        // promote the engagement contract
+        app.promote(owner.as_str(), contract.as_str()).unwrap();
+
         app.next_block().unwrap();
 
         Suite {
             app,
             contract,
-            engagement_contract,
-            group_contract,
             owner,
         }
     }
@@ -197,8 +191,6 @@ impl SuiteBuilder {
 pub struct Suite {
     pub app: TgradeApp,
     pub contract: Addr,
-    engagement_contract: Addr,
-    group_contract: Addr,
     pub owner: Addr,
 }
 
@@ -246,24 +238,6 @@ impl Suite {
             Addr::unchecked(executor),
             self.contract.clone(),
             &ExecuteMsg::Execute { proposal_id },
-            &[],
-        )
-    }
-
-    pub fn vote(&mut self, executor: &str, proposal_id: u64, vote: Vote) -> AnyResult<AppResponse> {
-        self.app.execute_contract(
-            Addr::unchecked(executor),
-            self.contract.clone(),
-            &ExecuteMsg::Vote { proposal_id, vote },
-            &[],
-        )
-    }
-
-    pub fn close(&mut self, executor: &str, proposal_id: u64) -> AnyResult<AppResponse> {
-        self.app.execute_contract(
-            Addr::unchecked(executor),
-            self.contract.clone(),
-            &ExecuteMsg::Close { proposal_id },
             &[],
         )
     }
