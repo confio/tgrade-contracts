@@ -100,15 +100,15 @@ fn evidence_doesnt_affect_engagement_rewards() {
     );
 
     suite.advance_epoch().unwrap();
-    suite.withdraw_engagement_reward(members[0].0).unwrap();
-    suite.withdraw_engagement_reward(members[1].0).unwrap();
+    suite.withdraw_distribution_reward(members[0].0, 0).unwrap();
+    suite.withdraw_distribution_reward(members[1].0, 0).unwrap();
     assert_eq!(suite.token_balance(members[0].0).unwrap(), 1500);
     assert_eq!(suite.token_balance(members[1].0).unwrap(), 1500);
 
     // Both validators get equal engagement reward
     suite.advance_epoch().unwrap();
-    suite.withdraw_engagement_reward(members[0].0).unwrap();
-    suite.withdraw_engagement_reward(members[1].0).unwrap();
+    suite.withdraw_distribution_reward(members[0].0, 0).unwrap();
+    suite.withdraw_distribution_reward(members[1].0, 0).unwrap();
     assert_eq!(suite.token_balance(members[0].0).unwrap(), 2250);
     assert_eq!(suite.token_balance(members[1].0).unwrap(), 2250);
 }

@@ -471,8 +471,12 @@ impl Suite {
         )
     }
 
-    pub fn withdraw_engagement_reward(&mut self, executor: &str) -> AnyResult<AppResponse> {
-        if let Some(contract) = self.distribution_contracts.get(0) {
+    pub fn withdraw_distribution_reward(
+        &mut self,
+        executor: &str,
+        distribution_contract_ix: usize,
+    ) -> AnyResult<AppResponse> {
+        if let Some(contract) = self.distribution_contracts.get(distribution_contract_ix) {
             self.app.execute_contract(
                 Addr::unchecked(executor),
                 contract.clone(),
@@ -483,7 +487,10 @@ impl Suite {
                 &[],
             )
         } else {
-            bail!("No distribution contract configured")
+            bail!(
+                "Distribution contract with index {} not found",
+                distribution_contract_ix
+            )
         }
     }
 
