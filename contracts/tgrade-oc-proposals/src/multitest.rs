@@ -29,7 +29,7 @@ fn only_voters_can_propose() {
         .unwrap_err();
     assert_eq!(
         ContractError::Std(StdError::GenericErr {
-            msg: "Unauthorized".to_string()
+            msg: "Unauthorized: member doesn't have voting power".to_string()
         }),
         err.downcast().unwrap()
     );
@@ -40,7 +40,7 @@ fn only_voters_can_propose() {
         .unwrap_err();
     assert_eq!(
         ContractError::Std(StdError::GenericErr {
-            msg: "Unauthorized".to_string()
+            msg: "Unauthorized: not member of a group".to_string()
         }),
         err.downcast().unwrap()
     );
@@ -218,7 +218,7 @@ fn execute_group_can_change() {
     let err = suite.vote(newmember, proposal_id, Vote::Yes).unwrap_err();
     assert_eq!(
         ContractError::Std(StdError::GenericErr {
-            msg: "Unauthorized".to_string()
+            msg: "Unauthorized: wasn't member of a group at block height: 1".to_string()
         }),
         err.downcast().unwrap()
     );
@@ -319,7 +319,7 @@ mod voting {
             .unwrap_err();
         assert_eq!(
             ContractError::Std(StdError::GenericErr {
-                msg: "Unauthorized".to_string()
+                msg: "Unauthorized: wasn't member of a group at block height: 1".to_string()
             }),
             err.downcast().unwrap()
         );
@@ -328,7 +328,7 @@ mod voting {
         let err = suite.vote(members[4], proposal_id, Vote::Yes).unwrap_err();
         assert_eq!(
             ContractError::Std(StdError::GenericErr {
-                msg: "Unauthorized".to_string()
+                msg: "Unauthorized: member didn't have voting power at block height: 1".to_string()
             }),
             err.downcast().unwrap()
         );
