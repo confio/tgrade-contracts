@@ -123,13 +123,11 @@ impl Tg4Contract {
     /// Check if this address is a member
     pub fn is_voting_member(&self, querier: &QuerierWrapper, member: &str) -> StdResult<u64> {
         self.is_member(querier, &Addr::unchecked(member))?.map_or(
-            Err(StdError::generic_err(
-                "Unauthorized - not member of a group",
-            )),
+            Err(StdError::generic_err("Unauthorized: not member of a group")),
             |member_weight| {
                 if member_weight < 1 {
                     Err(StdError::generic_err(
-                        "Unauthorized - member doesn't have voting power",
+                        "Unauthorized: member doesn't have voting power",
                     ))
                 } else {
                     Ok(member_weight)
@@ -147,13 +145,13 @@ impl Tg4Contract {
     ) -> StdResult<u64> {
         self.member_at_height(querier, member, height)?.map_or(
             Err(StdError::generic_err(format!(
-                "Unauthorized - wasn't member of a group at block height: {}",
+                "Unauthorized: wasn't member of a group at block height: {}",
                 height
             ))),
             |member_weight| {
                 if member_weight < 1 {
                     Err(StdError::generic_err(format!(
-                        "Unauthorized - member didn't have voting power at block height: {}",
+                        "Unauthorized: member didn't have voting power at block height: {}",
                         height
                     )))
                 } else {
