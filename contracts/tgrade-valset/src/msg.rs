@@ -67,8 +67,16 @@ pub struct InstantiateMsg {
     /// Addresses where part of the reward for non-validators is sent for further distribution. These are
     /// required to handle the `Distribute {}` message (eg. tg4-engagement contract) which would
     /// distribute the funds sent with this message.
+    ///
     /// The sum of ratios here has to be in the [0, 1] range. The remainder is sent to validators via the
     /// rewards contract.
+    ///
+    /// Note that the particular algorithm this contract uses calculates token rewards for distribution
+    /// contracts by applying decimal division to the pool of reward tokens, and then passes the remainder
+    /// to validators via the contract instantiated from `rewards_code_is`. This will cause edge cases where
+    /// indivisible tokens end up with the validators. For example if the reward pool for an epoch is 1 token
+    /// and there are two distribution contracts with 50% ratio each, that token will end up with the
+    /// validators.
     pub distribution_contracts: UnvalidatedDistributionContracts,
 
     /// Code id of the contract which would be used to distribute the rewards of this token, assuming
@@ -86,7 +94,10 @@ pub struct InstantiateMsg {
 
 #[derive(Serialize, Deserialize, Clone, PartialEq, JsonSchema, Debug)]
 pub struct UnvalidatedDistributionContract {
+    /// The unvalidated address of the contract to which part of the reward tokens is sent to.
     pub contract: String,
+    /// The ratio of total reward tokens for an epoch to be sent to that contract for further
+    /// distribution.
     pub ratio: Decimal,
 }
 
