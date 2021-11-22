@@ -1,4 +1,5 @@
 //! Simplified contract which when executed releases the funds to beneficiary
+//! Copied almost 1:1 from https://github.com/CosmWasm/cw-plus/blob/main/packages/multi-test/src/test_helpers/contracts/hackatom.rs
 
 use cosmwasm_std::{to_binary, BankMsg, Binary, Deps, DepsMut, Env, MessageInfo, StdError};
 use cw_storage_plus::Item;

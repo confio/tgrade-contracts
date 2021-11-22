@@ -175,7 +175,7 @@ impl SuiteBuilder {
         )
         .unwrap();
 
-        // promote the engagement contract
+        // promote the validator voting contract
         app.promote(owner.as_str(), contract.as_str()).unwrap();
 
         app.next_block().unwrap();

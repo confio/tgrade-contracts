@@ -1,6 +1,9 @@
 #[cfg(not(feature = "library"))]
 use cosmwasm_std::entry_point;
-use cosmwasm_std::{to_binary, Binary, Deps, DepsMut, Env, MessageInfo, StdResult, WasmMsg};
+use cosmwasm_std::{
+    from_slice, to_binary, to_vec, Binary, ContractInfoResponse, ContractResult, Deps, DepsMut,
+    Empty, Env, MessageInfo, QueryRequest, StdResult, SystemResult, WasmMsg, WasmQuery,
+};
 
 use cw2::set_contract_version;
 use cw3::Status;
@@ -74,22 +77,30 @@ fn confirm_admin_in_contract(
     env: &Env,
     contract_addr: String,
 ) -> Result<(), ContractError> {
-    use cosmwasm_std::{from_slice, to_vec, ContractInfoResponse, Empty, QueryRequest, WasmQuery};
-    let admin_query = QueryRequest::<Empty>::Wasm(WasmQuery::ContractInfo { contract_addr });
-    let resp: ContractInfoResponse = from_slice(
-        &deps
-            .querier
-            .raw_query(&to_vec(&admin_query)?)
-            .unwrap()
-            .unwrap(),
-    )?;
-    if let Some(admin) = resp.admin {
+    use ContractError::*;
+
+    let contract_query = QueryRequest::<Empty>::Wasm(WasmQuery::ContractInfo { contract_addr });
+    let response = match deps.querier.raw_query(&to_vec(&contract_query)?) {
+        SystemResult::Err(system_err) => {
+            Err(System(format!("Querier system error: {}", system_err)))
+        }
+        SystemResult::Ok(ContractResult::Err(contract_err)) => Err(Contract(format!(
+            "Querier contract error: {}",
+            contract_err
+        ))),
+        SystemResult::Ok(ContractResult::Ok(value)) => Ok(value),
+    }?;
+
+    let response = from_slice::<Option<ContractInfoResponse>>(&response)?
+        .ok_or_else(|| Contract("Contract query provided no results!".to_owned()))?;
+
+    if let Some(admin) = response.admin {
         if admin == env.contract.address.clone() {
             return Ok(());
         }
     }
 
-    Err(ContractError::Unauthorized(
+    Err(Unauthorized(
         "Validator Proposal contract is not an admin of contract proposed to migrate".to_owned(),
     ))
 }
@@ -261,11 +272,9 @@ mod tests {
     use cw0::Expiration;
     use tg_voting_contract::state::{Proposal, Votes, VotingRules};
 
-    use serde::Serialize;
-
     use super::*;
 
-    #[derive(Serialize)]
+    #[derive(serde::Serialize)]
     struct DummyMigrateMsg {}
 
     #[test]
@@ -449,34 +458,6 @@ mod tests {
             ))]
         );
     }
-
-    // use std::marker::PhantomData;
-    // use cosmwasm_std::OwnedDeps;
-    // use cosmwasm_std::{ContractInfoResponse, SystemResult, Empty};
-    // use cosmwasm_std::testing::{MockApi, MockStorage, MockQuerier};
-    // fn deps_with_querier_mock(admin: &str) -> OwnedDeps<MockStorage, MockApi, MockQuerier<Empty>, Empty> {
-    //     let mut response = ContractInfoResponse::default();
-    //     // {
-    //     //         code_id: 1,
-    //     //         creator: "creator".to_owned(),
-    //     //         admin: Some(admin.to_owned()),
-    //     //         pinned: false,
-    //     //         ibc_port: None,
-    //     //     };
-    //     let querier = MockQuerier::new(&[("cosmos2contract", &[])])
-    //         .with_custom_handler(|query| SystemResult::Ok(to_binary(&response)).unwrap());
-    //     OwnedDeps {
-    //         storage: MockStorage::default(),
-    //         api: MockApi::default(),
-    //         querier: querier,
-    //         custom_query_type: PhantomData,
-    //     }
-    // }
-
-    // #[test]
-    // fn propose_migrate() {
-
-    // }
 
     #[test]
     fn update_consensus_block_params() {

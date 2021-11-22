@@ -7,6 +7,12 @@ pub enum ContractError {
     Std(#[from] StdError),
 
     #[error("{0}")]
+    System(String),
+
+    #[error("{0}")]
+    Contract(String),
+
+    #[error("{0}")]
     Voting(tg_voting_contract::ContractError),
 
     #[error("Received system callback we didn't expect")]
