@@ -79,13 +79,12 @@ fn confirm_admin_in_contract(
     let resp: ContractInfoResponse = from_slice(
         &deps
             .querier
-            .raw_query(&to_vec(&admin_query).unwrap())
+            .raw_query(&to_vec(&admin_query)?)
             .unwrap()
             .unwrap(),
-    )
-    .unwrap();
+    )?;
     if let Some(admin) = resp.admin {
-        if dbg!(admin) == dbg!(env.contract.address.clone()) {
+        if admin == env.contract.address.clone() {
             return Ok(());
         }
     }
@@ -101,14 +100,15 @@ pub fn execute_execute(
     use ValidatorProposal::*;
     // anyone can trigger this if the vote passed
 
-    let prop = proposals::<ValidatorProposal>().load(deps.storage, proposal_id.into())?;
+    let mut proposal = proposals::<ValidatorProposal>().load(deps.storage, proposal_id.into())?;
 
     // we allow execution even after the proposal "expiration" as long as all vote come in before
     // that point. If it was approved on time, it can be executed any time.
-    if prop.status != Status::Passed {
+    if proposal.status != Status::Passed {
         return Err(ContractError::WrongExecuteStatus {});
     }
 
+    let prop = proposal.clone();
     let msg = match prop.proposal {
         RegisterUpgrade {
             name,
@@ -168,6 +168,10 @@ pub fn execute_execute(
             msg: migrate_msg,
         }),
     };
+
+    // set it to executed
+    proposal.status = Status::Executed;
+    proposals::<ValidatorProposal>().save(deps.storage, proposal_id.into(), &proposal)?;
 
     Ok(Response::new()
         .add_attribute("action", "execute")

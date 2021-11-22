@@ -32,13 +32,18 @@ fn migrate_contract() {
 
     // Instantiate hackatom contract with Validator Contract as an admin
     let hackatom_contract =
-        suite.instantiate_hackatom_contract(validator_contract.clone(), hack1, beneficiary);
+        suite.instantiate_hackatom_contract(validator_contract, hack1, beneficiary);
     let res = suite.query_beneficiary(hackatom_contract.clone()).unwrap();
     assert_eq!(res, beneficiary.to_owned());
 
     // Propose hackatom migration; "owner" is a sender of message with voting power 2 (66%)
     let proposal = suite
-        .propose_migrate_hackatom(owner, hackatom_contract.clone(), new_beneficiary, hack2)
+        .propose_migrate_hackatom(
+            owner.clone(),
+            hackatom_contract.clone(),
+            new_beneficiary,
+            hack2,
+        )
         .unwrap();
     let proposal_id: u64 = get_proposal_id(&proposal).unwrap();
 
@@ -46,11 +51,9 @@ fn migrate_contract() {
     assert_eq!(proposal_status, Status::Passed);
 
     // Execute migration; Validator Contract is a sender of this message, although I think it doesn't matter
-    suite
-        .execute(validator_contract.as_str(), proposal_id)
-        .unwrap();
+    suite.execute(owner.as_str(), proposal_id).unwrap();
     let proposal_status = suite.query_proposal_status(proposal_id).unwrap();
-    assert_eq!(proposal_status, Status::Passed);
+    assert_eq!(proposal_status, Status::Executed);
 
     let res = suite.query_beneficiary(hackatom_contract).unwrap();
     assert_eq!(res, new_beneficiary.to_owned());
