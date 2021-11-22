@@ -9,9 +9,6 @@ pub enum ContractError {
     #[error("Group contract invalid address '{addr}'")]
     InvalidGroup { addr: String },
 
-    #[error("Unauthorized")]
-    Unauthorized {},
-
     #[error("Invalid voting quorum percentage, must be 0.01-1.0: {0}")]
     InvalidQuorum(Decimal),
 

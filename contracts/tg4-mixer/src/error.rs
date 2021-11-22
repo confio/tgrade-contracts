@@ -16,8 +16,8 @@ pub enum ContractError {
     #[error("{0}")]
     Preauth(#[from] PreauthError),
 
-    #[error("Unauthorized")]
-    Unauthorized {},
+    #[error("Unauthorized: {0}")]
+    Unauthorized(String),
 
     /// TODO: Remove this when we are ready to ensure we finished implementing everything
     #[error("Unimplemented")]
