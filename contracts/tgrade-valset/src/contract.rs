@@ -208,7 +208,9 @@ fn execute_update_metadata(
             old.metadata = metadata;
             Ok(old)
         }
-        None => Err(ContractError::Unauthorized {}),
+        None => Err(ContractError::Unauthorized(
+            "No operator info found".to_owned(),
+        )),
     })?;
 
     let res = Response::new()
@@ -488,7 +490,7 @@ pub fn sudo(deps: DepsMut, env: Env, msg: TgradeSudoMsg) -> Result<Response, Con
         TgradeSudoMsg::PrivilegeChange(change) => Ok(privilege_change(deps, change)),
         TgradeSudoMsg::EndWithValidatorUpdate {} => end_block(deps, env),
         TgradeSudoMsg::BeginBlock { evidence } => begin_block(deps, env, evidence),
-        _ => Err(ContractError::UnknownSudoType {}),
+        _ => Err(ContractError::UnsupportedSudoType {}),
     }
 }
 
