@@ -2,6 +2,27 @@ use super::suite::SuiteBuilder;
 use cosmwasm_std::{coin, Decimal};
 
 #[test]
+fn no_fees_no_split() {
+    let members = vec!["member1", "member2"];
+    let mut suite = SuiteBuilder::new()
+        .with_operators(&[(members[0], 2), (members[1], 3)], &[])
+        .with_epoch_reward(coin(1000, "usdc"))
+        .build();
+
+    suite.advance_epoch().unwrap();
+
+    suite.withdraw_validation_reward(members[0]).unwrap();
+    suite.withdraw_validation_reward(members[1]).unwrap();
+
+    // Single epoch reward, no fees.
+    // 100% goes to validators:
+    // * member1: 2/5 * 1000 = 0.4 * 1000 = 400
+    // * member2: 3/5 * 1000 = 0.6 * 1000 = 600
+    assert_eq!(suite.token_balance(members[0]).unwrap(), 400);
+    assert_eq!(suite.token_balance(members[1]).unwrap(), 600);
+}
+
+#[test]
 fn no_fees_divisible_reward() {
     let engagement = vec!["dist1", "dist2"];
     let members = vec!["member1", "member2"];
@@ -39,7 +60,7 @@ fn no_fees_divisible_reward() {
 }
 
 #[test]
-fn no_fees_three_way_reward_split() {
+fn no_fees_three_way_split() {
     let engagement = vec!["dist1", "dist2"];
     let community = vec!["community"];
     let members = vec!["member1", "member2"];
