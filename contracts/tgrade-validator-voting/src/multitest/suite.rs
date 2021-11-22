@@ -167,7 +167,7 @@ impl SuiteBuilder {
         // Set validator proposals contract's address as admin of engagement contract
         app.execute_contract(
             owner.clone(),
-            engagement_contract.clone(),
+            engagement_contract,
             &Tg4ExecuteMsg::UpdateAdmin {
                 admin: Some(contract.to_string()),
             },

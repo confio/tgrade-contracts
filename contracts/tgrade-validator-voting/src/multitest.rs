@@ -38,7 +38,7 @@ fn migrate_contract() {
 
     // Propose hackatom migration; "owner" is a sender of message with voting power 2 (66%)
     let proposal = suite
-        .propose_migrate_hackatom(owner.clone(), hackatom_contract.clone(), new_beneficiary, hack2)
+        .propose_migrate_hackatom(owner, hackatom_contract.clone(), new_beneficiary, hack2)
         .unwrap();
     let proposal_id: u64 = get_proposal_id(&proposal).unwrap();
 
@@ -50,7 +50,7 @@ fn migrate_contract() {
         .execute(validator_contract.as_str(), proposal_id)
         .unwrap();
     let proposal_status = suite.query_proposal_status(proposal_id).unwrap();
-    assert_eq!(proposal_status, Status::Executed);
+    assert_eq!(proposal_status, Status::Passed);
 
     let res = suite.query_beneficiary(hackatom_contract).unwrap();
     assert_eq!(res, new_beneficiary.to_owned());

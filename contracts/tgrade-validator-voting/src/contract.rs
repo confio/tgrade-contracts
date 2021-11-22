@@ -1,6 +1,6 @@
 #[cfg(not(feature = "library"))]
 use cosmwasm_std::entry_point;
-use cosmwasm_std::{to_binary, Binary, Deps, DepsMut, Env, MessageInfo, StdResult};
+use cosmwasm_std::{to_binary, Binary, Deps, DepsMut, Env, MessageInfo, StdResult, WasmMsg};
 
 use cw2::set_contract_version;
 use cw3::Status;
@@ -63,7 +63,7 @@ pub fn execute(
             execute_vote::<ValidatorProposal>(deps, env, info, proposal_id, vote)
                 .map_err(ContractError::from)
         }
-        Execute { proposal_id } => execute_execute(deps, env, info, proposal_id),
+        Execute { proposal_id } => execute_execute(deps, info, proposal_id),
         Close { proposal_id } => execute_close::<ValidatorProposal>(deps, env, info, proposal_id)
             .map_err(ContractError::from),
     }
@@ -95,7 +95,6 @@ fn confirm_admin_in_contract(
 
 pub fn execute_execute(
     deps: DepsMut,
-    env: Env,
     info: MessageInfo,
     proposal_id: u64,
 ) -> Result<Response, ContractError> {
@@ -116,7 +115,7 @@ pub fn execute_execute(
             height,
             info,
             upgraded_client_state,
-        } => TgradeMsg::ExecuteGovProposal {
+        } => SubMsg::new(TgradeMsg::ExecuteGovProposal {
             title: prop.title,
             description: prop.description,
             proposal: GovProposal::RegisterUpgrade {
@@ -125,52 +124,55 @@ pub fn execute_execute(
                 info,
                 upgraded_client_state,
             },
-        },
-        CancelUpgrade {} => TgradeMsg::ExecuteGovProposal {
+        }),
+        CancelUpgrade {} => SubMsg::new(TgradeMsg::ExecuteGovProposal {
             title: prop.title,
             description: prop.description,
             proposal: GovProposal::CancelUpgrade {},
-        },
-        PinCodes { code_ids } => TgradeMsg::ExecuteGovProposal {
+        }),
+        PinCodes { code_ids } => SubMsg::new(TgradeMsg::ExecuteGovProposal {
             title: prop.title,
             description: prop.description,
             proposal: GovProposal::PinCodes { code_ids },
-        },
-        UnpinCodes { code_ids } => TgradeMsg::ExecuteGovProposal {
+        }),
+        UnpinCodes { code_ids } => SubMsg::new(TgradeMsg::ExecuteGovProposal {
             title: prop.title,
             description: prop.description,
             proposal: GovProposal::UnpinCodes { code_ids },
-        },
+        }),
         UpdateConsensusBlockParams { max_bytes, max_gas } => {
-            TgradeMsg::ConsensusParams(ConsensusParams {
+            SubMsg::new(TgradeMsg::ConsensusParams(ConsensusParams {
                 block: Some(BlockParams { max_bytes, max_gas }),
                 evidence: None,
-            })
+            }))
         }
         UpdateConsensusEvidenceParams {
             max_age_num_blocks,
             max_age_duration,
             max_bytes,
-        } => TgradeMsg::ConsensusParams(ConsensusParams {
+        } => SubMsg::new(TgradeMsg::ConsensusParams(ConsensusParams {
             block: None,
             evidence: Some(EvidenceParams {
                 max_age_num_blocks,
                 max_age_duration,
                 max_bytes,
             }),
+        })),
+        MigrateContract {
+            contract,
+            code_id,
+            migrate_msg,
+        } => SubMsg::new(WasmMsg::Migrate {
+            contract_addr: contract,
+            new_code_id: code_id,
+            msg: migrate_msg,
         }),
-        // } => GovProposal::MigrateContract {
-        //     run_as: env.contract.address.to_string(),
-        //     contract,
-        //     code_id,
-        //     migrate_msg,
-        // },
     };
 
     Ok(Response::new()
         .add_attribute("action", "execute")
         .add_attribute("sender", info.sender)
-        .add_message(msg))
+        .add_submessage(msg))
 }
 
 fn align_limit(limit: Option<u32>) -> usize {
@@ -296,21 +298,14 @@ mod tests {
             )
             .unwrap();
 
-        let res = execute_execute(deps.as_mut(), env, mock_info("sender", &[]), 1).unwrap();
+        let res = execute_execute(deps.as_mut(), mock_info("sender", &[]), 1).unwrap();
         assert_eq!(
             res.messages,
-            vec![SubMsg::new(CosmosMsg::Custom(
-                TgradeMsg::ExecuteGovProposal {
-                    title: "MigrateContract".to_owned(),
-                    description: "MigrateContract testing proposal".to_owned(),
-                    proposal: GovProposal::MigrateContract {
-                        run_as: "cosmos2contract".to_owned(),
-                        contract: "target_contract".to_owned(),
-                        code_id: 13,
-                        migrate_msg: Binary(vec![123, 125])
-                    }
-                }
-            ))]
+            vec![SubMsg::new(WasmMsg::Migrate {
+                contract_addr: "target_contract".to_owned(),
+                new_code_id: 13,
+                msg: Binary(vec![123, 125])
+            })]
         );
     }
 
@@ -346,7 +341,7 @@ mod tests {
             )
             .unwrap();
 
-        let res = execute_execute(deps.as_mut(), env, mock_info("sender", &[]), 1).unwrap();
+        let res = execute_execute(deps.as_mut(), mock_info("sender", &[]), 1).unwrap();
         assert_eq!(
             res.messages,
             vec![SubMsg::new(CosmosMsg::Custom(
@@ -391,7 +386,7 @@ mod tests {
             )
             .unwrap();
 
-        let res = execute_execute(deps.as_mut(), env, mock_info("sender", &[]), 1).unwrap();
+        let res = execute_execute(deps.as_mut(), mock_info("sender", &[]), 1).unwrap();
         assert_eq!(
             res.messages,
             vec![SubMsg::new(CosmosMsg::Custom(
@@ -436,7 +431,7 @@ mod tests {
             )
             .unwrap();
 
-        let res = execute_execute(deps.as_mut(), env, mock_info("sender", &[]), 1).unwrap();
+        let res = execute_execute(deps.as_mut(), mock_info("sender", &[]), 1).unwrap();
         assert_eq!(
             res.messages,
             vec![SubMsg::new(CosmosMsg::Custom(
