@@ -40,16 +40,15 @@ cumulative reward grow is reduced - basically up to the time when `fees` reaches
 `epoch_reward / fee_percentage`, all fees are worth `(1 - fee_percentage) * fees`
 (they are scalded).
 
-Next step is splitting `cumulative_reward` in two parts.
-`validators_reward_ratio * cumulative_reward` is sent as `validators_reward` to validators
-of the last epoch. The rest is sent to `distribution_contract` using a `distribute_funds`
-message, whose intention is to split this part of the rewards between non-validators,
-based on their engagement. Both `validators_reward_ratio` and
-`distribution_contract` may be configured in `InstantiateMsg`.
-`validators_reward_ratio` is required to fit in the `[0; 1]` range.
-`distribution_contract` is optional, but it has to be set if
-`validators_reward_ratio` is below `1` (if not, the whole reward goes to
-the validators). If `validators_reward_ratio = 1`, `distribution_contract` is just ignored.
+The next step is splitting `cumulative_reward` into parts.
+For each *distribution contract*, an address and a ratio is accepted.
+`distribution_contract_ratio * cumulative_reward` is sent to each such contract using
+a `distribute_funds` message, whose intention is to split this part of the rewards
+between non-validators, based on their engagement.
+The remaining reward tokens are sent as `validators_reward` to validators of the last epoch.
+The distribution ratios need to be included in the `distribution_contracts` vector configured
+in `InstantiateMsg`. The sum of these ratios needs to fit in the [0, 1] range. The vector may
+be empty, in which case the whole reward ends up with the validators.
 
 When `validators_reward` is calculated, it is split between active validators.
 Active validators are up to `max_validators` validators with the highest weight,
@@ -181,9 +180,7 @@ pub struct InstantiateMsg {
     /// Address allowed to jail, meant to be a OC voting contract. If `None`, then jailing is
     /// impossible in this contract.
     pub admin: Option<String>,
-    /// Address of a tg4 contract with the raw membership used to feed the validator set.
-    /// Additionally, the contract has to implement the `Slashing` interface (the `AddSlasher`
-    /// and `Slash` messages would be sent to it).
+    /// Address of a cw4 contract with the raw membership used to feed the validator set
     pub membership: String,
     /// Minimum weight needed by an address in `membership` to be considered for the validator set.
     /// 0-weight members are always filtered out.
@@ -226,18 +223,25 @@ pub struct InstantiateMsg {
     #[serde(default)]
     pub auto_unjail: bool,
 
-    /// Fraction of how much reward is distributed between validators. The remainder is sent to the
-    /// `distribution_contract` with a `Distribute` message, which should perform distribution of
-    /// the sent funds between non-validators, based on their engagement.
-    /// This value is in range of `[0-1]`, `1` (or `100%`) by default.
-    #[serde(default = "default_validators_reward_ratio")]
-    pub validators_reward_ratio: Decimal,
+    /// Validators who are caught double signing are jailed forever and their bonded tokens are
+    /// slashed based on this value.
+    #[serde(default = "default_double_sign_slash")]
+    pub double_sign_slash_ratio: Decimal,
 
-    /// Address where part of the reward for non-validators is sent for further distribution. It is
+    /// Addresses where part of the reward for non-validators is sent for further distribution. These are
     /// required to handle the `Distribute {}` message (eg. tg4-engagement contract) which would
     /// distribute the funds sent with this message.
-    /// If no account is provided, `validators_reward_ratio` has to be `1`.
-    pub distribution_contract: Option<String>,
+    ///
+    /// The sum of ratios here has to be in the [0, 1] range. The remainder is sent to validators via the
+    /// rewards contract.
+    ///
+    /// Note that the particular algorithm this contract uses calculates token rewards for distribution
+    /// contracts by applying decimal division to the pool of reward tokens, and then passes the remainder
+    /// to validators via the contract instantiated from `rewards_code_is`. This will cause edge cases where
+    /// indivisible tokens end up with the validators. For example if the reward pool for an epoch is 1 token
+    /// and there are two distribution contracts with 50% ratio each, that token will end up with the
+    /// validators.
+    pub distribution_contracts: UnvalidatedDistributionContracts,
 
     /// Code id of the contract which would be used to distribute the rewards of this token, assuming
     /// `tg4-engagement`. The contract will be initialized with the message:
@@ -257,6 +261,10 @@ pub struct InstantiateMsg {
 
 ```rust
 pub enum ExecuteMsg {
+    /// Change the admin
+    UpdateAdmin {
+        admin: Option<String>,
+    },
     /// Links info.sender (operator) to this Tendermint consensus key.
     /// The operator cannot re-register another key.
     /// No two operators may have the same consensus_key.
@@ -279,6 +287,12 @@ pub enum ExecuteMsg {
         /// Address to unjail. Optional, as if not provided it is assumed to be the sender of the
         /// message (for convenience when unjailing self after the jail period).
         operator: Option<String>,
+    },
+    /// To be called by admin only. Slashes a given address (by forwarding slash to both rewards
+    /// contract and engagement contract)
+    Slash {
+        addr: String,
+        portion: Decimal,
     },
 }
 
@@ -309,12 +323,14 @@ pub enum QueryMsg {
     /// Returns EpochResponse - get info on current and next epochs
     Epoch {},
 
-    /// Returns the validator key and associated metadata (if present) for the given operator
+    /// Returns the validator key and associated metadata (if present) for the given operator.
+    /// Returns ValidatorResponse
     Validator { operator: String },
-    /// Paginate over all operators, using operator address as pagination
+    /// Paginate over all operators, using operator address as pagination.
+    /// Returns Vec<OperatorResponse>
     ListValidators {
-      start_after: Option<String>,
-      limit: Option<u32>,
+        start_after: Option<String>,
+        limit: Option<u32>,
     },
 
     /// List the current validator set, sorted by power descending
@@ -325,5 +341,9 @@ pub enum QueryMsg {
     /// we recalculated end block right now.
     /// Also returns ListActiveValidatorsResponse
     SimulateActiveValidators {},
+
+    /// Returns a list of validator slashing events.
+    /// Returns ListValidatorSlashingResponse
+    ListValidatorSlashing { operator: String },
 }
 ```
