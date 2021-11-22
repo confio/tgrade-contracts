@@ -1,6 +1,7 @@
 mod hackatom;
 mod suite;
 
+use crate::error::ContractError;
 use suite::RulesBuilder;
 use suite::{get_proposal_id, SuiteBuilder};
 
@@ -57,4 +58,37 @@ fn migrate_contract() {
 
     let res = suite.query_beneficiary(hackatom_contract).unwrap();
     assert_eq!(res, new_beneficiary.to_owned());
+}
+
+#[test]
+fn propose_migration_to_not_properly_owned_contract() {
+    let members = vec!["owner", "voter1"];
+
+    let rules = RulesBuilder::new()
+        .with_threshold(Decimal::percent(50))
+        .build();
+
+    let mut suite = SuiteBuilder::new()
+        .with_group_member(members[0], 2)
+        .with_group_member(members[1], 1)
+        .with_voting_rules(rules)
+        .build();
+
+    let owner = suite.owner.clone();
+
+    let hack = suite.app.store_code(hackatom::contract());
+
+    // Instantiate hackatom contract with "owner" as an admin
+    let hackatom_contract = suite.instantiate_hackatom_contract(owner.clone(), hack, "beneficiary");
+
+    let err = suite
+        .propose_migrate_hackatom(owner, hackatom_contract, "new_beneficiary", 666)
+        .unwrap_err();
+    assert_eq!(
+        ContractError::Unauthorized(
+            "Validator Proposal contract is not an admin of contract proposed to migrate"
+                .to_owned()
+        ),
+        err.downcast().unwrap()
+    );
 }

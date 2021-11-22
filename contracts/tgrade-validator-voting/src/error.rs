@@ -15,8 +15,8 @@ pub enum ContractError {
     #[error("Proposal must have passed and not yet been executed")]
     WrongExecuteStatus {},
 
-    #[error("Unauthorized !!!!!!!!!")]
-    Unauthorized {},
+    #[error("Unauthorized: {0}")]
+    Unauthorized(String),
 }
 
 impl From<tg_voting_contract::ContractError> for ContractError {

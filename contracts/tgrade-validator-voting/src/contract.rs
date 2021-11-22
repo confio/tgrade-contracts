@@ -89,7 +89,9 @@ fn confirm_admin_in_contract(
         }
     }
 
-    Err(ContractError::Unauthorized {})
+    Err(ContractError::Unauthorized(
+        "Validator Proposal contract is not an admin of contract proposed to migrate".to_owned(),
+    ))
 }
 
 pub fn execute_execute(
