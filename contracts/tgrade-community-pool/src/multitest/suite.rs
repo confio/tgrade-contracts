@@ -1,16 +1,14 @@
 use anyhow::Result as AnyResult;
 
-use cosmwasm_std::{Addr, Decimal};
-use cw_multi_test::{AppResponse, Contract, ContractWrapper, Executor};
+use cosmwasm_std::{coin, Addr, CosmosMsg, Decimal, StdResult};
+use cw_multi_test::{AppResponse, Contract, ContractWrapper, CosmosRouter, Executor};
 use tg4::{Member, Tg4ExecuteMsg};
 use tg_bindings::TgradeMsg;
 use tg_bindings_test::TgradeApp;
 
 use tg_voting_contract::state::VotingRules;
 
-pub fn get_proposal_id(response: &AppResponse) -> Result<u64, std::num::ParseIntError> {
-    response.custom_attrs(1)[2].value.parse()
-}
+use crate::msg::ExecuteMsg;
 
 fn contract_validator_proposals() -> Box<dyn Contract<TgradeMsg>> {
     let contract = ContractWrapper::new(
@@ -49,11 +47,6 @@ impl RulesBuilder {
         }
     }
 
-    pub fn with_threshold(mut self, threshold: impl Into<Decimal>) -> Self {
-        self.threshold = threshold.into();
-        self
-    }
-
     pub fn build(&self) -> VotingRules {
         VotingRules {
             voting_period: self.voting_period,
@@ -87,13 +80,10 @@ impl SuiteBuilder {
         self
     }
 
-    pub fn with_voting_rules(mut self, voting_rules: VotingRules) -> Self {
-        self.rules = voting_rules;
-        self
-    }
-
     #[track_caller]
     pub fn build(self) -> Suite {
+        const GROUP_TOKEN: &'static str = "GROUP";
+
         let owner = Addr::unchecked("owner");
         let mut app = TgradeApp::new(owner.as_str());
 
@@ -130,7 +120,7 @@ impl SuiteBuilder {
                     preauths_hooks: 0,
                     preauths_slashing: 1,
                     halflife: None,
-                    token: "GROUP".to_owned(),
+                    token: GROUP_TOKEN.to_owned(),
                 },
                 &[],
                 "group",
@@ -172,6 +162,7 @@ impl SuiteBuilder {
             contract,
             group_contract,
             owner,
+            group_token: GROUP_TOKEN,
         }
     }
 }
@@ -181,6 +172,7 @@ pub struct Suite {
     pub contract: Addr,
     pub group_contract: Addr,
     pub owner: Addr,
+    pub group_token: &'static str,
 }
 
 impl Suite {
@@ -199,7 +191,59 @@ impl Suite {
         )
     }
 
-    pub fn grant_engagement_reward(&mut self) {
-        todo!()
+    pub fn distribute_engagement_rewards(&mut self, amount: u128) -> AnyResult<()> {
+        let block_info = self.app.block_info();
+        let owner = self.owner.clone();
+        let denom = self.group_token.to_string();
+
+        self.app
+            .init_modules(|router, api, storage| -> AnyResult<()> {
+                router.execute(
+                    api,
+                    storage,
+                    &block_info,
+                    owner.clone(),
+                    CosmosMsg::Custom(TgradeMsg::MintTokens {
+                        denom,
+                        amount: amount.into(),
+                        recipient: owner.to_string(),
+                    })
+                    .into(),
+                )?;
+
+                Ok(())
+            })?;
+
+        self.app.next_block().unwrap();
+
+        self.app.execute_contract(
+            self.owner.clone(),
+            self.group_contract.clone(),
+            &tg4_engagement::ExecuteMsg::DistributeFunds { sender: None },
+            &[coin(amount, self.group_token)],
+        )?;
+
+        self.app.next_block().unwrap();
+
+        Ok(())
+    }
+
+    pub fn withdraw_community_pool_rewards(&mut self, executor: &str) -> AnyResult<AppResponse> {
+        self.app.execute_contract(
+            Addr::unchecked(executor),
+            self.contract.clone(),
+            &ExecuteMsg::WithdrawEngagementRewards {},
+            &[],
+        )
+    }
+
+    /// Shortcut for querying distributeable token balance of contract
+    pub fn token_balance(&self, owner: Addr) -> StdResult<u128> {
+        let amount = self
+            .app
+            .wrap()
+            .query_balance(owner, self.group_token)?
+            .amount;
+        Ok(amount.into())
     }
 }

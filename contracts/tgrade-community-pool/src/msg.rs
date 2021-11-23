@@ -37,7 +37,7 @@ pub enum ExecuteMsg {
     /// The Community Pool may be a participant in engagement and end up
     /// receiving engagement rewards. This endpoint can be used to withdraw
     /// those. Anyone can call it.
-    WithdrawEngagementRewards,
+    WithdrawEngagementRewards {},
 }
 
 // We can also add this as a cw3 extension
