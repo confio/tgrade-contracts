@@ -1569,14 +1569,18 @@ dependencies = [
 name = "tgrade-community-pool"
 version = "0.5.0-beta5"
 dependencies = [
+ "anyhow",
  "cosmwasm-schema",
  "cosmwasm-std",
+ "cw-multi-test",
  "cw2",
  "cw3",
  "schemars",
  "serde",
  "tg-bindings",
+ "tg-bindings-test",
  "tg-voting-contract",
+ "tg4",
  "tg4-engagement",
  "thiserror",
 ]

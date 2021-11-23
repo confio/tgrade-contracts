@@ -25,4 +25,8 @@ tg4-engagement = { path = "../tg4-engagement", version = "0.5.0-beta5", features
 thiserror = "1"
 
 [dev-dependencies]
+anyhow = "1"
 cosmwasm-schema = "1.0.0-beta"
+cw-multi-test = "0.10.2"
+tg-bindings-test = { path = "../../packages/bindings-test", version = "0.5.0-beta5" }
+tg4 = { path = "../../packages/tg4", version = "0.5.0-beta5" }
