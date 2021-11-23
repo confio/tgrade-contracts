@@ -327,7 +327,7 @@ pub enum QueryMsg {
     /// Returns ValidatorResponse
     Validator { operator: String },
     /// Paginate over all operators, using operator address as pagination.
-    /// Returns Vec<OperatorResponse>
+    /// Returns ListValidatorsResponse
     ListValidators {
         start_after: Option<String>,
         limit: Option<u32>,
