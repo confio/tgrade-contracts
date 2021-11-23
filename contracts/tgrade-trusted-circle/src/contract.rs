@@ -359,7 +359,9 @@ pub fn execute_propose(
         .may_load(deps.storage, &info.sender)?
         .unwrap_or_default();
     if vote_power == 0 {
-        return Err(ContractError::Unauthorized {});
+        return Err(ContractError::Unauthorized(
+            "Member doesn't have a voting power".to_owned(),
+        ));
     }
 
     // validate the proposal's content
@@ -503,7 +505,9 @@ pub fn execute_vote(
         .may_load_at_height(deps.storage, &info.sender, prop.start_height)?
         .unwrap_or_default();
     if vote_power == 0 {
-        return Err(ContractError::Unauthorized {});
+        return Err(ContractError::Unauthorized(
+            "Member doesn't have a voting power".to_owned(),
+        ));
     }
 
     // ensure the voter is not currently leaving the trusted_circle (must be currently a voter)

@@ -124,7 +124,9 @@ pub fn execute_remove_hook(
     // custom guard: self-removal OR being admin
     let hook_addr = deps.api.addr_validate(&hook)?;
     if info.sender != hook_addr && !ADMIN.is_admin(deps.as_ref(), &info.sender)? {
-        return Err(ContractError::Unauthorized {});
+        return Err(ContractError::Unauthorized(
+            "Hook address is not same as sender's and sender is not an admin".to_owned(),
+        ));
     }
 
     // remove the hook
@@ -224,7 +226,9 @@ pub fn execute_remove_slasher(
     // custom guard: self-removal OR being admin
     let slasher_addr = Addr::unchecked(&slasher);
     if info.sender != slasher_addr && !ADMIN.is_admin(deps.as_ref(), &info.sender)? {
-        return Err(ContractError::Unauthorized {});
+        return Err(ContractError::Unauthorized(
+            "Only slasher might remove himself and sender is not an admin".to_owned(),
+        ));
     }
 
     // remove the slasher
@@ -246,7 +250,9 @@ pub fn execute_slash(
     portion: Decimal,
 ) -> Result<Response, ContractError> {
     if !SLASHERS.is_slasher(deps.storage, &info.sender)? {
-        return Err(ContractError::Unauthorized {});
+        return Err(ContractError::Unauthorized(
+            "Sender is not on slashers list".to_owned(),
+        ));
     }
 
     validate_portion(portion)?;
@@ -1210,7 +1216,12 @@ mod tests {
         // non-admin cannot remove
         let remove_msg = ExecuteMsg::RemoveHook { addr: contract1 };
         let err = execute(deps.as_mut(), mock_env(), user_info, remove_msg.clone()).unwrap_err();
-        assert_eq!(err, ContractError::Unauthorized {});
+        assert_eq!(
+            err,
+            ContractError::Unauthorized(
+                "Hook address is not same as sender's and sender is not an admin".to_owned()
+            )
+        );
 
         // remove the original
         execute(deps.as_mut(), mock_env(), admin_info, remove_msg).unwrap();
@@ -1288,7 +1299,12 @@ mod tests {
         // non-admin cannot remove
         let remove_msg = ExecuteMsg::RemoveSlasher { addr: contract1 };
         let err = execute(deps.as_mut(), mock_env(), user_info, remove_msg.clone()).unwrap_err();
-        assert_eq!(err, ContractError::Unauthorized {});
+        assert_eq!(
+            err,
+            ContractError::Unauthorized(
+                "Only slasher might remove himself and sender is not an admin".to_owned()
+            )
+        );
 
         // remove the original
         execute(deps.as_mut(), mock_env(), admin_info, remove_msg).unwrap();
@@ -1431,7 +1447,12 @@ mod tests {
         assert_stake(deps.as_ref(), 12_000, 7_500, 4_000);
 
         let res = slash(deps.as_mut(), USER2, USER1, Decimal::percent(20));
-        assert_eq!(res, Err(ContractError::Unauthorized {}));
+        assert_eq!(
+            res,
+            Err(ContractError::Unauthorized(
+                "Sender is not on slashers list".to_owned()
+            ))
+        );
         assert_stake(deps.as_ref(), 12_000, 7_500, 4_000);
     }
 
@@ -1445,7 +1466,12 @@ mod tests {
         assert_stake(deps.as_ref(), 12_000, 7_500, 4_000);
 
         let res = slash(deps.as_mut(), INIT_ADMIN, USER1, Decimal::percent(20));
-        assert_eq!(res, Err(ContractError::Unauthorized {}));
+        assert_eq!(
+            res,
+            Err(ContractError::Unauthorized(
+                "Sender is not on slashers list".to_owned()
+            ))
+        );
         assert_stake(deps.as_ref(), 12_000, 7_500, 4_000);
     }
 
@@ -1462,7 +1488,12 @@ mod tests {
         assert_stake(deps.as_ref(), 12_000, 7_500, 4_000);
 
         let res = slash(deps.as_mut(), &slasher, USER1, Decimal::percent(20));
-        assert_eq!(res, Err(ContractError::Unauthorized {}));
+        assert_eq!(
+            res,
+            Err(ContractError::Unauthorized(
+                "Sender is not on slashers list".to_owned()
+            ))
+        );
         assert_stake(deps.as_ref(), 12_000, 7_500, 4_000);
     }
 

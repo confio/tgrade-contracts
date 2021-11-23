@@ -49,7 +49,9 @@ pub fn execute_execute(
 ) -> Result<Response, ContractError> {
     let config = CONFIG.load(deps.storage)?;
     if info.sender != config.owner {
-        return Err(ContractError::Unauthorized {});
+        return Err(ContractError::Unauthorized(
+            "Sender is not an owner of contract".to_owned(),
+        ));
     }
     Ok(Response::new().add_submessages(messages))
 }
@@ -63,7 +65,9 @@ pub fn execute_proposal(
 ) -> Result<Response, ContractError> {
     let config = CONFIG.load(deps.storage)?;
     if info.sender != config.owner {
-        return Err(ContractError::Unauthorized {});
+        return Err(ContractError::Unauthorized(
+            "Sender is not an owner of contract".to_owned(),
+        ));
     }
     let msg = TgradeMsg::ExecuteGovProposal {
         title,
@@ -91,7 +95,7 @@ fn query_owner(deps: Deps) -> StdResult<OwnerResponse> {
 pub fn sudo(deps: DepsMut, _env: Env, msg: TgradeSudoMsg) -> Result<Response, ContractError> {
     match msg {
         TgradeSudoMsg::PrivilegeChange(change) => Ok(privilege_change(deps, change)),
-        _ => Err(ContractError::UnknownSudoType {}),
+        _ => Err(ContractError::UnsupportedSudoType {}),
     }
 }
 

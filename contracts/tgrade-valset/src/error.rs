@@ -16,7 +16,7 @@ pub enum ContractError {
     OperatorRegistered {},
 
     #[error("Received system callback we didn't expect")]
-    UnknownSudoType {},
+    UnsupportedSudoType {},
 
     #[error("The address supplied doesn't implement the tg4 interface")]
     InvalidTg4Contract {},
@@ -42,8 +42,8 @@ pub enum ContractError {
     #[error("Tendermint pubkey must be 32 bytes long")]
     InvalidPubkey {},
 
-    #[error("Unauthorized")]
-    Unauthorized {},
+    #[error("Unauthorized: {0}")]
+    Unauthorized(String),
 
     #[error("No validators")]
     NoValidators {},

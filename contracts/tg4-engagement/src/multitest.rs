@@ -493,7 +493,10 @@ mod funds_distribution {
             .withdraw_funds(&members[0], members[1].as_str(), None)
             .unwrap_err();
 
-        assert_eq!(ContractError::Unauthorized {}, err.downcast().unwrap());
+        assert_eq!(
+            ContractError::Unauthorized("Sender is neither owner or delegated".to_owned()),
+            err.downcast().unwrap()
+        );
 
         suite
             .withdraw_funds(&members[1], members[1].as_str(), None)
@@ -628,7 +631,10 @@ mod slashing {
             .slash(admin.as_str(), members[0], Decimal::percent(50))
             .unwrap_err();
 
-        assert_eq!(ContractError::Unauthorized {}, err.downcast().unwrap());
+        assert_eq!(
+            ContractError::Unauthorized("Sender is not on slashers list".to_owned()),
+            err.downcast().unwrap()
+        );
 
         let mut slashed_members = suite.members().unwrap();
         slashed_members.sort_by_key(|member| member.addr.clone());
@@ -669,7 +675,10 @@ mod slashing {
             .slash(members[2], members[0], Decimal::percent(50))
             .unwrap_err();
 
-        assert_eq!(ContractError::Unauthorized {}, err.downcast().unwrap());
+        assert_eq!(
+            ContractError::Unauthorized("Sender is not on slashers list".to_owned()),
+            err.downcast().unwrap()
+        );
 
         let mut slashed_members = suite.members().unwrap();
         slashed_members.sort_by_key(|member| member.addr.clone());
@@ -708,7 +717,10 @@ mod slashing {
             .slash(members[1], members[0], Decimal::percent(50))
             .unwrap_err();
 
-        assert_eq!(ContractError::Unauthorized {}, err.downcast().unwrap());
+        assert_eq!(
+            ContractError::Unauthorized("Sender is not on slashers list".to_owned()),
+            err.downcast().unwrap()
+        );
     }
 
     #[test]
@@ -727,7 +739,10 @@ mod slashing {
             .slash(members[1], members[0], Decimal::percent(50))
             .unwrap_err();
 
-        assert_eq!(ContractError::Unauthorized {}, err.downcast().unwrap());
+        assert_eq!(
+            ContractError::Unauthorized("Sender is not on slashers list".to_owned()),
+            err.downcast().unwrap()
+        );
     }
 
     #[test]
@@ -800,7 +815,12 @@ mod slashing {
         suite.add_slasher(admin.as_ref(), members[1]).unwrap();
         let err = suite.remove_slasher(members[0], members[1]).unwrap_err();
 
-        assert_eq!(ContractError::Unauthorized {}, err.downcast().unwrap());
+        assert_eq!(
+            ContractError::Unauthorized(
+                "Only slasher might remove himself or sender is not an admin".to_owned()
+            ),
+            err.downcast().unwrap()
+        );
 
         suite
             .slash(members[1], members[0], Decimal::percent(50))

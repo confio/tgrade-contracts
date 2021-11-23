@@ -169,7 +169,9 @@ pub fn execute_member_changed(
             &*poe_function,
         )
     } else {
-        Err(ContractError::Unauthorized {})
+        Err(ContractError::Unauthorized(
+            "Sender is neither left nor right side group contract".to_owned(),
+        ))
     }?;
 
     // call all registered hooks
@@ -249,7 +251,9 @@ pub fn execute_remove_hook(
     // custom guard: only self-removal
     let hook_addr = deps.api.addr_validate(&hook)?;
     if info.sender != hook_addr {
-        return Err(ContractError::Unauthorized {});
+        return Err(ContractError::Unauthorized(
+            "Hook address must be same as sender".to_owned(),
+        ));
     }
 
     // remove the hook
@@ -290,7 +294,9 @@ pub fn execute_remove_slasher(
     // custom guard: self-removal only
     let slasher_addr = Addr::unchecked(&slasher);
     if info.sender != slasher_addr {
-        return Err(ContractError::Unauthorized {});
+        return Err(ContractError::Unauthorized(
+            "Slasher address and sender's must be the same".to_owned(),
+        ));
     }
 
     // remove the slasher
@@ -312,7 +318,9 @@ pub fn execute_slash(
     portion: Decimal,
 ) -> Result<Response, ContractError> {
     if !SLASHERS.is_slasher(deps.storage, &info.sender)? {
-        return Err(ContractError::Unauthorized {});
+        return Err(ContractError::Unauthorized(
+            "Sender is not in slashers list".to_owned(),
+        ));
     }
     validate_portion(portion)?;
     let addr = deps.api.addr_validate(&addr)?;
