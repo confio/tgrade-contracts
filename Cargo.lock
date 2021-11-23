@@ -19,9 +19,9 @@ checksum = "f26201604c87b1e01bd3d98f8d5d9a8fcbb815e8cedb41ffccbeb4bf593a35fe"
 
 [[package]]
 name = "anyhow"
-version = "1.0.45"
+version = "1.0.48"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "ee10e43ae4a853c0a3591d4e2ada1719e553be18199d9da9d4a83f5927c2f5c7"
+checksum = "62e1f47f7dc0422027a4e370dd4548d4d66b26782e513e98dca1e689e058a80e"
 
 [[package]]
 name = "arrayvec"
@@ -519,9 +519,9 @@ checksum = "ee2626afccd7561a06cf1367e2950c4718ea04565e20fb5029b6c7d8ad09abcf"
 
 [[package]]
 name = "dynasm"
-version = "1.1.0"
+version = "1.2.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "cdc2d9a5e44da60059bd38db2d05cbb478619541b8c79890547861ec1e3194f0"
+checksum = "ab1096ebdaa974cd6a41a743e94dfa00cce9bfbf4690bcc73fdec6a903938ccc"
 dependencies = [
  "bitflags",
  "byteorder",
@@ -534,13 +534,13 @@ dependencies = [
 
 [[package]]
 name = "dynasmrt"
-version = "1.1.0"
+version = "1.2.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "42276e3f205fe63887cca255aa9a65a63fb72764c30b9a6252a7c7e46994f689"
+checksum = "c20c69d1e16ae47889b47c301c790f48615cd9bfbdf586e3f6d4fde64af3d259"
 dependencies = [
  "byteorder",
  "dynasm",
- "memmap2",
+ "memmap2 0.5.0",
 ]
 
 [[package]]
@@ -798,9 +798,9 @@ checksum = "884e2677b40cc8c339eaefcb701c32ef1fd2493d71118dc0ca4b6a736c93bd67"
 
 [[package]]
 name = "libc"
-version = "0.2.107"
+version = "0.2.108"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "fbe5e23404da5b4f555ef85ebed98fb4083e55a00c317800bc2a50ede9f3d219"
+checksum = "8521a1b57e76b1ec69af7599e75e38e7b7fad6610f037db8c79b127201b5d119"
 
 [[package]]
 name = "libloading"
@@ -862,6 +862,15 @@ name = "memmap2"
 version = "0.2.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "723e3ebdcdc5c023db1df315364573789f8857c11b631a2fdfad7c00f5c046b4"
+dependencies = [
+ "libc",
+]
+
+[[package]]
+name = "memmap2"
+version = "0.5.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "4647a11b578fead29cdbb34d4adef8dd3dc35b876c9c6d5240d83f205abfe96e"
 dependencies = [
  "libc",
 ]
@@ -1423,7 +1432,7 @@ dependencies = [
 
 [[package]]
 name = "tg-bindings"
-version = "0.5.0-beta4"
+version = "0.5.0-beta5"
 dependencies = [
  "base64",
  "cosmwasm-schema",
@@ -1436,7 +1445,7 @@ dependencies = [
 
 [[package]]
 name = "tg-bindings-test"
-version = "0.5.0-beta4"
+version = "0.5.0-beta5"
 dependencies = [
  "anyhow",
  "cosmwasm-std",
@@ -1450,7 +1459,7 @@ dependencies = [
 
 [[package]]
 name = "tg-utils"
-version = "0.5.0-beta4"
+version = "0.5.0-beta5"
 dependencies = [
  "cosmwasm-std",
  "cw-controllers",
@@ -1465,7 +1474,7 @@ dependencies = [
 
 [[package]]
 name = "tg-voting-contract"
-version = "0.5.0-beta4"
+version = "0.5.0-beta5"
 dependencies = [
  "cosmwasm-std",
  "cw-storage-plus",
@@ -1480,7 +1489,7 @@ dependencies = [
 
 [[package]]
 name = "tg4"
-version = "0.5.0-beta4"
+version = "0.5.0-beta5"
 dependencies = [
  "cosmwasm-schema",
  "cosmwasm-std",
@@ -1491,7 +1500,7 @@ dependencies = [
 
 [[package]]
 name = "tg4-engagement"
-version = "0.5.0-beta4"
+version = "0.5.0-beta5"
 dependencies = [
  "anyhow",
  "cosmwasm-schema",
@@ -1514,7 +1523,7 @@ dependencies = [
 
 [[package]]
 name = "tg4-mixer"
-version = "0.5.0-beta4"
+version = "0.5.0-beta5"
 dependencies = [
  "cosmwasm-schema",
  "cosmwasm-std",
@@ -1539,7 +1548,7 @@ dependencies = [
 
 [[package]]
 name = "tg4-stake"
-version = "0.5.0-beta4"
+version = "0.5.0-beta5"
 dependencies = [
  "cosmwasm-schema",
  "cosmwasm-std",
@@ -1558,7 +1567,7 @@ dependencies = [
 
 [[package]]
 name = "tgrade-community-pool"
-version = "0.5.0-beta4"
+version = "0.5.0-beta5"
 dependencies = [
  "cosmwasm-schema",
  "cosmwasm-std",
@@ -1573,7 +1582,7 @@ dependencies = [
 
 [[package]]
 name = "tgrade-gov-reflect"
-version = "0.5.0-beta4"
+version = "0.5.0-beta5"
 dependencies = [
  "cosmwasm-schema",
  "cosmwasm-std",
@@ -1586,7 +1595,7 @@ dependencies = [
 
 [[package]]
 name = "tgrade-oc-proposals"
-version = "0.5.0-beta4"
+version = "0.5.0-beta5"
 dependencies = [
  "anyhow",
  "cosmwasm-schema",
@@ -1610,7 +1619,7 @@ dependencies = [
 
 [[package]]
 name = "tgrade-trusted-circle"
-version = "0.5.0-beta4"
+version = "0.5.0-beta5"
 dependencies = [
  "anyhow",
  "assert_matches",
@@ -1635,7 +1644,7 @@ dependencies = [
 
 [[package]]
 name = "tgrade-validator-voting"
-version = "0.5.0-beta4"
+version = "0.5.0-beta5"
 dependencies = [
  "anyhow",
  "cosmwasm-schema",
@@ -1658,7 +1667,7 @@ dependencies = [
 
 [[package]]
 name = "tgrade-valset"
-version = "0.5.0-beta4"
+version = "0.5.0-beta5"
 dependencies = [
  "anyhow",
  "assert_matches",
@@ -1683,7 +1692,7 @@ dependencies = [
 
 [[package]]
 name = "tgrade-vesting-account"
-version = "0.5.0-beta4"
+version = "0.5.0-beta5"
 dependencies = [
  "anyhow",
  "assert_matches",
@@ -1899,7 +1908,7 @@ dependencies = [
  "backtrace",
  "lazy_static",
  "loupe",
- "memmap2",
+ "memmap2 0.2.3",
  "more-asserts",
  "rustc-demangle",
  "serde",

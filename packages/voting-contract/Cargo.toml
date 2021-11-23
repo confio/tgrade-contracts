@@ -1,6 +1,6 @@
 [package]
 name = "tg-voting-contract"
-version = "0.5.0-beta4"
+version = "0.5.0-beta5"
 authors = ["Bartłomiej Kuras <bart.k@confio.gmbh>"]
 edition = "2018"
 description = "Generic utils for building voting contracts for tgrade"
@@ -16,7 +16,7 @@ cw-storage-plus = "0.10.2"
 cosmwasm-std = "1.0.0-beta"
 schemars = "0.8.1"
 serde = { version = "1", default-features = false, features = ["derive"] }
-tg4 = { path = "../tg4", version = "0.5.0-beta4" }
-tg-bindings = { path = "../bindings", version = "0.5.0-beta4" }
+tg4 = { path = "../tg4", version = "0.5.0-beta5" }
+tg-bindings = { path = "../bindings", version = "0.5.0-beta5" }
 thiserror = { version = "1" }
 
