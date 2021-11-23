@@ -34,6 +34,11 @@ fn migrate_contract() {
     // Instantiate hackatom contract with Validator Contract as an admin
     let hackatom_contract =
         suite.instantiate_hackatom_contract(validator_contract, hack1, beneficiary);
+
+    let res = suite
+        .query_contract_code_id(hackatom_contract.clone())
+        .unwrap();
+    assert_eq!(res, hack1);
     let res = suite.query_beneficiary(hackatom_contract.clone()).unwrap();
     assert_eq!(res, beneficiary.to_owned());
 
@@ -51,11 +56,15 @@ fn migrate_contract() {
     let proposal_status = suite.query_proposal_status(proposal_id).unwrap();
     assert_eq!(proposal_status, Status::Passed);
 
-    // Execute migration; Validator Contract is a sender of this message, although I think it doesn't matter
     suite.execute(owner.as_str(), proposal_id).unwrap();
     let proposal_status = suite.query_proposal_status(proposal_id).unwrap();
     assert_eq!(proposal_status, Status::Executed);
 
+    // Confirm contract changed from hack1 to hack2
+    let res = suite
+        .query_contract_code_id(hackatom_contract.clone())
+        .unwrap();
+    assert_eq!(res, hack2);
     let res = suite.query_beneficiary(hackatom_contract).unwrap();
     assert_eq!(res, new_beneficiary.to_owned());
 }

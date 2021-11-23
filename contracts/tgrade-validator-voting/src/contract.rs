@@ -95,7 +95,7 @@ fn confirm_admin_in_contract(
         .ok_or_else(|| Contract("Contract query provided no results!".to_owned()))?;
 
     if let Some(admin) = response.admin {
-        if admin == env.contract.address.clone() {
+        if admin == env.contract.address {
             return Ok(());
         }
     }

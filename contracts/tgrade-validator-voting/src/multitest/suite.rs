@@ -1,6 +1,6 @@
 use anyhow::Result as AnyResult;
 
-use cosmwasm_std::{to_binary, Addr, Decimal};
+use cosmwasm_std::{to_binary, Addr, ContractInfoResponse, Decimal};
 use cw3::Status;
 use cw_multi_test::{AppResponse, Contract, ContractWrapper, Executor};
 use tg4::{Member, Tg4ExecuteMsg};
@@ -278,6 +278,17 @@ impl Suite {
             .wrap()
             .query_wasm_smart(hackatom, &QueryMsg::Beneficiary {})?;
         Ok(query_result.beneficiary)
+    }
+
+    pub fn query_contract_code_id(&mut self, contract: Addr) -> Result<u64, ContractError> {
+        use cosmwasm_std::{QueryRequest, WasmQuery};
+        let query_result: ContractInfoResponse =
+            self.app
+                .wrap()
+                .query(&QueryRequest::Wasm(WasmQuery::ContractInfo {
+                    contract_addr: contract.to_string(),
+                }))?;
+        Ok(query_result.code_id)
     }
 
     pub fn propose_migrate_hackatom(
