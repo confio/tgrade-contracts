@@ -9,7 +9,7 @@ use tg_bindings::TgradeMsg;
 use crate::msg::{ExecuteMsg, InstantiateMsg, QueryMsg};
 use crate::ContractError;
 
-use tg_voting_contract::state::proposals;
+use tg_voting_contract::state::{proposals, CONFIG as VOTING_CONFIG};
 use tg_voting_contract::{
     close as execute_close, list_proposals, list_voters, list_votes, propose as execute_propose,
     query_proposal, query_rules, query_vote, query_voter, reverse_proposals, vote as execute_vote,
@@ -54,6 +54,7 @@ pub fn execute(
         ExecuteMsg::Close { proposal_id } => {
             execute_close::<Empty>(deps, env, info, proposal_id).map_err(ContractError::from)
         }
+        ExecuteMsg::WithdrawEngagementRewards => execute_withdraw_engagement_rewards(deps, info),
     }
 }
 
@@ -74,6 +75,25 @@ pub fn execute_execute(
     // dispatch all proposed messages
     Ok(Response::new()
         .add_attribute("action", "execute")
+        .add_attribute("sender", info.sender))
+}
+
+pub fn execute_withdraw_engagement_rewards(
+    deps: DepsMut,
+    info: MessageInfo,
+) -> Result<Response, ContractError> {
+    let group_contract = VOTING_CONFIG.load(deps.storage)?.group_contract;
+
+    let msg = group_contract.encode_raw_msg(to_binary(
+        &tg4_engagement::msg::ExecuteMsg::WithdrawFunds {
+            owner: None,
+            receiver: None,
+        },
+    )?)?;
+
+    Ok(Response::new()
+        .add_submessage(msg)
+        .add_attribute("action", "withdraw_engagement_rewards")
         .add_attribute("sender", info.sender))
 }
 

@@ -1577,6 +1577,7 @@ dependencies = [
  "serde",
  "tg-bindings",
  "tg-voting-contract",
+ "tg4-engagement",
  "thiserror",
 ]
 
