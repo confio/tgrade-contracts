@@ -4,7 +4,7 @@ use crate::msg::JailingPeriod;
 use super::helpers::{assert_active_validators, assert_operators, members_init};
 use super::suite::SuiteBuilder;
 use cw_controllers::AdminError;
-use tg_utils::Duration;
+use tg_utils::{Duration, Expiration};
 
 #[test]
 fn only_admin_can_jail() {
@@ -20,9 +20,20 @@ fn only_admin_can_jail() {
     // Validator jailed forever is also marked as tombstoned
     let slashing = suite.list_validator_slashing(members[1]).unwrap();
     assert!(slashing.tombstoned);
+    assert_eq!(slashing.jailed_until, Some(JailingPeriod::Forever {}));
 
     // Admin can jail for particular duration
     suite.jail(&admin, members[2], Duration::new(3600)).unwrap();
+
+    let slashing = suite.list_validator_slashing(members[2]).unwrap();
+    assert!(!slashing.tombstoned);
+    assert_eq!(
+        slashing.jailed_until,
+        Some(JailingPeriod::Until(Expiration::at_timestamp(
+            suite.block_info().time.plus_seconds(3600)
+        )))
+    );
+
     let jailed_until = JailingPeriod::Until(Duration::new(3600).after(&suite.app().block_info()));
 
     // Non-admin cannot jail forever
@@ -42,6 +53,9 @@ fn only_admin_can_jail() {
         ContractError::AdminError(AdminError::NotAdmin {}),
         err.downcast().unwrap(),
     );
+
+    let slashing = suite.list_validator_slashing(members[3]).unwrap();
+    assert_eq!(slashing.jailed_until, None);
 
     // Just verify validators are actually jailed in the process
     assert_operators(
