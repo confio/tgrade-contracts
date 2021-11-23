@@ -4,9 +4,9 @@
 
 [Full Changelog](https://github.com/confio/tgrade-contracts/compare/v0.5.0-beta4...HEAD)
 
-## [v0.5.0-beta](https://github.com/confio/tgrade-contracts/tree/v0.5.0-beta4) (2021-11-12)
+## [v0.5.0-beta](https://github.com/confio/tgrade-contracts/tree/v0.5.0-beta5) (2021-11-23)
 
-[Full Changelog](https://github.com/confio/tgrade-contracts/compare/v0.5.0-alpha.2...v0.5.0-beta4)
+[Full Changelog](https://github.com/confio/tgrade-contracts/compare/v0.5.0-alpha.2...v0.5.0-beta5)
 
 **Changed:**
 
@@ -40,6 +40,16 @@
 - tgrade-valset: return distribution contract address [\#248](https://github.com/confio/tgrade-contracts/issues/248)
 - tgrade-oc-proposals: Prepare backbones [\#240](https://github.com/confio/tgrade-contracts/issues/240)
 - trusted-circle: Flag to disable edit voting rules [\#236](https://github.com/confio/tgrade-contracts/issues/236)
+- staking: add query slashers [\#337](https://github.com/confio/tgrade-contracts/issues/337)
+- valset: add `tombstoned` flag to `ListValidatorSlashingResponse` [\#330](https://github.com/confio/tgrade-contracts/issues/330)
+- Return voting info in refactored voting contracts [\#323](https://github.com/confio/tgrade-contracts/issues/323)
+- valset: tombstone != jail "forever" [\#321](https://github.com/confio/tgrade-contracts/issues/321)
+- Add upgrade/migrate PoE contract proposal to validators. [\#305](https://github.com/confio/tgrade-contracts/issues/305)
+- Start Community Pool Contract [\#288](https://github.com/confio/tgrade-contracts/issues/288)
+- Add Tendermint Parameter Change Proposals [\#286](https://github.com/confio/tgrade-contracts/issues/286)
+- Implement Basic Validator Proposals [\#285](https://github.com/confio/tgrade-contracts/issues/285)
+- Tag contracts v0.5.0-beta4 [\#281](https://github.com/confio/tgrade-contracts/issues/281)
+- Start Validator Voting Contract [\#193](https://github.com/confio/tgrade-contracts/issues/193)
 
 **Merged pull requests:**
 
@@ -81,7 +91,22 @@
 - Vesting contract - add account balance to token info [\#231](https://github.com/confio/tgrade-contracts/pull/231) ([ueco-jb](https://github.com/ueco-jb))
 - Vesting contract - handover multitests [\#230](https://github.com/confio/tgrade-contracts/pull/230) ([ueco-jb](https://github.com/ueco-jb))
 - Multitests in vesting contract [\#226](https://github.com/confio/tgrade-contracts/pull/226) ([ueco-jb](https://github.com/ueco-jb))
-
+- Add debugging section to readme [\#344](https://github.com/confio/tgrade-contracts/pull/344) ([ueco-jb](https://github.com/ueco-jb))
+- Expand unauthorized errors in contracts [\#343](https://github.com/confio/tgrade-contracts/pull/343) ([ueco-jb](https://github.com/ueco-jb))
+- Refactor errors messages in tg4 helpers [\#342](https://github.com/confio/tgrade-contracts/pull/342) ([ueco-jb](https://github.com/ueco-jb))
+- Valset: add tombstoned flag to ListValidatorSlashingResponse [\#333](https://github.com/confio/tgrade-contracts/pull/333) ([ueco-jb](https://github.com/ueco-jb))
+- \[tgrade-valset\] Prevent unjailing validators jailed forever [\#332](https://github.com/confio/tgrade-contracts/pull/332) ([ueco-jb](https://github.com/ueco-jb))
+- Voting proposal for updating consensus parameters [\#328](https://github.com/confio/tgrade-contracts/pull/328) ([hashedone](https://github.com/hashedone))
+- mock\_dependencies usage alignment [\#327](https://github.com/confio/tgrade-contracts/pull/327) ([hashedone](https://github.com/hashedone))
+- voting-contract: Votes details exposed [\#326](https://github.com/confio/tgrade-contracts/pull/326) ([hashedone](https://github.com/hashedone))
+- Add migrating contract proposal [\#324](https://github.com/confio/tgrade-contracts/pull/324) ([ueco-jb](https://github.com/ueco-jb))
+- tgrade-validator-voting: Added proposals and execution [\#322](https://github.com/confio/tgrade-contracts/pull/322) ([hashedone](https://github.com/hashedone))
+- Empty community pool contract [\#318](https://github.com/confio/tgrade-contracts/pull/318) ([hashedone](https://github.com/hashedone))
+- Add tgrade-validator-voting to CI [\#316](https://github.com/confio/tgrade-contracts/pull/316) ([uint](https://github.com/uint))
+- Validator set - double sign slash follow up [\#314](https://github.com/confio/tgrade-contracts/pull/314) ([ueco-jb](https://github.com/ueco-jb))
+- tg-oc-proposals: Using generalized voting contract [\#313](https://github.com/confio/tgrade-contracts/pull/313) ([hashedone](https://github.com/hashedone))
+- tgrade-voting-contract: Whole common voting logic extracted [\#310](https://github.com/confio/tgrade-contracts/pull/310) ([hashedone](https://github.com/hashedone))
+- Improve tgrade bindings [\#234](https://github.com/confio/tgrade-contracts/pull/234) ([ethanfrey](https://github.com/ethanfrey))
 
 **Added:**
 

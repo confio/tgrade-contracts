@@ -7,6 +7,12 @@ pub enum ContractError {
     Std(#[from] StdError),
 
     #[error("{0}")]
+    System(String),
+
+    #[error("{0}")]
+    Contract(String),
+
+    #[error("{0}")]
     Voting(tg_voting_contract::ContractError),
 
     #[error("Received system callback we didn't expect")]
@@ -14,6 +20,9 @@ pub enum ContractError {
 
     #[error("Proposal must have passed and not yet been executed")]
     WrongExecuteStatus {},
+
+    #[error("Unauthorized: {0}")]
+    Unauthorized(String),
 }
 
 impl From<tg_voting_contract::ContractError> for ContractError {
