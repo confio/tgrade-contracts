@@ -133,7 +133,10 @@ fn update_metadata() {
 
     // Update with valid meta on non-member always fail
     let resp = suite.update_metadata("invalid", &meta).unwrap_err();
-    assert_eq!(ContractError::Unauthorized {}, resp.downcast().unwrap());
+    assert_eq!(
+        ContractError::Unauthorized("No operator info found".to_owned()),
+        resp.downcast().unwrap()
+    );
 }
 
 #[test]

@@ -21,8 +21,8 @@ pub enum ContractError {
     #[error("{0}")]
     Preauth(#[from] PreauthError),
 
-    #[error("Unauthorized")]
-    Unauthorized {},
+    #[error("Unauthorized: {0}")]
+    Unauthorized(String),
 
     #[error("No claims that can be released currently")]
     NothingToClaim {},

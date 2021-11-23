@@ -817,7 +817,10 @@ fn edit_trusted_circle_increase_escrow_enforced_before_new_proposal() {
 
     // check proposal creation error (not enough escrow anymore)
     assert!(res.is_err());
-    assert_eq!(res.unwrap_err(), Unauthorized {});
+    assert_eq!(
+        res.unwrap_err(),
+        Unauthorized("Member doesn't have a voting power".to_owned())
+    );
 }
 
 #[test]

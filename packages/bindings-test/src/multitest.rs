@@ -65,7 +65,7 @@ impl TgradeModule {
             .into_iter()
             .any(|p| p == required);
         if !allowed {
-            return Err(TgradeError::Unauthorized {}.into());
+            return Err(TgradeError::Unauthorized("Admin privileges required".to_owned()).into());
         }
         Ok(())
     }
@@ -110,9 +110,9 @@ impl Module for TgradeModule {
                 }
 
                 // if we are privileged (even an empty array), we can auto-add more
-                let mut powers = PRIVILEGES
-                    .may_load(storage, &sender)?
-                    .ok_or(TgradeError::Unauthorized {})?;
+                let mut powers = PRIVILEGES.may_load(storage, &sender)?.ok_or_else(|| {
+                    TgradeError::Unauthorized("Admin privileges required".to_owned())
+                })?;
                 powers.push(add);
                 PRIVILEGES.save(storage, &sender, &powers)?;
                 Ok(AppResponse::default())
@@ -250,8 +250,8 @@ pub enum TgradeError {
     #[error("{0}")]
     Std(#[from] StdError),
 
-    #[error("Unauthorized")]
-    Unauthorized {},
+    #[error("Unauthorized: {0}")]
+    Unauthorized(String),
 }
 
 pub type TgradeAppWrapped =
