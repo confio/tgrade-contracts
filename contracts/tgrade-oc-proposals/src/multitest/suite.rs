@@ -6,6 +6,7 @@ use cw_multi_test::{AppResponse, Contract, ContractWrapper, Executor};
 use tg4::{Member, MemberResponse, Tg4ExecuteMsg, Tg4QueryMsg};
 use tg_bindings::{TgradeMsg, ValidatorDiff};
 use tg_bindings_test::TgradeApp;
+use tgrade_valset::msg::UnvalidatedDistributionContracts;
 
 use crate::msg::*;
 use crate::state::OversightProposal;
@@ -227,7 +228,7 @@ impl SuiteBuilder {
                 &tgrade_valset::msg::InstantiateMsg {
                     admin: Some(owner.to_string()),
                     auto_unjail: false,
-                    distribution_contract: None,
+                    distribution_contracts: UnvalidatedDistributionContracts::default(),
                     epoch_length,
                     epoch_reward: self.epoch_reward,
                     fee_percentage: Decimal::zero(),
@@ -237,7 +238,6 @@ impl SuiteBuilder {
                     min_weight: 1,
                     rewards_code_id: engagement_id,
                     scaling: None,
-                    validators_reward_ratio: Decimal::one(),
                     double_sign_slash_ratio: Decimal::percent(50),
                 },
                 &[],

@@ -37,6 +37,7 @@ pub fn contract_valset() -> Box<dyn Contract<TgradeMsg>> {
 struct DistributionConfig {
     members: Vec<Member>,
     halflife: Option<Duration>,
+    reward_ratio: Decimal,
 }
 
 #[derive(Derivative, Debug, Clone)]
@@ -65,13 +66,10 @@ pub struct SuiteBuilder {
     fee_percentage: Decimal,
     /// Flag determining if jailed operators should be automatically unjailed
     auto_unjail: bool,
-    /// How much reward is going to validators, and how much to non-validators engaged operators
-    #[derivative(Default(value = "Decimal::one()"))]
-    validators_reward_ratio: Decimal,
     #[derivative(Default(value = "Decimal::percent(50)"))]
     double_sign_slash_ratio: Decimal,
     /// Configuration of `distribution_contract` if any
-    distribution_config: Option<DistributionConfig>,
+    distribution_configs: Vec<DistributionConfig>,
 }
 
 impl SuiteBuilder {
@@ -117,7 +115,7 @@ impl SuiteBuilder {
 
     pub fn with_distribution(
         mut self,
-        validators_reward_ratio: Decimal,
+        reward_ratio: Decimal,
         members: &[(&str, u64)],
         halflife: impl Into<Option<Duration>>,
     ) -> Self {
@@ -130,9 +128,9 @@ impl SuiteBuilder {
                 })
                 .collect(),
             halflife: halflife.into(),
+            reward_ratio,
         };
-        self.validators_reward_ratio = validators_reward_ratio;
-        self.distribution_config = Some(config);
+        self.distribution_configs.push(config);
         self
     }
 
@@ -223,27 +221,40 @@ impl SuiteBuilder {
             )
             .unwrap();
 
-        let distribution_config = self.distribution_config;
-        let distribution_contract = distribution_config.map(|config| {
-            app.instantiate_contract(
-                engagement_id,
-                admin.clone(),
-                &tg4_engagement::msg::InstantiateMsg {
-                    admin: Some(admin.to_string()),
-                    members: config.members,
-                    preauths_hooks: 0,
-                    preauths_slashing: 1,
-                    halflife: config.halflife,
-                    token: token.clone(),
-                },
-                &[],
-                "distribution",
-                Some(admin.to_string()),
-            )
-            .unwrap()
-        });
+        let distribution_configs = self.distribution_configs;
+        let distribution_contracts: Vec<_> = distribution_configs
+            .iter()
+            .cloned()
+            .map(|config| {
+                app.instantiate_contract(
+                    engagement_id,
+                    admin.clone(),
+                    &tg4_engagement::msg::InstantiateMsg {
+                        admin: Some(admin.to_string()),
+                        members: config.members,
+                        preauths_hooks: 0,
+                        preauths_slashing: 1,
+                        halflife: config.halflife,
+                        token: token.clone(),
+                    },
+                    &[],
+                    "distribution",
+                    Some(admin.to_string()),
+                )
+                .unwrap()
+            })
+            .collect();
 
         let valset_id = app.store_code(contract_valset());
+        let distribution_contract_instantiation_info = distribution_contracts
+            .iter()
+            .zip(distribution_configs)
+            .map(|(addr, cfg)| UnvalidatedDistributionContract {
+                contract: addr.to_string(),
+                ratio: cfg.reward_ratio,
+            })
+            .collect();
+
         let valset = app
             .instantiate_contract(
                 valset_id,
@@ -259,11 +270,10 @@ impl SuiteBuilder {
                     scaling: self.scaling,
                     fee_percentage: self.fee_percentage,
                     auto_unjail: self.auto_unjail,
-                    validators_reward_ratio: self.validators_reward_ratio,
                     double_sign_slash_ratio: self.double_sign_slash_ratio,
-                    distribution_contract: distribution_contract
-                        .as_ref()
-                        .map(|addr| addr.to_string()),
+                    distribution_contracts: UnvalidatedDistributionContracts {
+                        inner: distribution_contract_instantiation_info,
+                    },
                     rewards_code_id: engagement_id,
                 },
                 &[],
@@ -287,7 +297,7 @@ impl SuiteBuilder {
         Suite {
             app,
             valset,
-            distribution_contract,
+            distribution_contracts,
             admin: admin.to_string(),
             member_operators: members,
             non_member_operators: self.non_member_operators,
@@ -306,8 +316,8 @@ pub struct Suite {
     app: TgradeApp,
     /// tgrade-valse contract address
     valset: Addr,
-    /// tg4-engagement contract for engagement distribution
-    distribution_contract: Option<Addr>,
+    /// tg4-engagement contracts used e.g. for engagement distribution
+    distribution_contracts: Vec<Addr>,
     /// Admin used for any administrative messages, but also admin of tgrade-valset contract
     admin: String,
     /// Valset operators pairs, members of cw4 group
@@ -461,8 +471,12 @@ impl Suite {
         )
     }
 
-    pub fn withdraw_engagement_reward(&mut self, executor: &str) -> AnyResult<AppResponse> {
-        if let Some(contract) = &self.distribution_contract {
+    pub fn withdraw_distribution_reward(
+        &mut self,
+        executor: &str,
+        distribution_contract_ix: usize,
+    ) -> AnyResult<AppResponse> {
+        if let Some(contract) = self.distribution_contracts.get(distribution_contract_ix) {
             self.app.execute_contract(
                 Addr::unchecked(executor),
                 contract.clone(),
@@ -473,7 +487,10 @@ impl Suite {
                 &[],
             )
         } else {
-            bail!("No distribution contract configured")
+            bail!(
+                "Distribution contract with index {} not found",
+                distribution_contract_ix
+            )
         }
     }
 

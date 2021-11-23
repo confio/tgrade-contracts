@@ -48,8 +48,12 @@ fn admin_can_slash() {
     // recalculated
     suite.advance_epoch().unwrap();
 
-    suite.withdraw_engagement_reward(engagement[0]).unwrap();
-    suite.withdraw_engagement_reward(engagement[1]).unwrap();
+    suite
+        .withdraw_distribution_reward(engagement[0], 0)
+        .unwrap();
+    suite
+        .withdraw_distribution_reward(engagement[1], 0)
+        .unwrap();
     suite.withdraw_validation_reward(members[0]).unwrap();
     suite.withdraw_validation_reward(members[1]).unwrap();
 
@@ -62,8 +66,12 @@ fn admin_can_slash() {
     // contract stays unchanged
     suite.advance_epoch().unwrap();
 
-    suite.withdraw_engagement_reward(engagement[0]).unwrap();
-    suite.withdraw_engagement_reward(engagement[1]).unwrap();
+    suite
+        .withdraw_distribution_reward(engagement[0], 0)
+        .unwrap();
+    suite
+        .withdraw_distribution_reward(engagement[1], 0)
+        .unwrap();
     suite.withdraw_validation_reward(members[0]).unwrap();
     suite.withdraw_validation_reward(members[1]).unwrap();
 
@@ -109,8 +117,12 @@ fn non_admin_cant_slash() {
     suite.advance_epoch().unwrap();
     suite.advance_epoch().unwrap();
 
-    suite.withdraw_engagement_reward(engagement[0]).unwrap();
-    suite.withdraw_engagement_reward(engagement[1]).unwrap();
+    suite
+        .withdraw_distribution_reward(engagement[0], 0)
+        .unwrap();
+    suite
+        .withdraw_distribution_reward(engagement[1], 0)
+        .unwrap();
     suite.withdraw_validation_reward(members[0]).unwrap();
     suite.withdraw_validation_reward(members[1]).unwrap();
 

@@ -10,7 +10,7 @@ use cw_multi_test::{AppBuilder, BasicApp, Contract, ContractWrapper, Executor};
 
 use crate::msg::{
     ConfigResponse, EpochResponse, InstantiateMsg, ListActiveValidatorsResponse, QueryMsg,
-    ValidatorResponse,
+    UnvalidatedDistributionContracts, ValidatorResponse,
 };
 use crate::state::ValidatorInfo;
 use crate::test_helpers::{addrs, contract_engagement, contract_valset, valid_operator};
@@ -119,9 +119,8 @@ fn init_msg(
         scaling: None,
         fee_percentage: Decimal::zero(),
         auto_unjail: false,
-        validators_reward_ratio: Decimal::one(),
         double_sign_slash_ratio: Decimal::percent(50),
-        distribution_contract: None,
+        distribution_contracts: UnvalidatedDistributionContracts::default(),
         rewards_code_id,
     }
 }
@@ -174,9 +173,8 @@ fn init_and_query_state() {
             epoch_reward: epoch_reward(),
             fee_percentage: Decimal::zero(),
             auto_unjail: false,
-            validators_reward_ratio: Decimal::one(),
             double_sign_slash_ratio: Decimal::percent(50),
-            distribution_contract: None,
+            distribution_contracts: vec![],
             rewards_contract: cfg.rewards_contract.clone(),
         }
     );

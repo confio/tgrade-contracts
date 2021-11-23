@@ -33,8 +33,7 @@ pub fn pay_block_rewards(
         .saturating_sub(config.fee_percentage * fees_amount);
     block_reward.amount = amount + fees_amount;
 
-    let validators_reward = block_reward.amount * config.validators_reward_ratio;
-    let non_validators_reward = block_reward.amount - validators_reward;
+    let mut reward_pool = block_reward.amount;
 
     // create the distribution messages
     let mut messages = vec![];
@@ -49,22 +48,25 @@ pub fn pay_block_rewards(
         messages.push(minting);
     }
 
-    if validators_reward > Uint128::zero() {
+    for contract in &config.distribution_contracts {
+        let reward = block_reward.amount * contract.ratio;
+        if reward > Uint128::zero() {
+            reward_pool -= reward;
+            messages.push(SubMsg::new(WasmMsg::Execute {
+                contract_addr: contract.contract.to_string(),
+                msg: to_binary(&DistributionMsg::DistributeFunds {})?,
+                funds: coins(reward.into(), &block_reward.denom),
+            }));
+        }
+    }
+
+    // After rewarding all non-validators, the remainder goes to validators.
+    if reward_pool > Uint128::zero() {
         messages.push(SubMsg::new(WasmMsg::Execute {
             contract_addr: config.rewards_contract.to_string(),
             msg: to_binary(&RewardsDistribution::DistributeFunds {})?,
-            funds: coins(validators_reward.into(), &block_reward.denom),
+            funds: coins(reward_pool.into(), &block_reward.denom),
         }));
-    }
-
-    if non_validators_reward > Uint128::zero() {
-        if let Some(contract) = &config.distribution_contract {
-            messages.push(SubMsg::new(WasmMsg::Execute {
-                contract_addr: contract.to_string(),
-                msg: to_binary(&DistributionMsg::DistributeFunds {})?,
-                funds: coins(non_validators_reward.into(), &block_reward.denom),
-            }));
-        }
     }
 
     Ok(messages)

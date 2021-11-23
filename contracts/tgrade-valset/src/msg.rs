@@ -1,14 +1,15 @@
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use std::convert::TryFrom;
+use std::ops::Add;
 
 use tg4::Member;
 use tg_bindings::{Ed25519Pubkey, Pubkey};
 use tg_utils::{Duration, Expiration};
 
 use crate::error::ContractError;
-use crate::state::{Config, OperatorInfo, ValidatorInfo, ValidatorSlashing};
-use cosmwasm_std::{Addr, BlockInfo, Coin, Decimal};
+use crate::state::{Config, DistributionContract, OperatorInfo, ValidatorInfo, ValidatorSlashing};
+use cosmwasm_std::{Addr, Api, BlockInfo, Coin, Decimal};
 
 #[derive(Serialize, Deserialize, Clone, PartialEq, JsonSchema, Debug)]
 pub struct InstantiateMsg {
@@ -58,23 +59,25 @@ pub struct InstantiateMsg {
     #[serde(default)]
     pub auto_unjail: bool,
 
-    /// Fraction of how much reward is distributed between validators. The remainder is sent to the
-    /// `distribution_contract` with a `Distribute` message, which should perform distribution of
-    /// the sent funds between non-validators, based on their engagement.
-    /// This value is in range of `[0-1]`, `1` (or `100%`) by default.
-    #[serde(default = "default_validators_reward_ratio")]
-    pub validators_reward_ratio: Decimal,
-
     /// Validators who are caught double signing are jailed forever and their bonded tokens are
     /// slashed based on this value.
     #[serde(default = "default_double_sign_slash")]
     pub double_sign_slash_ratio: Decimal,
 
-    /// Address where part of the reward for non-validators is sent for further distribution. It is
+    /// Addresses where part of the reward for non-validators is sent for further distribution. These are
     /// required to handle the `Distribute {}` message (eg. tg4-engagement contract) which would
     /// distribute the funds sent with this message.
-    /// If no account is provided, `validators_reward_ratio` has to be `1`.
-    pub distribution_contract: Option<String>,
+    ///
+    /// The sum of ratios here has to be in the [0, 1] range. The remainder is sent to validators via the
+    /// rewards contract.
+    ///
+    /// Note that the particular algorithm this contract uses calculates token rewards for distribution
+    /// contracts by applying decimal division to the pool of reward tokens, and then passes the remainder
+    /// to validators via the contract instantiated from `rewards_code_is`. This will cause edge cases where
+    /// indivisible tokens end up with the validators. For example if the reward pool for an epoch is 1 token
+    /// and there are two distribution contracts with 50% ratio each, that token will end up with the
+    /// validators.
+    pub distribution_contracts: UnvalidatedDistributionContracts,
 
     /// Code id of the contract which would be used to distribute the rewards of this token, assuming
     /// `tg4-engagement`. The contract will be initialized with the message:
@@ -87,6 +90,48 @@ pub struct InstantiateMsg {
     ///
     /// This contract has to support all the `RewardsDistribution` messages
     pub rewards_code_id: u64,
+}
+
+#[derive(Serialize, Deserialize, Clone, PartialEq, JsonSchema, Debug)]
+pub struct UnvalidatedDistributionContract {
+    /// The unvalidated address of the contract to which part of the reward tokens is sent to.
+    pub contract: String,
+    /// The ratio of total reward tokens for an epoch to be sent to that contract for further
+    /// distribution.
+    pub ratio: Decimal,
+}
+
+impl UnvalidatedDistributionContract {
+    fn validate(self, api: &dyn Api) -> Result<DistributionContract, ContractError> {
+        Ok(DistributionContract {
+            contract: api.addr_validate(&self.contract)?,
+            ratio: self.ratio,
+        })
+    }
+}
+
+#[derive(Serialize, Deserialize, Clone, PartialEq, JsonSchema, Debug, Default)]
+#[serde(transparent)]
+pub struct UnvalidatedDistributionContracts {
+    pub inner: Vec<UnvalidatedDistributionContract>,
+}
+
+impl UnvalidatedDistributionContracts {
+    /// Validates the addresses and the sum of ratios.
+    pub fn validate(self, api: &dyn Api) -> Result<Vec<DistributionContract>, ContractError> {
+        if self.sum_ratios() > Decimal::one() {
+            return Err(ContractError::InvalidRewardsRatio {});
+        }
+
+        self.inner.into_iter().map(|c| c.validate(api)).collect()
+    }
+
+    fn sum_ratios(&self) -> Decimal {
+        self.inner
+            .iter()
+            .map(|c| c.ratio)
+            .fold(Decimal::zero(), Decimal::add)
+    }
 }
 
 pub fn default_fee_percentage() -> Decimal {
@@ -118,12 +163,6 @@ impl InstantiateMsg {
         // Current denom regexp in the SDK is [a-zA-Z][a-zA-Z0-9/]{2,127}
         if self.epoch_reward.denom.len() < 2 || self.epoch_reward.denom.len() > 127 {
             return Err(ContractError::InvalidRewardDenom {});
-        }
-        if self.validators_reward_ratio > Decimal::one() {
-            return Err(ContractError::InvalidRewardsRatio {});
-        }
-        if self.validators_reward_ratio < Decimal::one() && self.distribution_contract.is_none() {
-            return Err(ContractError::NoDistributionContract {});
         }
         for op in self.initial_keys.iter() {
             op.validate()?
@@ -228,7 +267,7 @@ pub enum QueryMsg {
     /// Returns ValidatorResponse
     Validator { operator: String },
     /// Paginate over all operators, using operator address as pagination.
-    /// Returns Vec<OperatorResponse>
+    /// Returns ListValidatorsResponse
     ListValidators {
         start_after: Option<String>,
         limit: Option<u32>,
@@ -391,9 +430,8 @@ mod test {
             scaling: None,
             fee_percentage: Decimal::zero(),
             auto_unjail: false,
-            validators_reward_ratio: Decimal::one(),
             double_sign_slash_ratio: Decimal::percent(50),
-            distribution_contract: None,
+            distribution_contracts: UnvalidatedDistributionContracts::default(),
             rewards_code_id: 0,
         };
         proper.validate().unwrap();
