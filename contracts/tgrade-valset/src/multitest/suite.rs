@@ -2,7 +2,7 @@ use super::helpers::{addr_to_pubkey, mock_metadata, mock_pubkey};
 use crate::state::Config;
 use crate::{msg::*, state::ValidatorInfo};
 use anyhow::{bail, Result as AnyResult};
-use cosmwasm_std::{coin, Addr, Coin, CosmosMsg, Decimal, StdResult, Timestamp};
+use cosmwasm_std::{coin, Addr, BlockInfo, Coin, CosmosMsg, Decimal, StdResult, Timestamp};
 use cw_multi_test::{next_block, AppResponse, Contract, ContractWrapper, CosmosRouter, Executor};
 use derivative::Derivative;
 use tg4::Member;
@@ -340,6 +340,10 @@ impl Suite {
 
     pub fn app(&mut self) -> &mut TgradeApp {
         &mut self.app
+    }
+
+    pub fn block_info(&self) -> BlockInfo {
+        self.app.block_info()
     }
 
     pub fn next_block(&mut self) -> AnyResult<Option<ValidatorDiff>> {
