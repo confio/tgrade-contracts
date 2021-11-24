@@ -142,7 +142,6 @@ impl SuiteBuilder {
                 owner.clone(),
                 &crate::msg::InstantiateMsg {
                     group_addr: group_contract.to_string(),
-                    engagement_addr: engagement_contract.to_string(),
                     rules: self.rules,
                 },
                 &[],
