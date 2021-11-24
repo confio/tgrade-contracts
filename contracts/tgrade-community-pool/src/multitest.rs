@@ -4,10 +4,8 @@ use crate::multitest::suite::SuiteBuilder;
 
 #[test]
 fn community_pool_can_withdraw_engagement_rewards() {
-    let members = vec!["voter1"];
-
     let mut suite = SuiteBuilder::new()
-        .with_group_member(members[0], 1)
+        .with_group_member("voter1", 1)
         .with_community_pool_as_member(9)
         .build();
 

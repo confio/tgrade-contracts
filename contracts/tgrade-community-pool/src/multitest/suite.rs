@@ -191,11 +191,11 @@ impl SuiteBuilder {
 }
 
 pub struct Suite {
-    pub app: TgradeApp,
+    app: TgradeApp,
     pub contract: Addr,
-    pub group_contract: Addr,
-    pub owner: Addr,
-    pub group_token: &'static str,
+    group_contract: Addr,
+    owner: Addr,
+    group_token: &'static str,
 }
 
 impl Suite {
