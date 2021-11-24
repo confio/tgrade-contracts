@@ -82,7 +82,7 @@ impl SuiteBuilder {
 
     #[track_caller]
     pub fn build(self) -> Suite {
-        const GROUP_TOKEN: &'static str = "GROUP";
+        const GROUP_TOKEN: &str = "GROUP";
 
         let owner = Addr::unchecked("owner");
         let mut app = TgradeApp::new(owner.as_str());
