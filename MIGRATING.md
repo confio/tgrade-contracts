@@ -4,6 +4,52 @@ This guide lists API changes between releases of *Tgrade* contracts.
 
 ## v0.5.0-beta5 -> *unreleased*
 
+### `tgrade-validator-voting`
+
+The instantiation msg no longer requires an `engagement_addr`, which was entirely ignored by
+the contract anyway.
+
+```diff
+@@ -3,14 +3,10 @@
+   "title": "InstantiateMsg",
+   "type": "object",
+   "required": [
+-    "engagement_addr",
+     "group_addr",
+     "rules"
+   ],
+   "properties": {
+-    "engagement_addr": {
+-      "type": "string"
+-    },
+     "group_addr": {
+       "type": "string"
+     },
+```
+
+### `tgrade-community-pool`
+
+The instantiation msg no longer requires an `engagement_addr`, which was entirely ignored by
+the contract anyway.
+
+```diff
+@@ -3,14 +3,10 @@
+   "title": "InstantiateMsg",
+   "type": "object",
+   "required": [
+-    "engagement_addr",
+     "group_addr",
+     "rules"
+   ],
+   "properties": {
+-    "engagement_addr": {
+-      "type": "string"
+-    },
+     "group_addr": {
+       "type": "string"
+     },
+```
+
 ### `tgrade-valset`
 
 The instantiation msg changes. It no longer includes the `validators_reward_ratio` field.
