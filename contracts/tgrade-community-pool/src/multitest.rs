@@ -6,11 +6,10 @@ use crate::multitest::suite::SuiteBuilder;
 fn community_pool_can_withdraw_engagement_rewards() {
     let members = vec!["voter1"];
 
-    let mut suite = SuiteBuilder::new().with_group_member(members[0], 1).build();
-
-    // After we init the suite, we know the community pool contract's address, so we can
-    // add it as a member of engagement.
-    suite.add_community_pool_to_engagement(9).unwrap();
+    let mut suite = SuiteBuilder::new()
+        .with_group_member(members[0], 1)
+        .with_community_pool_as_member(9)
+        .build();
 
     // Have the admin mint some tokens and distribute them via the engagement contract.
     suite.distribute_engagement_rewards(100).unwrap();

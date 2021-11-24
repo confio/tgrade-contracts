@@ -61,6 +61,7 @@ pub struct SuiteBuilder {
     engagement_members: Vec<Member>,
     group_members: Vec<Member>,
     rules: VotingRules,
+    contract_weight: u64,
 }
 
 impl SuiteBuilder {
@@ -69,6 +70,7 @@ impl SuiteBuilder {
             engagement_members: vec![],
             group_members: vec![],
             rules: RulesBuilder::new().build(),
+            contract_weight: 0,
         }
     }
 
@@ -77,6 +79,11 @@ impl SuiteBuilder {
             addr: addr.to_owned(),
             weight,
         });
+        self
+    }
+
+    pub fn with_community_pool_as_member(mut self, weight: u64) -> Self {
+        self.contract_weight = weight;
         self
     }
 
@@ -155,6 +162,22 @@ impl SuiteBuilder {
         )
         .unwrap();
 
+        if self.contract_weight > 0 {
+            app.execute_contract(
+                owner.clone(),
+                group_contract.clone(),
+                &tg4_engagement::ExecuteMsg::UpdateMembers {
+                    remove: vec![],
+                    add: vec![Member {
+                        addr: contract.to_string(),
+                        weight: self.contract_weight,
+                    }],
+                },
+                &[],
+            )
+            .unwrap();
+        };
+
         app.next_block().unwrap();
 
         Suite {
@@ -176,21 +199,6 @@ pub struct Suite {
 }
 
 impl Suite {
-    pub fn add_community_pool_to_engagement(&mut self, weight: u64) -> AnyResult<AppResponse> {
-        self.app.execute_contract(
-            self.owner.clone(),
-            self.group_contract.clone(),
-            &tg4_engagement::ExecuteMsg::UpdateMembers {
-                remove: vec![],
-                add: vec![Member {
-                    addr: self.contract.to_string(),
-                    weight,
-                }],
-            },
-            &[],
-        )
-    }
-
     pub fn distribute_engagement_rewards(&mut self, amount: u128) -> AnyResult<()> {
         let block_info = self.app.block_info();
         let owner = self.owner.clone();
