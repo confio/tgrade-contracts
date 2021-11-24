@@ -4,7 +4,7 @@ pub mod state;
 pub use error::ContractError;
 
 use cosmwasm_std::{BlockInfo, Deps, DepsMut, Env, MessageInfo, Order, StdResult};
-use cw0::{maybe_addr, Expiration};
+use cw0::maybe_addr;
 use cw3::{
     Status, Vote, VoteInfo, VoteListResponse, VoteResponse, VoterDetail, VoterListResponse,
     VoterResponse,
@@ -18,6 +18,7 @@ use state::{
 };
 use tg4::Tg4Contract;
 use tg_bindings::TgradeMsg;
+use tg_utils::Expiration;
 
 type Response = cosmwasm_std::Response<TgradeMsg>;
 
@@ -63,7 +64,8 @@ where
         .is_voting_member(&deps.querier, info.sender.as_str())?;
 
     // calculate expiry time
-    let expires = Expiration::AtTime(env.block.time.plus_seconds(cfg.rules.voting_period_secs()));
+    let expires =
+        Expiration::at_timestamp(env.block.time.plus_seconds(cfg.rules.voting_period_secs()));
 
     // create a proposal
     let mut prop = Proposal {

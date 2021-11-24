@@ -269,7 +269,7 @@ mod tests {
         testing::{mock_dependencies, mock_env, mock_info},
         CosmosMsg, Decimal, SubMsg,
     };
-    use cw0::Expiration;
+    use tg_utils::Expiration;
     use tg_voting_contract::state::{Proposal, Votes, VotingRules};
 
     use super::*;
@@ -289,7 +289,8 @@ mod tests {
                     title: "MigrateContract".to_owned(),
                     description: "MigrateContract testing proposal".to_owned(),
                     start_height: env.block.height,
-                    expires: Expiration::Never {},
+                    // Aaaaall the seconds
+                    expires: Expiration::at_timestamp(env.block.time.plus_seconds(66666)),
                     proposal: ValidatorProposal::MigrateContract {
                         contract: "target_contract".to_owned(),
                         code_id: 13,
@@ -336,7 +337,7 @@ mod tests {
                     title: "CancelUpgrade".to_owned(),
                     description: "CancelUpgrade testing proposal".to_owned(),
                     start_height: env.block.height,
-                    expires: Expiration::Never {},
+                    expires: Expiration::at_timestamp(env.block.time.plus_seconds(66666)),
                     proposal: ValidatorProposal::CancelUpgrade {},
                     status: Status::Passed,
                     rules: VotingRules {
@@ -381,7 +382,7 @@ mod tests {
                     title: "PinCodes".to_owned(),
                     description: "PinCodes testing proposal".to_owned(),
                     start_height: env.block.height,
-                    expires: Expiration::Never {},
+                    expires: Expiration::at_timestamp(env.block.time.plus_seconds(66666)),
                     proposal: ValidatorProposal::PinCodes { code_ids: vec![] },
                     status: Status::Passed,
                     rules: VotingRules {
@@ -426,7 +427,7 @@ mod tests {
                     title: "UnpinCodes".to_owned(),
                     description: "UnpinCodes testing proposal".to_owned(),
                     start_height: env.block.height,
-                    expires: Expiration::Never {},
+                    expires: Expiration::at_timestamp(env.block.time.plus_seconds(66666)),
                     proposal: ValidatorProposal::UnpinCodes { code_ids: vec![] },
                     status: Status::Passed,
                     rules: VotingRules {
@@ -471,7 +472,7 @@ mod tests {
                     title: "UnpinCodes".to_owned(),
                     description: "UnpinCodes testing proposal".to_owned(),
                     start_height: env.block.height,
-                    expires: Expiration::Never {},
+                    expires: Expiration::at_timestamp(env.block.time.plus_seconds(66666)),
                     proposal: ValidatorProposal::UpdateConsensusBlockParams {
                         max_bytes: Some(120),
                         max_gas: Some(240),
@@ -521,7 +522,7 @@ mod tests {
                     title: "UnpinCodes".to_owned(),
                     description: "UnpinCodes testing proposal".to_owned(),
                     start_height: env.block.height,
-                    expires: Expiration::Never {},
+                    expires: Expiration::at_timestamp(env.block.time.plus_seconds(66666)),
                     proposal: ValidatorProposal::UpdateConsensusEvidenceParams {
                         max_age_num_blocks: Some(10),
                         max_age_duration: Some(100),

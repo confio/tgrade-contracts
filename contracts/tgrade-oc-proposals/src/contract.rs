@@ -178,11 +178,11 @@ pub fn query(deps: Deps, env: Env, msg: QueryMsg) -> StdResult<Binary> {
 mod tests {
     use cosmwasm_std::{coin, coins, Addr, BlockInfo, Coin, Decimal};
 
-    use cw0::Duration;
     use cw3::{Vote, VoterDetail, VoterListResponse};
     use cw_multi_test::{next_block, Contract, ContractWrapper, Executor};
     use tg4::{Member, Tg4ExecuteMsg};
     use tg_bindings_test::TgradeApp;
+    use tg_utils::Duration;
     use tg_voting_contract::state::{Votes, VotingRules};
 
     use super::*;
@@ -618,12 +618,7 @@ mod tests {
     }
 
     fn expire(voting_period: Duration) -> impl Fn(&mut BlockInfo) {
-        move |block: &mut BlockInfo| {
-            match voting_period {
-                Duration::Time(duration) => block.time = block.time.plus_seconds(duration + 1),
-                Duration::Height(duration) => block.height += duration + 1,
-            };
-        }
+        move |block: &mut BlockInfo| block.time = voting_period.after(block).time().plus_seconds(1)
     }
 
     #[test]
@@ -635,7 +630,7 @@ mod tests {
             .quorum(Decimal::percent(20))
             .threshold(Decimal::percent(80))
             .build();
-        let voting_period = Duration::Time(rules.voting_period_secs());
+        let voting_period = Duration::new(rules.voting_period_secs());
         let (flex_addr, _, _, _) =
             setup_test_case_fixed(&mut app, rules.clone(), init_funds, false);
 
@@ -810,7 +805,7 @@ mod tests {
             .threshold(Decimal::percent(50))
             .quorum(Decimal::percent(33))
             .build();
-        let voting_period = Duration::Time(rules.voting_period_secs());
+        let voting_period = Duration::new(rules.voting_period_secs());
         let (flex_addr, group_addr, _, _) = setup_test_case(&mut app, rules, init_funds, false);
 
         // VOTER3 starts a proposal to send some tokens (3 votes)
