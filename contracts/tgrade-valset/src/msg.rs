@@ -368,9 +368,8 @@ pub struct ListValidatorSlashingResponse {
     /// Whether or not a validator has been tombstoned (killed out of
     /// validator set)
     pub tombstoned: bool,
-    /// If validator is jailed, it will show expiration or
-    /// JailingPeriod::JailedForever
-    pub jailed_until: Option<JailingPeriod>,
+    /// If validator is jailed, it will show expiration time
+    pub jailed_until: Option<Expiration>,
 }
 
 /// Messages sent by this contract to an external contract

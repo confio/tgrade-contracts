@@ -472,8 +472,8 @@ fn list_validator_slashing(
         .may_load(deps.storage, &addr)?
         .unwrap_or_default();
     let (jailed_until, tombstoned) = match JAIL.may_load(deps.storage, &addr)? {
-        Some(JailingPeriod::Forever {}) => (Some(JailingPeriod::Forever {}), true),
-        Some(JailingPeriod::Until(u)) => (Some(JailingPeriod::Until(u)), false),
+        Some(JailingPeriod::Forever {}) => (None, true),
+        Some(JailingPeriod::Until(u)) => (Some(u), false),
         None => (None, false),
     };
     Ok(ListValidatorSlashingResponse {

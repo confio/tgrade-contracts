@@ -20,7 +20,7 @@ fn only_admin_can_jail() {
     // Validator jailed forever is also marked as tombstoned
     let slashing = suite.list_validator_slashing(members[1]).unwrap();
     assert!(slashing.tombstoned);
-    assert_eq!(slashing.jailed_until, Some(JailingPeriod::Forever {}));
+    assert_eq!(slashing.jailed_until, None);
 
     // Admin can jail for particular duration
     suite.jail(&admin, members[2], Duration::new(3600)).unwrap();
@@ -29,9 +29,9 @@ fn only_admin_can_jail() {
     assert!(!slashing.tombstoned);
     assert_eq!(
         slashing.jailed_until,
-        Some(JailingPeriod::Until(Expiration::at_timestamp(
+        Some(Expiration::at_timestamp(
             suite.block_info().time.plus_seconds(3600)
-        )))
+        ))
     );
 
     let jailed_until = JailingPeriod::Until(Duration::new(3600).after(&suite.app().block_info()));
