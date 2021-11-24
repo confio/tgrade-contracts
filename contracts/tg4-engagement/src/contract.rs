@@ -1544,4 +1544,27 @@ mod tests {
             assert_eq!(new_member.weight, Some(10));
         }
     }
+
+    #[test]
+    fn slash_nonexistent_user() {
+        let mut deps = mock_dependencies();
+        do_instantiate(deps.as_mut());
+
+        let user1 = Addr::unchecked(USER1);
+        SLASHERS
+            .add_slasher(&mut deps.storage, user1.clone())
+            .unwrap();
+        let res = execute_slash(
+            deps.as_mut(),
+            mock_env(),
+            MessageInfo {
+                sender: user1.clone(),
+                funds: vec![],
+            },
+            "nonexistent_user".to_owned(),
+            Decimal::percent(50),
+        )
+        .unwrap();
+        dbg!(res);
+    }
 }
