@@ -4,51 +4,119 @@ This guide lists API changes between releases of *Tgrade* contracts.
 
 ## v0.5.0-beta5 -> *unreleased*
 
-### `tgrade-validator-voting`
+### Voting contracts
 
-The instantiation msg no longer requires an `engagement_addr`, which was entirely ignored by
-the contract anyway.
+The `Expiration` type becomes simpler - it simply wraps a `Timestamp`. We don't need the
+other variants for TGrade.
 
 ```diff
-@@ -3,14 +3,10 @@
-   "title": "InstantiateMsg",
-   "type": "object",
-   "required": [
--    "engagement_addr",
-     "group_addr",
-     "rules"
-   ],
-   "properties": {
--    "engagement_addr": {
--      "type": "string"
--    },
-     "group_addr": {
+@@ -57,50 +57,7 @@
        "type": "string"
      },
+     "Expiration": {
+-      "description": "Expiration represents a point in time when some event happens. It can compare with a BlockInfo and will return is_expired() == true once the condition is hit (and for every block in the future)",
+-      "oneOf": [
+-        {
+-          "description": "AtHeight will expire when `env.block.height` >= height",
+-          "type": "object",
+-          "required": [
+-            "at_height"
+-          ],
+-          "properties": {
+-            "at_height": {
+-              "type": "integer",
+-              "format": "uint64",
+-              "minimum": 0.0
+-            }
+-          },
+-          "additionalProperties": false
+-        },
+-        {
+-          "description": "AtTime will expire when `env.block.time` >= time",
+-          "type": "object",
+-          "required": [
+-            "at_time"
+-          ],
+-          "properties": {
+-            "at_time": {
+-              "$ref": "#/definitions/Timestamp"
+-            }
+-          },
+-          "additionalProperties": false
+-        },
+-        {
+-          "description": "Never will never expire. Used to express the empty variant",
+-          "type": "object",
+-          "required": [
+-            "never"
+-          ],
+-          "properties": {
+-            "never": {
+-              "type": "object"
+-            }
+-          },
+-          "additionalProperties": false
+-        }
+-      ]
++      "$ref": "#/definitions/Timestamp"
+     },
+     "OversightProposal": {
+       "oneOf": [
 ```
+
+### `tgrade-oc-proposals`
+
+The`Expiration` type changes. See `voting contracts`.
+
+### `tgrade-validator-voting`
+
+*   The`Expiration` type changes. See `voting contracts`.
+
+*   The instantiation msg no longer requires an `engagement_addr`, which was entirely ignored by
+    the contract anyway.
+
+    ```diff
+    @@ -3,14 +3,10 @@
+       "title": "InstantiateMsg",
+       "type": "object",
+       "required": [
+    -    "engagement_addr",
+         "group_addr",
+         "rules"
+       ],
+       "properties": {
+    -    "engagement_addr": {
+    -      "type": "string"
+    -    },
+         "group_addr": {
+           "type": "string"
+         },
+    ```
 
 ### `tgrade-community-pool`
 
-The instantiation msg no longer requires an `engagement_addr`, which was entirely ignored by
-the contract anyway.
+*   The`Expiration` type changes. See `Voting contracts`.
 
-```diff
-@@ -3,14 +3,10 @@
-   "title": "InstantiateMsg",
-   "type": "object",
-   "required": [
--    "engagement_addr",
-     "group_addr",
-     "rules"
-   ],
-   "properties": {
--    "engagement_addr": {
--      "type": "string"
--    },
-     "group_addr": {
-       "type": "string"
-     },
-```
+*   The instantiation msg no longer requires an `engagement_addr`, which was entirely ignored by
+    the contract anyway.
+
+    ```diff
+    @@ -3,14 +3,10 @@
+       "title": "InstantiateMsg",
+       "type": "object",
+       "required": [
+    -    "engagement_addr",
+         "group_addr",
+         "rules"
+       ],
+       "properties": {
+    -    "engagement_addr": {
+    -      "type": "string"
+    -    },
+         "group_addr": {
+           "type": "string"
+         },
+    ```
 
 ### `tgrade-valset`
 
