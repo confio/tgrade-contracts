@@ -324,3 +324,8 @@ pub fn list_voters(
         .collect();
     Ok(VoterListResponse { voters })
 }
+
+pub fn query_group_contract(deps: Deps) -> StdResult<Tg4Contract> {
+    let cfg = CONFIG.load(deps.storage)?;
+    Ok(cfg.group_contract)
+}
