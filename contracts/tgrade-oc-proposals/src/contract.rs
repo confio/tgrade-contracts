@@ -15,7 +15,8 @@ use crate::ContractError;
 use tg_voting_contract::state::proposals;
 use tg_voting_contract::{
     close as execute_close, list_proposals, list_voters, list_votes, propose as execute_propose,
-    query_proposal, query_rules, query_vote, query_voter, reverse_proposals, vote as execute_vote,
+    query_group_contract, query_proposal, query_rules, query_vote, query_voter, reverse_proposals,
+    vote as execute_vote,
 };
 
 pub type Response = cosmwasm_std::Response<TgradeMsg>;
@@ -171,6 +172,7 @@ pub fn query(deps: Deps, env: Env, msg: QueryMsg) -> StdResult<Binary> {
         )?),
         Voter { address } => to_binary(&query_voter(deps, address)?),
         ListVoters { start_after, limit } => to_binary(&list_voters(deps, start_after, limit)?),
+        GroupContract {} => to_binary(&query_group_contract(deps)?),
     }
 }
 
@@ -910,5 +912,19 @@ mod tests {
         app.execute_contract(Addr::unchecked(VOTER3), flex_addr.clone(), &no_vote, &[])
             .unwrap();
         assert_eq!(prop_status(&app), Status::Passed);
+    }
+
+    #[test]
+    fn query_group_contract() {
+        let mut app = mock_app(&[]);
+
+        let rules = mock_rules().threshold(Decimal::percent(51)).build();
+        let (flex_addr, group_addr, _, _) = setup_test_case(&mut app, rules, vec![], false);
+
+        let query: Tg4Contract = app
+            .wrap()
+            .query_wasm_smart(&flex_addr, &QueryMsg::GroupContract {})
+            .unwrap();
+        assert_eq!(query.addr(), group_addr);
     }
 }
