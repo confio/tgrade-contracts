@@ -6,6 +6,7 @@ use cw_multi_test::{AppResponse, Contract, ContractWrapper, Executor};
 use tg4::{Member, MemberResponse, Tg4ExecuteMsg, Tg4QueryMsg};
 use tg_bindings::{TgradeMsg, ValidatorDiff};
 use tg_bindings_test::TgradeApp;
+use tg_utils::Duration;
 use tgrade_valset::msg::UnvalidatedDistributionContracts;
 
 use crate::msg::*;
@@ -316,6 +317,7 @@ impl SuiteBuilder {
             contract,
             engagement_contract,
             group_contract,
+            valset_contract,
             owner,
             epoch_length,
             rewards_contract,
@@ -328,6 +330,7 @@ pub struct Suite {
     contract: Addr,
     engagement_contract: Addr,
     group_contract: Addr,
+    valset_contract: Addr,
     owner: Addr,
     epoch_length: u64,
     rewards_contract: Addr,
@@ -370,20 +373,31 @@ impl Suite {
         )
     }
 
-    pub fn propose_slash(
+    pub fn propose_punish(
         &mut self,
         executor: &str,
         target: &str,
         portion: Decimal,
+        jailed: impl Into<Option<Duration>>,
     ) -> AnyResult<AppResponse> {
         self.propose(
             executor,
             "proposal title",
             "proposal description",
-            OversightProposal::Slash {
+            OversightProposal::Punish {
                 member: Addr::unchecked(target),
                 portion,
+                jailed: jailed.into(),
             },
+        )
+    }
+
+    pub fn unjail(&mut self, operator: &str) -> AnyResult<AppResponse> {
+        self.app.execute_contract(
+            Addr::unchecked(operator),
+            self.valset_contract.clone(),
+            &tgrade_valset::msg::ExecuteMsg::Unjail { operator: None },
+            &[],
         )
     }
 
