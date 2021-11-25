@@ -3,7 +3,7 @@ pub mod state;
 
 pub use error::ContractError;
 
-use cosmwasm_std::{BlockInfo, Deps, DepsMut, Env, MessageInfo, Order, StdResult, Addr};
+use cosmwasm_std::{Addr, BlockInfo, Deps, DepsMut, Env, MessageInfo, Order, StdResult};
 use cw0::maybe_addr;
 use cw3::{
     Status, Vote, VoteInfo, VoteListResponse, VoteResponse, VoterDetail, VoterListResponse,

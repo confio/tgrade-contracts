@@ -269,7 +269,7 @@ fn privilege_change(_deps: DepsMut, change: PrivilegeChangeMsg) -> Response {
 mod tests {
     use cosmwasm_std::{
         testing::{mock_dependencies, mock_env, mock_info},
-        CosmosMsg, Decimal, SubMsg,
+        Addr, CosmosMsg, Decimal, SubMsg,
     };
     use tg_utils::Expiration;
     use tg_voting_contract::state::{Proposal, Votes, VotingRules};
@@ -564,8 +564,6 @@ mod tests {
         );
     }
 
-    use cosmwasm_std::Addr;
-
     #[test]
     fn query_group_contract() {
         let mut deps = mock_dependencies();
@@ -591,7 +589,8 @@ mod tests {
         )
         .unwrap();
 
-        let query: Addr = from_slice(&query(deps.as_ref(), env, QueryMsg::GroupContract {}).unwrap()).unwrap();
+        let query: Addr =
+            from_slice(&query(deps.as_ref(), env, QueryMsg::GroupContract {}).unwrap()).unwrap();
         assert_eq!(query, Addr::unchecked(group_addr));
     }
 }

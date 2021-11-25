@@ -71,6 +71,6 @@ pub enum QueryMsg {
         start_after: Option<String>,
         limit: Option<u32>,
     },
-    /// Returns Tg4Contract of current's group contract
+    /// Returns address of current's group contract
     GroupContract {},
 }
