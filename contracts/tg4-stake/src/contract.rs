@@ -261,7 +261,10 @@ pub fn execute_slash(
     let addr = deps.api.addr_validate(&addr)?;
 
     // update the addr's stake
-    let stake = STAKE.load(deps.storage, &addr)?;
+    let stake = match STAKE.load(deps.storage, &addr) {
+        Ok(s) => s,
+        Err(_) => return Ok(Response::new()),
+    };
     let mut slashed = stake * portion;
     let new_stake = STAKE.update(deps.storage, &addr, |stake| -> StdResult<_> {
         Ok(stake.unwrap_or_default().checked_sub(slashed)?)
@@ -1375,6 +1378,20 @@ mod tests {
             "Expected to burn {}, burned {}",
             expected_amount[0], burned_amounts[0][0]
         );
+    }
+
+    #[test]
+    fn slashing_nonexisting_member() {
+        let mut deps = mock_dependencies();
+        default_instantiate(deps.as_mut());
+        let slasher = add_slasher(deps.as_mut());
+
+        bond(deps.as_mut(), 12_000, 7_500, 4_000, 1);
+        assert_stake(deps.as_ref(), 12_000, 7_500, 4_000);
+
+        // Trying to slash nonexisting user will result in no-op
+        let res = slash(deps.as_mut(), &slasher, "nonexisting", Decimal::percent(20)).unwrap();
+        assert_eq!(res, Response::new());
     }
 
     #[test]
