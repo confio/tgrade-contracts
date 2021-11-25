@@ -545,4 +545,8 @@ impl Suite {
             .amount;
         Ok(amount.into())
     }
+
+    pub fn epoch_length(&self) -> Duration {
+        Duration::new(self.epoch_length)
+    }
 }
