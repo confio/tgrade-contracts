@@ -18,7 +18,8 @@ use crate::ContractError;
 use tg_voting_contract::state::proposals;
 use tg_voting_contract::{
     close as execute_close, list_proposals, list_voters, list_votes, propose as execute_propose,
-    query_proposal, query_rules, query_vote, query_voter, reverse_proposals, vote as execute_vote,
+    query_group_contract, query_proposal, query_rules, query_vote, query_voter, reverse_proposals,
+    vote as execute_vote,
 };
 
 pub type Response = cosmwasm_std::Response<TgradeMsg>;
@@ -239,6 +240,7 @@ pub fn query(deps: Deps, env: Env, msg: QueryMsg) -> StdResult<Binary> {
         )?),
         Voter { address } => to_binary(&query_voter(deps, address)?),
         ListVoters { start_after, limit } => to_binary(&list_voters(deps, start_after, limit)?),
+        GroupContract {} => to_binary(&query_group_contract(deps)?),
     }
 }
 
@@ -560,5 +562,38 @@ mod tests {
                 }
             )))]
         );
+    }
+
+    use cosmwasm_std::Addr;
+
+    #[test]
+    fn query_group_contract() {
+        let mut deps = mock_dependencies();
+        let env = mock_env();
+        let rules = VotingRules {
+            voting_period: 1,
+            quorum: Decimal::percent(50),
+            threshold: Decimal::percent(50),
+            allow_end_early: false,
+        };
+        let group_addr = "group_addr";
+        instantiate(
+            deps.as_mut(),
+            env.clone(),
+            MessageInfo {
+                sender: Addr::unchecked("sender"),
+                funds: vec![],
+            },
+            InstantiateMsg {
+                rules,
+                group_addr: group_addr.to_owned(),
+            },
+        )
+        .unwrap();
+
+        use tg4::Tg4Contract;
+        let query: Tg4Contract =
+            from_slice(&query(deps.as_ref(), env, QueryMsg::GroupContract {}).unwrap()).unwrap();
+        assert_eq!(query.addr(), Addr::unchecked(group_addr));
     }
 }
