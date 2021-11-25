@@ -9,7 +9,7 @@ use tg_bindings::TgradeMsg;
 use tg_utils::{JailMsg, SlashMsg};
 
 use crate::msg::{ExecuteMsg, InstantiateMsg, QueryMsg};
-use crate::state::{Config, JailingPeriod, OversightProposal, CONFIG};
+use crate::state::{Config, OversightProposal, CONFIG};
 use crate::ContractError;
 
 use tg_voting_contract::state::proposals;
@@ -121,7 +121,7 @@ pub fn execute_execute(
         OversightProposal::Punish {
             ref member,
             portion,
-            jailing_period,
+            jailing_duration,
         } => {
             res = res.add_submessage(valset_contract.encode_raw_msg(to_binary(
                 &SlashMsg::Slash {
@@ -130,14 +130,11 @@ pub fn execute_execute(
                 },
             )?)?);
 
-            if let Some(jailing_period) = jailing_period {
+            if let Some(jailing_duration) = jailing_duration {
                 res = res.add_submessage(valset_contract.encode_raw_msg(to_binary(
                     &JailMsg::Jail {
                         operator: member.to_string(),
-                        duration: match jailing_period {
-                            JailingPeriod::Forever => None,
-                            JailingPeriod::Duration(dur) => Some(dur),
-                        },
+                        duration: jailing_duration,
                     },
                 )?)?);
             }

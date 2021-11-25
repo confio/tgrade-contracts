@@ -6,11 +6,11 @@ use cw_multi_test::{AppResponse, Contract, ContractWrapper, Executor};
 use tg4::{Member, MemberResponse, Tg4ExecuteMsg, Tg4QueryMsg};
 use tg_bindings::{TgradeMsg, ValidatorDiff};
 use tg_bindings_test::TgradeApp;
-use tg_utils::Duration;
+use tg_utils::{Duration, JailingDuration};
 use tgrade_valset::msg::UnvalidatedDistributionContracts;
 
 use crate::msg::*;
-use crate::state::{JailingPeriod, OversightProposal};
+use crate::state::OversightProposal;
 use tg_voting_contract::state::{ProposalResponse, VotingRules};
 use tg_voting_contract::ContractError;
 
@@ -378,7 +378,7 @@ impl Suite {
         executor: &str,
         target: &str,
         portion: Decimal,
-        jailing_period: impl Into<Option<JailingPeriod>>,
+        jailing_duration: impl Into<Option<JailingDuration>>,
     ) -> AnyResult<AppResponse> {
         self.propose(
             executor,
@@ -387,7 +387,7 @@ impl Suite {
             OversightProposal::Punish {
                 member: Addr::unchecked(target),
                 portion,
-                jailing_period: jailing_period.into(),
+                jailing_duration: jailing_duration.into(),
             },
         )
     }

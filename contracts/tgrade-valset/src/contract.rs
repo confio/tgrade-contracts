@@ -19,7 +19,7 @@ use tg_bindings::{
     request_privileges, Ed25519Pubkey, Evidence, EvidenceType, Privilege, PrivilegeChangeMsg,
     Pubkey, TgradeMsg, TgradeSudoMsg, ValidatorDiff, ValidatorUpdate,
 };
-use tg_utils::Duration;
+use tg_utils::{JailingDuration, SlashMsg, ADMIN};
 
 use crate::error::ContractError;
 use crate::msg::{
@@ -33,7 +33,6 @@ use crate::state::{
     operators, Config, EpochInfo, OperatorInfo, ValidatorInfo, ValidatorSlashing, CONFIG, EPOCH,
     JAIL, VALIDATORS, VALIDATOR_SLASHING, VALIDATOR_START_HEIGHT,
 };
-use tg_utils::{SlashMsg, ADMIN};
 
 // version info for migration info
 const CONTRACT_NAME: &str = "crates.io:tgrade-valset";
@@ -221,15 +220,11 @@ fn execute_jail(
     env: Env,
     info: MessageInfo,
     operator: String,
-    duration: Option<Duration>,
+    duration: JailingDuration,
 ) -> Result<Response, ContractError> {
     ADMIN.assert_admin(deps.as_ref(), &info.sender)?;
 
-    let expiration = if let Some(duration) = &duration {
-        JailingPeriod::Until(duration.after(&env.block))
-    } else {
-        JailingPeriod::Forever {}
-    };
+    let expiration = JailingPeriod::from_duration(duration, &env.block);
 
     JAIL.save(
         deps.storage,

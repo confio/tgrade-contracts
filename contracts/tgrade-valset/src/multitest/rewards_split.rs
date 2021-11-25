@@ -1,6 +1,8 @@
 use super::suite::SuiteBuilder;
 use cosmwasm_std::{coin, Decimal};
 
+use tg_utils::JailingDuration;
+
 #[test]
 fn no_fees_no_split() {
     let members = vec!["member1", "member2"];
@@ -231,7 +233,9 @@ fn jailed_validators_not_rewarded() {
         .build();
     let admin = suite.admin().to_owned();
 
-    suite.jail(&admin, members[0], None).unwrap();
+    suite
+        .jail(&admin, members[0], JailingDuration::Forever {})
+        .unwrap();
     suite.advance_epoch().unwrap();
 
     suite.advance_epoch().unwrap();

@@ -4,7 +4,7 @@ use serde::{Deserialize, Serialize};
 use cosmwasm_std::{Addr, Decimal};
 use cw_storage_plus::Item;
 use tg4::Tg4Contract;
-use tg_utils::Duration;
+use tg_utils::JailingDuration;
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 #[serde(rename_all = "snake_case")]
@@ -16,15 +16,8 @@ pub enum OversightProposal {
     Punish {
         member: Addr,
         portion: Decimal,
-        jailing_period: Option<JailingPeriod>,
+        jailing_duration: Option<JailingDuration>,
     },
-}
-
-#[derive(Serialize, Deserialize, Clone, PartialEq, JsonSchema, Debug)]
-#[serde(rename_all = "snake_case")]
-pub enum JailingPeriod {
-    Duration(Duration),
-    Forever,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]

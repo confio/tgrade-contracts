@@ -281,7 +281,7 @@ fn close_proposal() {
 mod voting {
     use cosmwasm_std::coin;
 
-    use crate::state::JailingPeriod;
+    use tg_utils::JailingDuration;
 
     use super::*;
 
@@ -560,7 +560,7 @@ mod voting {
                 members[2],
                 members[1],
                 Decimal::percent(50),
-                JailingPeriod::Duration(suite.epoch_length()),
+                JailingDuration::Duration(suite.epoch_length()),
             )
             .unwrap();
         let proposal_id: u64 = get_proposal_id(&response).unwrap();
