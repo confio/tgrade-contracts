@@ -921,10 +921,10 @@ mod tests {
         let rules = mock_rules().threshold(Decimal::percent(51)).build();
         let (flex_addr, group_addr, _, _) = setup_test_case(&mut app, rules, vec![], false);
 
-        let query: Tg4Contract = app
+        let query: Addr = app
             .wrap()
             .query_wasm_smart(&flex_addr, &QueryMsg::GroupContract {})
             .unwrap();
-        assert_eq!(query.addr(), group_addr);
+        assert_eq!(query, group_addr);
     }
 }

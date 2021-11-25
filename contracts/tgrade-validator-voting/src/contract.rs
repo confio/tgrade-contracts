@@ -591,9 +591,7 @@ mod tests {
         )
         .unwrap();
 
-        use tg4::Tg4Contract;
-        let query: Tg4Contract =
-            from_slice(&query(deps.as_ref(), env, QueryMsg::GroupContract {}).unwrap()).unwrap();
-        assert_eq!(query.addr(), Addr::unchecked(group_addr));
+        let query: Addr = from_slice(&query(deps.as_ref(), env, QueryMsg::GroupContract {}).unwrap()).unwrap();
+        assert_eq!(query, Addr::unchecked(group_addr));
     }
 }

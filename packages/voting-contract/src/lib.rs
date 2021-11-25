@@ -3,7 +3,7 @@ pub mod state;
 
 pub use error::ContractError;
 
-use cosmwasm_std::{BlockInfo, Deps, DepsMut, Env, MessageInfo, Order, StdResult};
+use cosmwasm_std::{BlockInfo, Deps, DepsMut, Env, MessageInfo, Order, StdResult, Addr};
 use cw0::maybe_addr;
 use cw3::{
     Status, Vote, VoteInfo, VoteListResponse, VoteResponse, VoterDetail, VoterListResponse,
@@ -325,7 +325,7 @@ pub fn list_voters(
     Ok(VoterListResponse { voters })
 }
 
-pub fn query_group_contract(deps: Deps) -> StdResult<Tg4Contract> {
+pub fn query_group_contract(deps: Deps) -> StdResult<Addr> {
     let cfg = CONFIG.load(deps.storage)?;
-    Ok(cfg.group_contract)
+    Ok(cfg.group_contract.addr())
 }
