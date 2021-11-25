@@ -6,8 +6,8 @@ This guide lists API changes between releases of *Tgrade* contracts.
 
 ### Voting contracts
 
-The `Expiration` type becomes simpler - it simply wraps a `Timestamp`. We don't need the
-other variants for TGrade.
+The `Expiration` type in `ProposalResponse` becomes simpler - it simply wraps a `Timestamp`.
+We don't need the other variants for TGrade.
 
 ```diff
 @@ -57,50 +57,7 @@
@@ -66,11 +66,11 @@ other variants for TGrade.
 
 ### `tgrade-oc-proposals`
 
-The`Expiration` type changes. See `voting contracts`.
+The`Expiration` type changes. See `Voting contracts`.
 
 ### `tgrade-validator-voting`
 
-*   The`Expiration` type changes. See `voting contracts`.
+*   The`Expiration` type changes. See `Voting contracts`.
 
 *   The instantiation msg no longer requires an `engagement_addr`, which was entirely ignored by
     the contract anyway.
