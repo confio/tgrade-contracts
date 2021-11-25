@@ -12,7 +12,8 @@ use crate::ContractError;
 use tg_voting_contract::state::{proposals, CONFIG as VOTING_CONFIG};
 use tg_voting_contract::{
     close as execute_close, list_proposals, list_voters, list_votes, propose as execute_propose,
-    query_proposal, query_rules, query_vote, query_voter, reverse_proposals, vote as execute_vote,
+    query_group_contract, query_proposal, query_rules, query_vote, query_voter, reverse_proposals,
+    vote as execute_vote,
 };
 
 pub type Response = cosmwasm_std::Response<TgradeMsg>;
@@ -107,19 +108,19 @@ fn align_limit(limit: Option<u32>) -> usize {
 
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn query(deps: Deps, env: Env, msg: QueryMsg) -> StdResult<Binary> {
+    use QueryMsg::*;
+
     match msg {
-        QueryMsg::Rules {} => to_binary(&query_rules(deps)?),
-        QueryMsg::Proposal { proposal_id } => {
-            to_binary(&query_proposal::<Empty>(deps, env, proposal_id)?)
-        }
-        QueryMsg::Vote { proposal_id, voter } => to_binary(&query_vote(deps, proposal_id, voter)?),
-        QueryMsg::ListProposals { start_after, limit } => to_binary(&list_proposals::<Empty>(
+        Rules {} => to_binary(&query_rules(deps)?),
+        Proposal { proposal_id } => to_binary(&query_proposal::<Empty>(deps, env, proposal_id)?),
+        Vote { proposal_id, voter } => to_binary(&query_vote(deps, proposal_id, voter)?),
+        ListProposals { start_after, limit } => to_binary(&list_proposals::<Empty>(
             deps,
             env,
             start_after,
             align_limit(limit),
         )?),
-        QueryMsg::ReverseProposals {
+        ReverseProposals {
             start_before,
             limit,
         } => to_binary(&reverse_proposals::<Empty>(
@@ -128,7 +129,7 @@ pub fn query(deps: Deps, env: Env, msg: QueryMsg) -> StdResult<Binary> {
             start_before,
             align_limit(limit),
         )?),
-        QueryMsg::ListVotes {
+        ListVotes {
             proposal_id,
             start_after,
             limit,
@@ -138,9 +139,50 @@ pub fn query(deps: Deps, env: Env, msg: QueryMsg) -> StdResult<Binary> {
             start_after,
             align_limit(limit),
         )?),
-        QueryMsg::Voter { address } => to_binary(&query_voter(deps, address)?),
-        QueryMsg::ListVoters { start_after, limit } => {
-            to_binary(&list_voters(deps, start_after, limit)?)
-        }
+        Voter { address } => to_binary(&query_voter(deps, address)?),
+        ListVoters { start_after, limit } => to_binary(&list_voters(deps, start_after, limit)?),
+        GroupContract {} => to_binary(&query_group_contract(deps)?),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    use cosmwasm_std::{
+        from_slice,
+        testing::{mock_dependencies, mock_env},
+        Addr, Decimal,
+    };
+    use tg_voting_contract::state::VotingRules;
+
+    #[test]
+    fn query_group_contract() {
+        let mut deps = mock_dependencies();
+        let env = mock_env();
+        let rules = VotingRules {
+            voting_period: 1,
+            quorum: Decimal::percent(50),
+            threshold: Decimal::percent(50),
+            allow_end_early: false,
+        };
+        let group_addr = "group_addr";
+        instantiate(
+            deps.as_mut(),
+            env.clone(),
+            MessageInfo {
+                sender: Addr::unchecked("sender"),
+                funds: vec![],
+            },
+            InstantiateMsg {
+                rules,
+                group_addr: group_addr.to_owned(),
+            },
+        )
+        .unwrap();
+
+        let query: Addr =
+            from_slice(&query(deps.as_ref(), env, QueryMsg::GroupContract {}).unwrap()).unwrap();
+        assert_eq!(query, Addr::unchecked(group_addr));
     }
 }

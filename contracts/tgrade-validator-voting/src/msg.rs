@@ -121,4 +121,6 @@ pub enum QueryMsg {
         start_after: Option<String>,
         limit: Option<u32>,
     },
+    /// Returns address of current's group contract
+    GroupContract {},
 }
