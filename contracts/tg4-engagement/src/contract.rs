@@ -444,12 +444,16 @@ pub fn execute_slash(
             "Sender is not on slashers list".to_owned(),
         ));
     }
+    let addr = Addr::unchecked(&addr);
+    // check if address belongs to member, otherwise leave early
+    if members().may_load(deps.storage, &addr)?.is_none() {
+        return Ok(Response::new());
+    };
 
     validate_portion(portion)?;
 
     let ppw: u128 = DISTRIBUTION.load(deps.storage)?.points_per_weight.into();
 
-    let addr = Addr::unchecked(&addr);
     let mut diff = 0i128;
 
     members().update(
@@ -1546,7 +1550,7 @@ mod tests {
     }
 
     #[test]
-    fn slash_nonexistent_user() {
+    fn slash_nonexisting_user() {
         let mut deps = mock_dependencies();
         do_instantiate(deps.as_mut());
 
@@ -1554,17 +1558,19 @@ mod tests {
         SLASHERS
             .add_slasher(&mut deps.storage, user1.clone())
             .unwrap();
+
+        // Trying to slash nonexisting user will result in no-op
         let res = execute_slash(
             deps.as_mut(),
             mock_env(),
             MessageInfo {
-                sender: user1.clone(),
+                sender: user1,
                 funds: vec![],
             },
-            "nonexistent_user".to_owned(),
+            "nonexisting_user".to_owned(),
             Decimal::percent(50),
         )
         .unwrap();
-        dbg!(res);
+        assert_eq!(res, Response::new());
     }
 }

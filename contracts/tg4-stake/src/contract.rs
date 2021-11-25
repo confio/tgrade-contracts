@@ -261,6 +261,7 @@ pub fn execute_slash(
     let addr = deps.api.addr_validate(&addr)?;
 
     // update the addr's stake
+    // If address doesn't match anyone, leave early
     let stake = match STAKE.load(deps.storage, &addr) {
         Ok(s) => s,
         Err(_) => return Ok(Response::new()),
