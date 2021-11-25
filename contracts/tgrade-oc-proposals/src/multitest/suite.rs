@@ -10,7 +10,7 @@ use tg_utils::Duration;
 use tgrade_valset::msg::UnvalidatedDistributionContracts;
 
 use crate::msg::*;
-use crate::state::OversightProposal;
+use crate::state::{JailingPeriod, OversightProposal};
 use tg_voting_contract::state::{ProposalResponse, VotingRules};
 use tg_voting_contract::ContractError;
 
@@ -378,7 +378,7 @@ impl Suite {
         executor: &str,
         target: &str,
         portion: Decimal,
-        jailed: impl Into<Option<Duration>>,
+        jailing_period: impl Into<Option<JailingPeriod>>,
     ) -> AnyResult<AppResponse> {
         self.propose(
             executor,
@@ -387,7 +387,7 @@ impl Suite {
             OversightProposal::Punish {
                 member: Addr::unchecked(target),
                 portion,
-                jailed: jailed.into(),
+                jailing_period: jailing_period.into(),
             },
         )
     }

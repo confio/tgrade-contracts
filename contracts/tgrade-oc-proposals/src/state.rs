@@ -16,8 +16,15 @@ pub enum OversightProposal {
     Punish {
         member: Addr,
         portion: Decimal,
-        jailed: Option<Duration>,
+        jailing_period: Option<JailingPeriod>,
     },
+}
+
+#[derive(Serialize, Deserialize, Clone, PartialEq, JsonSchema, Debug)]
+#[serde(rename_all = "snake_case")]
+pub enum JailingPeriod {
+    Duration(Duration),
+    Forever,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]

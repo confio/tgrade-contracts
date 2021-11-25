@@ -280,7 +280,8 @@ fn close_proposal() {
 
 mod voting {
     use cosmwasm_std::coin;
-    use tg_utils::Duration;
+
+    use crate::state::JailingPeriod;
 
     use super::*;
 
@@ -510,12 +511,7 @@ mod voting {
 
         // Create, pass and execute slashing proposal
         let response = suite
-            .propose_punish(
-                members[2],
-                members[1],
-                Decimal::percent(50),
-                Duration::new(0),
-            )
+            .propose_punish(members[2], members[1], Decimal::percent(50), None)
             .unwrap();
         let proposal_id: u64 = get_proposal_id(&response).unwrap();
 
@@ -523,9 +519,6 @@ mod voting {
         assert_eq!(proposal_status, Status::Passed);
 
         suite.execute(members[2], proposal_id).unwrap();
-        // The validator has to unjail themself or they'll stay jailed forever
-        // and receive no rewards.
-        suite.unjail(members[1]).unwrap();
 
         // After first epoch, the rewards are not yet slashed.
         // Member 1 has 2/6 weight, so gets 10 out of 30 reward tokens.
@@ -567,7 +560,7 @@ mod voting {
                 members[2],
                 members[1],
                 Decimal::percent(50),
-                suite.epoch_length(),
+                JailingPeriod::Duration(suite.epoch_length()),
             )
             .unwrap();
         let proposal_id: u64 = get_proposal_id(&response).unwrap();
