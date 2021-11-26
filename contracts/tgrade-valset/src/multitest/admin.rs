@@ -3,8 +3,6 @@ use crate::error::ContractError;
 use super::helpers::members_init;
 use super::suite::SuiteBuilder;
 use anyhow::Result as AnyResult;
-
-use cosmwasm_std::Addr;
 use cw_controllers::AdminError;
 use cw_multi_test::AppResponse;
 
@@ -16,13 +14,6 @@ fn assert_unauthorized(resp: AnyResult<AppResponse>) {
     const NOT_ADMIN_ERR: ContractError = ContractError::AdminError(AdminError::NotAdmin {});
 
     assert_eq!(NOT_ADMIN_ERR, resp.unwrap_err().downcast().unwrap());
-}
-
-#[test]
-fn admin_of_reward_distribution_contract() {
-    let suite = SuiteBuilder::new().build();
-    let admin = suite.reward_contract();
-    assert_eq!(admin, &Addr::unchecked(suite.admin()));
 }
 
 #[test]
