@@ -84,7 +84,7 @@ pub struct InstantiateMsg {
     /// ```json
     /// {
     ///     "admin": "valset_addr",
-    ///     "token": "reward_denom",
+    ///     "denom": "reward_denom",
     /// }
     /// ```
     ///
@@ -385,7 +385,7 @@ pub enum DistributionMsg {
 #[serde(rename_all = "snake_case")]
 pub struct RewardsInstantiateMsg {
     pub admin: Addr,
-    pub token: String,
+    pub denom: String,
     pub members: Vec<Member>,
 }
 

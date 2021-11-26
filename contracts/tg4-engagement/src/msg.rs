@@ -18,8 +18,8 @@ pub struct InstantiateMsg {
     #[serde(default)]
     pub preauths_slashing: u64,
     pub halflife: Option<Duration>,
-    /// Token which may be distributed by this contract.
-    pub token: String,
+    /// Denom of tokens which may be distributed by this contract.
+    pub denom: String,
 }
 
 #[derive(Serialize, Deserialize, Clone, PartialEq, JsonSchema, Debug)]

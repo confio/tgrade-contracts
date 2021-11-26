@@ -37,7 +37,7 @@ pub struct SuiteBuilder {
     funds: Vec<(Addr, u128)>,
     halflife: Option<Duration>,
     #[derivative(Default(value = "\"usdc\".to_owned()"))]
-    token: String,
+    denom: String,
     preauths_slashing: u64,
 }
 
@@ -61,8 +61,8 @@ impl SuiteBuilder {
         self
     }
 
-    pub fn with_token(mut self, token: &str) -> Self {
-        self.token = token.to_owned();
+    pub fn with_denom(mut self, denom: &str) -> Self {
+        self.denom = denom.to_owned();
         self
     }
 
@@ -83,7 +83,7 @@ impl SuiteBuilder {
         app.back_to_genesis();
 
         let block_info = app.block_info();
-        let token = self.token;
+        let denom = self.denom;
 
         app.init_modules(|router, api, storage| -> AnyResult<()> {
             for (addr, amount) in funds {
@@ -93,7 +93,7 @@ impl SuiteBuilder {
                     &block_info,
                     owner.clone(),
                     CosmosMsg::Custom(TgradeMsg::MintTokens {
-                        denom: token.clone(),
+                        denom: denom.clone(),
                         amount: amount.into(),
                         recipient: addr.to_string(),
                     })
@@ -116,7 +116,7 @@ impl SuiteBuilder {
                     preauths_hooks: 0,
                     preauths_slashing: self.preauths_slashing,
                     halflife: self.halflife,
-                    token: token.clone(),
+                    denom: denom.clone(),
                 },
                 &[],
                 "engagement",
@@ -134,7 +134,7 @@ impl SuiteBuilder {
             app,
             contract,
             owner,
-            token,
+            denom,
         }
     }
 }
@@ -148,8 +148,8 @@ pub struct Suite {
     pub contract: Addr,
     /// Mixer contract address
     pub owner: Addr,
-    /// Token which might be distributed by this contract
-    pub token: String,
+    /// Denom of tokens which might be distributed by this contract
+    pub denom: String,
 }
 
 impl Suite {
@@ -305,7 +305,7 @@ impl Suite {
         let amount = self
             .app
             .wrap()
-            .query_balance(&Addr::unchecked(owner), &self.token)?
+            .query_balance(&Addr::unchecked(owner), &self.denom)?
             .amount;
         Ok(amount.into())
     }
