@@ -338,6 +338,10 @@ impl Suite {
         &self.admin
     }
 
+    pub fn reward_contract(&self) -> &Addr {
+        &self.rewards_contract
+    }
+
     pub fn app(&mut self) -> &mut TgradeApp {
         &mut self.app
     }
