@@ -258,7 +258,7 @@ mod tests {
             preauths_hooks: 0,
             preauths_slashing: 1,
             halflife: None,
-            token: ENGAGEMENT_TOKEN.to_owned(),
+            denom: ENGAGEMENT_TOKEN.to_owned(),
         };
         app.instantiate_contract(group_id, Addr::unchecked(OWNER), &msg, &[], "group", None)
             .unwrap()
@@ -277,7 +277,7 @@ mod tests {
             preauths_hooks: 0,
             preauths_slashing: 1,
             halflife: None,
-            token: ENGAGEMENT_TOKEN.to_owned(),
+            denom: ENGAGEMENT_TOKEN.to_owned(),
         };
         let addr = app
             .instantiate_contract(

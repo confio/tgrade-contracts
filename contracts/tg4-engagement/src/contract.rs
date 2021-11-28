@@ -50,7 +50,7 @@ pub fn instantiate(
         env.block.height,
         env.block.time,
         msg.halflife,
-        msg.token,
+        msg.denom,
     )?;
 
     Ok(Response::default())
@@ -68,7 +68,7 @@ pub fn create(
     height: u64,
     time: Timestamp,
     halflife: Option<Duration>,
-    token: String,
+    denom: String,
 ) -> Result<(), ContractError> {
     let admin_addr = admin
         .map(|admin| deps.api.addr_validate(&admin))
@@ -85,7 +85,7 @@ pub fn create(
     HALFLIFE.save(deps.storage, &data)?;
 
     let distribution = Distribution {
-        token,
+        denom,
         points_per_weight: Uint128::zero(),
         points_leftover: 0,
         distributed_total: Uint128::zero(),
@@ -272,7 +272,7 @@ pub fn execute_distribute_tokens(
     let withdrawable: u128 = distribution.withdrawable_total.into();
     let balance: u128 = deps
         .querier
-        .query_balance(env.contract.address, distribution.token.clone())?
+        .query_balance(env.contract.address, distribution.denom.clone())?
         .amount
         .into();
 
@@ -299,7 +299,7 @@ pub fn execute_distribute_tokens(
     let resp = Response::new()
         .add_attribute("action", "distribute_tokens")
         .add_attribute("sender", sender.as_str())
-        .add_attribute("token", &distribution.token)
+        .add_attribute("denom", &distribution.denom)
         .add_attribute("amount", &amount.to_string());
 
     Ok(resp)
@@ -507,7 +507,7 @@ pub fn withdrawable_funds(
     let amount = points as u128 >> POINTS_SHIFT;
     let amount = amount - withdrawn;
 
-    Ok(coin(amount, &distribution.token))
+    Ok(coin(amount, &distribution.denom))
 }
 
 pub fn sudo_add_member(
@@ -742,7 +742,7 @@ pub fn query_withdrawable_funds(deps: Deps, owner: String) -> StdResult<FundsRes
         adj
     } else {
         return Ok(FundsResponse {
-            funds: coin(0, distribution.token),
+            funds: coin(0, distribution.denom),
         });
     };
 
@@ -754,13 +754,13 @@ pub fn query_undistributed_funds(deps: Deps, env: Env) -> StdResult<FundsRespons
     let distribution = DISTRIBUTION.load(deps.storage)?;
     let balance = deps
         .querier
-        .query_balance(env.contract.address, distribution.token.clone())?
+        .query_balance(env.contract.address, distribution.denom.clone())?
         .amount;
 
     Ok(FundsResponse {
         funds: coin(
             (balance - distribution.withdrawable_total).into(),
-            &distribution.token,
+            &distribution.denom,
         ),
     })
 }
@@ -768,7 +768,7 @@ pub fn query_undistributed_funds(deps: Deps, env: Env) -> StdResult<FundsRespons
 pub fn query_distributed_total(deps: Deps) -> StdResult<FundsResponse> {
     let distribution = DISTRIBUTION.load(deps.storage)?;
     Ok(FundsResponse {
-        funds: coin(distribution.distributed_total.into(), &distribution.token),
+        funds: coin(distribution.distributed_total.into(), &distribution.denom),
     })
 }
 
@@ -894,7 +894,7 @@ mod tests {
             preauths_hooks: 1,
             preauths_slashing: 0,
             halflife: Some(Duration::new(HALFLIFE)),
-            token: "usdc".to_owned(),
+            denom: "usdc".to_owned(),
         };
         let info = mock_info("creator", &[]);
         instantiate(deps, mock_env(), info, msg).unwrap();
@@ -1090,7 +1090,7 @@ mod tests {
             preauths_hooks: 1,
             preauths_slashing: 0,
             halflife: None,
-            token: "usdc".to_owned(),
+            denom: "usdc".to_owned(),
         };
         let info = mock_info("creator", &[]);
 
