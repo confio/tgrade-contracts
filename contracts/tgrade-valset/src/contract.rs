@@ -358,6 +358,7 @@ pub fn query(deps: Deps, env: Env, msg: QueryMsg) -> Result<Binary, ContractErro
         QueryMsg::ListValidatorSlashing { operator } => {
             Ok(to_binary(&list_validator_slashing(deps, env, operator)?)?)
         }
+        QueryMsg::Admin {} => Ok(to_binary(&ADMIN.query_admin(deps)?)?),
     }
 }
 

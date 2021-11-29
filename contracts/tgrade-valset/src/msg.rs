@@ -285,6 +285,9 @@ pub enum QueryMsg {
     /// Returns a list of validator slashing events.
     /// Returns ListValidatorSlashingResponse
     ListValidatorSlashing { operator: String },
+
+    /// Returns cw_controllers::AdminResponse
+    Admin {},
 }
 
 pub type ConfigResponse = Config;

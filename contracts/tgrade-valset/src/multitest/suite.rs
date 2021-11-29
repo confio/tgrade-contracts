@@ -5,7 +5,7 @@ use anyhow::{bail, Result as AnyResult};
 use cosmwasm_std::{coin, Addr, BlockInfo, Coin, CosmosMsg, Decimal, StdResult, Timestamp};
 use cw_multi_test::{next_block, AppResponse, Contract, ContractWrapper, CosmosRouter, Executor};
 use derivative::Derivative;
-use tg4::Member;
+use tg4::{AdminResponse, Member};
 use tg_bindings::{Evidence, Pubkey, TgradeMsg, ValidatorDiff};
 use tg_bindings_test::TgradeApp;
 use tg_utils::Duration;
@@ -529,6 +529,15 @@ impl Suite {
                 .into(),
             )
         })
+    }
+
+    pub fn query_admin(&self) -> StdResult<Option<String>> {
+        let resp: AdminResponse = self
+            .app
+            .wrap()
+            .query_wasm_smart(self.valset.clone(), &QueryMsg::Admin {})?;
+
+        Ok(resp.admin)
     }
 
     pub fn list_validators(
