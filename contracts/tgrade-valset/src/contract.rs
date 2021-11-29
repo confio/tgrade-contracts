@@ -111,7 +111,7 @@ pub fn instantiate(
     };
 
     let instantiate_rewards_msg = WasmMsg::Instantiate {
-        admin: Some(env.contract.address.to_string()),
+        admin: msg.admin,
         code_id: msg.rewards_code_id,
         msg: to_binary(&rewards_init)?,
         funds: vec![],
