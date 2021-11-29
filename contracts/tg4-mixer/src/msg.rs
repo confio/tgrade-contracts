@@ -120,6 +120,10 @@ pub enum QueryMsg {
         engagement: Uint64,
         poe_function: Option<PoEFunctionType>,
     },
+    /// Returns information whether given address is an active slasher
+    IsSlasher { addr: String },
+    /// Shows all active slashers
+    ListSlashers {},
 }
 
 /// Return the two groups we are listening to

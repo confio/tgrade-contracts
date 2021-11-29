@@ -14,8 +14,8 @@ use tg_utils::{
 };
 
 use tg4::{
-    HooksResponse, Member, MemberChangedHookMsg, MemberDiff, MemberListResponse, MemberResponse,
-    Tg4Contract, TotalWeightResponse,
+    HooksResponse, IsSlasherResponse, ListSlashersResponse, Member, MemberChangedHookMsg,
+    MemberDiff, MemberListResponse, MemberResponse, Tg4Contract, TotalWeightResponse,
 };
 
 use crate::error::ContractError;
@@ -343,28 +343,27 @@ pub fn execute_slash(
 
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
+    use QueryMsg::*;
     match msg {
-        QueryMsg::Member {
+        Member {
             addr,
             at_height: height,
         } => to_binary(&query_member(deps, addr, height)?),
-        QueryMsg::ListMembers { start_after, limit } => {
-            to_binary(&list_members(deps, start_after, limit)?)
-        }
-        QueryMsg::ListMembersByWeight { start_after, limit } => {
+        ListMembers { start_after, limit } => to_binary(&list_members(deps, start_after, limit)?),
+        ListMembersByWeight { start_after, limit } => {
             to_binary(&list_members_by_weight(deps, start_after, limit)?)
         }
-        QueryMsg::TotalWeight {} => to_binary(&query_total_weight(deps)?),
-        QueryMsg::Groups {} => to_binary(&query_groups(deps)?),
-        QueryMsg::Hooks {} => {
+        TotalWeight {} => to_binary(&query_total_weight(deps)?),
+        Groups {} => to_binary(&query_groups(deps)?),
+        Hooks {} => {
             let hooks = HOOKS.list_hooks(deps.storage)?;
             to_binary(&HooksResponse { hooks })
         }
-        QueryMsg::Preauths {} => {
+        Preauths {} => {
             let preauths_hooks = PREAUTH_HOOKS.get_auth(deps.storage)?;
             to_binary(&PreauthResponse { preauths_hooks })
         }
-        QueryMsg::RewardFunction {
+        RewardFunction {
             stake,
             engagement,
             poe_function,
@@ -373,6 +372,8 @@ pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
                 .map_err(|err| StdError::generic_err(err.to_string()))?;
             to_binary(&RewardFunctionResponse { reward })
         }
+        IsSlasher { addr } => to_binary(&query_slasher(deps, addr)?),
+        ListSlashers {} => to_binary(&query_slashers(deps)?),
     }
 }
 
@@ -396,6 +397,19 @@ fn query_member(deps: Deps, addr: String, height: Option<u64>) -> StdResult<Memb
         None => members().may_load(deps.storage, &addr),
     }?;
     Ok(MemberResponse { weight })
+}
+
+fn query_slasher(deps: Deps, addr: String) -> StdResult<IsSlasherResponse> {
+    let addr = deps.api.addr_validate(&addr)?;
+    Ok(IsSlasherResponse {
+        is_slasher: SLASHERS.is_slasher(deps.storage, &addr)?,
+    })
+}
+
+fn query_slashers(deps: Deps) -> StdResult<ListSlashersResponse> {
+    Ok(ListSlashersResponse {
+        slashers: SLASHERS.list_slashers(deps.storage)?,
+    })
 }
 
 // settings for pagination

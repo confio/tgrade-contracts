@@ -106,7 +106,7 @@ pub enum QueryMsg {
     IsSlasher {
         addr: String,
     },
-    /// Shows all active slashers
+    /// Returns all active slashers
     ListSlashers {},
 }
 

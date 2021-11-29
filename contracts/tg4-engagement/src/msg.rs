@@ -114,7 +114,7 @@ pub enum QueryMsg {
     Halflife {},
     /// Returns information whether given address is an active slasher
     IsSlasher { addr: String },
-    /// Shows all active slashers
+    /// Returns all active slashers
     ListSlashers {},
 }
 
