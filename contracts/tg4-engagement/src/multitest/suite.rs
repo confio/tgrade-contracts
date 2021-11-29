@@ -4,7 +4,7 @@ use anyhow::Result as AnyResult;
 use cosmwasm_std::{Addr, Coin, CosmosMsg, Decimal, StdResult};
 use cw_multi_test::{AppResponse, Contract, ContractWrapper, CosmosRouter, Executor};
 use derivative::Derivative;
-use tg4::{IsSlasherResponse, ListSlashersResponse, Member, MemberListResponse};
+use tg4::{Member, MemberListResponse};
 use tg_bindings::TgradeMsg;
 use tg_bindings_test::TgradeApp;
 use tg_utils::Duration;
@@ -265,21 +265,21 @@ impl Suite {
     }
 
     pub fn is_slasher(&mut self, addr: &str) -> Result<bool, ContractError> {
-        let is_slasher: IsSlasherResponse = self.app.wrap().query_wasm_smart(
+        let is_slasher: bool = self.app.wrap().query_wasm_smart(
             self.contract.clone(),
             &QueryMsg::IsSlasher {
                 addr: addr.to_owned(),
             },
         )?;
-        Ok(is_slasher.is_slasher)
+        Ok(is_slasher)
     }
 
     pub fn list_slashers(&mut self) -> Result<Vec<String>, ContractError> {
-        let slashers_list: ListSlashersResponse = self
+        let slashers_list: Vec<String> = self
             .app
             .wrap()
             .query_wasm_smart(self.contract.clone(), &QueryMsg::ListSlashers {})?;
-        Ok(slashers_list.slashers)
+        Ok(slashers_list)
     }
 
     pub fn withdrawable_funds(&self, owner: &str) -> Result<Coin, ContractError> {

@@ -62,16 +62,6 @@ pub struct HooksResponse {
     pub hooks: Vec<String>,
 }
 
-#[derive(Serialize, Deserialize, Clone, PartialEq, JsonSchema, Debug)]
-pub struct IsSlasherResponse {
-    pub is_slasher: bool,
-}
-
-#[derive(Serialize, Deserialize, Clone, PartialEq, JsonSchema, Debug)]
-pub struct ListSlashersResponse {
-    pub slashers: Vec<String>,
-}
-
 /// TOTAL_KEY is meant for raw queries
 pub const TOTAL_KEY: &str = "total";
 pub const MEMBERS_KEY: &str = "members";

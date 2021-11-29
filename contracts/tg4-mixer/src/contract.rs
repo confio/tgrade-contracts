@@ -14,8 +14,8 @@ use tg_utils::{
 };
 
 use tg4::{
-    HooksResponse, IsSlasherResponse, ListSlashersResponse, Member, MemberChangedHookMsg,
-    MemberDiff, MemberListResponse, MemberResponse, Tg4Contract, TotalWeightResponse,
+    HooksResponse, Member, MemberChangedHookMsg, MemberDiff, MemberListResponse, MemberResponse,
+    Tg4Contract, TotalWeightResponse,
 };
 
 use crate::error::ContractError;
@@ -372,8 +372,11 @@ pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
                 .map_err(|err| StdError::generic_err(err.to_string()))?;
             to_binary(&RewardFunctionResponse { reward })
         }
-        IsSlasher { addr } => to_binary(&query_slasher(deps, addr)?),
-        ListSlashers {} => to_binary(&query_slashers(deps)?),
+        IsSlasher { addr } => {
+            let addr = deps.api.addr_validate(&addr)?;
+            to_binary(&SLASHERS.is_slasher(deps.storage, &addr)?)
+        }
+        ListSlashers {} => to_binary(&SLASHERS.list_slashers(deps.storage)?),
     }
 }
 
@@ -397,19 +400,6 @@ fn query_member(deps: Deps, addr: String, height: Option<u64>) -> StdResult<Memb
         None => members().may_load(deps.storage, &addr),
     }?;
     Ok(MemberResponse { weight })
-}
-
-fn query_slasher(deps: Deps, addr: String) -> StdResult<IsSlasherResponse> {
-    let addr = deps.api.addr_validate(&addr)?;
-    Ok(IsSlasherResponse {
-        is_slasher: SLASHERS.is_slasher(deps.storage, &addr)?,
-    })
-}
-
-fn query_slashers(deps: Deps) -> StdResult<ListSlashersResponse> {
-    Ok(ListSlashersResponse {
-        slashers: SLASHERS.list_slashers(deps.storage)?,
-    })
 }
 
 // settings for pagination

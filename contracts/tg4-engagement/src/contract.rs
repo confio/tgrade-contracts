@@ -8,8 +8,8 @@ use cw0::maybe_addr;
 use cw2::set_contract_version;
 use cw_storage_plus::{Bound, PrimaryKey, U64Key};
 use tg4::{
-    HooksResponse, IsSlasherResponse, ListSlashersResponse, Member, MemberChangedHookMsg,
-    MemberDiff, MemberListResponse, MemberResponse, TotalWeightResponse,
+    HooksResponse, Member, MemberChangedHookMsg, MemberDiff, MemberListResponse, MemberResponse,
+    TotalWeightResponse,
 };
 
 use crate::error::ContractError;
@@ -715,8 +715,11 @@ pub fn query(deps: Deps, env: Env, msg: QueryMsg) -> StdResult<Binary> {
         UndistributedFunds {} => to_binary(&query_undistributed_funds(deps, env)?),
         Delegated { owner } => to_binary(&query_delegated(deps, owner)?),
         Halflife {} => to_binary(&query_halflife(deps)?),
-        IsSlasher { addr } => to_binary(&query_slasher(deps, addr)?),
-        ListSlashers {} => to_binary(&query_slashers(deps)?),
+        IsSlasher { addr } => {
+            let addr = deps.api.addr_validate(&addr)?;
+            to_binary(&SLASHERS.is_slasher(deps.storage, &addr)?)
+        }
+        ListSlashers {} => to_binary(&SLASHERS.list_slashers(deps.storage)?),
     }
 }
 
@@ -799,19 +802,6 @@ fn query_halflife(deps: Deps) -> StdResult<HalflifeResponse> {
                 next_halflife,
             }
         }),
-    })
-}
-
-fn query_slasher(deps: Deps, addr: String) -> StdResult<IsSlasherResponse> {
-    let addr = deps.api.addr_validate(&addr)?;
-    Ok(IsSlasherResponse {
-        is_slasher: SLASHERS.is_slasher(deps.storage, &addr)?,
-    })
-}
-
-fn query_slashers(deps: Deps) -> StdResult<ListSlashersResponse> {
-    Ok(ListSlashersResponse {
-        slashers: SLASHERS.list_slashers(deps.storage)?,
     })
 }
 

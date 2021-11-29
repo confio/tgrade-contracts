@@ -9,8 +9,8 @@ use cw0::maybe_addr;
 use cw2::set_contract_version;
 use cw_storage_plus::{Bound, PrimaryKey, U64Key};
 use tg4::{
-    HooksResponse, IsSlasherResponse, ListSlashersResponse, Member, MemberChangedHookMsg,
-    MemberDiff, MemberListResponse, MemberResponse, TotalWeightResponse,
+    HooksResponse, Member, MemberChangedHookMsg, MemberDiff, MemberListResponse, MemberResponse,
+    TotalWeightResponse,
 };
 use tg_bindings::{request_privileges, Privilege, PrivilegeChangeMsg, TgradeMsg, TgradeSudoMsg};
 use tg_utils::{
@@ -481,8 +481,11 @@ pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
             } = CONFIG.load(deps.storage)?;
             to_binary(&UnbondingPeriodResponse { unbonding_period })
         }
-        IsSlasher { addr } => to_binary(&query_slasher(deps, addr)?),
-        ListSlashers {} => to_binary(&query_slashers(deps)?),
+        IsSlasher { addr } => {
+            let addr = deps.api.addr_validate(&addr)?;
+            to_binary(&SLASHERS.is_slasher(deps.storage, &addr)?)
+        }
+        ListSlashers {} => to_binary(&SLASHERS.list_slashers(deps.storage)?),
     }
 }
 
@@ -508,19 +511,6 @@ fn query_member(deps: Deps, addr: String, height: Option<u64>) -> StdResult<Memb
         None => members().may_load(deps.storage, &addr),
     }?;
     Ok(MemberResponse { weight })
-}
-
-fn query_slasher(deps: Deps, addr: String) -> StdResult<IsSlasherResponse> {
-    let addr = deps.api.addr_validate(&addr)?;
-    Ok(IsSlasherResponse {
-        is_slasher: SLASHERS.is_slasher(deps.storage, &addr)?,
-    })
-}
-
-fn query_slashers(deps: Deps) -> StdResult<ListSlashersResponse> {
-    Ok(ListSlashersResponse {
-        slashers: SLASHERS.list_slashers(deps.storage)?,
-    })
 }
 
 // settings for pagination
@@ -1260,15 +1250,15 @@ mod tests {
         fn query_is_slasher(deps: Deps, env: Env, addr: String) -> StdResult<bool> {
             let msg = QueryMsg::IsSlasher { addr };
             let raw = query(deps, env, msg)?;
-            let slasher: IsSlasherResponse = from_slice(&raw)?;
-            Ok(slasher.is_slasher)
+            let is_slasher: bool = from_slice(&raw)?;
+            Ok(is_slasher)
         }
 
         fn query_list_slashers(deps: Deps, env: Env) -> StdResult<Vec<String>> {
             let msg = QueryMsg::ListSlashers {};
             let raw = query(deps, env, msg)?;
-            let slashers: ListSlashersResponse = from_slice(&raw)?;
-            Ok(slashers.slashers)
+            let slashers: Vec<String> = from_slice(&raw)?;
+            Ok(slashers)
         }
 
         fn add_slasher(deps: DepsMut) -> String {

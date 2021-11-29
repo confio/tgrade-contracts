@@ -102,11 +102,11 @@ pub enum QueryMsg {
     Hooks {},
     /// Return the current number of preauths. Returns PreauthResponse.
     Preauths {},
-    /// Returns information whether given address is an active slasher
+    /// Returns information (bool) whether given address is an active slasher
     IsSlasher {
         addr: String,
     },
-    /// Returns all active slashers
+    /// Returns all active slashers as vector of addresses
     ListSlashers {},
 }
 
