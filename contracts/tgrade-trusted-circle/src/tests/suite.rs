@@ -137,7 +137,7 @@ impl SuiteBuilder {
                     preauths_hooks: 0,
                     preauths_slashing: 0,
                     halflife: None,
-                    token: "utgd".to_owned(),
+                    denom: "utgd".to_owned(),
                 },
                 &[],
                 "deny-list",

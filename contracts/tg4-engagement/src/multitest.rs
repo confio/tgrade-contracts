@@ -17,10 +17,10 @@ fn member(addr: &str, weight: u64) -> Member {
 mod funds_distribution {
     use super::*;
 
-    fn distribution_event(sender: &str, token: &str, amount: u128) -> Event {
+    fn distribution_event(sender: &str, denom: &str, amount: u128) -> Event {
         Event::new("wasm")
             .add_attribute("sender", sender)
-            .add_attribute("token", token)
+            .add_attribute("denom", denom)
             .add_attribute("amount", &amount.to_string())
     }
 
@@ -40,13 +40,13 @@ mod funds_distribution {
             .with_funds(&members[3], 400)
             .build();
 
-        let token = suite.token.clone();
+        let denom = suite.denom.clone();
 
         let resp = suite
-            .distribute_funds(&members[3], None, &coins(400, &token))
+            .distribute_funds(&members[3], None, &coins(400, &denom))
             .unwrap();
 
-        resp.assert_event(&distribution_event(&members[3], &token, 400));
+        resp.assert_event(&distribution_event(&members[3], &denom, 400));
 
         assert_eq!(suite.token_balance(suite.contract.as_str()).unwrap(), 400);
         assert_eq!(suite.token_balance(&members[0]).unwrap(), 0);
@@ -56,19 +56,19 @@ mod funds_distribution {
 
         assert_eq!(
             suite.withdrawable_funds(&members[0]).unwrap(),
-            coin(50, &token)
+            coin(50, &denom)
         );
         assert_eq!(
             suite.withdrawable_funds(&members[1]).unwrap(),
-            coin(100, &token)
+            coin(100, &denom)
         );
         assert_eq!(
             suite.withdrawable_funds(&members[2]).unwrap(),
-            coin(250, &token)
+            coin(250, &denom)
         );
 
-        assert_eq!(suite.distributed_funds().unwrap(), coin(400, &token));
-        assert_eq!(suite.undistributed_funds().unwrap(), coin(0, &token));
+        assert_eq!(suite.distributed_funds().unwrap(), coin(400, &denom));
+        assert_eq!(suite.undistributed_funds().unwrap(), coin(0, &denom));
 
         suite.withdraw_funds(&members[0], None, None).unwrap();
         suite.withdraw_funds(&members[1], None, None).unwrap();
@@ -97,14 +97,14 @@ mod funds_distribution {
             .with_funds(&members[3], 1000)
             .build();
 
-        let token = suite.token.clone();
+        let denom = suite.denom.clone();
 
         suite
-            .distribute_funds(&members[3], None, &coins(400, &token))
+            .distribute_funds(&members[3], None, &coins(400, &denom))
             .unwrap();
 
-        assert_eq!(suite.distributed_funds().unwrap(), coin(400, &token));
-        assert_eq!(suite.undistributed_funds().unwrap(), coin(0, &token));
+        assert_eq!(suite.distributed_funds().unwrap(), coin(400, &denom));
+        assert_eq!(suite.undistributed_funds().unwrap(), coin(0, &denom));
 
         suite.withdraw_funds(&members[0], None, None).unwrap();
         suite.withdraw_funds(&members[1], None, None).unwrap();
@@ -117,11 +117,11 @@ mod funds_distribution {
         assert_eq!(suite.token_balance(&members[3]).unwrap(), 600);
 
         suite
-            .distribute_funds(&members[3], None, &coins(600, &token))
+            .distribute_funds(&members[3], None, &coins(600, &denom))
             .unwrap();
 
-        assert_eq!(suite.distributed_funds().unwrap(), coin(1000, &token));
-        assert_eq!(suite.undistributed_funds().unwrap(), coin(0, &token));
+        assert_eq!(suite.distributed_funds().unwrap(), coin(1000, &denom));
+        assert_eq!(suite.undistributed_funds().unwrap(), coin(0, &denom));
 
         suite.withdraw_funds(&members[0], None, None).unwrap();
         suite.withdraw_funds(&members[1], None, None).unwrap();
@@ -150,21 +150,21 @@ mod funds_distribution {
             .with_funds(&members[3], 1000)
             .build();
 
-        let token = suite.token.clone();
+        let denom = suite.denom.clone();
 
         suite
-            .distribute_funds(&members[3], None, &coins(400, &token))
+            .distribute_funds(&members[3], None, &coins(400, &denom))
             .unwrap();
 
-        assert_eq!(suite.distributed_funds().unwrap(), coin(400, &token));
-        assert_eq!(suite.undistributed_funds().unwrap(), coin(0, &token));
+        assert_eq!(suite.distributed_funds().unwrap(), coin(400, &denom));
+        assert_eq!(suite.undistributed_funds().unwrap(), coin(0, &denom));
 
         suite
-            .distribute_funds(&members[3], None, &coins(600, &token))
+            .distribute_funds(&members[3], None, &coins(600, &denom))
             .unwrap();
 
-        assert_eq!(suite.distributed_funds().unwrap(), coin(1000, &token));
-        assert_eq!(suite.undistributed_funds().unwrap(), coin(0, &token));
+        assert_eq!(suite.distributed_funds().unwrap(), coin(1000, &denom));
+        assert_eq!(suite.undistributed_funds().unwrap(), coin(0, &denom));
 
         suite.withdraw_funds(&members[0], None, None).unwrap();
         suite.withdraw_funds(&members[1], None, None).unwrap();
@@ -193,11 +193,11 @@ mod funds_distribution {
             .with_funds(&members[3], 1500)
             .build();
 
-        let token = suite.token.clone();
+        let denom = suite.denom.clone();
         let owner = suite.owner.clone();
 
         suite
-            .distribute_funds(&members[3], None, &coins(400, &token))
+            .distribute_funds(&members[3], None, &coins(400, &denom))
             .unwrap();
 
         // Modifying wights to:
@@ -222,7 +222,7 @@ mod funds_distribution {
 
         // Distribute tokens again to ensure distribution considers new weights
         suite
-            .distribute_funds(&members[3], None, &coins(1100, &token))
+            .distribute_funds(&members[3], None, &coins(1100, &denom))
             .unwrap();
 
         suite.withdraw_funds(&members[0], None, None).unwrap();
@@ -252,11 +252,11 @@ mod funds_distribution {
             .with_funds(&members[3], 1500)
             .build();
 
-        let token = suite.token.clone();
+        let denom = suite.denom.clone();
         let owner = suite.owner.clone();
 
         suite
-            .distribute_funds(&members[3], None, &coins(400, &token))
+            .distribute_funds(&members[3], None, &coins(400, &denom))
             .unwrap();
 
         // Modifying wights to:
@@ -270,7 +270,7 @@ mod funds_distribution {
 
         // Distribute tokens again to ensure distribution considers new weights
         suite
-            .distribute_funds(&members[3], None, &coins(1100, &token))
+            .distribute_funds(&members[3], None, &coins(1100, &denom))
             .unwrap();
 
         // Withdraws sums of both distributions, so it works when they were using different weights
@@ -303,10 +303,10 @@ mod funds_distribution {
             .with_funds(&members[3], 3100)
             .build();
 
-        let token = suite.token.clone();
+        let denom = suite.denom.clone();
 
         suite
-            .distribute_funds(&members[3], None, &coins(100, &token))
+            .distribute_funds(&members[3], None, &coins(100, &denom))
             .unwrap();
 
         suite.withdraw_funds(&members[0], None, None).unwrap();
@@ -321,7 +321,7 @@ mod funds_distribution {
         // Second distribution adding to the first one would actually make it properly divisible,
         // all shares should be properly split
         suite
-            .distribute_funds(&members[3], None, &coins(3000, &token))
+            .distribute_funds(&members[3], None, &coins(3000, &denom))
             .unwrap();
 
         suite.withdraw_funds(&members[0], None, None).unwrap();
@@ -352,16 +352,16 @@ mod funds_distribution {
             .with_funds(&members[3], 3100)
             .build();
 
-        let token = suite.token.clone();
+        let denom = suite.denom.clone();
 
         suite
-            .distribute_funds(&members[3], None, &coins(100, &token))
+            .distribute_funds(&members[3], None, &coins(100, &denom))
             .unwrap();
 
         // Second distribution adding to the first one would actually make it properly divisible,
         // all shares should be properly split
         suite
-            .distribute_funds(&members[3], None, &coins(3000, &token))
+            .distribute_funds(&members[3], None, &coins(3000, &denom))
             .unwrap();
 
         suite.withdraw_funds(&members[0], None, None).unwrap();
@@ -391,14 +391,14 @@ mod funds_distribution {
             .with_halflife(Duration::new(100))
             .build();
 
-        let token = suite.token.clone();
+        let denom = suite.denom.clone();
 
         // Pre-halflife split, total weights 1 + 2 + 5 = 8
         // members[0], weight 1: 400 * 1 / 8 = 50
         // members[1], weight 2: 400 * 2 / 8 = 100
         // members[2], weight 5: 400 * 5 / 8 = 250
         suite
-            .distribute_funds(&members[3], None, &coins(400, &token))
+            .distribute_funds(&members[3], None, &coins(400, &denom))
             .unwrap();
 
         suite.app.advance_seconds(125);
@@ -409,7 +409,7 @@ mod funds_distribution {
         // members[1], weight 1: 600 * 1 / 4 = 150
         // members[2], weight 2: 600 * 2 / 4 = 300
         suite
-            .distribute_funds(&members[3], None, &coins(600, &token))
+            .distribute_funds(&members[3], None, &coins(600, &denom))
             .unwrap();
 
         // Withdrawal of combined splits:
@@ -452,10 +452,10 @@ mod funds_distribution {
             .with_funds(&members[3], 100)
             .build();
 
-        let token = suite.token.clone();
+        let denom = suite.denom.clone();
 
         suite
-            .distribute_funds(&members[3], None, &coins(100, &token))
+            .distribute_funds(&members[3], None, &coins(100, &denom))
             .unwrap();
 
         suite
@@ -483,10 +483,10 @@ mod funds_distribution {
             .with_funds(&members[2], 100)
             .build();
 
-        let token = suite.token.clone();
+        let denom = suite.denom.clone();
 
         suite
-            .distribute_funds(&members[2], None, &coins(100, &token))
+            .distribute_funds(&members[2], None, &coins(100, &denom))
             .unwrap();
 
         let err = suite
@@ -522,7 +522,7 @@ mod funds_distribution {
             .with_funds(&members[2], 100)
             .build();
 
-        let token = suite.token.clone();
+        let denom = suite.denom.clone();
 
         assert_eq!(
             suite.delegated(&members[0]).unwrap().as_str(),
@@ -534,7 +534,7 @@ mod funds_distribution {
         );
 
         suite
-            .distribute_funds(&members[2], None, &coins(100, &token))
+            .distribute_funds(&members[2], None, &coins(100, &denom))
             .unwrap();
 
         suite.delegate_withdrawal(&members[1], &members[0]).unwrap();
@@ -560,7 +560,7 @@ mod funds_distribution {
 
     #[test]
     fn querying_unknown_address() {
-        let suite = SuiteBuilder::new().with_token("usdc").build();
+        let suite = SuiteBuilder::new().with_denom("usdc").build();
 
         let resp = suite.withdrawable_funds("unknown").unwrap();
         assert_eq!(resp, coin(0, "usdc"))
@@ -583,7 +583,7 @@ mod slashing {
             .build();
 
         let admin = suite.owner.clone();
-        let token = suite.token.clone();
+        let denom = suite.denom.clone();
 
         suite.add_slasher(admin.as_str(), members[2]).unwrap();
 
@@ -600,7 +600,7 @@ mod slashing {
         );
 
         suite
-            .distribute_funds(members[2], None, &coins(600, &token))
+            .distribute_funds(members[2], None, &coins(600, &denom))
             .unwrap();
 
         suite.withdraw_funds(members[0], None, None).unwrap();
@@ -625,7 +625,7 @@ mod slashing {
             .build();
 
         let admin = suite.owner.clone();
-        let token = suite.token.clone();
+        let denom = suite.denom.clone();
 
         let err = suite
             .slash(admin.as_str(), members[0], Decimal::percent(50))
@@ -645,7 +645,7 @@ mod slashing {
         );
 
         suite
-            .distribute_funds(members[2], None, &coins(600, &token))
+            .distribute_funds(members[2], None, &coins(600, &denom))
             .unwrap();
 
         suite.withdraw_funds(members[0], None, None).unwrap();
@@ -669,7 +669,7 @@ mod slashing {
             .with_funds(members[2], 600)
             .build();
 
-        let token = suite.token.clone();
+        let denom = suite.denom.clone();
 
         let err = suite
             .slash(members[2], members[0], Decimal::percent(50))
@@ -689,7 +689,7 @@ mod slashing {
         );
 
         suite
-            .distribute_funds(members[2], None, &coins(600, &token))
+            .distribute_funds(members[2], None, &coins(600, &denom))
             .unwrap();
 
         suite.withdraw_funds(members[0], None, None).unwrap();
@@ -773,7 +773,7 @@ mod slashing {
             .with_preaths_slashing(1)
             .build();
 
-        let token = suite.token.clone();
+        let denom = suite.denom.clone();
 
         suite.add_slasher(members[2], members[2]).unwrap();
 
@@ -790,7 +790,7 @@ mod slashing {
         );
 
         suite
-            .distribute_funds(members[2], None, &coins(600, &token))
+            .distribute_funds(members[2], None, &coins(600, &denom))
             .unwrap();
 
         suite.withdraw_funds(members[0], None, None).unwrap();
@@ -841,12 +841,12 @@ mod slashing {
             .build();
 
         let admin = suite.owner.clone();
-        let token = suite.token.clone();
+        let denom = suite.denom.clone();
 
         suite.add_slasher(admin.as_str(), members[2]).unwrap();
 
         suite
-            .distribute_funds(members[2], None, &coins(600, &token))
+            .distribute_funds(members[2], None, &coins(600, &denom))
             .unwrap();
 
         suite.withdraw_funds(members[0], None, None).unwrap();
@@ -857,7 +857,7 @@ mod slashing {
             .unwrap();
 
         suite
-            .distribute_funds(members[2], None, &coins(600, &token))
+            .distribute_funds(members[2], None, &coins(600, &denom))
             .unwrap();
 
         suite.withdraw_funds(members[0], None, None).unwrap();
@@ -882,12 +882,12 @@ mod slashing {
             .build();
 
         let admin = suite.owner.clone();
-        let token = suite.token.clone();
+        let denom = suite.denom.clone();
 
         suite.add_slasher(admin.as_str(), members[2]).unwrap();
 
         suite
-            .distribute_funds(members[2], None, &coins(600, &token))
+            .distribute_funds(members[2], None, &coins(600, &denom))
             .unwrap();
 
         suite
@@ -895,7 +895,7 @@ mod slashing {
             .unwrap();
 
         suite
-            .distribute_funds(members[2], None, &coins(600, &token))
+            .distribute_funds(members[2], None, &coins(600, &denom))
             .unwrap();
 
         suite.withdraw_funds(members[0], None, None).unwrap();

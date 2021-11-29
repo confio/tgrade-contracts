@@ -76,7 +76,7 @@ the message:
 ```json
 {
   "admin": "tgrade_valset_addr",
-  "token": "epoch_reward_denom",
+  "denom": "epoch_reward_denom",
   "members": []
 }
 ```
@@ -248,7 +248,7 @@ pub struct InstantiateMsg {
     /// ```json
     /// {
     ///     "admin": "valset_addr",
-    ///     "token": "reward_denom",
+    ///     "denom": "reward_denom",
     /// }
     /// ```
     ///

@@ -528,7 +528,7 @@ mod tests {
             preauths_hooks: 1,
             preauths_slashing: 1,
             halflife: None,
-            token: STAKE_DENOM.to_owned(),
+            denom: STAKE_DENOM.to_owned(),
         };
         app.instantiate_contract(group_id, Addr::unchecked(OWNER), &msg, &[], "group", admin)
             .unwrap()

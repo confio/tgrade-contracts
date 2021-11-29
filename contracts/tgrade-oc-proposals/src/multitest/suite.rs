@@ -163,7 +163,7 @@ impl SuiteBuilder {
                     preauths_hooks: 0,
                     preauths_slashing: 1,
                     halflife: None,
-                    token: "ENGAGEMENT".to_owned(),
+                    denom: "ENGAGEMENT".to_owned(),
                 },
                 &[],
                 "engagement",
@@ -182,7 +182,7 @@ impl SuiteBuilder {
                     preauths_hooks: 0,
                     preauths_slashing: 1,
                     halflife: None,
-                    token: "GROUP".to_owned(),
+                    denom: "GROUP".to_owned(),
                 },
                 &[],
                 "group",
@@ -537,11 +537,11 @@ impl Suite {
     }
 
     /// Shortcut for querying reward token balance of contract
-    pub fn token_balance(&self, owner: &str, token: &str) -> StdResult<u128> {
+    pub fn token_balance(&self, owner: &str, denom: &str) -> StdResult<u128> {
         let amount = self
             .app
             .wrap()
-            .query_balance(&Addr::unchecked(owner), token)?
+            .query_balance(&Addr::unchecked(owner), denom)?
             .amount;
         Ok(amount.into())
     }

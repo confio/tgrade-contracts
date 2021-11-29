@@ -53,7 +53,7 @@ pub fn instantiate(
 ) -> Result<Response, ContractError> {
     set_contract_version(deps.storage, CONTRACT_NAME, CONTRACT_VERSION)?;
 
-    let token = msg.epoch_reward.denom.clone();
+    let denom = msg.epoch_reward.denom.clone();
 
     // verify the message and contract address are valid
     msg.validate()?;
@@ -105,12 +105,12 @@ pub fn instantiate(
 
     let rewards_init = RewardsInstantiateMsg {
         admin: env.contract.address.clone(),
-        token,
+        denom,
         members: vec![],
     };
 
     let instantiate_rewards_msg = WasmMsg::Instantiate {
-        admin: Some(env.contract.address.to_string()),
+        admin: msg.admin,
         code_id: msg.rewards_code_id,
         msg: to_binary(&rewards_init)?,
         funds: vec![],

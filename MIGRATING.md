@@ -126,6 +126,9 @@ The instantiation msg changes. It no longer includes the `validators_reward_rati
 a ratio (what portion of reward tokens is to be sent to that particular contract). Validators
 get the remainder, if any.
 
+Small but important change - during instatiation process, `WasmMSg::Instantiate` that creates
+contract handling rewards now sets admin of `tgrade-valset` contract as admin of that contract,
+instead of `tgrade-valset` contract itself.
 
 ```diff
 @@ -3,6 +3,7 @@

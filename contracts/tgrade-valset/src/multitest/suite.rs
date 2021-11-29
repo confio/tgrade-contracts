@@ -196,7 +196,7 @@ impl SuiteBuilder {
         };
 
         let admin = Addr::unchecked("admin");
-        let token = self.epoch_reward.denom.clone();
+        let denom = self.epoch_reward.denom.clone();
 
         let mut app = TgradeApp::new(admin.as_str());
         // start from genesis
@@ -213,7 +213,7 @@ impl SuiteBuilder {
                     preauths_hooks: 0,
                     preauths_slashing: 1,
                     halflife: None,
-                    token: token.clone(),
+                    denom: denom.clone(),
                 },
                 &[],
                 "group",
@@ -235,7 +235,7 @@ impl SuiteBuilder {
                         preauths_hooks: 0,
                         preauths_slashing: 1,
                         halflife: config.halflife,
-                        token: token.clone(),
+                        denom: denom.clone(),
                     },
                     &[],
                     "distribution",
@@ -302,7 +302,7 @@ impl SuiteBuilder {
             member_operators: members,
             non_member_operators: self.non_member_operators,
             epoch_length: self.epoch_length,
-            token,
+            denom,
             rewards_contract: resp.rewards_contract,
         }
     }
@@ -327,8 +327,8 @@ pub struct Suite {
     non_member_operators: Vec<String>,
     /// Length of an epoch
     epoch_length: u64,
-    /// Reward token
-    token: String,
+    /// Reward denom
+    denom: String,
     /// Rewards distribution contract address
     rewards_contract: Addr,
 }
@@ -512,7 +512,7 @@ impl Suite {
 
     pub fn mint_rewards(&mut self, amount: u128) -> AnyResult<AppResponse> {
         let block_info = self.app.block_info();
-        let denom = self.token.clone();
+        let denom = self.denom.clone();
         let admin = Addr::unchecked(&self.admin);
         let recipient = self.valset.to_string();
         self.app.init_modules(move |router, api, storage| {
@@ -581,7 +581,7 @@ impl Suite {
         let amount = self
             .app
             .wrap()
-            .query_balance(&Addr::unchecked(owner), &self.token)?
+            .query_balance(&Addr::unchecked(owner), &self.denom)?
             .amount;
         Ok(amount.into())
     }

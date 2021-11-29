@@ -39,8 +39,8 @@ pub const HALFLIFE: Item<Halflife> = Item::new("halflife");
 
 #[derive(Serialize, Deserialize, Clone, PartialEq, JsonSchema, Debug)]
 pub struct Distribution {
-    /// Token which can be distributed by this token.
-    pub token: String,
+    /// Tokens can be distributed by this denom.
+    pub denom: String,
     /// How much points is single point of weight worth at this point.
     pub points_per_weight: Uint128,
     /// Points which were not fully distributed on previous distributions, and should be redistributed
