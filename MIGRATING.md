@@ -2,9 +2,50 @@
 
 This guide lists API changes between releases of *Tgrade* contracts.
 
-## v0.5.0-beta5 -> *unreleased*
+## v0.5.0-beta5 -> v0.5.0-beta6
 
-### Voting contracts
+## Voting contracts
+
+tg4-engagement, tg4-mixer, tg4-stake - support for slasher queries
+
+All those 3 contracts got new idential queries. One returns bool information per given address whether it's a slasher or not, other returns vector of strings with all slashers listed.
+```diff
+{
+  "description": "Returns information (bool) whether given address is an active slasher",
+  "type": "object",
+  "required": [
+    "is_slasher"
+  ],
+  "properties": {
+    "is_slasher": {
+      "type": "object",
+      "required": [
+        "addr"
+      ],
+      "properties": {
+        "addr": {
+          "type": "string"
+        }
+      }
+    }
+  },
+  "additionalProperties": false
+},
+{
+  "description": "Returns all active slashers as vector of addresses",
+  "type": "object",
+  "required": [
+    "list_slashers"
+  ],
+  "properties": {
+    "list_slashers": {
+      "type": "object"
+    }
+  },
+  "additionalProperties": false
+}
+```
+
 
 The `Expiration` type in `ProposalResponse` becomes simpler - it simply wraps a `Timestamp`.
 We don't need the other variants for TGrade.
