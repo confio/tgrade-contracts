@@ -10,7 +10,6 @@ use cw2::set_contract_version;
 use cw_storage_plus::{Bound, PrimaryKey, U64Key};
 use tg4::{
     HooksResponse, Member, MemberChangedHookMsg, MemberDiff, MemberListResponse, MemberResponse,
-    TotalWeightResponse,
 };
 use tg_bindings::{request_privileges, Privilege, PrivilegeChangeMsg, TgradeMsg, TgradeSudoMsg};
 use tg_utils::{
@@ -21,7 +20,7 @@ use tg_utils::{
 use crate::error::ContractError;
 use crate::msg::{
     ClaimsResponse, ExecuteMsg, InstantiateMsg, PreauthResponse, QueryMsg, StakedResponse,
-    UnbondingPeriodResponse,
+    TotalWeightResponse, UnbondingPeriodResponse,
 };
 use crate::state::{claims, Config, CONFIG, STAKE};
 
@@ -491,7 +490,8 @@ pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
 
 fn query_total_weight(deps: Deps) -> StdResult<TotalWeightResponse> {
     let weight = TOTAL.load(deps.storage)?;
-    Ok(TotalWeightResponse { weight })
+    let denom = CONFIG.load(deps.storage)?.denom;
+    Ok(TotalWeightResponse { weight, denom })
 }
 
 pub fn query_staked(deps: Deps, addr: String) -> StdResult<StakedResponse> {
@@ -662,6 +662,7 @@ mod tests {
 
         let res = query_total_weight(deps.as_ref()).unwrap();
         assert_eq!(0, res.weight);
+        assert_eq!("stake".to_owned(), res.denom);
     }
 
     #[test]

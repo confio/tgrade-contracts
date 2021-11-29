@@ -130,6 +130,12 @@ pub struct ClaimsResponse {
     pub claims: Vec<Claim>,
 }
 
+#[derive(Serialize, Deserialize, Clone, PartialEq, JsonSchema, Debug)]
+pub struct TotalWeightResponse {
+    pub weight: u64,
+    pub denom: String,
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
