@@ -442,19 +442,18 @@ fn release_expired_claims(
 
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
+    use QueryMsg::*;
     match msg {
-        QueryMsg::Member {
+        Member {
             addr,
             at_height: height,
         } => to_binary(&query_member(deps, addr, height)?),
-        QueryMsg::ListMembers { start_after, limit } => {
-            to_binary(&list_members(deps, start_after, limit)?)
-        }
-        QueryMsg::ListMembersByWeight { start_after, limit } => {
+        ListMembers { start_after, limit } => to_binary(&list_members(deps, start_after, limit)?),
+        ListMembersByWeight { start_after, limit } => {
             to_binary(&list_members_by_weight(deps, start_after, limit)?)
         }
-        QueryMsg::TotalWeight {} => to_binary(&query_total_weight(deps)?),
-        QueryMsg::Claims {
+        TotalWeight {} => to_binary(&query_total_weight(deps)?),
+        Claims {
             address,
             limit,
             start_after,
@@ -466,22 +465,27 @@ pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
                 start_after,
             )?,
         }),
-        QueryMsg::Staked { address } => to_binary(&query_staked(deps, address)?),
-        QueryMsg::Admin {} => to_binary(&ADMIN.query_admin(deps)?),
-        QueryMsg::Hooks {} => {
+        Staked { address } => to_binary(&query_staked(deps, address)?),
+        Admin {} => to_binary(&ADMIN.query_admin(deps)?),
+        Hooks {} => {
             let hooks = HOOKS.list_hooks(deps.storage)?;
             to_binary(&HooksResponse { hooks })
         }
-        QueryMsg::Preauths {} => {
+        Preauths {} => {
             let preauths_hooks = PREAUTH_HOOKS.get_auth(deps.storage)?;
             to_binary(&PreauthResponse { preauths_hooks })
         }
-        QueryMsg::UnbondingPeriod {} => {
+        UnbondingPeriod {} => {
             let Config {
                 unbonding_period, ..
             } = CONFIG.load(deps.storage)?;
             to_binary(&UnbondingPeriodResponse { unbonding_period })
         }
+        IsSlasher { addr } => {
+            let addr = deps.api.addr_validate(&addr)?;
+            to_binary(&SLASHERS.is_slasher(deps.storage, &addr)?)
+        }
+        ListSlashers {} => to_binary(&SLASHERS.list_slashers(deps.storage)?),
     }
 }
 
@@ -1240,279 +1244,305 @@ mod tests {
         assert_eq!(hooks, Vec::<String>::new());
     }
 
-    #[test]
-    fn add_remove_slashers() {
-        let mut deps = mock_dependencies();
-        default_instantiate(deps.as_mut());
+    mod slash {
+        use super::*;
 
-        let slashers = SLASHERS.list_slashers(&deps.storage).unwrap();
-        assert!(slashers.is_empty());
+        fn query_is_slasher(deps: Deps, env: Env, addr: String) -> StdResult<bool> {
+            let msg = QueryMsg::IsSlasher { addr };
+            let raw = query(deps, env, msg)?;
+            let is_slasher: bool = from_slice(&raw)?;
+            Ok(is_slasher)
+        }
 
-        let contract1 = String::from("slasher1");
-        let contract2 = String::from("slasher2");
+        fn query_list_slashers(deps: Deps, env: Env) -> StdResult<Vec<String>> {
+            let msg = QueryMsg::ListSlashers {};
+            let raw = query(deps, env, msg)?;
+            let slashers: Vec<String> = from_slice(&raw)?;
+            Ok(slashers)
+        }
 
-        let add_msg = ExecuteMsg::AddSlasher {
-            addr: contract1.clone(),
-        };
+        fn add_slasher(deps: DepsMut) -> String {
+            let slasher = String::from("slasher");
+            let add_msg = ExecuteMsg::AddSlasher {
+                addr: slasher.clone(),
+            };
+            let user_info = mock_info(USER1, &[]);
+            execute(deps, mock_env(), user_info, add_msg).unwrap();
 
-        // anyone can add the first one, until preauth is consumed
-        assert_eq!(1, PREAUTH_SLASHING.get_auth(&deps.storage).unwrap());
-        let user_info = mock_info(USER1, &[]);
-        let _ = execute(deps.as_mut(), mock_env(), user_info, add_msg.clone()).unwrap();
-        let slashers = SLASHERS.list_slashers(&deps.storage).unwrap();
-        assert_eq!(slashers, vec![contract1.clone()]);
+            slasher
+        }
 
-        // non-admin cannot add slasher without preauth
-        assert_eq!(0, PREAUTH_SLASHING.get_auth(&deps.storage).unwrap());
-        let user_info = mock_info(USER1, &[]);
-        let err = execute(
-            deps.as_mut(),
-            mock_env(),
-            user_info.clone(),
-            add_msg.clone(),
-        )
-        .unwrap_err();
-        assert_eq!(err, PreauthError::NoPreauth {}.into());
+        fn remove_slasher(deps: DepsMut, slasher: &str) {
+            let add_msg = ExecuteMsg::RemoveSlasher {
+                addr: slasher.to_string(),
+            };
+            let user_info = mock_info(INIT_ADMIN, &[]);
+            execute(deps, mock_env(), user_info, add_msg).unwrap();
+        }
 
-        // cannot remove a non-registered slasher
-        let admin_info = mock_info(INIT_ADMIN, &[]);
-        let remove_msg = ExecuteMsg::RemoveSlasher {
-            addr: contract2.clone(),
-        };
-        let err = execute(deps.as_mut(), mock_env(), admin_info.clone(), remove_msg).unwrap_err();
-        assert_eq!(
-            err,
-            ContractError::Slasher(SlasherError::SlasherNotRegistered(contract2.clone()))
-        );
+        fn slash(
+            deps: DepsMut,
+            slasher: &str,
+            addr: &str,
+            portion: Decimal,
+        ) -> Result<Response, ContractError> {
+            let msg = ExecuteMsg::Slash {
+                addr: addr.to_string(),
+                portion,
+            };
+            let slasher_info = mock_info(slasher, &[]);
 
-        // admin can add a second slasher, and it appears in the query
-        let add_msg2 = ExecuteMsg::AddSlasher {
-            addr: contract2.clone(),
-        };
-        execute(deps.as_mut(), mock_env(), admin_info.clone(), add_msg2).unwrap();
-        let slashers = SLASHERS.list_slashers(&deps.storage).unwrap();
-        assert_eq!(slashers, vec![contract1.clone(), contract2.clone()]);
+            execute(deps, mock_env(), slasher_info, msg)
+        }
 
-        // cannot re-add an existing contract
-        let err = execute(deps.as_mut(), mock_env(), admin_info.clone(), add_msg).unwrap_err();
-        assert_eq!(
-            err,
-            ContractError::Slasher(SlasherError::SlasherAlreadyRegistered(contract1.clone()))
-        );
+        fn assert_burned(res: Response, expected_amount: Vec<Coin>) {
+            // Find all instances of BankMsg::Burn in the response and extract the burned amounts
+            let burned_amounts: Vec<_> = res
+                .messages
+                .iter()
+                .filter_map(|sub_msg| match &sub_msg.msg {
+                    CosmosMsg::Bank(BankMsg::Burn { amount }) => Some(amount),
+                    _ => None,
+                })
+                .collect();
 
-        // non-admin cannot remove
-        let remove_msg = ExecuteMsg::RemoveSlasher { addr: contract1 };
-        let err = execute(deps.as_mut(), mock_env(), user_info, remove_msg.clone()).unwrap_err();
-        assert_eq!(
-            err,
-            ContractError::Unauthorized(
-                "Only slasher might remove himself and sender is not an admin".to_owned()
+            assert_eq!(
+                burned_amounts.len(),
+                1,
+                "Expected exactly 1 Bank::Burn message, got {}",
+                burned_amounts.len()
+            );
+            assert_eq!(
+                burned_amounts[0], &expected_amount,
+                "Expected to burn {}, burned {}",
+                expected_amount[0], burned_amounts[0][0]
+            );
+        }
+
+        #[test]
+        fn add_remove_slashers() {
+            let mut deps = mock_dependencies();
+            let env = mock_env();
+            default_instantiate(deps.as_mut());
+
+            let slashers = query_list_slashers(deps.as_ref(), env.clone()).unwrap();
+            assert!(slashers.is_empty());
+
+            let contract1 = String::from("slasher1");
+            let contract2 = String::from("slasher2");
+
+            let add_msg = ExecuteMsg::AddSlasher {
+                addr: contract1.clone(),
+            };
+
+            // anyone can add the first one, until preauth is consumed
+            assert_eq!(1, PREAUTH_SLASHING.get_auth(&deps.storage).unwrap());
+            let user_info = mock_info(USER1, &[]);
+            let _ = execute(deps.as_mut(), mock_env(), user_info, add_msg.clone()).unwrap();
+            let slashers = query_list_slashers(deps.as_ref(), env.clone()).unwrap();
+            assert_eq!(slashers, vec![contract1.clone()]);
+
+            // non-admin cannot add slasher without preauth
+            assert_eq!(0, PREAUTH_SLASHING.get_auth(&deps.storage).unwrap());
+            let user_info = mock_info(USER1, &[]);
+            let err = execute(
+                deps.as_mut(),
+                mock_env(),
+                user_info.clone(),
+                add_msg.clone(),
             )
-        );
+            .unwrap_err();
+            assert_eq!(err, PreauthError::NoPreauth {}.into());
 
-        // remove the original
-        execute(deps.as_mut(), mock_env(), admin_info, remove_msg).unwrap();
-        let slashers = SLASHERS.list_slashers(&deps.storage).unwrap();
-        assert_eq!(slashers, vec![contract2.clone()]);
+            // cannot remove a non-registered slasher
+            let admin_info = mock_info(INIT_ADMIN, &[]);
+            let remove_msg = ExecuteMsg::RemoveSlasher {
+                addr: contract2.clone(),
+            };
+            let err =
+                execute(deps.as_mut(), mock_env(), admin_info.clone(), remove_msg).unwrap_err();
+            assert_eq!(
+                err,
+                ContractError::Slasher(SlasherError::SlasherNotRegistered(contract2.clone()))
+            );
 
-        // contract can self-remove
-        let contract_info = mock_info(&contract2, &[]);
-        let remove_msg2 = ExecuteMsg::RemoveSlasher { addr: contract2 };
-        execute(deps.as_mut(), mock_env(), contract_info, remove_msg2).unwrap();
-        let slashers = SLASHERS.list_slashers(&deps.storage).unwrap();
-        assert_eq!(slashers, Vec::<String>::new());
-    }
+            // admin can add a second slasher, and it appears in the query
+            let add_msg2 = ExecuteMsg::AddSlasher {
+                addr: contract2.clone(),
+            };
+            execute(deps.as_mut(), mock_env(), admin_info.clone(), add_msg2).unwrap();
+            let slashers = query_list_slashers(deps.as_ref(), env.clone()).unwrap();
+            assert_eq!(slashers, vec![contract1.clone(), contract2.clone()]);
 
-    fn add_slasher(deps: DepsMut) -> String {
-        let slasher = String::from("slasher");
-        let add_msg = ExecuteMsg::AddSlasher {
-            addr: slasher.clone(),
-        };
-        let user_info = mock_info(USER1, &[]);
-        execute(deps, mock_env(), user_info, add_msg).unwrap();
+            // cannot re-add an existing contract
+            let err = execute(deps.as_mut(), mock_env(), admin_info.clone(), add_msg).unwrap_err();
+            assert_eq!(
+                err,
+                ContractError::Slasher(SlasherError::SlasherAlreadyRegistered(contract1.clone()))
+            );
 
-        slasher
-    }
+            // non-admin cannot remove
+            let remove_msg = ExecuteMsg::RemoveSlasher { addr: contract1 };
+            let err =
+                execute(deps.as_mut(), mock_env(), user_info, remove_msg.clone()).unwrap_err();
+            assert_eq!(
+                err,
+                ContractError::Unauthorized(
+                    "Only slasher might remove himself and sender is not an admin".to_owned()
+                )
+            );
 
-    fn remove_slasher(deps: DepsMut, slasher: &str) {
-        let add_msg = ExecuteMsg::RemoveSlasher {
-            addr: slasher.to_string(),
-        };
-        let user_info = mock_info(INIT_ADMIN, &[]);
-        execute(deps, mock_env(), user_info, add_msg).unwrap();
-    }
+            // remove the original
+            execute(deps.as_mut(), mock_env(), admin_info, remove_msg).unwrap();
+            let slashers = query_list_slashers(deps.as_ref(), env.clone()).unwrap();
+            assert_eq!(slashers, vec![contract2.clone()]);
 
-    fn slash(
-        deps: DepsMut,
-        slasher: &str,
-        addr: &str,
-        portion: Decimal,
-    ) -> Result<Response, ContractError> {
-        let msg = ExecuteMsg::Slash {
-            addr: addr.to_string(),
-            portion,
-        };
-        let slasher_info = mock_info(slasher, &[]);
+            // contract can self-remove
+            let contract_info = mock_info(&contract2, &[]);
+            let remove_msg2 = ExecuteMsg::RemoveSlasher { addr: contract2 };
+            execute(deps.as_mut(), mock_env(), contract_info, remove_msg2).unwrap();
+            let slashers = query_list_slashers(deps.as_ref(), env).unwrap();
+            assert_eq!(slashers, Vec::<String>::new());
+        }
 
-        execute(deps, mock_env(), slasher_info, msg)
-    }
+        #[test]
+        fn slashing_nonexisting_member() {
+            let mut deps = mock_dependencies();
+            default_instantiate(deps.as_mut());
 
-    fn assert_burned(res: Response, expected_amount: Vec<Coin>) {
-        // Find all instances of BankMsg::Burn in the response and extract the burned amounts
-        let burned_amounts: Vec<_> = res
-            .messages
-            .iter()
-            .filter_map(|sub_msg| match &sub_msg.msg {
-                CosmosMsg::Bank(BankMsg::Burn { amount }) => Some(amount),
-                _ => None,
-            })
-            .collect();
+            // confirm address doesn't return true on slasher query
+            assert!(!query_is_slasher(deps.as_ref(), mock_env(), "slasher".to_owned()).unwrap());
 
-        assert_eq!(
-            burned_amounts.len(),
-            1,
-            "Expected exactly 1 Bank::Burn message, got {}",
-            burned_amounts.len()
-        );
-        assert_eq!(
-            burned_amounts[0], &expected_amount,
-            "Expected to burn {}, burned {}",
-            expected_amount[0], burned_amounts[0][0]
-        );
-    }
+            let slasher = add_slasher(deps.as_mut());
+            assert!(query_is_slasher(deps.as_ref(), mock_env(), slasher.clone()).unwrap());
 
-    #[test]
-    fn slashing_nonexisting_member() {
-        let mut deps = mock_dependencies();
-        default_instantiate(deps.as_mut());
-        let slasher = add_slasher(deps.as_mut());
+            bond(deps.as_mut(), 12_000, 7_500, 4_000, 1);
+            assert_stake(deps.as_ref(), 12_000, 7_500, 4_000);
 
-        bond(deps.as_mut(), 12_000, 7_500, 4_000, 1);
-        assert_stake(deps.as_ref(), 12_000, 7_500, 4_000);
+            // Trying to slash nonexisting user will result in no-op
+            let res = slash(deps.as_mut(), &slasher, "nonexisting", Decimal::percent(20)).unwrap();
+            assert_eq!(res, Response::new());
+        }
 
-        // Trying to slash nonexisting user will result in no-op
-        let res = slash(deps.as_mut(), &slasher, "nonexisting", Decimal::percent(20)).unwrap();
-        assert_eq!(res, Response::new());
-    }
+        #[test]
+        fn slashing_bonded_tokens_works() {
+            let mut deps = mock_dependencies();
+            default_instantiate(deps.as_mut());
+            let cfg = CONFIG.load(&deps.storage).unwrap();
+            let slasher = add_slasher(deps.as_mut());
 
-    #[test]
-    fn slashing_bonded_tokens_works() {
-        let mut deps = mock_dependencies();
-        default_instantiate(deps.as_mut());
-        let cfg = CONFIG.load(&deps.storage).unwrap();
-        let slasher = add_slasher(deps.as_mut());
+            bond(deps.as_mut(), 12_000, 7_500, 4_000, 1);
+            assert_stake(deps.as_ref(), 12_000, 7_500, 4_000);
 
-        bond(deps.as_mut(), 12_000, 7_500, 4_000, 1);
-        assert_stake(deps.as_ref(), 12_000, 7_500, 4_000);
+            // The slasher we added can slash
+            let res1 = slash(deps.as_mut(), &slasher, USER1, Decimal::percent(20)).unwrap();
+            let res2 = slash(deps.as_mut(), &slasher, USER3, Decimal::percent(50)).unwrap();
+            assert_stake(deps.as_ref(), 9_600, 7_500, 2_000);
 
-        // The slasher we added can slash
-        let res1 = slash(deps.as_mut(), &slasher, USER1, Decimal::percent(20)).unwrap();
-        let res2 = slash(deps.as_mut(), &slasher, USER3, Decimal::percent(50)).unwrap();
-        assert_stake(deps.as_ref(), 9_600, 7_500, 2_000);
+            // Tokens are burned
+            assert_burned(res1, coins(2_400, &cfg.denom));
+            assert_burned(res2, coins(2_000, &cfg.denom));
+        }
 
-        // Tokens are burned
-        assert_burned(res1, coins(2_400, &cfg.denom));
-        assert_burned(res2, coins(2_000, &cfg.denom));
-    }
+        #[test]
+        fn slashing_claims_works() {
+            let mut deps = mock_dependencies();
+            default_instantiate(deps.as_mut());
+            let cfg = CONFIG.load(&deps.storage).unwrap();
+            let slasher = add_slasher(deps.as_mut());
 
-    #[test]
-    fn slashing_claims_works() {
-        let mut deps = mock_dependencies();
-        default_instantiate(deps.as_mut());
-        let cfg = CONFIG.load(&deps.storage).unwrap();
-        let slasher = add_slasher(deps.as_mut());
+            // create some data
+            bond(deps.as_mut(), 12_000, 7_500, 4_000, 1);
+            let height_delta = 2;
+            unbond(deps.as_mut(), 12_000, 2_600, 0, height_delta, 0);
+            let mut env = mock_env();
+            env.block.height += height_delta;
 
-        // create some data
-        bond(deps.as_mut(), 12_000, 7_500, 4_000, 1);
-        let height_delta = 2;
-        unbond(deps.as_mut(), 12_000, 2_600, 0, height_delta, 0);
-        let mut env = mock_env();
-        env.block.height += height_delta;
+            // check the claims for each user
+            let expires = Duration::new(UNBONDING_DURATION).after(&env.block);
+            assert_eq!(
+                get_claims(deps.as_ref(), Addr::unchecked(USER1), None, None),
+                vec![Claim::new(
+                    Addr::unchecked(USER1),
+                    12_000,
+                    expires,
+                    env.block.height
+                )]
+            );
 
-        // check the claims for each user
-        let expires = Duration::new(UNBONDING_DURATION).after(&env.block);
-        assert_eq!(
-            get_claims(deps.as_ref(), Addr::unchecked(USER1), None, None),
-            vec![Claim::new(
-                Addr::unchecked(USER1),
-                12_000,
-                expires,
-                env.block.height
-            )]
-        );
+            let res = slash(deps.as_mut(), &slasher, USER1, Decimal::percent(20)).unwrap();
 
-        let res = slash(deps.as_mut(), &slasher, USER1, Decimal::percent(20)).unwrap();
+            assert_eq!(
+                get_claims(deps.as_ref(), Addr::unchecked(USER1), None, None),
+                vec![Claim::new(
+                    Addr::unchecked(USER1),
+                    9_600,
+                    expires,
+                    env.block.height
+                )]
+            );
+            assert_burned(res, coins(2_400, &cfg.denom));
+        }
 
-        assert_eq!(
-            get_claims(deps.as_ref(), Addr::unchecked(USER1), None, None),
-            vec![Claim::new(
-                Addr::unchecked(USER1),
-                9_600,
-                expires,
-                env.block.height
-            )]
-        );
-        assert_burned(res, coins(2_400, &cfg.denom));
-    }
+        #[test]
+        fn random_user_cannot_slash() {
+            let mut deps = mock_dependencies();
+            default_instantiate(deps.as_mut());
+            let _slasher = add_slasher(deps.as_mut());
 
-    #[test]
-    fn random_user_cannot_slash() {
-        let mut deps = mock_dependencies();
-        default_instantiate(deps.as_mut());
-        let _slasher = add_slasher(deps.as_mut());
+            bond(deps.as_mut(), 12_000, 7_500, 4_000, 1);
+            assert_stake(deps.as_ref(), 12_000, 7_500, 4_000);
 
-        bond(deps.as_mut(), 12_000, 7_500, 4_000, 1);
-        assert_stake(deps.as_ref(), 12_000, 7_500, 4_000);
+            let res = slash(deps.as_mut(), USER2, USER1, Decimal::percent(20));
+            assert_eq!(
+                res,
+                Err(ContractError::Unauthorized(
+                    "Sender is not on slashers list".to_owned()
+                ))
+            );
+            assert_stake(deps.as_ref(), 12_000, 7_500, 4_000);
+        }
 
-        let res = slash(deps.as_mut(), USER2, USER1, Decimal::percent(20));
-        assert_eq!(
-            res,
-            Err(ContractError::Unauthorized(
-                "Sender is not on slashers list".to_owned()
-            ))
-        );
-        assert_stake(deps.as_ref(), 12_000, 7_500, 4_000);
-    }
+        #[test]
+        fn admin_cannot_slash() {
+            let mut deps = mock_dependencies();
+            default_instantiate(deps.as_mut());
+            let _slasher = add_slasher(deps.as_mut());
 
-    #[test]
-    fn admin_cannot_slash() {
-        let mut deps = mock_dependencies();
-        default_instantiate(deps.as_mut());
-        let _slasher = add_slasher(deps.as_mut());
+            bond(deps.as_mut(), 12_000, 7_500, 4_000, 1);
+            assert_stake(deps.as_ref(), 12_000, 7_500, 4_000);
 
-        bond(deps.as_mut(), 12_000, 7_500, 4_000, 1);
-        assert_stake(deps.as_ref(), 12_000, 7_500, 4_000);
+            let res = slash(deps.as_mut(), INIT_ADMIN, USER1, Decimal::percent(20));
+            assert_eq!(
+                res,
+                Err(ContractError::Unauthorized(
+                    "Sender is not on slashers list".to_owned()
+                ))
+            );
+            assert_stake(deps.as_ref(), 12_000, 7_500, 4_000);
+        }
 
-        let res = slash(deps.as_mut(), INIT_ADMIN, USER1, Decimal::percent(20));
-        assert_eq!(
-            res,
-            Err(ContractError::Unauthorized(
-                "Sender is not on slashers list".to_owned()
-            ))
-        );
-        assert_stake(deps.as_ref(), 12_000, 7_500, 4_000);
-    }
+        #[test]
+        fn removed_slasher_cannot_slash() {
+            let mut deps = mock_dependencies();
+            default_instantiate(deps.as_mut());
 
-    #[test]
-    fn removed_slasher_cannot_slash() {
-        let mut deps = mock_dependencies();
-        default_instantiate(deps.as_mut());
+            // Add, then remove a slasher
+            let slasher = add_slasher(deps.as_mut());
+            remove_slasher(deps.as_mut(), &slasher);
 
-        // Add, then remove a slasher
-        let slasher = add_slasher(deps.as_mut());
-        remove_slasher(deps.as_mut(), &slasher);
+            bond(deps.as_mut(), 12_000, 7_500, 4_000, 1);
+            assert_stake(deps.as_ref(), 12_000, 7_500, 4_000);
 
-        bond(deps.as_mut(), 12_000, 7_500, 4_000, 1);
-        assert_stake(deps.as_ref(), 12_000, 7_500, 4_000);
-
-        let res = slash(deps.as_mut(), &slasher, USER1, Decimal::percent(20));
-        assert_eq!(
-            res,
-            Err(ContractError::Unauthorized(
-                "Sender is not on slashers list".to_owned()
-            ))
-        );
-        assert_stake(deps.as_ref(), 12_000, 7_500, 4_000);
+            let res = slash(deps.as_mut(), &slasher, USER1, Decimal::percent(20));
+            assert_eq!(
+                res,
+                Err(ContractError::Unauthorized(
+                    "Sender is not on slashers list".to_owned()
+                ))
+            );
+            assert_stake(deps.as_ref(), 12_000, 7_500, 4_000);
+        }
     }
 
     #[test]

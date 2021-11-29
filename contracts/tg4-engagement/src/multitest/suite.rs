@@ -264,6 +264,24 @@ impl Suite {
         )
     }
 
+    pub fn is_slasher(&mut self, addr: &str) -> Result<bool, ContractError> {
+        let is_slasher: bool = self.app.wrap().query_wasm_smart(
+            self.contract.clone(),
+            &QueryMsg::IsSlasher {
+                addr: addr.to_owned(),
+            },
+        )?;
+        Ok(is_slasher)
+    }
+
+    pub fn list_slashers(&mut self) -> Result<Vec<String>, ContractError> {
+        let slashers_list: Vec<String> = self
+            .app
+            .wrap()
+            .query_wasm_smart(self.contract.clone(), &QueryMsg::ListSlashers {})?;
+        Ok(slashers_list)
+    }
+
     pub fn withdrawable_funds(&self, owner: &str) -> Result<Coin, ContractError> {
         let resp: FundsResponse = self.app.wrap().query_wasm_smart(
             self.contract.clone(),
