@@ -17,12 +17,34 @@ fn assert_unauthorized(resp: AnyResult<AppResponse>) {
 }
 
 #[test]
+fn admin_query_works() {
+    let suite = SuiteBuilder::new().build();
+
+    assert_eq!(
+        Some(suite.admin().to_string()),
+        suite.query_admin().unwrap()
+    );
+}
+
+#[test]
 fn admin_can_change_admin() {
     let mut suite = SuiteBuilder::new().build();
 
     let admin = suite.admin().to_string();
+    let new_admin = "asd".to_string();
 
-    assert_success(suite.update_admin(&admin, "asd".to_string()));
+    assert_success(suite.update_admin(&admin, new_admin.clone()));
+    assert_eq!(Some(new_admin), suite.query_admin().unwrap());
+}
+
+#[test]
+fn admin_can_disable_admin() {
+    let mut suite = SuiteBuilder::new().build();
+
+    let admin = suite.admin().to_string();
+
+    assert_success(suite.update_admin(&admin, None));
+    assert_eq!(None, suite.query_admin().unwrap());
 }
 
 #[test]
@@ -35,6 +57,10 @@ fn non_admin_cannot_change_admin() {
 
     assert_unauthorized(suite.update_admin("random guy", "asd".to_string()));
     assert_unauthorized(suite.update_admin(members[0], "asd".to_string()));
+    assert_eq!(
+        Some(suite.admin().to_string()),
+        suite.query_admin().unwrap()
+    );
 }
 
 #[test]
@@ -42,7 +68,9 @@ fn admin_cannot_update_admin_twice() {
     let mut suite = SuiteBuilder::new().build();
 
     let admin = suite.admin().to_string();
+    let new_admin = "asd".to_string();
 
-    assert_success(suite.update_admin(&admin, "asd".to_string()));
-    assert_unauthorized(suite.update_admin(&admin, "asd".to_string()));
+    assert_success(suite.update_admin(&admin, new_admin.clone()));
+    assert_unauthorized(suite.update_admin(&admin, new_admin.clone()));
+    assert_eq!(Some(new_admin), suite.query_admin().unwrap());
 }
