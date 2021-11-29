@@ -9,8 +9,8 @@ use cw0::maybe_addr;
 use cw2::set_contract_version;
 use cw_storage_plus::{Bound, PrimaryKey, U64Key};
 use tg4::{
-    HooksResponse, Member, MemberChangedHookMsg, MemberDiff, MemberListResponse, MemberResponse,
-    TotalWeightResponse,
+    HooksResponse, IsSlasherResponse, ListSlashersResponse, Member, MemberChangedHookMsg,
+    MemberDiff, MemberListResponse, MemberResponse, TotalWeightResponse,
 };
 use tg_bindings::{request_privileges, Privilege, PrivilegeChangeMsg, TgradeMsg, TgradeSudoMsg};
 use tg_utils::{
@@ -20,8 +20,8 @@ use tg_utils::{
 
 use crate::error::ContractError;
 use crate::msg::{
-    ClaimsResponse, ExecuteMsg, InstantiateMsg, ListSlashersResponse, PreauthResponse, QueryMsg,
-    SlasherResponse, StakedResponse, UnbondingPeriodResponse,
+    ClaimsResponse, ExecuteMsg, InstantiateMsg, PreauthResponse, QueryMsg, StakedResponse,
+    UnbondingPeriodResponse,
 };
 use crate::state::{claims, Config, CONFIG, STAKE};
 
@@ -481,7 +481,7 @@ pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
             } = CONFIG.load(deps.storage)?;
             to_binary(&UnbondingPeriodResponse { unbonding_period })
         }
-        Slasher { addr } => to_binary(&query_slasher(deps, addr)?),
+        IsSlasher { addr } => to_binary(&query_slasher(deps, addr)?),
         ListSlashers {} => to_binary(&query_slashers(deps)?),
     }
 }
@@ -510,9 +510,9 @@ fn query_member(deps: Deps, addr: String, height: Option<u64>) -> StdResult<Memb
     Ok(MemberResponse { weight })
 }
 
-fn query_slasher(deps: Deps, addr: String) -> StdResult<SlasherResponse> {
+fn query_slasher(deps: Deps, addr: String) -> StdResult<IsSlasherResponse> {
     let addr = deps.api.addr_validate(&addr)?;
-    Ok(SlasherResponse {
+    Ok(IsSlasherResponse {
         is_slasher: SLASHERS.is_slasher(deps.storage, &addr)?,
     })
 }
@@ -1258,9 +1258,9 @@ mod tests {
         use super::*;
 
         fn query_is_slasher(deps: Deps, env: Env, addr: String) -> StdResult<bool> {
-            let msg = QueryMsg::Slasher { addr };
+            let msg = QueryMsg::IsSlasher { addr };
             let raw = query(deps, env, msg)?;
-            let slasher: SlasherResponse = from_slice(&raw)?;
+            let slasher: IsSlasherResponse = from_slice(&raw)?;
             Ok(slasher.is_slasher)
         }
 

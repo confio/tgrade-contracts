@@ -8,8 +8,8 @@ use cw0::maybe_addr;
 use cw2::set_contract_version;
 use cw_storage_plus::{Bound, PrimaryKey, U64Key};
 use tg4::{
-    HooksResponse, Member, MemberChangedHookMsg, MemberDiff, MemberListResponse, MemberResponse,
-    TotalWeightResponse,
+    HooksResponse, IsSlasherResponse, ListSlashersResponse, Member, MemberChangedHookMsg,
+    MemberDiff, MemberListResponse, MemberResponse, TotalWeightResponse,
 };
 
 use crate::error::ContractError;
@@ -690,32 +690,33 @@ fn end_block(mut deps: DepsMut, env: Env) -> Result<Response, ContractError> {
 
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn query(deps: Deps, env: Env, msg: QueryMsg) -> StdResult<Binary> {
+    use QueryMsg::*;
     match msg {
-        QueryMsg::Member {
+        Member {
             addr,
             at_height: height,
         } => to_binary(&query_member(deps, addr, height)?),
-        QueryMsg::ListMembers { start_after, limit } => {
-            to_binary(&list_members(deps, start_after, limit)?)
-        }
-        QueryMsg::ListMembersByWeight { start_after, limit } => {
+        ListMembers { start_after, limit } => to_binary(&list_members(deps, start_after, limit)?),
+        ListMembersByWeight { start_after, limit } => {
             to_binary(&list_members_by_weight(deps, start_after, limit)?)
         }
-        QueryMsg::TotalWeight {} => to_binary(&query_total_weight(deps)?),
-        QueryMsg::Admin {} => to_binary(&ADMIN.query_admin(deps)?),
-        QueryMsg::Hooks {} => {
+        TotalWeight {} => to_binary(&query_total_weight(deps)?),
+        Admin {} => to_binary(&ADMIN.query_admin(deps)?),
+        Hooks {} => {
             let hooks = HOOKS.list_hooks(deps.storage)?;
             to_binary(&HooksResponse { hooks })
         }
-        QueryMsg::Preauths {} => {
+        Preauths {} => {
             let preauths = PREAUTH_HOOKS.get_auth(deps.storage)?;
             to_binary(&PreauthResponse { preauths })
         }
-        QueryMsg::WithdrawableFunds { owner } => to_binary(&query_withdrawable_funds(deps, owner)?),
-        QueryMsg::DistributedFunds {} => to_binary(&query_distributed_total(deps)?),
-        QueryMsg::UndistributedFunds {} => to_binary(&query_undistributed_funds(deps, env)?),
-        QueryMsg::Delegated { owner } => to_binary(&query_delegated(deps, owner)?),
-        QueryMsg::Halflife {} => to_binary(&query_halflife(deps)?),
+        WithdrawableFunds { owner } => to_binary(&query_withdrawable_funds(deps, owner)?),
+        DistributedFunds {} => to_binary(&query_distributed_total(deps)?),
+        UndistributedFunds {} => to_binary(&query_undistributed_funds(deps, env)?),
+        Delegated { owner } => to_binary(&query_delegated(deps, owner)?),
+        Halflife {} => to_binary(&query_halflife(deps)?),
+        IsSlasher { addr } => to_binary(&query_slasher(deps, addr)?),
+        ListSlashers {} => to_binary(&query_slashers(deps)?),
     }
 }
 
@@ -798,6 +799,19 @@ fn query_halflife(deps: Deps) -> StdResult<HalflifeResponse> {
                 next_halflife,
             }
         }),
+    })
+}
+
+fn query_slasher(deps: Deps, addr: String) -> StdResult<IsSlasherResponse> {
+    let addr = deps.api.addr_validate(&addr)?;
+    Ok(IsSlasherResponse {
+        is_slasher: SLASHERS.is_slasher(deps.storage, &addr)?,
+    })
+}
+
+fn query_slashers(deps: Deps) -> StdResult<ListSlashersResponse> {
+    Ok(ListSlashersResponse {
+        slashers: SLASHERS.list_slashers(deps.storage)?,
     })
 }
 
