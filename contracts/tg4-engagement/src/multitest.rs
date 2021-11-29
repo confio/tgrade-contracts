@@ -587,6 +587,9 @@ mod slashing {
 
         suite.add_slasher(admin.as_str(), members[2]).unwrap();
 
+        assert!(!suite.is_slasher(members[1]).unwrap());
+        assert!(suite.is_slasher(members[2]).unwrap());
+
         suite
             .slash(members[2], members[0], Decimal::percent(50))
             .unwrap();
@@ -704,14 +707,24 @@ mod slashing {
     #[test]
     fn remove_slasher() {
         // Add then remove slasher by admin. Then ensure that the removed slasher can't slash
-        let members = vec!["member1", "member2"];
+        let members = vec!["member1", "member2", "member3"];
 
         let mut suite = SuiteBuilder::new().with_member(members[0], 10).build();
 
         let admin = suite.owner.clone();
 
         suite.add_slasher(admin.as_ref(), members[1]).unwrap();
+        suite.add_slasher(admin.as_ref(), members[2]).unwrap();
+        assert_eq!(
+            suite.list_slashers().unwrap(),
+            vec![members[1].to_owned(), members[2].to_owned()]
+        );
+
         suite.remove_slasher(admin.as_ref(), members[1]).unwrap();
+        assert_eq!(suite.list_slashers().unwrap(), vec![members[2].to_owned()]);
+
+        suite.remove_slasher(admin.as_ref(), members[2]).unwrap();
+        assert!(suite.list_slashers().unwrap().is_empty());
 
         let err = suite
             .slash(members[1], members[0], Decimal::percent(50))

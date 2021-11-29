@@ -41,7 +41,7 @@ impl<'a> Slashers<'a> {
         Ok(self.0.save(storage, &slashers)?)
     }
 
-    pub fn is_slasher(&self, storage: &dyn Storage, addr: &Addr) -> Result<bool, SlasherError> {
+    pub fn is_slasher(&self, storage: &dyn Storage, addr: &Addr) -> StdResult<bool> {
         let slashers = self.0.load(storage)?;
         Ok(slashers.contains(addr))
     }

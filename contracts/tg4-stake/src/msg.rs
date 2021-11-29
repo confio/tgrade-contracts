@@ -102,6 +102,12 @@ pub enum QueryMsg {
     Hooks {},
     /// Return the current number of preauths. Returns PreauthResponse.
     Preauths {},
+    /// Returns information (bool) whether given address is an active slasher
+    IsSlasher {
+        addr: String,
+    },
+    /// Returns all active slashers as vector of addresses
+    ListSlashers {},
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
@@ -122,6 +128,12 @@ pub struct UnbondingPeriodResponse {
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct ClaimsResponse {
     pub claims: Vec<Claim>,
+}
+
+#[derive(Serialize, Deserialize, Clone, PartialEq, JsonSchema, Debug)]
+pub struct TotalWeightResponse {
+    pub weight: u64,
+    pub denom: String,
 }
 
 #[cfg(test)]

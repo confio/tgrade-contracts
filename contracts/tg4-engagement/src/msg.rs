@@ -112,6 +112,10 @@ pub enum QueryMsg {
     /// Returns information about the halflife, including the duration in seconds, the last
     /// and the next occurence.
     Halflife {},
+    /// Returns information (bool) whether given address is an active slasher
+    IsSlasher { addr: String },
+    /// Returns all active slashers as vector of addresses
+    ListSlashers {},
 }
 
 #[derive(Serialize, Deserialize, Clone, PartialEq, JsonSchema, Debug)]
@@ -163,6 +167,16 @@ pub struct HalflifeInfo {
     pub last_halflife: Timestamp,
     pub halflife: Duration,
     pub next_halflife: Timestamp,
+}
+
+#[derive(Serialize, Deserialize, Clone, PartialEq, JsonSchema, Debug)]
+pub struct SlasherResponse {
+    pub is_slasher: bool,
+}
+
+#[derive(Serialize, Deserialize, Clone, PartialEq, JsonSchema, Debug)]
+pub struct ListSlashersResponse {
+    pub slashers: Vec<String>,
 }
 
 #[cfg(test)]
