@@ -5,7 +5,7 @@ use std::ops::Add;
 
 use tg4::Member;
 use tg_bindings::{Ed25519Pubkey, Pubkey};
-use tg_utils::{Duration, Expiration};
+use tg_utils::{Expiration, JailingDuration};
 
 use crate::error::ContractError;
 use crate::state::{Config, DistributionContract, OperatorInfo, ValidatorInfo, ValidatorSlashing};
@@ -237,8 +237,8 @@ pub enum ExecuteMsg {
     Jail {
         /// Operator which should be jailed
         operator: String,
-        /// Duration for how long validator is jailed, `None` for jailing forever
-        duration: Option<Duration>,
+        /// Duration for how long validator is jailed
+        duration: JailingDuration,
     },
     /// Unjails validator. Admin can unjail anyone anytime, others can unjail only themselves and
     /// only if the jail period passed.
@@ -336,6 +336,13 @@ pub enum JailingPeriod {
 }
 
 impl JailingPeriod {
+    pub fn from_duration(duration: JailingDuration, block: &BlockInfo) -> Self {
+        match duration {
+            JailingDuration::Duration(duration) => Self::Until(duration.after(&block)),
+            JailingDuration::Forever {} => Self::Forever {},
+        }
+    }
+
     pub fn is_expired(&self, block: &BlockInfo) -> bool {
         match self {
             Self::Forever {} => false,

@@ -1,12 +1,12 @@
 #[cfg(not(feature = "library"))]
 use cosmwasm_std::entry_point;
-use cosmwasm_std::{to_binary, Binary, Deps, DepsMut, Env, MessageInfo, StdResult};
+use cosmwasm_std::{to_binary, Binary, Decimal, Deps, DepsMut, Env, MessageInfo, StdResult};
 
 use cw2::set_contract_version;
 use cw3::Status;
 use tg4::Tg4Contract;
 use tg_bindings::TgradeMsg;
-use tg_utils::SlashMsg;
+use tg_utils::{JailMsg, SlashMsg};
 
 use crate::msg::{ExecuteMsg, InstantiateMsg, QueryMsg};
 use crate::state::{Config, OversightProposal, CONFIG};
@@ -98,31 +98,52 @@ pub fn execute_execute(
         valset_contract,
     } = CONFIG.load(deps.storage)?;
 
-    let message = match prop.proposal {
-        OversightProposal::GrantEngagement { ref member, points } => engagement_contract
-            .encode_raw_msg(to_binary(&tg4_engagement::ExecuteMsg::AddPoints {
-                addr: member.to_string(),
-                points,
-            })?)?,
-        OversightProposal::Slash {
-            ref member,
-            portion,
-        } => valset_contract.encode_raw_msg(to_binary(&SlashMsg::Slash {
-            addr: member.to_string(),
-            portion,
-        })?)?,
-    };
-
     // set it to executed
     prop.status = Status::Executed;
     proposals().save(deps.storage, proposal_id.into(), &prop)?;
 
     // dispatch all proposed messages
-    Ok(Response::new()
-        .add_submessage(message)
+    let mut res = Response::new()
         .add_attribute("action", "execute")
         .add_attribute("sender", info.sender)
-        .add_attribute("proposal_id", proposal_id.to_string()))
+        .add_attribute("proposal_id", proposal_id.to_string());
+
+    match prop.proposal {
+        OversightProposal::GrantEngagement { ref member, points } => {
+            res = res.add_submessage(engagement_contract.encode_raw_msg(to_binary(
+                &tg4_engagement::ExecuteMsg::AddPoints {
+                    addr: member.to_string(),
+                    points,
+                },
+            )?)?);
+        }
+
+        OversightProposal::Punish {
+            ref member,
+            portion,
+            jailing_duration,
+        } => {
+            if portion != Decimal::zero() {
+                res = res.add_submessage(valset_contract.encode_raw_msg(to_binary(
+                    &SlashMsg::Slash {
+                        addr: member.to_string(),
+                        portion,
+                    },
+                )?)?);
+            }
+
+            if let Some(jailing_duration) = jailing_duration {
+                res = res.add_submessage(valset_contract.encode_raw_msg(to_binary(
+                    &JailMsg::Jail {
+                        operator: member.to_string(),
+                        duration: jailing_duration,
+                    },
+                )?)?);
+            }
+        }
+    }
+
+    Ok(res)
 }
 
 fn align_limit(limit: Option<u32>) -> usize {

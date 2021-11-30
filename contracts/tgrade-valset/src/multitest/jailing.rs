@@ -4,7 +4,7 @@ use crate::msg::JailingPeriod;
 use super::helpers::{assert_active_validators, assert_operators, members_init};
 use super::suite::SuiteBuilder;
 use cw_controllers::AdminError;
-use tg_utils::{Duration, Expiration};
+use tg_utils::{Duration, Expiration, JailingDuration};
 
 #[test]
 fn only_admin_can_jail() {
@@ -15,7 +15,9 @@ fn only_admin_can_jail() {
     let admin = suite.admin().to_owned();
 
     // Admin can jail forever
-    suite.jail(&admin, members[1], None).unwrap();
+    suite
+        .jail(&admin, members[1], JailingDuration::Forever {})
+        .unwrap();
 
     // Validator jailed forever is also marked as tombstoned
     let slashing = suite.list_validator_slashing(members[1]).unwrap();
@@ -37,7 +39,9 @@ fn only_admin_can_jail() {
     let jailed_until = JailingPeriod::Until(Duration::new(3600).after(&suite.app().block_info()));
 
     // Non-admin cannot jail forever
-    let err = suite.jail(members[0], members[2], None).unwrap_err();
+    let err = suite
+        .jail(members[0], members[2], JailingDuration::Forever {})
+        .unwrap_err();
 
     assert_eq!(
         ContractError::AdminError(AdminError::NotAdmin {}),
@@ -78,7 +82,9 @@ fn admin_can_unjail_almost_anyone() {
     let admin = suite.admin().to_owned();
 
     // Jailing some operators to have someone to unjail
-    suite.jail(&admin, members[1], None).unwrap();
+    suite
+        .jail(&admin, members[1], JailingDuration::Forever {})
+        .unwrap();
     suite.jail(&admin, members[2], Duration::new(3600)).unwrap();
 
     suite.next_block().unwrap();
@@ -239,7 +245,9 @@ fn auto_unjail() {
 
     // Jailing some operators to begin with
     suite.jail(&admin, members[0], Duration::new(3600)).unwrap();
-    suite.jail(&admin, members[1], None).unwrap();
+    suite
+        .jail(&admin, members[1], JailingDuration::Forever {})
+        .unwrap();
 
     // Move forward a little, but not enough for jailing to expire
     suite.next_block().unwrap();
@@ -293,7 +301,9 @@ fn enb_block_ignores_jailed_validators() {
 
     // Jailing some operators to begin with
     suite.jail(&admin, members[0], Duration::new(3600)).unwrap();
-    suite.jail(&admin, members[1], None).unwrap();
+    suite
+        .jail(&admin, members[1], JailingDuration::Forever {})
+        .unwrap();
 
     suite.advance_epoch().unwrap();
 
