@@ -1,8 +1,9 @@
 #[cfg(not(feature = "library"))]
 use cosmwasm_std::entry_point;
 use cosmwasm_std::{
-    coin, to_binary, Addr, BankMsg, Binary, BlockInfo, Deps, DepsMut, Env, Event, MessageInfo,
-    Order, QuerierWrapper, StdError, StdResult, Storage, Uint128,
+    coin, to_binary, to_vec, Addr, BankMsg, Binary, BlockInfo, ContractResult, Deps, DepsMut,
+    Empty, Env, Event, MessageInfo, Order, QuerierWrapper, QueryRequest, StdError, StdResult,
+    Storage, SystemError, SystemResult, Uint128, WasmQuery,
 };
 use cw0::{maybe_addr, Expiration};
 use cw2::set_contract_version;
@@ -1209,12 +1210,25 @@ pub fn remove_contract_addr(
 // wasmd error returned on QuerySmart: https://github.com/CosmWasm/wasmd/blob/6a471a4a16730e371863067b27858f60a3996c91/x/wasm/keeper/keeper.go#L627
 // no error returned on QueryRaw: https://github.com/CosmWasm/wasmd/blob/6a471a4a16730e371863067b27858f60a3996c91/x/wasm/keeper/keeper.go#L612-L620
 pub fn is_contract(querier: &QuerierWrapper, addr: &Addr) -> StdResult<bool> {
-    // see cw2.CONTRACT
-    match querier.query_wasm_raw(addr, b"contract_info") {
-        Ok(Some(data)) if !data.is_empty() => Ok(true),
-        Ok(_) => Ok(false),
-        Err(StdError::GenericErr { msg, .. }) if msg.contains("No such contract") => Ok(false),
-        Err(err) => Err(err),
+    let raw = QueryRequest::<Empty>::Wasm(WasmQuery::ContractInfo {
+        contract_addr: addr.to_string(),
+    });
+    match querier.raw_query(&to_vec(&raw)?) {
+        SystemResult::Err(SystemError::NoSuchContract { .. }) => Ok(false),
+        SystemResult::Err(system_err) => Err(StdError::generic_err(format!(
+            "Querier system error: {}",
+            system_err
+        ))),
+        SystemResult::Ok(ContractResult::Err(contract_err))
+            if contract_err.contains("not found") =>
+        {
+            Ok(false)
+        }
+        SystemResult::Ok(ContractResult::Err(contract_err)) => Err(StdError::generic_err(format!(
+            "Querier contract error: {}",
+            contract_err
+        ))),
+        SystemResult::Ok(ContractResult::Ok(_)) => Ok(true),
     }
 }
 
