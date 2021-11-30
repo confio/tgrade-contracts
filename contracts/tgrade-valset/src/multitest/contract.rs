@@ -12,7 +12,8 @@ fn initialization() {
     let members = vec!["member1", "member2", "member3", "member4"];
 
     let suite = SuiteBuilder::new()
-        .with_operators(&members_init(&members, &[2, 3, 5, 8]), &[])
+        .with_engagement(&members_init(&members, &[2, 3, 5, 8]))
+        .with_operators(&members)
         .with_epoch_reward(coin(100, "eth"))
         .with_max_validators(10)
         .with_min_weight(5)
@@ -77,7 +78,8 @@ fn simulate_validators() {
     ];
 
     let suite = SuiteBuilder::new()
-        .with_operators(&members_init(&members, &[2, 3, 5, 8, 13, 21]), &[])
+        .with_engagement(&members_init(&members, &[2, 3, 5, 8, 13, 21]))
+        .with_operators(&members)
         .with_max_validators(2)
         .with_min_weight(5)
         .build();
@@ -97,7 +99,8 @@ fn simulate_validators() {
 fn update_metadata() {
     let members = vec!["member1"];
     let mut suite = SuiteBuilder::new()
-        .with_operators(&members_init(&members, &[2]), &[])
+        .with_engagement(&members_init(&members, &[2]))
+        .with_operators(&members)
         .build();
 
     let meta = ValidatorMetadata {
@@ -144,7 +147,8 @@ fn list_validators() {
     let members = vec!["member1", "member2", "member3", "member4"];
 
     let suite = SuiteBuilder::new()
-        .with_operators(&members_init(&members, &[2, 3, 5, 8, 13, 21]), &[])
+        .with_engagement(&members_init(&members, &[2, 3, 5, 8, 13, 21]))
+        .with_operators(&members)
         .with_min_weight(5)
         .build();
 
@@ -164,7 +168,8 @@ fn list_validators_paginated() {
     let members = vec!["member1", "member2", "member3", "member4", "member5"];
 
     let suite = SuiteBuilder::new()
-        .with_operators(&members_init(&members, &[2, 3, 5, 8, 13, 21]), &[])
+        .with_engagement(&members_init(&members, &[2, 3, 5, 8, 13, 21]))
+        .with_operators(&members)
         .with_min_weight(5)
         .build();
 

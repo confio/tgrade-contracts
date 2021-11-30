@@ -12,7 +12,8 @@ fn admin_can_slash() {
     let members = vec![actors[0], actors[2]];
 
     let mut suite = SuiteBuilder::new()
-        .with_operators(&[(members[0], 20), (members[1], 10)], &[])
+        .with_engagement(&[(members[0], 20), (members[1], 10)])
+        .with_operators(&members)
         .with_epoch_reward(coin(3000, "usdc"))
         .with_distribution(
             Decimal::percent(50),
@@ -88,7 +89,8 @@ fn non_admin_cant_slash() {
     let members = vec![actors[0], actors[2]];
 
     let mut suite = SuiteBuilder::new()
-        .with_operators(&[(members[0], 20), (members[1], 10)], &[])
+        .with_engagement(&[(members[0], 20), (members[1], 10)])
+        .with_operators(&members)
         .with_epoch_reward(coin(3000, "usdc"))
         .with_distribution(
             Decimal::percent(50),
@@ -138,7 +140,8 @@ fn non_validator_query_fails() {
     let members = vec![actors[0], actors[2]];
 
     let suite = SuiteBuilder::new()
-        .with_operators(&[(members[0], 20), (members[1], 10)], &[])
+        .with_engagement(&[(members[0], 20), (members[1], 10)])
+        .with_operators(&members)
         .build();
 
     // Confirm not a valid query for a non-validator
