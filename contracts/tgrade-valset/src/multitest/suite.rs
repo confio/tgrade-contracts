@@ -185,7 +185,6 @@ impl SuiteBuilder {
                 members.dedup();
 
                 engagement_members = members
-                    .clone()
                     .into_iter()
                     .map(|(addr, weight)| Member { addr, weight })
                     .collect();
