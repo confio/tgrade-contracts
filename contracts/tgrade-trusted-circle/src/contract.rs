@@ -1198,17 +1198,6 @@ pub fn remove_contract_addr(
     Ok(vec![ev])
 }
 
-// FIXME: I just checked wasmd and multitest. They do not return this error properly.
-// We can either:
-// 1. Update wasmd and multitest behavior
-// 2. Upgrade to CosmWasm 1.0.0-beta and use WasmQuery::ContractInfo{}
-// 3. QueryRaw for some known key we expect to be present in all contracts. Return true only if we get data from QueryRaw
-//    The best I can think of is from cw2:
-//    https://github.com/CosmWasm/cw-plus/blob/f78cb1535db2cd8c606de01c91d60814c03cff7e/packages/cw2/src/lib.rs#L7
-//
-// wasmd query entry points: https://github.com/CosmWasm/wasmd/blob/master/x/wasm/keeper/query_plugins.go#L466-L477
-// wasmd error returned on QuerySmart: https://github.com/CosmWasm/wasmd/blob/6a471a4a16730e371863067b27858f60a3996c91/x/wasm/keeper/keeper.go#L627
-// no error returned on QueryRaw: https://github.com/CosmWasm/wasmd/blob/6a471a4a16730e371863067b27858f60a3996c91/x/wasm/keeper/keeper.go#L612-L620
 pub fn is_contract(querier: &QuerierWrapper, addr: &Addr) -> StdResult<bool> {
     let raw = QueryRequest::<Empty>::Wasm(WasmQuery::ContractInfo {
         contract_addr: addr.to_string(),
