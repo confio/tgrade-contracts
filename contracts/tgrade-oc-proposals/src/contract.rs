@@ -1,6 +1,6 @@
 #[cfg(not(feature = "library"))]
 use cosmwasm_std::entry_point;
-use cosmwasm_std::{to_binary, Binary, Deps, DepsMut, Env, MessageInfo, StdResult};
+use cosmwasm_std::{to_binary, Binary, Decimal, Deps, DepsMut, Env, MessageInfo, StdResult};
 
 use cw2::set_contract_version;
 use cw3::Status;
@@ -123,12 +123,14 @@ pub fn execute_execute(
             portion,
             jailing_duration,
         } => {
-            res = res.add_submessage(valset_contract.encode_raw_msg(to_binary(
-                &SlashMsg::Slash {
-                    addr: member.to_string(),
-                    portion,
-                },
-            )?)?);
+            if portion != Decimal::zero() {
+                res = res.add_submessage(valset_contract.encode_raw_msg(to_binary(
+                    &SlashMsg::Slash {
+                        addr: member.to_string(),
+                        portion,
+                    },
+                )?)?);
+            }
 
             if let Some(jailing_duration) = jailing_duration {
                 res = res.add_submessage(valset_contract.encode_raw_msg(to_binary(
