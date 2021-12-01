@@ -13,7 +13,7 @@ fn init_and_query_state() {
     let epoch_reward = coin(50_000, "usdc");
 
     let suite = SuiteBuilder::new()
-        .with_stake(100u128)
+        .with_stake("usdc", 100u128)
         .with_operators(&ops)
         .with_min_weight(5)
         .with_max_validators(10)
@@ -72,7 +72,7 @@ fn simulate_validators() {
         .collect();
 
     let mut suite = SuiteBuilder::new()
-        .with_stake(tokens_per_weight)
+        .with_stake(bond_denom, tokens_per_weight)
         .with_operators(&operators)
         .with_funds(&operator_balances)
         .with_min_weight(min_weight)
@@ -90,7 +90,7 @@ fn simulate_validators() {
 
     // First, he does not bond enough tokens
     let stake = cosmwasm_std::coins(tokens_per_weight * min_weight as u128 - 1u128, bond_denom);
-    suite.bond(&op1_addr, &stake);
+    suite.bond(&op1_addr, &stake).unwrap();
 
     // what do we expect?
     // 1..24 have pubkeys registered, we take the top 10, only one has stake but not enough of it, so zero
@@ -99,7 +99,7 @@ fn simulate_validators() {
 
     // Now, he bonds just enough tokens of the right denom
     let stake = cosmwasm_std::coins(1, bond_denom);
-    suite.bond(&op1_addr, &stake);
+    suite.bond(&op1_addr, &stake).unwrap();
 
     // what do we expect?
     // only one have enough stake now, so one
@@ -117,7 +117,7 @@ fn simulate_validators() {
     let op2_addr = Addr::unchecked(operators[1]);
 
     let stake = cosmwasm_std::coins(tokens_per_weight * min_weight as u128 * 2u128, bond_denom);
-    suite.bond(&op2_addr, &stake);
+    suite.bond(&op2_addr, &stake).unwrap();
 
     // what do we expect?
     // two have stake, so two
@@ -146,7 +146,7 @@ fn simulate_validators() {
         tokens_per_weight * min_weight as u128 * 3u128 - 1u128,
         bond_denom,
     );
-    suite.bond(&op3_addr, &stake);
+    suite.bond(&op3_addr, &stake).unwrap();
 
     // what do we expect?
     // three have stake, so three
@@ -175,7 +175,7 @@ fn simulate_validators() {
 
     // Now, op1 unbonds some tokens
     let tokens = cosmwasm_std::coin(1, bond_denom);
-    suite.unbond(&op1_addr, tokens);
+    suite.unbond(&op1_addr, tokens).unwrap();
 
     // what do we expect?
     // only two have enough stake, so two

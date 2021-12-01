@@ -61,7 +61,10 @@ enum GroupConfig {
         members: Vec<(String, u64)>,
     },
     /// Usa a tg4_stake contract as the valset group contract
-    Stake { tokens_per_weight: Uint128 },
+    Stake {
+        denom: String,
+        tokens_per_weight: Uint128,
+    },
 }
 
 #[derive(Derivative, Debug, Clone)]
@@ -118,6 +121,8 @@ impl SuiteBuilder {
         self
     }
 
+    /// Use a tg4_engagement contract for membership.
+    /// Provide a list of members with assigned weights to initialize it with.
     pub fn with_engagement(mut self, members: &[(&str, u64)]) -> Self {
         self.group_config = GroupConfig::Engagement {
             members: members
@@ -129,8 +134,15 @@ impl SuiteBuilder {
         self
     }
 
-    pub fn with_stake(mut self, tokens_per_weight: impl Into<Uint128>) -> Self {
+    /// Use a tg4_stake contract for membership.
+    /// The staking tokens may have a different denomination from the reward ones.
+    pub fn with_stake(
+        mut self,
+        denom: impl Into<String>,
+        tokens_per_weight: impl Into<Uint128>,
+    ) -> Self {
         self.group_config = GroupConfig::Stake {
+            denom: denom.into(),
             tokens_per_weight: tokens_per_weight.into(),
         };
         self
@@ -205,17 +217,13 @@ impl SuiteBuilder {
         app.back_to_genesis();
 
         let engagement_id = app.store_code(contract_engagement());
-        let mut engagement_members = vec![];
 
-        self.operators.sort();
-        self.operators.dedup();
-
-        let group = match self.group_config {
+        let membership = match self.group_config {
             GroupConfig::Engagement { mut members } => {
                 members.sort();
                 members.dedup();
 
-                engagement_members = members
+                let members = members
                     .into_iter()
                     .map(|(addr, weight)| Member { addr, weight })
                     .collect();
@@ -225,7 +233,7 @@ impl SuiteBuilder {
                     admin.clone(),
                     &tg4_engagement::msg::InstantiateMsg {
                         admin: Some(admin.to_string()),
-                        members: engagement_members.clone(),
+                        members,
                         preauths_hooks: 0,
                         preauths_slashing: 1,
                         halflife: None,
@@ -237,16 +245,19 @@ impl SuiteBuilder {
                 )
                 .unwrap()
             }
-            GroupConfig::Stake { tokens_per_weight } => {
+            GroupConfig::Stake {
+                denom,
+                tokens_per_weight,
+            } => {
                 let stake_id = app.store_code(contract_stake());
                 app.instantiate_contract(
                     stake_id,
                     admin.clone(),
                     &tg4_stake::msg::InstantiateMsg {
-                        denom: "tgrade".to_string(),
+                        denom,
                         tokens_per_weight,
-                        min_bond: Uint128::new(100),
-                        unbonding_period: 1234,
+                        min_bond: Uint128::zero(),
+                        unbonding_period: 0,
                         admin: Some(admin.to_string()),
                         preauths_hooks: 0,
                         preauths_slashing: 1,
@@ -260,6 +271,8 @@ impl SuiteBuilder {
             }
         };
 
+        self.operators.sort();
+        self.operators.dedup();
         let operators: Vec<_> = self
             .operators
             .iter()
@@ -318,7 +331,7 @@ impl SuiteBuilder {
                 admin.clone(),
                 &InstantiateMsg {
                     admin: Some(admin.to_string()),
-                    membership: group.to_string(),
+                    membership: membership.to_string(),
                     min_weight: self.min_weight,
                     max_validators: self.max_validators,
                     epoch_length: self.epoch_length,
@@ -379,10 +392,9 @@ impl SuiteBuilder {
         Suite {
             app,
             valset,
-            membership_contract: group,
+            membership,
             distribution_contracts,
             admin: admin.to_string(),
-            engagement_members,
             operators: operators.into_iter().map(|o| o.operator).collect(),
             epoch_length: self.epoch_length,
             denom,
@@ -400,13 +412,11 @@ pub struct Suite {
     /// tgrade-valset contract address
     valset: Addr,
     /// membership contract address
-    membership_contract: Addr,
+    membership: Addr,
     /// tg4-engagement contracts used e.g. for engagement distribution
     distribution_contracts: Vec<Addr>,
     /// Admin used for any administrative messages, but also admin of tgrade-valset contract
     admin: String,
-    /// Members of group if the group contract is tg4_engagement, empty otherwise
-    engagement_members: Vec<Member>,
     /// Valset operators included in `initial_keys`
     operators: Vec<String>,
     /// Length of an epoch
@@ -703,25 +713,25 @@ impl Suite {
         )
     }
 
-    pub fn bond(&mut self, addr: &Addr, stake: &[Coin]) {
-        self.app
-            .execute_contract(
-                addr.clone(),
-                self.membership_contract.clone(),
-                &tg4_stake::msg::ExecuteMsg::Bond {},
-                stake,
-            )
-            .unwrap();
+    /// Bonds some tokens.
+    /// Only works when the membership contract is tg4_engagement. Will error otherwise.
+    pub fn bond(&mut self, addr: &Addr, stake: &[Coin]) -> AnyResult<AppResponse> {
+        self.app.execute_contract(
+            addr.clone(),
+            self.membership.clone(),
+            &tg4_stake::msg::ExecuteMsg::Bond {},
+            stake,
+        )
     }
 
-    pub fn unbond(&mut self, addr: &Addr, tokens: Coin) {
-        self.app
-            .execute_contract(
-                addr.clone(),
-                self.membership_contract.clone(),
-                &tg4_stake::msg::ExecuteMsg::Unbond { tokens },
-                &[],
-            )
-            .unwrap();
+    /// Bonds some tokens.
+    /// Only works when the membership contract is tg4_engagement. Will error otherwise.
+    pub fn unbond(&mut self, addr: &Addr, tokens: Coin) -> AnyResult<AppResponse> {
+        self.app.execute_contract(
+            addr.clone(),
+            self.membership.clone(),
+            &tg4_stake::msg::ExecuteMsg::Unbond { tokens },
+            &[],
+        )
     }
 }
