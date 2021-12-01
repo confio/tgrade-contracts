@@ -2,7 +2,9 @@ use super::helpers::{addr_to_pubkey, mock_metadata, mock_pubkey};
 use crate::state::Config;
 use crate::{msg::*, state::ValidatorInfo};
 use anyhow::{bail, Result as AnyResult};
-use cosmwasm_std::{coin, Addr, BlockInfo, Coin, CosmosMsg, Decimal, StdResult, Timestamp};
+use cosmwasm_std::{
+    coin, Addr, BlockInfo, Coin, CosmosMsg, Decimal, StdResult, Timestamp, Uint128,
+};
 use cw_multi_test::{next_block, AppResponse, Contract, ContractWrapper, CosmosRouter, Executor};
 use derivative::Derivative;
 use tg4::{AdminResponse, Member};
@@ -17,6 +19,15 @@ pub fn contract_engagement() -> Box<dyn Contract<TgradeMsg>> {
         tg4_engagement::contract::execute,
         tg4_engagement::contract::instantiate,
         tg4_engagement::contract::query,
+    );
+    Box::new(contract)
+}
+
+fn contract_stake() -> Box<dyn Contract<TgradeMsg>> {
+    let contract = ContractWrapper::new(
+        tg4_stake::contract::execute,
+        tg4_stake::contract::instantiate,
+        tg4_stake::contract::query,
     );
     Box::new(contract)
 }
@@ -49,6 +60,8 @@ enum GroupConfig {
         /// Engagement members
         members: Vec<(String, u64)>,
     },
+    /// Usa a tg4_stake contract as the valset group contract
+    Stake,
 }
 
 #[derive(Derivative, Debug, Clone)]
@@ -80,6 +93,8 @@ pub struct SuiteBuilder {
     double_sign_slash_ratio: Decimal,
     /// Configuration of `distribution_contract` if any
     distribution_configs: Vec<DistributionConfig>,
+    /// Funds to add on init per address
+    init_funds: Vec<(String, Vec<Coin>)>,
 }
 
 impl SuiteBuilder {
@@ -111,6 +126,20 @@ impl SuiteBuilder {
                 .collect(),
         };
 
+        self
+    }
+
+    pub fn with_stake(mut self) -> Self {
+        self.group_config = GroupConfig::Stake;
+        self
+    }
+
+    pub fn with_funds(mut self, funds: &[(&str, &[Coin])]) -> Self {
+        self.init_funds.extend(
+            funds
+                .into_iter()
+                .map(|(addr, funds)| (addr.to_string(), funds.to_vec())),
+        );
         self
     }
 
@@ -174,7 +203,7 @@ impl SuiteBuilder {
         app.back_to_genesis();
 
         let engagement_id = app.store_code(contract_engagement());
-        let engagement_members: Vec<_>;
+        let mut engagement_members = vec![];
 
         self.operators.sort();
         self.operators.dedup();
@@ -199,6 +228,27 @@ impl SuiteBuilder {
                         preauths_slashing: 1,
                         halflife: None,
                         denom: denom.clone(),
+                    },
+                    &[],
+                    "group",
+                    Some(admin.to_string()),
+                )
+                .unwrap()
+            }
+            GroupConfig::Stake => {
+                let stake_id = app.store_code(contract_stake());
+                app.instantiate_contract(
+                    stake_id,
+                    admin.clone(),
+                    &tg4_stake::msg::InstantiateMsg {
+                        denom: "tgrade".to_string(),
+                        tokens_per_weight: Uint128::new(100),
+                        min_bond: Uint128::new(100),
+                        unbonding_period: 1234,
+                        admin: Some(admin.to_string()),
+                        preauths_hooks: 0,
+                        preauths_slashing: 1,
+                        auto_return_limit: 0,
                     },
                     &[],
                     "group",
@@ -287,6 +337,31 @@ impl SuiteBuilder {
             )
             .unwrap();
 
+        // Mint initial funds if any were specified
+        for (addr, funds) in self.init_funds {
+            for coin in funds {
+                let block_info = app.block_info();
+                let addr = addr.clone();
+                let admin = admin.clone();
+
+                app.init_modules(move |router, api, storage| {
+                    router.execute(
+                        api,
+                        storage,
+                        &block_info,
+                        admin,
+                        CosmosMsg::Custom(TgradeMsg::MintTokens {
+                            denom: coin.denom,
+                            amount: coin.amount,
+                            recipient: addr,
+                        })
+                        .into(),
+                    )
+                })
+                .unwrap();
+            }
+        }
+
         // promote the valset contract
         app.promote(admin.as_str(), valset.as_str()).unwrap();
 
@@ -302,6 +377,7 @@ impl SuiteBuilder {
         Suite {
             app,
             valset,
+            membership_contract: group,
             distribution_contracts,
             admin: admin.to_string(),
             engagement_members,
@@ -319,8 +395,10 @@ pub struct Suite {
     /// Multitest app
     #[derivative(Debug = "ignore")]
     app: TgradeApp,
-    /// tgrade-valse contract address
+    /// tgrade-valset contract address
     valset: Addr,
+    /// membership contract address
+    membership_contract: Addr,
     /// tg4-engagement contracts used e.g. for engagement distribution
     distribution_contracts: Vec<Addr>,
     /// Admin used for any administrative messages, but also admin of tgrade-valset contract
@@ -621,5 +699,27 @@ impl Suite {
                 operator: addr.to_owned(),
             },
         )
+    }
+
+    pub fn bond(&mut self, addr: &Addr, stake: &[Coin]) {
+        self.app
+            .execute_contract(
+                addr.clone(),
+                self.membership_contract.clone(),
+                &tg4_stake::msg::ExecuteMsg::Bond {},
+                stake,
+            )
+            .unwrap();
+    }
+
+    pub fn unbond(&mut self, addr: &Addr, tokens: Coin) {
+        self.app
+            .execute_contract(
+                addr.clone(),
+                self.membership_contract.clone(),
+                &tg4_stake::msg::ExecuteMsg::Unbond { tokens },
+                &[],
+            )
+            .unwrap();
     }
 }

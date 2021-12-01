@@ -6,4 +6,3 @@ mod multitest;
 mod rewards;
 pub mod state;
 mod test_helpers;
-mod test_valset_stake;

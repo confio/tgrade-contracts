@@ -5,4 +5,5 @@ mod helpers;
 mod jailing;
 mod rewards_split;
 mod slashing;
+mod stake;
 mod suite;

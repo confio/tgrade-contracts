@@ -1,34 +1,12 @@
 #![cfg(test)]
 use cosmwasm_std::{Addr, Binary};
-use cw_multi_test::{Contract, ContractWrapper};
 
-use tg_bindings::{Pubkey, TgradeMsg};
+use tg_bindings::Pubkey;
 
 use crate::msg::{OperatorInitInfo, ValidatorMetadata};
 use crate::state::ValidatorInfo;
 
 const ED25519_PUBKEY_LENGTH: usize = 32;
-
-pub fn contract_engagement() -> Box<dyn Contract<TgradeMsg>> {
-    let contract = ContractWrapper::new(
-        tg4_engagement::contract::execute,
-        tg4_engagement::contract::instantiate,
-        tg4_engagement::contract::query,
-    );
-    Box::new(contract)
-}
-
-pub fn contract_valset() -> Box<dyn Contract<TgradeMsg>> {
-    let contract = ContractWrapper::new(
-        crate::contract::execute,
-        crate::contract::instantiate,
-        crate::contract::query,
-    )
-    .with_sudo(crate::contract::sudo)
-    .with_reply(crate::contract::reply);
-
-    Box::new(contract)
-}
 
 // returns a list of addresses that are set in the tg4-stake contract
 pub fn addrs(count: u32) -> Vec<String> {
