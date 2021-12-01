@@ -61,7 +61,7 @@ enum GroupConfig {
         members: Vec<(String, u64)>,
     },
     /// Usa a tg4_stake contract as the valset group contract
-    Stake,
+    Stake { tokens_per_weight: Uint128 },
 }
 
 #[derive(Derivative, Debug, Clone)]
@@ -129,8 +129,10 @@ impl SuiteBuilder {
         self
     }
 
-    pub fn with_stake(mut self) -> Self {
-        self.group_config = GroupConfig::Stake;
+    pub fn with_stake(mut self, tokens_per_weight: impl Into<Uint128>) -> Self {
+        self.group_config = GroupConfig::Stake {
+            tokens_per_weight: tokens_per_weight.into(),
+        };
         self
     }
 
@@ -235,14 +237,14 @@ impl SuiteBuilder {
                 )
                 .unwrap()
             }
-            GroupConfig::Stake => {
+            GroupConfig::Stake { tokens_per_weight } => {
                 let stake_id = app.store_code(contract_stake());
                 app.instantiate_contract(
                     stake_id,
                     admin.clone(),
                     &tg4_stake::msg::InstantiateMsg {
                         denom: "tgrade".to_string(),
-                        tokens_per_weight: Uint128::new(100),
+                        tokens_per_weight,
                         min_bond: Uint128::new(100),
                         unbonding_period: 1234,
                         admin: Some(admin.to_string()),

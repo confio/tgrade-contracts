@@ -1,40 +1,23 @@
 #![cfg(test)]
-use cosmwasm_std::{coin, Addr, Coin, Decimal};
+use cosmwasm_std::{coin, Addr, Decimal};
 
 use crate::multitest::suite::SuiteBuilder;
 use crate::state::{Config, ValidatorInfo};
 use crate::test_helpers::{addrs, valid_operator};
 
-const OPERATOR_FUNDS: u128 = 1_000;
-
-// Stake contract config
-const TOKENS_PER_WEIGHT: u128 = 100;
-const BOND_DENOM: &str = "tgrade";
-
-// Valset contract config
-// these control how many pubkeys get set in the valset init
-const PREREGISTER_MEMBERS: u32 = 24;
-const MIN_WEIGHT: u64 = 2;
-
-// 500 usdc per block
-const REWARD_AMOUNT: u128 = 50_000;
-const REWARD_DENOM: &str = "usdc";
-
-fn epoch_reward() -> Coin {
-    coin(REWARD_AMOUNT, REWARD_DENOM)
-}
-
 #[test]
 fn init_and_query_state() {
-    let ops_owned = addrs(PREREGISTER_MEMBERS);
+    let ops_owned = addrs(24);
     let ops: Vec<_> = ops_owned.iter().map(String::as_str).collect();
 
+    let epoch_reward = coin(50_000, "usdc");
+
     let suite = SuiteBuilder::new()
-        .with_stake()
+        .with_stake(100u128)
         .with_operators(&ops)
         .with_min_weight(5)
         .with_max_validators(10)
-        .with_epoch_reward(epoch_reward())
+        .with_epoch_reward(epoch_reward.clone())
         .build();
 
     // check config
@@ -46,7 +29,7 @@ fn init_and_query_state() {
             min_weight: 5,
             max_validators: 10,
             scaling: None,
-            epoch_reward: epoch_reward(),
+            epoch_reward: epoch_reward,
             fee_percentage: Decimal::zero(),
             auto_unjail: false,
             double_sign_slash_ratio: Decimal::percent(50),
@@ -74,10 +57,14 @@ fn init_and_query_state() {
 
 #[test]
 fn simulate_validators() {
-    let ops_owned = addrs(PREREGISTER_MEMBERS);
+    let bond_denom = "tgrade";
+    let tokens_per_weight = 100u128;
+    let min_weight = 2;
+
+    let ops_owned = addrs(24);
     let operators: Vec<_> = ops_owned.iter().map(String::as_str).collect();
 
-    let operator_funds = cosmwasm_std::coins(OPERATOR_FUNDS, BOND_DENOM);
+    let operator_funds = cosmwasm_std::coins(1_000, bond_denom);
     let operator_balances: Vec<_> = operators
         .iter()
         .copied()
@@ -85,12 +72,12 @@ fn simulate_validators() {
         .collect();
 
     let mut suite = SuiteBuilder::new()
-        .with_stake()
+        .with_stake(tokens_per_weight)
         .with_operators(&operators)
         .with_funds(&operator_balances)
-        .with_min_weight(MIN_WEIGHT)
+        .with_min_weight(min_weight)
         .with_max_validators(10)
-        .with_epoch_reward(epoch_reward())
+        .with_epoch_reward(coin(50_000, "usdc"))
         .build();
 
     // what do we expect?
@@ -102,7 +89,7 @@ fn simulate_validators() {
     let op1_addr = Addr::unchecked(operators[0]);
 
     // First, he does not bond enough tokens
-    let stake = cosmwasm_std::coins(TOKENS_PER_WEIGHT * MIN_WEIGHT as u128 - 1u128, BOND_DENOM);
+    let stake = cosmwasm_std::coins(tokens_per_weight * min_weight as u128 - 1u128, bond_denom);
     suite.bond(&op1_addr, &stake);
 
     // what do we expect?
@@ -111,7 +98,7 @@ fn simulate_validators() {
     assert_eq!(0, active.len());
 
     // Now, he bonds just enough tokens of the right denom
-    let stake = cosmwasm_std::coins(1, BOND_DENOM);
+    let stake = cosmwasm_std::coins(1, bond_denom);
     suite.bond(&op1_addr, &stake);
 
     // what do we expect?
@@ -122,14 +109,14 @@ fn simulate_validators() {
     let expected: Vec<_> = vec![ValidatorInfo {
         operator: op1_addr.clone(),
         validator_pubkey: valid_operator(op1_addr.as_ref()).validator_pubkey,
-        power: MIN_WEIGHT,
+        power: min_weight,
     }];
     assert_eq!(expected, active);
 
     // Other member bonds twice the minimum amount
     let op2_addr = Addr::unchecked(operators[1]);
 
-    let stake = cosmwasm_std::coins(TOKENS_PER_WEIGHT * MIN_WEIGHT as u128 * 2u128, BOND_DENOM);
+    let stake = cosmwasm_std::coins(tokens_per_weight * min_weight as u128 * 2u128, bond_denom);
     suite.bond(&op2_addr, &stake);
 
     // what do we expect?
@@ -142,12 +129,12 @@ fn simulate_validators() {
         ValidatorInfo {
             operator: op2_addr.clone(),
             validator_pubkey: valid_operator(op2_addr.as_ref()).validator_pubkey,
-            power: MIN_WEIGHT * 2,
+            power: min_weight * 2,
         },
         ValidatorInfo {
             operator: op1_addr.clone(),
             validator_pubkey: valid_operator(op1_addr.as_ref()).validator_pubkey,
-            power: MIN_WEIGHT,
+            power: min_weight,
         },
     ];
     assert_eq!(expected, active);
@@ -156,8 +143,8 @@ fn simulate_validators() {
     let op3_addr = Addr::unchecked(operators[2]);
 
     let stake = cosmwasm_std::coins(
-        TOKENS_PER_WEIGHT * MIN_WEIGHT as u128 * 3u128 - 1u128,
-        BOND_DENOM,
+        tokens_per_weight * min_weight as u128 * 3u128 - 1u128,
+        bond_denom,
     );
     suite.bond(&op3_addr, &stake);
 
@@ -171,23 +158,23 @@ fn simulate_validators() {
         ValidatorInfo {
             operator: op3_addr.clone(),
             validator_pubkey: valid_operator(op3_addr.as_ref()).validator_pubkey,
-            power: MIN_WEIGHT * 3 - 1,
+            power: min_weight * 3 - 1,
         },
         ValidatorInfo {
             operator: op2_addr.clone(),
             validator_pubkey: valid_operator(op2_addr.as_ref()).validator_pubkey,
-            power: MIN_WEIGHT * 2,
+            power: min_weight * 2,
         },
         ValidatorInfo {
             operator: op1_addr.clone(),
             validator_pubkey: valid_operator(op1_addr.as_ref()).validator_pubkey,
-            power: MIN_WEIGHT,
+            power: min_weight,
         },
     ];
     assert_eq!(expected, active);
 
     // Now, op1 unbonds some tokens
-    let tokens = cosmwasm_std::coin(1, BOND_DENOM);
+    let tokens = cosmwasm_std::coin(1, bond_denom);
     suite.unbond(&op1_addr, tokens);
 
     // what do we expect?
@@ -200,12 +187,12 @@ fn simulate_validators() {
         ValidatorInfo {
             operator: op3_addr.clone(),
             validator_pubkey: valid_operator(op3_addr.as_ref()).validator_pubkey,
-            power: MIN_WEIGHT * 3 - 1,
+            power: min_weight * 3 - 1,
         },
         ValidatorInfo {
             operator: op2_addr.clone(),
             validator_pubkey: valid_operator(op2_addr.as_ref()).validator_pubkey,
-            power: MIN_WEIGHT * 2,
+            power: min_weight * 2,
         },
     ];
     assert_eq!(expected, active);
