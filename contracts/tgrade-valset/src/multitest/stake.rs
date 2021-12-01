@@ -29,7 +29,7 @@ fn init_and_query_state() {
             min_weight: 5,
             max_validators: 10,
             scaling: None,
-            epoch_reward: epoch_reward,
+            epoch_reward,
             fee_percentage: Decimal::zero(),
             auto_unjail: false,
             double_sign_slash_ratio: Decimal::percent(50),

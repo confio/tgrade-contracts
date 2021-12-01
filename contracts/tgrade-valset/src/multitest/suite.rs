@@ -139,7 +139,7 @@ impl SuiteBuilder {
     pub fn with_funds(mut self, funds: &[(&str, &[Coin])]) -> Self {
         self.init_funds.extend(
             funds
-                .into_iter()
+                .iter()
                 .map(|(addr, funds)| (addr.to_string(), funds.to_vec())),
         );
         self
