@@ -1,11 +1,12 @@
 #![cfg(test)]
 use super::*;
+use serde::{Deserialize, Serialize};
 use std::marker::PhantomData;
 
 use cosmwasm_std::testing::{MockApi, MockStorage};
 use cosmwasm_std::{
-    Addr, Binary, ContractResult, Deps, Empty, QuerierResult, QueryRequest, StdError, SubMsg,
-    SystemError, SystemResult, WasmQuery,
+    to_binary, Addr, Binary, ContractResult, Deps, Empty, QuerierResult, QueryRequest, StdError,
+    SubMsg, SystemError, SystemResult, WasmQuery,
 };
 use cw_storage_plus::Item;
 
@@ -20,6 +21,20 @@ pub const TOKEN_CONTRACT: Item<String> = Item::new("contract_info");
 struct TokenQuerier {
     contract: String,
     storage: MockStorage,
+}
+
+// TODO: we should import this from cosmwasm-std, but cannot due to non_exhaustive so copy here
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq)]
+pub struct ContractInfoResponse {
+    pub code_id: u64,
+    /// address that instantiated this contract
+    pub creator: String,
+    /// admin who can run migrations (if any)
+    pub admin: Option<String>,
+    /// if set, the contract is pinned to the cache, and thus uses less gas when called
+    pub pinned: bool,
+    /// set if this contract has bound an IBC port
+    pub ibc_port: Option<String>,
 }
 
 impl TokenQuerier {
@@ -45,6 +60,9 @@ impl TokenQuerier {
                     kind: "WasmQuery::Smart".to_string(),
                 })
             }
+            QueryRequest::Wasm(WasmQuery::ContractInfo { contract_addr }) => {
+                self.query_contract_info(contract_addr)
+            }
             _ => SystemResult::Err(SystemError::UnsupportedRequest {
                 kind: "not wasm".to_string(),
             }),
@@ -60,6 +78,34 @@ impl TokenQuerier {
         } else {
             let bin = self.storage.get(&key).unwrap_or_default();
             SystemResult::Ok(ContractResult::Ok(bin.into()))
+        }
+    }
+
+    fn query_contract_info(&self, contract_addr: String) -> QuerierResult {
+        if contract_addr != self.contract {
+            SystemResult::Err(SystemError::NoSuchContract {
+                addr: contract_addr,
+            })
+        } else {
+            // FIXME: Implement mock load_contract and use it here
+            /* let contract = self.storage.load_contract(&addr)?;
+            let res = ContractInfoResponse {
+                code_id: contract.code_id as u64,
+                creator: contract.creator.to_string(),
+                admin: contract.admin.map(|x| x.to_string()),
+                pinned: false,
+                ibc_port: None,
+            };
+            */
+            let res = ContractInfoResponse {
+                code_id: 1,
+                creator: "dummy_creator".into(),
+                admin: None,
+                pinned: false,
+                ibc_port: None,
+            };
+            let bin = to_binary(&res).unwrap();
+            SystemResult::Ok(ContractResult::Ok(bin))
         }
     }
 }
