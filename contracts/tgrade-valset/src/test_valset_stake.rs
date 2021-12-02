@@ -9,10 +9,10 @@ use tg4_stake::msg::ExecuteMsg;
 use cw_multi_test::{AppBuilder, BasicApp, Contract, ContractWrapper, Executor};
 
 use crate::msg::{
-    ConfigResponse, EpochResponse, InstantiateMsg, ListActiveValidatorsResponse, QueryMsg,
+    EpochResponse, InstantiateMsg, ListActiveValidatorsResponse, QueryMsg,
     UnvalidatedDistributionContracts, ValidatorResponse,
 };
-use crate::state::ValidatorInfo;
+use crate::state::{Config, ValidatorInfo};
 use crate::test_helpers::{addrs, contract_engagement, contract_valset, valid_operator};
 
 const EPOCH_LENGTH: u64 = 100;
@@ -159,13 +159,13 @@ fn init_and_query_state() {
     let valset_addr = instantiate_valset(&mut app, &stake_addr, 10, 5);
 
     // check config
-    let cfg: ConfigResponse = app
+    let cfg: Config = app
         .wrap()
-        .query_wasm_smart(&valset_addr, &QueryMsg::Config {})
+        .query_wasm_smart(&valset_addr, &QueryMsg::Configuration {})
         .unwrap();
     assert_eq!(
         cfg,
-        ConfigResponse {
+        Config {
             membership: Tg4Contract(stake_addr),
             min_weight: 5,
             max_validators: 10,

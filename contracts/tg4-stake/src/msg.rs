@@ -66,6 +66,8 @@ pub enum ExecuteMsg {
 #[derive(Serialize, Deserialize, Clone, PartialEq, JsonSchema, Debug)]
 #[serde(rename_all = "snake_case")]
 pub enum QueryMsg {
+    /// Returns config
+    Configuration {},
     /// Claims shows the tokens in process of unbonding for this address
     Claims {
         address: String,

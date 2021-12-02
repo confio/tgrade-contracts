@@ -271,7 +271,7 @@ impl SuiteBuilder {
             .wrap()
             .query_wasm_smart(
                 valset_contract.clone(),
-                &tgrade_valset::msg::QueryMsg::Config {},
+                &tgrade_valset::msg::QueryMsg::Configuration {},
             )
             .unwrap();
         let rewards_contract = resp.rewards_contract;

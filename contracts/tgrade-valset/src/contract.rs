@@ -6,7 +6,7 @@ use std::convert::TryInto;
 use cosmwasm_std::entry_point;
 use cosmwasm_std::{
     to_binary, Addr, Binary, BlockInfo, Decimal, Deps, DepsMut, Env, MessageInfo, Order, Reply,
-    StdError, StdResult, Timestamp, WasmMsg,
+    StdResult, Timestamp, WasmMsg,
 };
 
 use cw0::{maybe_addr, parse_reply_instantiate_data};
@@ -23,7 +23,7 @@ use tg_utils::{JailingDuration, SlashMsg, ADMIN};
 
 use crate::error::ContractError;
 use crate::msg::{
-    ConfigResponse, EpochResponse, ExecuteMsg, InstantiateMsg, InstantiateResponse, JailingPeriod,
+    EpochResponse, ExecuteMsg, InstantiateMsg, InstantiateResponse, JailingPeriod,
     ListActiveValidatorsResponse, ListValidatorResponse, ListValidatorSlashingResponse,
     OperatorResponse, QueryMsg, RewardsDistribution, RewardsInstantiateMsg, ValidatorMetadata,
     ValidatorResponse,
@@ -334,31 +334,24 @@ fn execute_slash(
 
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn query(deps: Deps, env: Env, msg: QueryMsg) -> Result<Binary, ContractError> {
+    use QueryMsg::*;
     match msg {
-        QueryMsg::Config {} => Ok(to_binary(&query_config(deps, env)?)?),
-        QueryMsg::Epoch {} => Ok(to_binary(&query_epoch(deps, env)?)?),
-        QueryMsg::Validator { operator } => {
-            Ok(to_binary(&query_validator_key(deps, env, operator)?)?)
-        }
-        QueryMsg::ListValidators { start_after, limit } => Ok(to_binary(&list_validator_keys(
+        Configuration {} => Ok(to_binary(&CONFIG.load(deps.storage)?)?),
+        Epoch {} => Ok(to_binary(&query_epoch(deps, env)?)?),
+        Validator { operator } => Ok(to_binary(&query_validator_key(deps, env, operator)?)?),
+        ListValidators { start_after, limit } => Ok(to_binary(&list_validator_keys(
             deps,
             env,
             start_after,
             limit,
         )?)?),
-        QueryMsg::ListActiveValidators {} => Ok(to_binary(&list_active_validators(deps, env)?)?),
-        QueryMsg::SimulateActiveValidators {} => {
-            Ok(to_binary(&simulate_active_validators(deps, env)?)?)
-        }
-        QueryMsg::ListValidatorSlashing { operator } => {
+        ListActiveValidators {} => Ok(to_binary(&list_active_validators(deps, env)?)?),
+        SimulateActiveValidators {} => Ok(to_binary(&simulate_active_validators(deps, env)?)?),
+        ListValidatorSlashing { operator } => {
             Ok(to_binary(&list_validator_slashing(deps, env, operator)?)?)
         }
-        QueryMsg::Admin {} => Ok(to_binary(&ADMIN.query_admin(deps)?)?),
+        Admin {} => Ok(to_binary(&ADMIN.query_admin(deps)?)?),
     }
-}
-
-fn query_config(deps: Deps, _env: Env) -> Result<ConfigResponse, StdError> {
-    CONFIG.load(deps.storage)
 }
 
 fn query_epoch(deps: Deps, env: Env) -> Result<EpochResponse, ContractError> {

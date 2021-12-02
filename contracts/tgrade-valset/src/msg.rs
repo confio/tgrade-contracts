@@ -8,7 +8,7 @@ use tg_bindings::{Ed25519Pubkey, Pubkey};
 use tg_utils::{Expiration, JailingDuration};
 
 use crate::error::ContractError;
-use crate::state::{Config, DistributionContract, OperatorInfo, ValidatorInfo, ValidatorSlashing};
+use crate::state::{DistributionContract, OperatorInfo, ValidatorInfo, ValidatorSlashing};
 use cosmwasm_std::{Addr, Api, BlockInfo, Coin, Decimal};
 
 #[derive(Serialize, Deserialize, Clone, PartialEq, JsonSchema, Debug)]
@@ -258,8 +258,8 @@ pub enum ExecuteMsg {
 #[derive(Serialize, Deserialize, Clone, PartialEq, JsonSchema, Debug)]
 #[serde(rename_all = "snake_case")]
 pub enum QueryMsg {
-    /// Returns ConfigResponse - static contract data
-    Config {},
+    /// Returns configuration
+    Configuration {},
     /// Returns EpochResponse - get info on current and next epochs
     Epoch {},
 
@@ -289,8 +289,6 @@ pub enum QueryMsg {
     /// Returns cw_controllers::AdminResponse
     Admin {},
 }
-
-pub type ConfigResponse = Config;
 
 #[derive(Serialize, Deserialize, Clone, PartialEq, JsonSchema, Debug)]
 pub struct EpochResponse {

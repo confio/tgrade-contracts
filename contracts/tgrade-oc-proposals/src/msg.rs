@@ -42,6 +42,8 @@ pub enum ExecuteMsg {
 #[derive(Serialize, Deserialize, Clone, PartialEq, JsonSchema, Debug)]
 #[serde(rename_all = "snake_case")]
 pub enum QueryMsg {
+    /// Returns configuration
+    Configuration {},
     /// Return VotingRules
     Rules {},
     /// Returns ProposalResponse
