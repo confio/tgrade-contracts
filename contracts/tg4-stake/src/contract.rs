@@ -443,6 +443,7 @@ fn release_expired_claims(
 pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
     use QueryMsg::*;
     match msg {
+        Configuration {} => to_binary(&CONFIG.load(deps.storage)?),
         Member {
             addr,
             at_height: height,
@@ -663,6 +664,19 @@ mod tests {
         let res = query_total_weight(deps.as_ref()).unwrap();
         assert_eq!(0, res.weight);
         assert_eq!("stake".to_owned(), res.denom);
+
+        let raw = query(deps.as_ref(), mock_env(), QueryMsg::Configuration {}).unwrap();
+        let res: Config = from_slice(&raw).unwrap();
+        assert_eq!(
+            res,
+            Config {
+                denom: "stake".to_owned(),
+                tokens_per_weight: TOKENS_PER_WEIGHT,
+                min_bond: MIN_BOND,
+                unbonding_period: Duration::new(UNBONDING_DURATION),
+                auto_return_limit: 0,
+            }
+        );
     }
 
     #[test]
