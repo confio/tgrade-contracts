@@ -23,6 +23,11 @@ impl RulesBuilder {
         self
     }
 
+    pub fn with_quorum(mut self, quorum: impl Into<Decimal>) -> Self {
+        self.quorum = quorum.into();
+        self
+    }
+
     pub fn build(&self) -> VotingRules {
         VotingRules {
             voting_period: self.voting_period,
