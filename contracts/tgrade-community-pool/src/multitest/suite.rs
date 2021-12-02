@@ -6,7 +6,7 @@ use tg4::{Member, Tg4ExecuteMsg};
 use tg_bindings::TgradeMsg;
 use tg_bindings_test::TgradeApp;
 
-use tg_rules_builder::RulesBuilder;
+use tg_test_utils::RulesBuilder;
 use tg_voting_contract::state::VotingRules;
 
 use crate::msg::ExecuteMsg;

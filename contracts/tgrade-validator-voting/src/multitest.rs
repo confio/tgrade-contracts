@@ -6,7 +6,7 @@ use suite::{get_proposal_id, SuiteBuilder};
 
 use cosmwasm_std::Decimal;
 use cw3::Status;
-use tg_rules_builder::RulesBuilder;
+use tg_test_utils::RulesBuilder;
 
 #[test]
 fn migrate_contract() {

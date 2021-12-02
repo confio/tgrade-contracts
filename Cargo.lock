@@ -1458,7 +1458,7 @@ dependencies = [
 ]
 
 [[package]]
-name = "tg-rules-builder"
+name = "tg-test-utils"
 version = "0.5.0-beta6"
 dependencies = [
  "cosmwasm-std",
@@ -1588,7 +1588,7 @@ dependencies = [
  "serde",
  "tg-bindings",
  "tg-bindings-test",
- "tg-rules-builder",
+ "tg-test-utils",
  "tg-voting-contract",
  "tg4",
  "tg4-engagement",
@@ -1623,7 +1623,7 @@ dependencies = [
  "serde",
  "tg-bindings",
  "tg-bindings-test",
- "tg-rules-builder",
+ "tg-test-utils",
  "tg-utils",
  "tg-voting-contract",
  "tg4",
@@ -1672,7 +1672,7 @@ dependencies = [
  "serde",
  "tg-bindings",
  "tg-bindings-test",
- "tg-rules-builder",
+ "tg-test-utils",
  "tg-utils",
  "tg-voting-contract",
  "tg4",
