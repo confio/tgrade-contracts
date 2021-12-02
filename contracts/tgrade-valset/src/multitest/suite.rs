@@ -714,7 +714,7 @@ impl Suite {
     }
 
     /// Bonds some tokens.
-    /// Only works when the membership contract is tg4_engagement. Will error otherwise.
+    /// Only works when the membership contract is tg4_stake. Will error otherwise.
     pub fn bond(&mut self, addr: &Addr, stake: &[Coin]) -> AnyResult<AppResponse> {
         self.app.execute_contract(
             addr.clone(),
@@ -724,8 +724,8 @@ impl Suite {
         )
     }
 
-    /// Bonds some tokens.
-    /// Only works when the membership contract is tg4_engagement. Will error otherwise.
+    /// Unbonds some tokens.
+    /// Only works when the membership contract is tg4_stake. Will error otherwise.
     pub fn unbond(&mut self, addr: &Addr, tokens: Coin) -> AnyResult<AppResponse> {
         self.app.execute_contract(
             addr.clone(),
