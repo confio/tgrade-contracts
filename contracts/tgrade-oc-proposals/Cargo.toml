@@ -32,4 +32,5 @@ anyhow = "1"
 cosmwasm-schema = "1.0.0-beta"
 cw-multi-test = "0.10.2"
 tg-bindings-test = { version = "0.5.0-beta6", path = "../../packages/bindings-test" }
+tg-test-utils = { version = "0.5.0-beta6", path = "../../packages/test-utils" }
 tgrade-valset = { path = "../tgrade-valset", version = "0.5.0-beta6", features = ["library"] }

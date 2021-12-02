@@ -205,6 +205,7 @@ mod tests {
     use cw_multi_test::{next_block, Contract, ContractWrapper, Executor};
     use tg4::{Member, Tg4ExecuteMsg};
     use tg_bindings_test::TgradeApp;
+    use tg_test_utils::RulesBuilder;
     use tg_utils::Duration;
     use tg_voting_contract::state::{Votes, VotingRules};
 
@@ -501,47 +502,6 @@ mod tests {
         (flex_addr, group_addr, engagement_addr, valset_addr)
     }
 
-    struct MockRulesBuilder {
-        pub voting_period: u32,
-        pub quorum: Decimal,
-        pub threshold: Decimal,
-        pub allow_end_early: bool,
-    }
-
-    impl MockRulesBuilder {
-        fn new() -> Self {
-            Self {
-                voting_period: 14,
-                quorum: Decimal::percent(1),
-                threshold: Decimal::percent(50),
-                allow_end_early: true,
-            }
-        }
-
-        fn quorum(&mut self, quorum: impl Into<Decimal>) -> &mut Self {
-            self.quorum = quorum.into();
-            self
-        }
-
-        fn threshold(&mut self, threshold: impl Into<Decimal>) -> &mut Self {
-            self.threshold = threshold.into();
-            self
-        }
-
-        fn build(&self) -> VotingRules {
-            VotingRules {
-                voting_period: self.voting_period,
-                quorum: self.quorum,
-                threshold: self.threshold,
-                allow_end_early: self.allow_end_early,
-            }
-        }
-    }
-
-    fn mock_rules() -> MockRulesBuilder {
-        MockRulesBuilder::new()
-    }
-
     fn engagement_proposal_info() -> (OversightProposal, String, String) {
         let proposal = OversightProposal::GrantEngagement {
             member: Addr::unchecked(VOTER1),
@@ -582,7 +542,7 @@ mod tests {
         let instantiate_msg = InstantiateMsg {
             group_addr: group_addr.to_string(),
             engagement_addr: engagement_addr.to_string(),
-            rules: mock_rules().threshold(Decimal::zero()).build(),
+            rules: RulesBuilder::new().with_threshold(Decimal::zero()).build(),
             valset_addr: valset_addr.to_string(),
         };
         let err = app
@@ -606,7 +566,7 @@ mod tests {
         let instantiate_msg = InstantiateMsg {
             group_addr: group_addr.to_string(),
             engagement_addr: engagement_addr.to_string(),
-            rules: mock_rules().build(),
+            rules: RulesBuilder::new().build(),
             valset_addr: valset_addr.to_string(),
         };
         let flex_addr = app
@@ -649,9 +609,9 @@ mod tests {
         let init_funds = coins(10, "BTC");
         let mut app = mock_app(&init_funds);
 
-        let rules = mock_rules()
-            .quorum(Decimal::percent(20))
-            .threshold(Decimal::percent(80))
+        let rules = RulesBuilder::new()
+            .with_quorum(Decimal::percent(20))
+            .with_threshold(Decimal::percent(80))
             .build();
         let voting_period = Duration::new(rules.voting_period_secs());
         let (flex_addr, _, _, _) =
@@ -750,7 +710,9 @@ mod tests {
         let mut app = mock_app(&init_funds);
 
         // 51% required, which is 12 of the initial 23
-        let rules = mock_rules().threshold(Decimal::percent(51)).build();
+        let rules = RulesBuilder::new()
+            .with_threshold(Decimal::percent(51))
+            .build();
         let (flex_addr, group_addr, _, _) = setup_test_case(&mut app, rules, init_funds, false);
 
         // VOTER3 starts a proposal to send some tokens (3/12 votes)
@@ -824,9 +786,9 @@ mod tests {
 
         // 33% required for quora, which is 8 of the initial 23
         // 50% yes required to pass early (12 of the initial 23)
-        let rules = mock_rules()
-            .threshold(Decimal::percent(50))
-            .quorum(Decimal::percent(33))
+        let rules = RulesBuilder::new()
+            .with_threshold(Decimal::percent(50))
+            .with_quorum(Decimal::percent(33))
             .build();
         let voting_period = Duration::new(rules.voting_period_secs());
         let (flex_addr, group_addr, _, _) = setup_test_case(&mut app, rules, init_funds, false);
@@ -888,9 +850,9 @@ mod tests {
 
         // 33% required for quora, which is 5 of the initial 15
         // 50% yes required to pass early (8 of the initial 15)
-        let rules = mock_rules()
-            .threshold(Decimal::percent(60))
-            .quorum(Decimal::percent(80))
+        let rules = RulesBuilder::new()
+            .with_threshold(Decimal::percent(60))
+            .with_quorum(Decimal::percent(80))
             .build();
         let (flex_addr, _, _, _) = setup_test_case(
             &mut app, // note that 60% yes is not enough to pass without 20% no as well
@@ -939,7 +901,9 @@ mod tests {
     fn query_group_contract() {
         let mut app = mock_app(&[]);
 
-        let rules = mock_rules().threshold(Decimal::percent(51)).build();
+        let rules = RulesBuilder::new()
+            .with_threshold(Decimal::percent(51))
+            .build();
         let (flex_addr, group_addr, _, _) = setup_test_case(&mut app, rules, vec![], false);
 
         let query: Addr = app

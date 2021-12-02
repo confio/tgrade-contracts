@@ -37,38 +37,6 @@ fn contract_engagement() -> Box<dyn Contract<TgradeMsg>> {
     Box::new(contract)
 }
 
-pub struct RulesBuilder {
-    pub voting_period: u32,
-    pub quorum: Decimal,
-    pub threshold: Decimal,
-    pub allow_end_early: bool,
-}
-
-impl RulesBuilder {
-    pub fn new() -> Self {
-        Self {
-            voting_period: 14,
-            quorum: Decimal::percent(1),
-            threshold: Decimal::percent(50),
-            allow_end_early: true,
-        }
-    }
-
-    pub fn with_threshold(mut self, threshold: impl Into<Decimal>) -> Self {
-        self.threshold = threshold.into();
-        self
-    }
-
-    pub fn build(&self) -> VotingRules {
-        VotingRules {
-            voting_period: self.voting_period,
-            quorum: self.quorum,
-            threshold: self.threshold,
-            allow_end_early: self.allow_end_early,
-        }
-    }
-}
-
 pub struct SuiteBuilder {
     engagement_members: Vec<Member>,
     group_members: Vec<Member>,
