@@ -1,7 +1,8 @@
 mod suite;
 
 use crate::ContractError;
-use suite::{get_proposal_id, member, RulesBuilder, SuiteBuilder};
+use suite::{get_proposal_id, member, SuiteBuilder};
+use tg_rules_builder::RulesBuilder;
 use tg_voting_contract::ContractError as VotingError;
 
 use cosmwasm_std::{Decimal, StdError};

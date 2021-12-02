@@ -1,11 +1,12 @@
 use anyhow::Result as AnyResult;
 
-use cosmwasm_std::{coin, Addr, CosmosMsg, Decimal, StdResult};
+use cosmwasm_std::{coin, Addr, CosmosMsg, StdResult};
 use cw_multi_test::{AppResponse, Contract, ContractWrapper, CosmosRouter, Executor};
 use tg4::{Member, Tg4ExecuteMsg};
 use tg_bindings::TgradeMsg;
 use tg_bindings_test::TgradeApp;
 
+use tg_rules_builder::RulesBuilder;
 use tg_voting_contract::state::VotingRules;
 
 use crate::msg::ExecuteMsg;
@@ -28,33 +29,6 @@ fn contract_engagement() -> Box<dyn Contract<TgradeMsg>> {
     );
 
     Box::new(contract)
-}
-
-pub struct RulesBuilder {
-    pub voting_period: u32,
-    pub quorum: Decimal,
-    pub threshold: Decimal,
-    pub allow_end_early: bool,
-}
-
-impl RulesBuilder {
-    pub fn new() -> Self {
-        Self {
-            voting_period: 14,
-            quorum: Decimal::percent(1),
-            threshold: Decimal::percent(50),
-            allow_end_early: true,
-        }
-    }
-
-    pub fn build(&self) -> VotingRules {
-        VotingRules {
-            voting_period: self.voting_period,
-            quorum: self.quorum,
-            threshold: self.threshold,
-            allow_end_early: self.allow_end_early,
-        }
-    }
 }
 
 pub struct SuiteBuilder {

@@ -2,11 +2,11 @@ mod hackatom;
 mod suite;
 
 use crate::error::ContractError;
-use suite::RulesBuilder;
 use suite::{get_proposal_id, SuiteBuilder};
 
 use cosmwasm_std::Decimal;
 use cw3::Status;
+use tg_rules_builder::RulesBuilder;
 
 #[test]
 fn migrate_contract() {

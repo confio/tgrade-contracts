@@ -338,7 +338,7 @@ pub enum JailingPeriod {
 impl JailingPeriod {
     pub fn from_duration(duration: JailingDuration, block: &BlockInfo) -> Self {
         match duration {
-            JailingDuration::Duration(duration) => Self::Until(duration.after(&block)),
+            JailingDuration::Duration(duration) => Self::Until(duration.after(block)),
             JailingDuration::Forever {} => Self::Forever {},
         }
     }
