@@ -5,6 +5,7 @@ use tg_bindings::{Ed25519Pubkey, Evidence, EvidenceType, ToAddress, Validator};
 use super::helpers::{addr_to_pubkey, assert_operators, mock_pubkey};
 use super::suite::SuiteBuilder;
 use crate::msg::{JailingPeriod, ValidatorMetadata};
+use crate::multitest::helpers::members_init;
 
 use std::convert::TryFrom;
 
@@ -27,13 +28,15 @@ fn create_evidence_for_member((address, power): (&str, u64), height: u64) -> Evi
 
 #[test]
 fn evidence_slash_and_jail() {
-    let members = vec![
-        ("reallylongaddresstofit32charact1", 10),
-        ("reallylongaddresstofit32charact2", 10),
+    let member_addrs = vec![
+        "reallylongaddresstofit32charact1",
+        "reallylongaddresstofit32charact2",
     ];
+    let members = members_init(&member_addrs, &[10, 10]);
 
     let mut suite = SuiteBuilder::new()
-        .with_operators_pubkeys(&[members[0], members[1]], &[])
+        .with_engagement(&members)
+        .with_operators_pubkeys(&member_addrs)
         .with_epoch_reward(coin(1500, "usdc"))
         .build();
 
@@ -75,13 +78,15 @@ fn evidence_slash_and_jail() {
 
 #[test]
 fn evidence_doesnt_affect_engagement_rewards() {
-    let members = vec![
-        ("reallylongaddresstofit32charact1", 10),
-        ("reallylongaddresstofit32charact2", 10),
+    let member_addrs = vec![
+        "reallylongaddresstofit32charact1",
+        "reallylongaddresstofit32charact2",
     ];
+    let members = members_init(&member_addrs, &[10, 10]);
 
     let mut suite = SuiteBuilder::new()
-        .with_operators_pubkeys(&[members[0], members[1]], &[])
+        .with_engagement(&members)
+        .with_operators_pubkeys(&member_addrs)
         .with_epoch_reward(coin(3000, "usdc"))
         .with_distribution(Decimal::percent(50), &[members[0], members[1]], None)
         .build();
@@ -115,13 +120,15 @@ fn evidence_doesnt_affect_engagement_rewards() {
 
 #[test]
 fn evidence_doesnt_match() {
-    let members = vec![
-        ("reallylongaddresstofit32charact1", 10),
-        ("reallylongaddresstofit32charact2", 10),
+    let member_addrs = vec![
+        "reallylongaddresstofit32charact1",
+        "reallylongaddresstofit32charact2",
     ];
+    let members = members_init(&member_addrs, &[10, 10]);
 
     let mut suite = SuiteBuilder::new()
-        .with_operators_pubkeys(&[members[0], members[1]], &[])
+        .with_engagement(&members)
+        .with_operators_pubkeys(&member_addrs)
         .with_epoch_reward(coin(1500, "usdc"))
         .build();
 
@@ -145,14 +152,16 @@ fn evidence_doesnt_match() {
 
 #[test]
 fn multiple_evidences() {
-    let members = vec![
-        ("reallylongaddresstofit32charact1", 10),
-        ("reallylongaddresstofit32charact2", 10),
-        ("reallylongaddresstofit32charact3", 10),
+    let member_addrs = vec![
+        "reallylongaddresstofit32charact1",
+        "reallylongaddresstofit32charact2",
+        "reallylongaddresstofit32charact3",
     ];
+    let members = members_init(&member_addrs, &[10, 10, 10]);
 
     let mut suite = SuiteBuilder::new()
-        .with_operators_pubkeys(&[members[0], members[1], members[2]], &[])
+        .with_engagement(&members)
+        .with_operators_pubkeys(&member_addrs)
         .with_epoch_reward(coin(1500, "usdc"))
         .build();
 
@@ -175,14 +184,16 @@ fn multiple_evidences() {
 
 #[test]
 fn evidence_with_not_matching_date() {
-    let members = vec![
-        ("reallylongaddresstofit32charact1", 10),
-        ("reallylongaddresstofit32charact2", 10),
-        ("reallylongaddresstofit32charact3", 10),
+    let member_addrs = vec![
+        "reallylongaddresstofit32charact1",
+        "reallylongaddresstofit32charact2",
+        "reallylongaddresstofit32charact3",
     ];
+    let members = members_init(&member_addrs, &[10, 10, 10]);
 
     let mut suite = SuiteBuilder::new()
-        .with_operators_pubkeys(&[members[0], members[1]], &[])
+        .with_engagement(&members[0..2])
+        .with_operators_pubkeys(&member_addrs[0..2])
         .with_epoch_reward(coin(1500, "usdc"))
         .build();
 

@@ -10,7 +10,8 @@ use tg_utils::{Duration, Expiration, JailingDuration};
 fn only_admin_can_jail() {
     let members = vec!["member1", "member2", "member3", "member4"];
     let mut suite = SuiteBuilder::new()
-        .with_operators(&members_init(&members, &[2, 3, 5, 8]), &[])
+        .with_engagement(&members_init(&members, &[2, 3, 5, 8]))
+        .with_operators(&members)
         .build();
     let admin = suite.admin().to_owned();
 
@@ -77,7 +78,8 @@ fn only_admin_can_jail() {
 fn admin_can_unjail_almost_anyone() {
     let members = vec!["member1", "member2", "member3", "member4"];
     let mut suite = SuiteBuilder::new()
-        .with_operators(&members_init(&members, &[2, 3, 5, 8]), &[])
+        .with_engagement(&members_init(&members, &[2, 3, 5, 8]))
+        .with_operators(&members)
         .build();
     let admin = suite.admin().to_owned();
 
@@ -118,7 +120,8 @@ fn admin_can_unjail_almost_anyone() {
 fn anyone_can_unjail_self_after_period() {
     let members = vec!["member1", "member2", "member3", "member4"];
     let mut suite = SuiteBuilder::new()
-        .with_operators(&members_init(&members, &[2, 3, 5, 8]), &[])
+        .with_engagement(&members_init(&members, &[2, 3, 5, 8]))
+        .with_operators(&members)
         .build();
     let admin = suite.admin().to_owned();
 
@@ -185,7 +188,8 @@ fn anyone_can_unjail_self_after_period() {
 fn jailed_validators_are_ignored_on_selection() {
     let members = vec!["member1", "member2", "member3", "member4"];
     let mut suite = SuiteBuilder::new()
-        .with_operators(&members_init(&members, &[2, 3, 5, 8]), &[])
+        .with_engagement(&members_init(&members, &[2, 3, 5, 8]))
+        .with_operators(&members)
         .build();
     let admin = suite.admin().to_owned();
 
@@ -235,7 +239,8 @@ fn auto_unjail() {
     // Non-standard config: auto unjail is enabled
     let members = vec!["member1", "member2", "member3", "member4"];
     let mut suite = SuiteBuilder::new()
-        .with_operators(&members_init(&members, &[2, 3, 5, 8]), &[])
+        .with_engagement(&members_init(&members, &[2, 3, 5, 8]))
+        .with_operators(&members)
         .with_auto_unjail()
         .build();
 
@@ -294,7 +299,8 @@ fn auto_unjail() {
 fn enb_block_ignores_jailed_validators() {
     let members = vec!["member1", "member2", "member3", "member4"];
     let mut suite = SuiteBuilder::new()
-        .with_operators(&members_init(&members, &[2, 3, 5, 8]), &[])
+        .with_engagement(&members_init(&members, &[2, 3, 5, 8]))
+        .with_operators(&members)
         .build();
 
     let admin = suite.admin().to_owned();

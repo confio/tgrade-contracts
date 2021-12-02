@@ -2,7 +2,9 @@ use super::helpers::{addr_to_pubkey, mock_metadata, mock_pubkey};
 use crate::state::Config;
 use crate::{msg::*, state::ValidatorInfo};
 use anyhow::{bail, Result as AnyResult};
-use cosmwasm_std::{coin, Addr, BlockInfo, Coin, CosmosMsg, Decimal, StdResult, Timestamp};
+use cosmwasm_std::{
+    coin, Addr, BlockInfo, Coin, CosmosMsg, Decimal, StdResult, Timestamp, Uint128,
+};
 use cw_multi_test::{next_block, AppResponse, Contract, ContractWrapper, CosmosRouter, Executor};
 use derivative::Derivative;
 use tg4::{AdminResponse, Member};
@@ -17,6 +19,15 @@ pub fn contract_engagement() -> Box<dyn Contract<TgradeMsg>> {
         tg4_engagement::contract::execute,
         tg4_engagement::contract::instantiate,
         tg4_engagement::contract::query,
+    );
+    Box::new(contract)
+}
+
+fn contract_stake() -> Box<dyn Contract<TgradeMsg>> {
+    let contract = ContractWrapper::new(
+        tg4_stake::contract::execute,
+        tg4_stake::contract::instantiate,
+        tg4_stake::contract::query,
     );
     Box::new(contract)
 }
@@ -42,13 +53,28 @@ struct DistributionConfig {
 
 #[derive(Derivative, Debug, Clone)]
 #[derivative(Default = "new")]
+enum GroupConfig {
+    /// Use a tg4_engagement contract as the valset group contract
+    #[derivative(Default)]
+    Engagement {
+        /// Engagement members
+        members: Vec<(String, u64)>,
+    },
+    /// Usa a tg4_stake contract as the valset group contract
+    Stake {
+        denom: String,
+        tokens_per_weight: Uint128,
+    },
+}
+
+#[derive(Derivative, Debug, Clone)]
+#[derivative(Default = "new")]
 pub struct SuiteBuilder {
-    /// Valset operators pairs: `(addr, weight)`
-    member_operators: Vec<(String, Option<Pubkey>, u64)>,
-    /// Valset operators included in `initial_keys`, but not members of cw4 group (addresses only,
-    /// no weights)
-    non_member_operators: Vec<String>,
-    /// Minimum weight of operator to be considered as validator, 1 by default
+    /// Config as to which contract to use as the valset "group" contract,
+    /// and with what kind of config
+    group_config: GroupConfig,
+    /// Valset operators, with optionally provided pubkeys
+    operators: Vec<(String, Option<Pubkey>)>,
     #[derivative(Default(value = "1"))]
     min_weight: u64,
     /// Maximum number of validators for single epoch
@@ -70,36 +96,64 @@ pub struct SuiteBuilder {
     double_sign_slash_ratio: Decimal,
     /// Configuration of `distribution_contract` if any
     distribution_configs: Vec<DistributionConfig>,
+    /// Funds to add on init per address
+    init_funds: Vec<(String, Vec<Coin>)>,
 }
 
 impl SuiteBuilder {
-    pub fn with_operators(mut self, members: &[(&str, u64)], non_members: &[&str]) -> Self {
-        let members = members
+    pub fn with_operators(mut self, operators: &[&str]) -> Self {
+        self.operators = operators
             .iter()
-            .map(|(addr, weight)| ((*addr).to_owned(), None, *weight));
-        self.member_operators.extend(members);
-
-        self = self.with_non_members(non_members);
+            .map(|addr| ((*addr).to_owned(), None))
+            .collect();
 
         self
     }
 
     // Method generates proper pubkeys, but requires address length to be exactly 32 bytes,
     // otherwise it will panic.
-    pub fn with_operators_pubkeys(mut self, members: &[(&str, u64)], non_members: &[&str]) -> Self {
-        let members = members
+    pub fn with_operators_pubkeys(mut self, operators: &[&str]) -> Self {
+        self.operators = operators
             .iter()
-            .map(|(addr, weight)| ((*addr).to_owned(), Some(addr_to_pubkey(addr)), *weight));
-        self.member_operators.extend(members);
-
-        self = self.with_non_members(non_members);
+            .map(|addr| ((*addr).to_owned(), Some(addr_to_pubkey(addr))))
+            .collect();
 
         self
     }
 
-    fn with_non_members(mut self, non_members: &[&str]) -> Self {
-        let non_members = non_members.iter().copied().map(str::to_owned);
-        self.non_member_operators.extend(non_members);
+    /// Use a tg4_engagement contract for membership.
+    /// Provide a list of members with assigned weights to initialize it with.
+    pub fn with_engagement(mut self, members: &[(&str, u64)]) -> Self {
+        self.group_config = GroupConfig::Engagement {
+            members: members
+                .iter()
+                .map(|(addr, weight)| ((*addr).to_owned(), *weight))
+                .collect(),
+        };
+
+        self
+    }
+
+    /// Use a tg4_stake contract for membership.
+    /// The staking tokens may have a different denomination from the reward ones.
+    pub fn with_stake(
+        mut self,
+        denom: impl Into<String>,
+        tokens_per_weight: impl Into<Uint128>,
+    ) -> Self {
+        self.group_config = GroupConfig::Stake {
+            denom: denom.into(),
+            tokens_per_weight: tokens_per_weight.into(),
+        };
+        self
+    }
+
+    pub fn with_funds(mut self, funds: &[(&str, &[Coin])]) -> Self {
+        self.init_funds.extend(
+            funds
+                .iter()
+                .map(|(addr, funds)| (addr.to_string(), funds.to_vec())),
+        );
         self
     }
 
@@ -155,21 +209,74 @@ impl SuiteBuilder {
     }
 
     pub fn build(mut self) -> Suite {
-        self.member_operators.sort();
-        self.member_operators.dedup();
+        let admin = Addr::unchecked("admin");
+        let denom = self.epoch_reward.denom.clone();
 
-        self.non_member_operators.sort();
-        self.non_member_operators.dedup();
+        let mut app = TgradeApp::new(admin.as_str());
+        // start from genesis
+        app.back_to_genesis();
 
-        let members: Vec<_> = self
-            .member_operators
-            .clone()
-            .into_iter()
-            .map(|(addr, _, weight)| Member { addr, weight })
-            .collect();
+        let engagement_id = app.store_code(contract_engagement());
 
-        let operators: Vec<_> = {
-            let members = self.member_operators.iter().map(|member| {
+        let membership = match self.group_config {
+            GroupConfig::Engagement { mut members } => {
+                members.sort();
+                members.dedup();
+
+                let members = members
+                    .into_iter()
+                    .map(|(addr, weight)| Member { addr, weight })
+                    .collect();
+
+                app.instantiate_contract(
+                    engagement_id,
+                    admin.clone(),
+                    &tg4_engagement::msg::InstantiateMsg {
+                        admin: Some(admin.to_string()),
+                        members,
+                        preauths_hooks: 0,
+                        preauths_slashing: 1,
+                        halflife: None,
+                        denom: denom.clone(),
+                    },
+                    &[],
+                    "group",
+                    Some(admin.to_string()),
+                )
+                .unwrap()
+            }
+            GroupConfig::Stake {
+                denom,
+                tokens_per_weight,
+            } => {
+                let stake_id = app.store_code(contract_stake());
+                app.instantiate_contract(
+                    stake_id,
+                    admin.clone(),
+                    &tg4_stake::msg::InstantiateMsg {
+                        denom,
+                        tokens_per_weight,
+                        min_bond: Uint128::zero(),
+                        unbonding_period: 0,
+                        admin: Some(admin.to_string()),
+                        preauths_hooks: 0,
+                        preauths_slashing: 1,
+                        auto_return_limit: 0,
+                    },
+                    &[],
+                    "group",
+                    Some(admin.to_string()),
+                )
+                .unwrap()
+            }
+        };
+
+        self.operators.sort();
+        self.operators.dedup();
+        let operators: Vec<_> = self
+            .operators
+            .iter()
+            .map(|member| {
                 // If pubkey was previously generated, assign it
                 // Otherwise, mock value
                 let pubkey = match member.1.clone() {
@@ -181,45 +288,8 @@ impl SuiteBuilder {
                     validator_pubkey: pubkey,
                     metadata: mock_metadata(&member.0),
                 }
-            });
-
-            let non_members = self
-                .non_member_operators
-                .iter()
-                .map(|addr| OperatorInitInfo {
-                    operator: addr.clone(),
-                    validator_pubkey: mock_pubkey(addr.as_bytes()),
-                    metadata: mock_metadata(addr),
-                });
-
-            members.chain(non_members).collect()
-        };
-
-        let admin = Addr::unchecked("admin");
-        let denom = self.epoch_reward.denom.clone();
-
-        let mut app = TgradeApp::new(admin.as_str());
-        // start from genesis
-        app.back_to_genesis();
-
-        let engagement_id = app.store_code(contract_engagement());
-        let group = app
-            .instantiate_contract(
-                engagement_id,
-                admin.clone(),
-                &tg4_engagement::msg::InstantiateMsg {
-                    admin: Some(admin.to_string()),
-                    members: members.clone(),
-                    preauths_hooks: 0,
-                    preauths_slashing: 1,
-                    halflife: None,
-                    denom: denom.clone(),
-                },
-                &[],
-                "group",
-                Some(admin.to_string()),
-            )
-            .unwrap();
+            })
+            .collect();
 
         let distribution_configs = self.distribution_configs;
         let distribution_contracts: Vec<_> = distribution_configs
@@ -261,12 +331,12 @@ impl SuiteBuilder {
                 admin.clone(),
                 &InstantiateMsg {
                     admin: Some(admin.to_string()),
-                    membership: group.to_string(),
+                    membership: membership.to_string(),
                     min_weight: self.min_weight,
                     max_validators: self.max_validators,
                     epoch_length: self.epoch_length,
                     epoch_reward: self.epoch_reward,
-                    initial_keys: operators,
+                    initial_keys: operators.clone(),
                     scaling: self.scaling,
                     fee_percentage: self.fee_percentage,
                     auto_unjail: self.auto_unjail,
@@ -281,6 +351,31 @@ impl SuiteBuilder {
                 Some(admin.to_string()),
             )
             .unwrap();
+
+        // Mint initial funds if any were specified
+        for (addr, funds) in self.init_funds {
+            for coin in funds {
+                let block_info = app.block_info();
+                let addr = addr.clone();
+                let admin = admin.clone();
+
+                app.init_modules(move |router, api, storage| {
+                    router.execute(
+                        api,
+                        storage,
+                        &block_info,
+                        admin,
+                        CosmosMsg::Custom(TgradeMsg::MintTokens {
+                            denom: coin.denom,
+                            amount: coin.amount,
+                            recipient: addr,
+                        })
+                        .into(),
+                    )
+                })
+                .unwrap();
+            }
+        }
 
         // promote the valset contract
         app.promote(admin.as_str(), valset.as_str()).unwrap();
@@ -297,10 +392,10 @@ impl SuiteBuilder {
         Suite {
             app,
             valset,
+            membership,
             distribution_contracts,
             admin: admin.to_string(),
-            member_operators: members,
-            non_member_operators: self.non_member_operators,
+            operators: operators.into_iter().map(|o| o.operator).collect(),
             epoch_length: self.epoch_length,
             denom,
             rewards_contract: resp.rewards_contract,
@@ -314,17 +409,16 @@ pub struct Suite {
     /// Multitest app
     #[derivative(Debug = "ignore")]
     app: TgradeApp,
-    /// tgrade-valse contract address
+    /// tgrade-valset contract address
     valset: Addr,
+    /// membership contract address
+    membership: Addr,
     /// tg4-engagement contracts used e.g. for engagement distribution
     distribution_contracts: Vec<Addr>,
     /// Admin used for any administrative messages, but also admin of tgrade-valset contract
     admin: String,
-    /// Valset operators pairs, members of cw4 group
-    member_operators: Vec<Member>,
-    /// Valset operators included in `initial_keys`, but not members of cw4 group (addresses only,
-    /// no weights)
-    non_member_operators: Vec<String>,
+    /// Valset operators included in `initial_keys`
+    operators: Vec<String>,
     /// Length of an epoch
     epoch_length: u64,
     /// Reward denom
@@ -616,6 +710,28 @@ impl Suite {
             &QueryMsg::Validator {
                 operator: addr.to_owned(),
             },
+        )
+    }
+
+    /// Bonds some tokens.
+    /// Only works when the membership contract is tg4_stake. Will error otherwise.
+    pub fn bond(&mut self, addr: &Addr, stake: &[Coin]) -> AnyResult<AppResponse> {
+        self.app.execute_contract(
+            addr.clone(),
+            self.membership.clone(),
+            &tg4_stake::msg::ExecuteMsg::Bond {},
+            stake,
+        )
+    }
+
+    /// Unbonds some tokens.
+    /// Only works when the membership contract is tg4_stake. Will error otherwise.
+    pub fn unbond(&mut self, addr: &Addr, tokens: Coin) -> AnyResult<AppResponse> {
+        self.app.execute_contract(
+            addr.clone(),
+            self.membership.clone(),
+            &tg4_stake::msg::ExecuteMsg::Unbond { tokens },
+            &[],
         )
     }
 }

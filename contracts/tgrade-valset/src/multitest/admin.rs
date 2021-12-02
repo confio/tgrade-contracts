@@ -52,7 +52,8 @@ fn non_admin_cannot_change_admin() {
     let members = vec!["member1", "member2", "member3", "member4"];
 
     let mut suite = SuiteBuilder::new()
-        .with_operators(&members_init(&members, &[2, 3, 5, 8]), &[])
+        .with_operators(&members)
+        .with_engagement(&members_init(&members, &[2, 3, 5, 8]))
         .build();
 
     assert_unauthorized(suite.update_admin("random guy", "asd".to_string()));

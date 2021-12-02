@@ -7,7 +7,8 @@ use tg_utils::JailingDuration;
 fn no_fees_no_split() {
     let members = vec!["member1", "member2"];
     let mut suite = SuiteBuilder::new()
-        .with_operators(&[(members[0], 2), (members[1], 3)], &[])
+        .with_engagement(&[(members[0], 2), (members[1], 3)])
+        .with_operators(&members)
         .with_epoch_reward(coin(1000, "usdc"))
         .build();
 
@@ -29,7 +30,8 @@ fn no_fees_divisible_reward() {
     let engagement = vec!["dist1", "dist2"];
     let members = vec!["member1", "member2"];
     let mut suite = SuiteBuilder::new()
-        .with_operators(&[(members[0], 2), (members[1], 3)], &[])
+        .with_engagement(&[(members[0], 2), (members[1], 3)])
+        .with_operators(&members)
         .with_epoch_reward(coin(1000, "usdc"))
         .with_distribution(
             Decimal::percent(40),
@@ -67,7 +69,8 @@ fn no_fees_three_way_split() {
     let community = vec!["community"];
     let members = vec!["member1", "member2"];
     let mut suite = SuiteBuilder::new()
-        .with_operators(&[(members[0], 2), (members[1], 3)], &[])
+        .with_engagement(&[(members[0], 2), (members[1], 3)])
+        .with_operators(&members)
         .with_epoch_reward(coin(1000, "usdc"))
         .with_distribution(
             Decimal::percent(40),
@@ -108,7 +111,8 @@ fn no_fees_invidivisible_reward() {
     let engagement = vec!["dist1", "dist2"];
     let members = vec!["member1", "member2"];
     let mut suite = SuiteBuilder::new()
-        .with_operators(&[(members[0], 2), (members[1], 3)], &[])
+        .with_engagement(&[(members[0], 2), (members[1], 3)])
+        .with_operators(&members)
         .with_epoch_reward(coin(1009, "usdc"))
         .with_distribution(
             Decimal::percent(40),
@@ -145,7 +149,8 @@ fn fees_divisible_reward() {
     let engagement = vec!["dist1", "dist2"];
     let members = vec!["member1", "member2"];
     let mut suite = SuiteBuilder::new()
-        .with_operators(&[(members[0], 2), (members[1], 3)], &[])
+        .with_engagement(&[(members[0], 2), (members[1], 3)])
+        .with_operators(&members)
         .with_epoch_reward(coin(1000, "usdc"))
         .with_distribution(
             Decimal::percent(40),
@@ -183,7 +188,8 @@ fn fees_with_fee_reduction() {
     let engagement = vec!["dist1", "dist2"];
     let members = vec!["member1", "member2"];
     let mut suite = SuiteBuilder::new()
-        .with_operators(&[(members[0], 2), (members[1], 3)], &[])
+        .with_engagement(&[(members[0], 2), (members[1], 3)])
+        .with_operators(&members)
         .with_epoch_reward(coin(1000, "usdc"))
         .with_fee_percentage(Decimal::percent(50))
         .with_distribution(
@@ -223,7 +229,8 @@ fn jailed_validators_not_rewarded() {
     let engagement = vec!["dist1", "dist2"];
     let members = vec!["member1", "member2"];
     let mut suite = SuiteBuilder::new()
-        .with_operators(&[(members[0], 2), (members[1], 3)], &[])
+        .with_engagement(&[(members[0], 2), (members[1], 3)])
+        .with_operators(&members)
         .with_epoch_reward(coin(1000, "usdc"))
         .with_distribution(
             Decimal::percent(40),
