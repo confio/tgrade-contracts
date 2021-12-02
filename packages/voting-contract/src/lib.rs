@@ -94,7 +94,8 @@ where
         .add_attribute("action", "propose")
         .add_attribute("sender", info.sender)
         .add_attribute("proposal_id", id.to_string())
-        .add_attribute("status", format!("{:?}", prop.status)))
+        .add_attribute("status", format!("{:?}", prop.status))
+        .set_data(cosmwasm_std::to_binary(&id)?))
 }
 
 pub fn vote<P>(
