@@ -159,6 +159,7 @@ pub fn query(deps: Deps, env: Env, msg: QueryMsg) -> StdResult<Binary> {
     use QueryMsg::*;
 
     match msg {
+        Configuration {} => to_binary(&CONFIG.load(deps.storage)?),
         Rules {} => to_binary(&query_rules(deps)?),
         Proposal { proposal_id } => to_binary(&query_proposal::<OversightProposal>(
             deps,
@@ -579,6 +580,18 @@ mod tests {
                 None,
             )
             .unwrap();
+
+        let config: Config = app
+            .wrap()
+            .query_wasm_smart(&flex_addr, &QueryMsg::Configuration {})
+            .unwrap();
+        assert_eq!(
+            config,
+            Config {
+                engagement_contract: Tg4Contract::new(engagement_addr),
+                valset_contract: Tg4Contract::new(valset_addr),
+            }
+        );
 
         // Get voters query
         let voters: VoterListResponse = app
