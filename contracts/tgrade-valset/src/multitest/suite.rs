@@ -291,7 +291,7 @@ impl SuiteBuilder {
         // query for rewards contract
         let resp: Config = app
             .wrap()
-            .query_wasm_smart(valset.clone(), &QueryMsg::Config {})
+            .query_wasm_smart(valset.clone(), &QueryMsg::Configuration {})
             .unwrap();
 
         Suite {
@@ -599,7 +599,7 @@ impl Suite {
     pub fn config(&self) -> StdResult<Config> {
         self.app
             .wrap()
-            .query_wasm_smart(&self.valset, &QueryMsg::Config {})
+            .query_wasm_smart(&self.valset, &QueryMsg::Configuration {})
     }
 
     /// Queries valset contract for epoch related info
