@@ -144,12 +144,12 @@ pub fn execute_execute(
             description: prop.description,
             proposal: GovProposal::CancelUpgrade {},
         }),
-        PinCodes { code_ids } => SubMsg::new(TgradeMsg::ExecuteGovProposal {
+        PinCodes(code_ids) => SubMsg::new(TgradeMsg::ExecuteGovProposal {
             title: prop.title,
             description: prop.description,
             proposal: GovProposal::PinCodes { code_ids },
         }),
-        UnpinCodes { code_ids } => SubMsg::new(TgradeMsg::ExecuteGovProposal {
+        UnpinCodes(code_ids) => SubMsg::new(TgradeMsg::ExecuteGovProposal {
             title: prop.title,
             description: prop.description,
             proposal: GovProposal::UnpinCodes { code_ids },
@@ -385,7 +385,7 @@ mod tests {
                     description: "PinCodes testing proposal".to_owned(),
                     start_height: env.block.height,
                     expires: Expiration::at_timestamp(env.block.time.plus_seconds(66666)),
-                    proposal: ValidatorProposal::PinCodes { code_ids: vec![] },
+                    proposal: ValidatorProposal::PinCodes(vec![]),
                     status: Status::Passed,
                     rules: VotingRules {
                         voting_period: 1,
@@ -430,7 +430,7 @@ mod tests {
                     description: "UnpinCodes testing proposal".to_owned(),
                     start_height: env.block.height,
                     expires: Expiration::at_timestamp(env.block.time.plus_seconds(66666)),
-                    proposal: ValidatorProposal::UnpinCodes { code_ids: vec![] },
+                    proposal: ValidatorProposal::UnpinCodes(vec![]),
                     status: Status::Passed,
                     rules: VotingRules {
                         voting_period: 1,
