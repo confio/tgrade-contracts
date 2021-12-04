@@ -53,14 +53,10 @@ pub enum ValidatorProposal {
         upgraded_client_state: ProtoAny,
     },
     CancelUpgrade {},
-    PinCodes {
-        /// all code ids that should be pinned in cache for high performance
-        code_ids: Vec<u64>,
-    },
-    UnpinCodes {
-        /// all code ids that should be removed from cache to free space
-        code_ids: Vec<u64>,
-    },
+    /// all code ids that should be pinned in cache for high performance
+    PinCodes(Vec<u64>),
+    /// all code ids that should be removed from cache to free space
+    UnpinCodes(Vec<u64>),
     UpdateConsensusBlockParams {
         /// Maximum number of bytes (over all tx) to be included in a block
         max_bytes: Option<i64>,
