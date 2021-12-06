@@ -635,6 +635,7 @@ fn calculate_validators(
                     Ok(ValidatorInfo {
                         operator: m_addr,
                         validator_pubkey: op.pubkey.into(),
+                        metadata: op.metadata,
                         power: m.weight * scaling,
                     })
                 })
@@ -901,11 +902,25 @@ mod test {
             ValidatorInfo {
                 operator: Addr::unchecked("op1"),
                 validator_pubkey: Pubkey::Ed25519(b"pubkey1".into()),
+                metadata: ValidatorMetadata {
+                    moniker: "moniker1".to_owned(),
+                    identity: None,
+                    website: None,
+                    security_contact: None,
+                    details: None,
+                },
                 power: 1,
             },
             ValidatorInfo {
                 operator: Addr::unchecked("op2"),
                 validator_pubkey: Pubkey::Ed25519(b"pubkey2".into()),
+                metadata: ValidatorMetadata {
+                    moniker: "moniker2".to_owned(),
+                    identity: None,
+                    website: None,
+                    security_contact: None,
+                    details: None,
+                },
                 power: 2,
             },
         ];
@@ -960,6 +975,13 @@ mod test {
         cur.push(ValidatorInfo {
             operator: Addr::unchecked("op3"),
             validator_pubkey: Pubkey::Ed25519(b"pubkey3".into()),
+            metadata: ValidatorMetadata {
+                moniker: "moniker3".to_owned(),
+                identity: None,
+                website: None,
+                security_contact: None,
+                details: None,
+            },
             power: 3,
         });
 
