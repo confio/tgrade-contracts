@@ -105,7 +105,6 @@ pub fn create(
             withdrawn_funds: Uint128::zero(),
             delegated: member_addr.clone(),
         };
-
         WITHDRAW_ADJUSTMENT.save(deps.storage, &member_addr, &adjustment)?;
     }
     TOTAL.save(deps.storage, &total)?;
@@ -720,6 +719,11 @@ pub fn query(deps: Deps, env: Env, msg: QueryMsg) -> StdResult<Binary> {
             to_binary(&SLASHERS.is_slasher(deps.storage, &addr)?)
         }
         ListSlashers {} => to_binary(&SLASHERS.list_slashers(deps.storage)?),
+        DistributionData {} => to_binary(&DISTRIBUTION.may_load(deps.storage)?),
+        WithdrawAdjustmentData { addr } => {
+            let addr = deps.api.addr_validate(&addr)?;
+            to_binary(&WITHDRAW_ADJUSTMENT.may_load(deps.storage, &addr)?)
+        }
     }
 }
 
@@ -861,6 +865,9 @@ fn list_members_by_weight(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    use crate::i128::Int128;
+
     use cosmwasm_std::testing::{mock_dependencies, mock_env, mock_info};
     use cosmwasm_std::{from_slice, Api, OwnedDeps, Querier, StdError, Storage};
     use cw_controllers::AdminError;
@@ -918,6 +925,37 @@ mod tests {
 
         let preauths = PREAUTH_HOOKS.get_auth(&deps.storage).unwrap();
         assert_eq!(1, preauths);
+
+        let raw = query(deps.as_ref(), mock_env(), QueryMsg::DistributionData {}).unwrap();
+        let res: Distribution = from_slice(&raw).unwrap();
+        assert_eq!(
+            res,
+            Distribution {
+                denom: "usdc".to_owned(),
+                points_per_weight: Uint128::zero(),
+                points_leftover: 0,
+                distributed_total: Uint128::zero(),
+                withdrawable_total: Uint128::zero(),
+            }
+        );
+
+        let raw = query(
+            deps.as_ref(),
+            mock_env(),
+            QueryMsg::WithdrawAdjustmentData {
+                addr: USER1.to_owned(),
+            },
+        )
+        .unwrap();
+        let res: WithdrawAdjustment = from_slice(&raw).unwrap();
+        assert_eq!(
+            res,
+            WithdrawAdjustment {
+                points_correction: Int128::zero(),
+                withdrawn_funds: Uint128::zero(),
+                delegated: Addr::unchecked("USER1"),
+            }
+        );
     }
 
     #[test]
