@@ -116,6 +116,10 @@ pub enum QueryMsg {
     IsSlasher { addr: String },
     /// Returns all active slashers as vector of addresses
     ListSlashers {},
+    /// Returns tokens distribution data
+    DistributionData {},
+    /// Returns withdraw adjustment
+    WithdrawAdjustmentData { addr: String },
 }
 
 #[derive(Serialize, Deserialize, Clone, PartialEq, JsonSchema, Debug)]
