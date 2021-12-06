@@ -618,6 +618,29 @@ mod tests {
     }
 
     #[test]
+    fn test_proposal_creation() {
+        let init_funds = coins(10, "BTC");
+        let mut app = mock_app(&init_funds);
+
+        let rules = RulesBuilder::new()
+            .with_quorum(Decimal::percent(20))
+            .with_threshold(Decimal::percent(80))
+            .build();
+        let (flex_addr, _, _, _) = setup_test_case_fixed(&mut app, rules, init_funds, false);
+
+        // create proposal
+        let proposal = grant_voter1_engagement_point_proposal();
+        let res = app
+            .execute_contract(Addr::unchecked(VOTER1), flex_addr, &proposal, &[])
+            .unwrap();
+        let proposal_id: u64 = res.custom_attrs(1)[2].value.parse().unwrap();
+
+        // check the response
+        let expected_data = tg_voting_contract::msg::ProposalCreationResponse { proposal_id };
+        assert_eq!(res.data.unwrap(), to_binary(&expected_data).unwrap());
+    }
+
+    #[test]
     fn test_proposal_queries() {
         let init_funds = coins(10, "BTC");
         let mut app = mock_app(&init_funds);
