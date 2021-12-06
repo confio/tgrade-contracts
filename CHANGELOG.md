@@ -2,11 +2,11 @@
 
 ## [Unreleased](https://github.com/confio/tgrade-contracts/tree/HEAD)
 
-[Full Changelog](https://github.com/confio/tgrade-contracts/compare/v0.5.0-beta6...HEAD)
+[Full Changelog](https://github.com/confio/tgrade-contracts/compare/v0.5.0-rc...HEAD)
 
-## [v0.5.0-beta](https://github.com/confio/tgrade-contracts/tree/v0.5.0-beta6) (2021-11-23)
+## [v0.5.0-rc](https://github.com/confio/tgrade-contracts/tree/v0.5.0-rc) (2021-12-06)
 
-[Full Changelog](https://github.com/confio/tgrade-contracts/compare/v0.5.0-alpha.2...v0.5.0-beta6)
+[Full Changelog](https://github.com/confio/tgrade-contracts/compare/v0.5.0-alpha.2...v0.5.0-rc)
 
 **Implemented enhancements:**
 
@@ -22,6 +22,16 @@
 
 **Closed issues:**
 
+- validator-voting: upgrade proposal - remove upgraded\_client\_state [\#380](https://github.com/confio/tgrade-contracts/issues/380)
+- Valset contract needs active validator metadata [\#383](https://github.com/confio/tgrade-contracts/issues/383)
+- validator-voting: don't wrap code\_ids in an object [\#378](https://github.com/confio/tgrade-contracts/issues/378)
+- query for config in all contracts [\#373](https://github.com/confio/tgrade-contracts/issues/373)
+- query for state in all contracts [\#372](https://github.com/confio/tgrade-contracts/issues/372)
+- Ensure all state is visible by some SmartQuery [\#371](https://github.com/confio/tgrade-contracts/issues/371)
+- Finish vesting contract [\#352](https://github.com/confio/tgrade-contracts/issues/352)
+- voting-contract: should return new proposal id as result [\#335](https://github.com/confio/tgrade-contracts/issues/335)
+- Add Bond/Unbond Support to Vesting Contract [\#218](https://github.com/confio/tgrade-contracts/issues/218)
+- tgrade-valset: Refactor/unify multitests [\#169](https://github.com/confio/tgrade-contracts/issues/169)
 - Revisit check an address is a contract [\#367](https://github.com/confio/tgrade-contracts/issues/367)
 - valset: set admin as migrator for distribution contract [\#353](https://github.com/confio/tgrade-contracts/issues/353)
 - Remove `engagement_addr` from `validator-voting` and `community-pool` [\#348](https://github.com/confio/tgrade-contracts/issues/348)
@@ -82,6 +92,15 @@
 
 **Merged pull requests:**
 
+- validator-voting: Remove deprecated upgraded\_client\_state field [\#392](https://github.com/confio/tgrade-contracts/pull/392) ([ueco-jb](https://github.com/ueco-jb))
+- Cherry pick 389 to main [\#391](https://github.com/confio/tgrade-contracts/pull/391) ([ueco-jb](https://github.com/ueco-jb))
+- tgrade-valset: Expand `ValidatorInfo` with `ValidatorMetadata` [\#386](https://github.com/confio/tgrade-contracts/pull/386) ([ueco-jb](https://github.com/ueco-jb))
+- Validator voting - don't unecessary wrap pin codes [\#382](https://github.com/confio/tgrade-contracts/pull/382) ([ueco-jb](https://github.com/ueco-jb))
+- Query states in tg4-engagement [\#381](https://github.com/confio/tgrade-contracts/pull/381) ([ueco-jb](https://github.com/ueco-jb))
+- voting-contracts: Include proposal id in resp data [\#379](https://github.com/confio/tgrade-contracts/pull/379) ([uint](https://github.com/uint))
+- Extract `RulesBuilder` to separate crate \(introduce `test-utils`\) [\#377](https://github.com/confio/tgrade-contracts/pull/377) ([ueco-jb](https://github.com/ueco-jb))
+- Add config query [\#376](https://github.com/confio/tgrade-contracts/pull/376) ([ueco-jb](https://github.com/ueco-jb))
+- valset: Port `test_valset_stake` to our test suite thingy [\#369](https://github.com/confio/tgrade-contracts/pull/369) ([uint](https://github.com/uint))
 - Add resolver = '2' to workspace [\#346](https://github.com/confio/tgrade-contracts/pull/346) ([ueco-jb](https://github.com/ueco-jb))
 - Set version: 0.5.0-beta5 [\#345](https://github.com/confio/tgrade-contracts/pull/345) ([ueco-jb](https://github.com/ueco-jb))
 - Add debugging section to readme [\#344](https://github.com/confio/tgrade-contracts/pull/344) ([ueco-jb](https://github.com/ueco-jb))
