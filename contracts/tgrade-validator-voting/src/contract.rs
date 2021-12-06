@@ -124,20 +124,10 @@ pub fn execute_execute(
 
     let prop = proposal.clone();
     let msg = match prop.proposal {
-        RegisterUpgrade {
-            name,
-            height,
-            info,
-            upgraded_client_state,
-        } => SubMsg::new(TgradeMsg::ExecuteGovProposal {
+        RegisterUpgrade { name, height, info } => SubMsg::new(TgradeMsg::ExecuteGovProposal {
             title: prop.title,
             description: prop.description,
-            proposal: GovProposal::RegisterUpgrade {
-                name,
-                height,
-                info,
-                upgraded_client_state,
-            },
+            proposal: GovProposal::RegisterUpgrade { name, height, info },
         }),
         CancelUpgrade {} => SubMsg::new(TgradeMsg::ExecuteGovProposal {
             title: prop.title,
