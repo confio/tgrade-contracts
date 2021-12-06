@@ -209,6 +209,42 @@ impl Suite {
         Ok(())
     }
 
+    pub fn distribute_funds(&mut self, amount: u128) -> AnyResult<()> {
+        let block_info = self.app.block_info();
+        let owner = self.owner.clone();
+        let denom = self.group_token.to_string();
+
+        self.app
+            .init_modules(|router, api, storage| -> AnyResult<()> {
+                router.execute(
+                    api,
+                    storage,
+                    &block_info,
+                    owner.clone(),
+                    CosmosMsg::Custom(TgradeMsg::MintTokens {
+                        denom,
+                        amount: amount.into(),
+                        recipient: owner.to_string(),
+                    })
+                    .into(),
+                )?;
+
+                Ok(())
+            })?;
+
+        self.app.next_block().unwrap();
+
+        self.app.execute_contract(
+            self.owner.clone(),
+            self.contract.clone(),
+            &ExecuteMsg::DistributeFunds {},
+            &[coin(amount, self.group_token)],
+        )?;
+
+        self.app.next_block().unwrap();
+        Ok(())
+    }
+
     pub fn withdraw_community_pool_rewards(&mut self, executor: &str) -> AnyResult<AppResponse> {
         self.app.execute_contract(
             Addr::unchecked(executor),

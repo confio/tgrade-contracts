@@ -56,6 +56,7 @@ pub fn execute(
             execute_close::<Empty>(deps, env, info, proposal_id).map_err(ContractError::from)
         }
         ExecuteMsg::WithdrawEngagementRewards {} => execute_withdraw_engagement_rewards(deps, info),
+        ExecuteMsg::DistributeFunds {} => Ok(Response::new()),
     }
 }
 
