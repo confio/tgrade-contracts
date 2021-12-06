@@ -80,6 +80,7 @@ pub struct ValidatorInfo {
     /// TODO: better name to specify this is the Tendermint pubkey for consensus?
     pub validator_pubkey: Pubkey,
     pub operator: Addr,
+    pub metadata: ValidatorMetadata,
     /// The voting power in Tendermint sdk
     pub power: u64,
 }

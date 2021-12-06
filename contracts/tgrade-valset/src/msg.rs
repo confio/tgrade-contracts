@@ -172,7 +172,9 @@ impl InstantiateMsg {
 }
 
 /// Validator Metadata modeled after the Cosmos SDK staking module
-#[derive(Serialize, Deserialize, Clone, PartialEq, JsonSchema, Debug, Default)]
+#[derive(
+    Serialize, Deserialize, Clone, Eq, PartialEq, Ord, PartialOrd, JsonSchema, Debug, Default,
+)]
 pub struct ValidatorMetadata {
     /// The validator's name (required)
     pub moniker: String,
