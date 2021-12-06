@@ -20,3 +20,17 @@ fn community_pool_can_withdraw_engagement_rewards() {
     // now have 90 of the 100 distributed tokens.
     assert_eq!(suite.token_balance(suite.contract.clone()).unwrap(), 90);
 }
+
+#[test]
+fn distribute_funds() {
+    let mut suite = SuiteBuilder::new()
+        .with_group_member("voter1", 1)
+        .with_community_pool_as_member(9)
+        .build();
+
+    // Have the admin mint some tokens and distribute them to community pool contract
+    suite.distribute_funds(100).unwrap();
+
+    // Ensure tokens are on the contract
+    assert_eq!(suite.token_balance(suite.contract.clone()).unwrap(), 100);
+}
