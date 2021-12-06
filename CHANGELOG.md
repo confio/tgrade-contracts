@@ -22,6 +22,7 @@
 
 **Closed issues:**
 
+- community-pool: must handle DistributeFunds message [\#385](https://github.com/confio/tgrade-contracts/issues/385)
 - Revisit check an address is a contract [\#367](https://github.com/confio/tgrade-contracts/issues/367)
 - valset: set admin as migrator for distribution contract [\#353](https://github.com/confio/tgrade-contracts/issues/353)
 - Remove `engagement_addr` from `validator-voting` and `community-pool` [\#348](https://github.com/confio/tgrade-contracts/issues/348)
@@ -82,6 +83,7 @@
 
 **Merged pull requests:**
 
+- tgrade-community-pool: Handling distribute funds message [\#389](https://github.com/confio/tgrade-contracts/pull/389) ([hashedone](https://github.com/hashedone))
 - Add resolver = '2' to workspace [\#346](https://github.com/confio/tgrade-contracts/pull/346) ([ueco-jb](https://github.com/ueco-jb))
 - Set version: 0.5.0-beta5 [\#345](https://github.com/confio/tgrade-contracts/pull/345) ([ueco-jb](https://github.com/ueco-jb))
 - Add debugging section to readme [\#344](https://github.com/confio/tgrade-contracts/pull/344) ([ueco-jb](https://github.com/ueco-jb))
