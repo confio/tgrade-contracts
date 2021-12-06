@@ -37,7 +37,7 @@ pub enum ExecuteMsg {
     /// those. Anyone can call it.
     WithdrawEngagementRewards {},
     /// Message comming from valset on funds distribution, just takes funds
-    /// send withm message and doesn nothing
+    /// send with message and does nothing
     DistributeFunds {},
 }
 
