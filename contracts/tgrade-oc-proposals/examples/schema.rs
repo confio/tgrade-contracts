@@ -3,6 +3,7 @@ use std::fs::create_dir_all;
 
 use cosmwasm_schema::{export_schema, export_schema_with_title, remove_schemas, schema_for};
 
+use tg_voting_contract::msg::ProposalCreationResponse;
 use tgrade_oc_proposals::msg::{ExecuteMsg, InstantiateMsg, QueryMsg};
 use tgrade_oc_proposals::state::OversightProposal;
 
@@ -20,5 +21,6 @@ fn main() {
     export_schema_with_title(&schema_for!(QueryMsg), &out_dir, "QueryMsg");
     export_schema(&schema_for!(OversightProposal), &out_dir);
     export_schema(&schema_for!(ProposalResponse), &out_dir);
+    export_schema(&schema_for!(ProposalCreationResponse), &out_dir);
     export_schema(&schema_for!(ProposalListResponse), &out_dir);
 }

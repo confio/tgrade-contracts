@@ -1,4 +1,5 @@
 mod error;
+pub mod msg;
 pub mod state;
 
 pub use error::ContractError;
@@ -90,11 +91,14 @@ where
     };
     BALLOTS.save(deps.storage, (id.into(), &info.sender), &ballot)?;
 
+    let resp = msg::ProposalCreationResponse { proposal_id: id };
+
     Ok(Response::new()
         .add_attribute("action", "propose")
         .add_attribute("sender", info.sender)
         .add_attribute("proposal_id", id.to_string())
-        .add_attribute("status", format!("{:?}", prop.status)))
+        .add_attribute("status", format!("{:?}", prop.status))
+        .set_data(cosmwasm_std::to_binary(&resp)?))
 }
 
 pub fn vote<P>(

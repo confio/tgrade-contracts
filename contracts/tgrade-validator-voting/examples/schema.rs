@@ -3,6 +3,7 @@ use std::fs::create_dir_all;
 
 use cosmwasm_schema::{export_schema, export_schema_with_title, remove_schemas, schema_for};
 
+use tg_voting_contract::msg::ProposalCreationResponse;
 use tg_voting_contract::state::{ProposalListResponse, ProposalResponse};
 use tgrade_validator_voting::msg::{ExecuteMsg, InstantiateMsg, QueryMsg, ValidatorProposal};
 
@@ -17,6 +18,7 @@ fn main() {
     export_schema_with_title(&schema_for!(QueryMsg), &out_dir, "QueryMsg");
     export_schema(&schema_for!(ValidatorProposal), &out_dir);
     export_schema(&schema_for!(ProposalResponse<ValidatorProposal>), &out_dir);
+    export_schema(&schema_for!(ProposalCreationResponse), &out_dir);
     export_schema(
         &schema_for!(ProposalListResponse<ValidatorProposal>),
         &out_dir,
