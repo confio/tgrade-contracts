@@ -102,6 +102,44 @@ This is becoming complex, and hard to reason about, so we need to discuss the fu
   `2 * voting period`. During the period it may be slashed via "Punishment" or "Partial Slashing" as a *Voter*.
   At the end of the period, any remaining escrow can be claimed by the *Leaving Voter*, converting them to a *Non Member*.
 
+### Member lifecycle and events around it
+
+Possible member statuses:
+
+*   `non_voting`
+*   `pending` - the Trusted Circle accepted the member as a voting one, but there is currently
+    not enough escrow
+*   `pending_paid` - the member is accepted and has enough escrow, now waiting for the batch
+    of promotions to go through
+*   `voting` - the member is fully a voting member
+*   `leaving` - the member has been kicked out or decided to leave, to be removed from the list
+
+Add non-voting member.
+
+| Event type          | Attributes                | When emitted                                      |
+| ------------------- | ------------------------- | ------------------------------------------------- |
+| `add_non_voting`    | `member`: *address*       | Add non-voting member.                            |
+| `remove_non_voting` | `member`: *address*       | Remove non-voting member.                         |
+| `propose_voting`    | `member`: *address*       | Accept address as voting member. Becomes Pending. |
+|                     | `proposal_id`: *id*       |                                                   |
+| `demoted`           | `member`: *address*       | A fully `Voting` member is demoted to `Pending`   |
+|                     | `proposal`: *id*          | as a result of escrow amount change.              |
+| `promoted`          | `member`: *address*       | A `Pending` member becomes `PendingPaid` as a     |
+|                     | `proposal`: *id*          | result of escrow amount change.                   |
+| `punishment`        | `punishment_id`: *uint32* | Member is punished. Might be kicked out.          |
+|                     | `member`: *address*       | Might be demoted to `Pending` as a result of      |
+|                     | `slashing_percentage`: *0-1 decimal* | slashing, but no `demoted` event is    |
+|                     | `slashed_escrow`: `distribute`/`burn` | emitted if so.                        |
+|                     | `distribution_list`: *address list, optional* |                               |
+|                     | `kick_out`: `true`/`false`  |                                                 |
+| `wasm` (root)       | `action`: `leave_trusted_circle` | Immediate leave is triggered.              |
+|                     | `type`: `immediately`     |                                                   |
+|                     | `sender`: *leaver's address* |                                                |
+| `wasm` (root)       | `action`: `leave_trusted_circle` | Delayed leave is triggered.                |
+|                     | `type`: `delayed    `     |                                                   |
+|                     | `leaving`: *leaver's address* |                                               |
+|                     | `claim_at`: *timestamp in secs* |                                             |
+
 ### Leaving
 
 *Non Voting Member*, *Pending Voter*, *Pending, Paid Voter*, and *Pending, Paid Voter* may all request to voluntarily
