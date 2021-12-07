@@ -1427,7 +1427,7 @@ fn propose_punish_members_distribution() {
     assert_eq!(&res.attributes[1], &attr("action", "execute"));
     assert_eq!(&res.attributes[2], &attr("proposal_id", "2"));
     // check the proper events returned
-    assert_eq!(res.events.len(), 1);
+    assert_eq!(res.events.len(), 2);
     assert_eq!(&res.events[0].ty, "punishment");
     assert_eq!(&res.events[0].attributes[0], &attr("punishment_id", "1")); // First punishment in proposal
     assert_eq!(&res.events[0].attributes[1], &attr("member", VOTING1));
@@ -1557,7 +1557,7 @@ fn propose_punish_members_burn() {
     assert_eq!(&res.attributes[1], &attr("action", "execute"));
     assert_eq!(&res.attributes[2], &attr("proposal_id", "2"));
     // check the proper events returned
-    assert_eq!(res.events.len(), 1);
+    assert_eq!(res.events.len(), 2);
     assert_eq!(&res.events[0].ty, "punishment");
     assert_eq!(res.events[0].attributes.len(), 5);
     assert_eq!(&res.events[0].attributes[0], &attr("punishment_id", "1")); // First punishment in proposal
@@ -1941,7 +1941,7 @@ fn propose_punish_multiple_members() {
     assert_eq!(&res.attributes[1], &attr("action", "execute"));
     assert_eq!(&res.attributes[2], &attr("proposal_id", "2"));
     // check the proper events returned
-    assert_eq!(res.events.len(), 2);
+    assert_eq!(res.events.len(), 3);
     assert_eq!(&res.events[0].ty, "punishment");
     assert_eq!(res.events[0].attributes.len(), 6);
     assert_eq!(&res.events[0].attributes[0], &attr("punishment_id", "1")); // First punishment in proposal

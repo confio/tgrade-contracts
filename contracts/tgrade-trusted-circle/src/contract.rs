@@ -225,6 +225,7 @@ const REMOVE_TYPE: &str = "removed";
 const PROPOSAL_KEY: &str = "proposal";
 const MEMBER_KEY: &str = "member";
 const CONTRACT_ADDR_KEY: &str = "contract_addr";
+const REMOVE_VOTING_TYPE: &str = "remove_voting";
 
 /// Call when the batch is ready to become voters (all paid or expiration hit).
 /// This checks all members if they have paid up, and if so makes them full voters.
@@ -324,6 +325,9 @@ pub fn execute_return_escrow(
         // clearing out leaving member
         ESCROWS.remove(deps.storage, &info.sender);
         members().remove(deps.storage, &info.sender, env.block.height)?;
+        res = res.add_event(
+            Event::new(REMOVE_VOTING_TYPE).add_attribute(MEMBER_KEY, info.sender.clone()),
+        );
     } else {
         // removing excess from voting member
         ESCROWS.save(deps.storage, &info.sender, &escrow)?;
@@ -641,7 +645,7 @@ fn leave_immediately(deps: DepsMut, env: Env, leaver: Addr) -> Result<Response, 
     let res = Response::new()
         .add_attribute("action", "leave_trusted_circle")
         .add_attribute("type", "immediately")
-        .add_attribute("sender", leaver);
+        .add_attribute("leaving", leaver);
     Ok(res)
 }
 
@@ -1157,6 +1161,13 @@ pub fn proposal_punish_members(
             // Just update remaining escrow
             ESCROWS.save(deps.storage, &addr, &escrow_status)?;
         };
+    }
+
+    if !demoted_addrs.is_empty() {
+        res = res.add_event(
+            Event::new(DEMOTE_TYPE)
+                .add_attributes(demoted_addrs.iter().map(|addr| (MEMBER_KEY, addr))),
+        );
     }
 
     // Create (and store) batch for demoted members (so that promotion can work)!
