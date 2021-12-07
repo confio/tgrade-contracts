@@ -112,8 +112,6 @@ Possible member statuses:
 *   `voting` - the address is fully a voting member
 *   `leaving` - the address has been kicked out or decided to leave, to be removed from the list
 
-Add non-voting member.
-
 | Event type          | Attributes                | When emitted                                      |
 | ------------------- | ------------------------- | ------------------------------------------------- |
 | `add_non_voting`    | `member`: *address*       | Add non-voting member.                            |
