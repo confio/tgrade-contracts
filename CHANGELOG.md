@@ -4,9 +4,13 @@
 
 [Full Changelog](https://github.com/confio/tgrade-contracts/compare/v0.5.0-rc...HEAD)
 
-## [v0.5.0-rc](https://github.com/confio/tgrade-contracts/tree/v0.5.0-rc) (2021-12-06)
+## [v0.5.0-rc2](https://github.com/confio/tgrade-contracts/tree/v0.5.0-rc2) (2021-12-09)
 
-[Full Changelog](https://github.com/confio/tgrade-contracts/compare/v0.5.0-alpha.2...v0.5.0-rc)
+[Full Changelog](https://github.com/confio/tgrade-contracts/compare/v0.5.0-alpha.2...v0.5.0-rc2)
+
+**Fixed bugs:**
+
+- trusted circle: `unknown address` error not caught [\#395](https://github.com/confio/tgrade-contracts/issues/395)
 
 **Implemented enhancements:**
 
@@ -22,6 +26,8 @@
 
 **Closed issues:**
 
+- Tag contracts `v0.5.0-rc` [\#388](https://github.com/confio/tgrade-contracts/issues/388)
+- Document trusted-circle events [\#255](https://github.com/confio/tgrade-contracts/issues/255)
 - validator-voting: upgrade proposal - remove upgraded\_client\_state [\#380](https://github.com/confio/tgrade-contracts/issues/380)
 - Valset contract needs active validator metadata [\#383](https://github.com/confio/tgrade-contracts/issues/383)
 - validator-voting: don't wrap code\_ids in an object [\#378](https://github.com/confio/tgrade-contracts/issues/378)
@@ -92,6 +98,8 @@
 
 **Merged pull requests:**
 
+- Trusted Circle: expand is\_contract error matching [\#396](https://github.com/confio/tgrade-contracts/pull/396) ([ueco-jb](https://github.com/ueco-jb))
+- trusted-circle: doc member lifecycle events [\#393](https://github.com/confio/tgrade-contracts/pull/393) ([uint](https://github.com/uint))
 - validator-voting: Remove deprecated upgraded\_client\_state field [\#392](https://github.com/confio/tgrade-contracts/pull/392) ([ueco-jb](https://github.com/ueco-jb))
 - Cherry pick 389 to main [\#391](https://github.com/confio/tgrade-contracts/pull/391) ([ueco-jb](https://github.com/ueco-jb))
 - tgrade-valset: Expand `ValidatorInfo` with `ValidatorMetadata` [\#386](https://github.com/confio/tgrade-contracts/pull/386) ([ueco-jb](https://github.com/ueco-jb))
