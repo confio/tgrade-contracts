@@ -1219,8 +1219,9 @@ pub fn is_contract(querier: &QuerierWrapper, addr: &Addr) -> StdResult<bool> {
             "Querier system error: {}",
             system_err
         ))),
+        // FIXME: https://github.com/CosmWasm/wasmd/issues/687
         SystemResult::Ok(ContractResult::Err(contract_err))
-            if contract_err.contains("not found") =>
+            if contract_err.contains("not found") || contract_err.contains("unknown address") =>
         {
             Ok(false)
         }
