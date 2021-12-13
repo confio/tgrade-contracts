@@ -261,9 +261,9 @@ pub fn execute_slash(
 
     // update the addr's stake
     // If address doesn't match anyone, leave early
-    let stake = match STAKE.load(deps.storage, &addr) {
-        Ok(s) => s,
-        Err(_) => return Ok(Response::new()),
+    let stake = match STAKE.may_load(deps.storage, &addr)? {
+        Some(s) => s,
+        None => return Ok(Response::new()),
     };
     let mut slashed = stake * portion;
     let new_stake = STAKE.update(deps.storage, &addr, |stake| -> StdResult<_> {
