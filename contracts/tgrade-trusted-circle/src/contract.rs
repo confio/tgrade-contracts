@@ -432,8 +432,7 @@ pub fn validate_proposal(
             if add.is_empty() && remove.is_empty() {
                 return Err(ContractError::NoMembers {});
             }
-            validate_addresses_with_deny_list(deps, add)?;
-            validate_human_addresses(&deps, remove)
+            validate_addresses_with_deny_list(deps, add)
         }
         ProposalContent::AddVotingMembers { voters } => {
             if voters.is_empty() {
