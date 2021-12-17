@@ -48,7 +48,7 @@ pub fn instantiate(
     set_contract_version(deps.storage, CONTRACT_NAME, CONTRACT_VERSION)?;
 
     let trusted_circle = TrustedCircle {
-        name: msg.name,
+        name: msg.name.clone(),
         escrow_amount: msg.escrow_amount,
         escrow_pending: None,
         rules: VotingRules {
@@ -94,7 +94,9 @@ pub fn instantiate(
         msg.initial_members,
         vec![],
     )?;
+    let name_ev = Event::new("trusted_circle").add_attribute("name", msg.name);
     Ok(Response::default()
+        .add_event(name_ev)
         .add_events(add_evs)
         .add_event(promote_ev))
 }
