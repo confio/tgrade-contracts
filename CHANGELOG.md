@@ -2,11 +2,11 @@
 
 ## [Unreleased](https://github.com/confio/tgrade-contracts/tree/HEAD)
 
-[Full Changelog](https://github.com/confio/tgrade-contracts/compare/v0.5.0-rc...HEAD)
+[Full Changelog](https://github.com/confio/tgrade-contracts/compare/v0.5.0...HEAD)
 
-## [v0.5.0-rc2](https://github.com/confio/tgrade-contracts/tree/v0.5.0-rc2) (2021-12-09)
+## [v0.5.0](https://github.com/confio/tgrade-contracts/tree/v0.5.0) (2021-12-17)
 
-[Full Changelog](https://github.com/confio/tgrade-contracts/compare/v0.5.0-alpha.2...v0.5.0-rc2)
+[Full Changelog](https://github.com/confio/tgrade-contracts/compare/v0.5.0-alpha.2...v0.5.0)
 
 **Fixed bugs:**
 
@@ -14,6 +14,7 @@
 
 **Implemented enhancements:**
 
+- Tg4-stake - use may\_load instead of load while getting staked [\#400](https://github.com/confio/tgrade-contracts/pull/400) ([ueco-jb](https://github.com/ueco-jb))
 - Add `resolver = "2"` to all crates `Cargo.toml` [\#250](https://github.com/confio/tgrade-contracts/issues/250)
 
 **Changed:**
@@ -26,6 +27,12 @@
 
 **Closed issues:**
 
+- TC: add name to event on instantiation [\#403](https://github.com/confio/tgrade-contracts/issues/403)
+- \[tgrade-trusted-circle\] Remove redundant `validate_human_addresses_call` [\#399](https://github.com/confio/tgrade-contracts/issues/399)
+- validator-voting: add `run-as` address for migrations [\#394](https://github.com/confio/tgrade-contracts/issues/394)
+- Custom cw20-ics20 contract [\#18](https://github.com/confio/tgrade-contracts/issues/18)
+- Add IBC test harness [\#17](https://github.com/confio/tgrade-contracts/issues/17)
+- Add circuit breaker [\#12](https://github.com/confio/tgrade-contracts/issues/12)
 - Tag contracts `v0.5.0-rc` [\#388](https://github.com/confio/tgrade-contracts/issues/388)
 - Document trusted-circle events [\#255](https://github.com/confio/tgrade-contracts/issues/255)
 - validator-voting: upgrade proposal - remove upgraded\_client\_state [\#380](https://github.com/confio/tgrade-contracts/issues/380)
@@ -98,6 +105,8 @@
 
 **Merged pull requests:**
 
+- Add contract data event in instantiation [\#404](https://github.com/confio/tgrade-contracts/pull/404) ([maurolacy](https://github.com/maurolacy))
+- trusted-circle: fix redundant validation [\#402](https://github.com/confio/tgrade-contracts/pull/402) ([uint](https://github.com/uint))
 - Trusted Circle: expand is\_contract error matching [\#396](https://github.com/confio/tgrade-contracts/pull/396) ([ueco-jb](https://github.com/ueco-jb))
 - trusted-circle: doc member lifecycle events [\#393](https://github.com/confio/tgrade-contracts/pull/393) ([uint](https://github.com/uint))
 - validator-voting: Remove deprecated upgraded\_client\_state field [\#392](https://github.com/confio/tgrade-contracts/pull/392) ([ueco-jb](https://github.com/ueco-jb))
