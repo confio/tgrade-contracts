@@ -94,9 +94,12 @@ pub fn instantiate(
         msg.initial_members,
         vec![],
     )?;
-    let name_ev = Event::new("trusted_circle").add_attribute("name", msg.name);
+    // Add metadata for identification / indexing
+    let contract_data_ev = Event::new(METADATA)
+        .add_attribute("contract_name", CONTRACT_NAME)
+        .add_attribute("tc_name", msg.name);
     Ok(Response::default()
-        .add_event(name_ev)
+        .add_event(contract_data_ev)
         .add_events(add_evs)
         .add_event(promote_ev))
 }
@@ -217,6 +220,7 @@ fn update_batch_after_escrow_paid(
     }
 }
 
+const METADATA: &str = "contract_data";
 const DEMOTE_TYPE: &str = "demoted";
 const ADD_NON_VOTING_TYPE: &str = "add_non_voting";
 const REMOVE_NON_VOTING_TYPE: &str = "remove_non_voting";
