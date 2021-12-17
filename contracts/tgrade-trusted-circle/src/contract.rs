@@ -96,8 +96,8 @@ pub fn instantiate(
     )?;
     // Add metadata for identification / indexing
     let contract_data_ev = Event::new(METADATA)
-        .add_attribute("contract_name", CONTRACT_NAME)
-        .add_attribute("tc_name", msg.name);
+        .add_attribute("contract_kind", CONTRACT_NAME)
+        .add_attribute("name", msg.name);
     Ok(Response::default()
         .add_event(contract_data_ev)
         .add_events(add_evs)
@@ -220,6 +220,7 @@ fn update_batch_after_escrow_paid(
     }
 }
 
+// Event names
 const METADATA: &str = "contract_data";
 const DEMOTE_TYPE: &str = "demoted";
 const ADD_NON_VOTING_TYPE: &str = "add_non_voting";
