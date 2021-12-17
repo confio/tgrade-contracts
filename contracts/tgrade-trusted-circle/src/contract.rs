@@ -48,7 +48,7 @@ pub fn instantiate(
     set_contract_version(deps.storage, CONTRACT_NAME, CONTRACT_VERSION)?;
 
     let trusted_circle = TrustedCircle {
-        name: msg.name,
+        name: msg.name.clone(),
         escrow_amount: msg.escrow_amount,
         escrow_pending: None,
         rules: VotingRules {
@@ -94,7 +94,12 @@ pub fn instantiate(
         msg.initial_members,
         vec![],
     )?;
+    // Add metadata for identification / indexing
+    let contract_data_ev = Event::new(METADATA)
+        .add_attribute("contract_kind", CONTRACT_NAME)
+        .add_attribute("name", msg.name);
     Ok(Response::default()
+        .add_event(contract_data_ev)
         .add_events(add_evs)
         .add_event(promote_ev))
 }
@@ -215,6 +220,8 @@ fn update_batch_after_escrow_paid(
     }
 }
 
+// Event names
+const METADATA: &str = "contract_data";
 const DEMOTE_TYPE: &str = "demoted";
 const ADD_NON_VOTING_TYPE: &str = "add_non_voting";
 const REMOVE_NON_VOTING_TYPE: &str = "remove_non_voting";
