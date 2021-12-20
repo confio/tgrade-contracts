@@ -11,9 +11,8 @@ use crate::ContractError;
 
 use tg_voting_contract::state::{proposals, CONFIG as VOTING_CONFIG};
 use tg_voting_contract::{
-    close as execute_close, list_proposals, list_voters, list_votes, propose as execute_propose,
-    query_group_contract, query_proposal, query_rules, query_vote, query_voter, reverse_proposals,
-    vote as execute_vote,
+    close as execute_close, list_proposals, list_voters, list_votes, propose, query_group_contract,
+    query_proposal, query_rules, query_vote, query_voter, reverse_proposals, vote as execute_vote,
 };
 
 pub type Response = cosmwasm_std::Response<TgradeMsg>;
@@ -46,8 +45,7 @@ pub fn execute(
             title,
             description,
             proposal,
-        } => execute_propose::<Proposal>(deps, env, info, title, description, proposal)
-            .map_err(ContractError::from),
+        } => execute_propose(deps, env, info, title, description, proposal),
         ExecuteMsg::Vote { proposal_id, vote } => {
             execute_vote::<Proposal>(deps, env, info, proposal_id, vote)
                 .map_err(ContractError::from)
@@ -59,6 +57,25 @@ pub fn execute(
         ExecuteMsg::WithdrawEngagementRewards {} => execute_withdraw_engagement_rewards(deps, info),
         ExecuteMsg::DistributeFunds {} => Ok(Response::new()),
     }
+}
+
+pub fn execute_propose(
+    deps: DepsMut,
+    env: Env,
+    info: MessageInfo,
+    title: String,
+    description: String,
+    proposal: Proposal,
+) -> Result<Response, ContractError> {
+    use Proposal::*;
+
+    match &proposal {
+        SendProposal { to_addr, .. } => {
+            deps.api.addr_validate(to_addr)?;
+        }
+    }
+
+    propose(deps, env, info, title, description, proposal).map_err(ContractError::from)
 }
 
 pub fn execute_send_proposal(to_address: String, amount: Coin) -> Result<Response, ContractError> {
