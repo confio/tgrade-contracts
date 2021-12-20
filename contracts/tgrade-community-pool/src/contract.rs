@@ -1,12 +1,12 @@
 #[cfg(not(feature = "library"))]
 use cosmwasm_std::entry_point;
-use cosmwasm_std::{to_binary, Binary, Deps, DepsMut, Empty, Env, MessageInfo, StdResult};
+use cosmwasm_std::{to_binary, BankMsg, Binary, Coin, Deps, DepsMut, Env, MessageInfo, StdResult};
 
 use cw2::set_contract_version;
 use cw3::Status;
 use tg_bindings::TgradeMsg;
 
-use crate::msg::{ExecuteMsg, InstantiateMsg, QueryMsg};
+use crate::msg::{ExecuteMsg, InstantiateMsg, Proposal, QueryMsg};
 use crate::ContractError;
 
 use tg_voting_contract::state::{proposals, CONFIG as VOTING_CONFIG};
@@ -46,18 +46,36 @@ pub fn execute(
             title,
             description,
             proposal,
-        } => execute_propose::<Empty>(deps, env, info, title, description, proposal)
+        } => execute_propose::<Proposal>(deps, env, info, title, description, proposal)
             .map_err(ContractError::from),
         ExecuteMsg::Vote { proposal_id, vote } => {
-            execute_vote::<Empty>(deps, env, info, proposal_id, vote).map_err(ContractError::from)
+            execute_vote::<Proposal>(deps, env, info, proposal_id, vote)
+                .map_err(ContractError::from)
         }
         ExecuteMsg::Execute { proposal_id } => execute_execute(deps, info, proposal_id),
         ExecuteMsg::Close { proposal_id } => {
-            execute_close::<Empty>(deps, env, info, proposal_id).map_err(ContractError::from)
+            execute_close::<Proposal>(deps, env, info, proposal_id).map_err(ContractError::from)
         }
         ExecuteMsg::WithdrawEngagementRewards {} => execute_withdraw_engagement_rewards(deps, info),
         ExecuteMsg::DistributeFunds {} => Ok(Response::new()),
     }
+}
+
+pub fn execute_send_proposal(to_address: String, amount: Coin) -> Result<Response, ContractError> {
+    let resp = Response::new()
+        .add_attribute("proposal", "send_proposal")
+        .add_attribute("to_addr", &to_address)
+        .add_attribute("amount", amount.amount.to_string())
+        .add_attribute("denom", &amount.denom);
+
+    let msg = BankMsg::Send {
+        to_address,
+        amount: vec![amount],
+    };
+
+    let resp = resp.add_message(msg);
+
+    Ok(resp)
 }
 
 pub fn execute_execute(
@@ -65,9 +83,11 @@ pub fn execute_execute(
     info: MessageInfo,
     proposal_id: u64,
 ) -> Result<Response, ContractError> {
-    // anyone can trigger this if the vote passed
+    use Proposal::*;
 
-    let prop = proposals::<Empty>().load(deps.storage, proposal_id.into())?;
+    // anyone can trigger this if the vote passed
+    let prop = proposals::<Proposal>().load(deps.storage, proposal_id.into())?;
+
     // we allow execution even after the proposal "expiration" as long as all vote come in before
     // that point. If it was approved on time, it can be executed any time.
     if prop.status != Status::Passed {
@@ -75,9 +95,16 @@ pub fn execute_execute(
     }
 
     // dispatch all proposed messages
-    Ok(Response::new()
+    let resp = match prop.proposal {
+        SendProposal { to_addr, amount } => execute_send_proposal(to_addr, amount)?,
+    };
+
+    let resp = resp
         .add_attribute("action", "execute")
-        .add_attribute("sender", info.sender))
+        .add_attribute("proposal_id", proposal_id.to_string())
+        .add_attribute("sender", info.sender.to_string());
+
+    Ok(resp)
 }
 
 pub fn execute_withdraw_engagement_rewards(
@@ -113,9 +140,13 @@ pub fn query(deps: Deps, env: Env, msg: QueryMsg) -> StdResult<Binary> {
 
     match msg {
         Rules {} => to_binary(&query_rules(deps)?),
-        Proposal { proposal_id } => to_binary(&query_proposal::<Empty>(deps, env, proposal_id)?),
+        Proposal { proposal_id } => to_binary(&query_proposal::<crate::msg::Proposal>(
+            deps,
+            env,
+            proposal_id,
+        )?),
         Vote { proposal_id, voter } => to_binary(&query_vote(deps, proposal_id, voter)?),
-        ListProposals { start_after, limit } => to_binary(&list_proposals::<Empty>(
+        ListProposals { start_after, limit } => to_binary(&list_proposals::<crate::msg::Proposal>(
             deps,
             env,
             start_after,
@@ -124,7 +155,7 @@ pub fn query(deps: Deps, env: Env, msg: QueryMsg) -> StdResult<Binary> {
         ReverseProposals {
             start_before,
             limit,
-        } => to_binary(&reverse_proposals::<Empty>(
+        } => to_binary(&reverse_proposals::<crate::msg::Proposal>(
             deps,
             env,
             start_before,
