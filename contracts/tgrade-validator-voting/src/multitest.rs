@@ -1,4 +1,5 @@
 mod hackatom;
+mod proposals;
 mod suite;
 
 use crate::error::ContractError;

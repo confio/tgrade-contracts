@@ -32,6 +32,7 @@ pub const BLOCK_TIME: u64 = 5;
 
 const PRIVILEGES: Map<&Addr, Privileges> = Map::new("privileges");
 const VOTES: Item<ValidatorVoteResponse> = Item::new("votes");
+const PINNED: Item<Vec<u64>> = Item::new("pinned");
 
 const ADMIN_PRIVILEGES: &[Privilege] = &[
     Privilege::GovProposalExecutor,
@@ -51,6 +52,14 @@ impl TgradeModule {
     /// Used to mock out the response for TgradeQuery::ValidatorVotes
     pub fn set_votes(&self, storage: &mut dyn Storage, votes: Vec<ValidatorVote>) -> StdResult<()> {
         VOTES.save(storage, &ValidatorVoteResponse { votes })
+    }
+
+    pub fn is_pinned(&self, storage: &dyn Storage, code: u64) -> StdResult<bool> {
+        let pinned = PINNED.may_load(storage)?;
+        match pinned {
+            Some(pinned) => Ok(pinned.contains(&code)),
+            None => Ok(false),
+        }
     }
 
     fn require_privilege(
@@ -169,6 +178,26 @@ impl Module for TgradeModule {
                         ))?;
                         let sudo = WasmSudo { contract_addr, msg };
                         router.sudo(api, storage, block, sudo.into())
+                    }
+                    GovProposal::PinCodes { code_ids } => {
+                        let mut pinned = PINNED.may_load(storage)?.unwrap_or_default();
+                        pinned.extend(code_ids);
+                        pinned.sort_unstable();
+                        pinned.dedup();
+                        PINNED.save(storage, &pinned)?;
+
+                        Ok(AppResponse::default())
+                    }
+                    GovProposal::UnpinCodes { code_ids } => {
+                        let pinned = PINNED
+                            .may_load(storage)?
+                            .unwrap_or_default()
+                            .into_iter()
+                            .filter(|id| !code_ids.contains(id))
+                            .collect();
+                        PINNED.save(storage, &pinned)?;
+
+                        Ok(AppResponse::default())
                     }
                     // these are not yet implemented, but should be
                     GovProposal::InstantiateContract { .. } => {

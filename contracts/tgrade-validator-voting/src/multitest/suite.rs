@@ -200,6 +200,30 @@ impl Suite {
         )
     }
 
+    pub fn propose_pin(&mut self, executor: &str, code_ids: &[u64]) -> AnyResult<AppResponse> {
+        self.propose(
+            executor,
+            "proposal title",
+            "proposal description",
+            ValidatorProposal::PinCodes(code_ids.to_vec()),
+        )
+    }
+
+    pub fn propose_unpin(&mut self, executor: &str, code_ids: &[u64]) -> AnyResult<AppResponse> {
+        self.propose(
+            executor,
+            "proposal title",
+            "proposal description",
+            ValidatorProposal::UnpinCodes(code_ids.to_vec()),
+        )
+    }
+
+    pub fn check_pinned(&self, code_id: u64) -> AnyResult<bool> {
+        Ok(self
+            .app
+            .read_module(|router, _, storage| router.custom.is_pinned(storage, code_id))?)
+    }
+
     pub fn execute(&mut self, executor: &str, proposal_id: u64) -> AnyResult<AppResponse> {
         self.app.execute_contract(
             Addr::unchecked(executor),
