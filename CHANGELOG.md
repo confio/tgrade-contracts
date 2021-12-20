@@ -4,6 +4,8 @@
 
 [Full Changelog](https://github.com/confio/tgrade-contracts/compare/v0.5.0...HEAD)
 
+## [v0.5.1](https://github.com/confio/tgrade-contracts/tree/v0.5.1) (2021-12-20)
+
 **Merged pull requests:**
 
 - community-pool: Send proposal implementation [\#407](https://github.com/confio/tgrade-contracts/pull/407) ([hashedone](https://github.com/hashedone))
