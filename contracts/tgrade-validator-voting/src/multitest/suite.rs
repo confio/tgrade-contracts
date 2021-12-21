@@ -5,7 +5,7 @@ use cw3::Status;
 use cw_multi_test::{AppResponse, Contract, ContractWrapper, Executor};
 use tg4::{Member, Tg4ExecuteMsg};
 use tg_bindings::TgradeMsg;
-use tg_bindings_test::TgradeApp;
+use tg_bindings_test::{TgradeApp, UpgradePlan};
 
 use crate::msg::ValidatorProposal;
 use crate::msg::*;
@@ -218,10 +218,44 @@ impl Suite {
         )
     }
 
+    pub fn propose_upgrade(
+        &mut self,
+        executor: &str,
+        name: &str,
+        height: u64,
+        info: &str,
+    ) -> AnyResult<AppResponse> {
+        self.propose(
+            executor,
+            "proposal title",
+            "proposal description",
+            ValidatorProposal::RegisterUpgrade {
+                name: name.to_string(),
+                height,
+                info: info.to_string(),
+            },
+        )
+    }
+
+    pub fn propose_cancel_upgrade(&mut self, executor: &str) -> AnyResult<AppResponse> {
+        self.propose(
+            executor,
+            "proposal title",
+            "proposal description",
+            ValidatorProposal::CancelUpgrade {},
+        )
+    }
+
     pub fn check_pinned(&self, code_id: u64) -> AnyResult<bool> {
         Ok(self
             .app
             .read_module(|router, _, storage| router.custom.is_pinned(storage, code_id))?)
+    }
+
+    pub fn check_upgrade(&self) -> AnyResult<Option<UpgradePlan>> {
+        Ok(self
+            .app
+            .read_module(|router, _, storage| router.custom.upgrade_is_planned(storage))?)
     }
 
     pub fn execute(&mut self, executor: &str, proposal_id: u64) -> AnyResult<AppResponse> {
