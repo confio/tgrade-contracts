@@ -1,6 +1,6 @@
 [package]
 name = "tgrade-trusted-circle"
-version = "0.5.1"
+version = "0.5.2"
 authors = ["Mauro Lacy <maurolacy@users.noreply.github.com>", "Ethan Frey <ethanfrey@users.noreply.github.com>"]
 edition = "2018"
 description = "Trusted Circle implementation based on TG4 for group membership"
@@ -24,9 +24,9 @@ cw2 = "0.10.2"
 cw3 = "0.10.2"
 cw-controllers = "0.10.2"
 cw-storage-plus = "0.10.2"
-tg4 = { path = "../../packages/tg4", version = "0.5.1" }
-tg-bindings = { path = "../../packages/bindings", version = "0.5.1" }
-tg-utils = { path = "../../packages/utils", version = "0.5.1" }
+tg4 = { path = "../../packages/tg4", version = "0.5.2" }
+tg-bindings = { path = "../../packages/bindings", version = "0.5.2" }
+tg-utils = { path = "../../packages/utils", version = "0.5.2" }
 cosmwasm-std = "1.0.0-beta"
 schemars = "0.8"
 serde = { version = "1.0.103", default-features = false, features = ["derive"] }
@@ -36,7 +36,7 @@ thiserror = { version = "1.0.21" }
 cosmwasm-schema = { version = "1.0.0-beta" }
 cw-multi-test = "0.10.2"
 anyhow = "1"
-tg-bindings-test = { version = "0.5.1", path = "../../packages/bindings-test" }
+tg-bindings-test = { version = "0.5.2", path = "../../packages/bindings-test" }
 derivative = "2"
-tg4-engagement = { version = "0.5.1", path = "../../contracts/tg4-engagement" }
+tg4-engagement = { version = "0.5.2", path = "../../contracts/tg4-engagement" }
 assert_matches = "1"
