@@ -1,6 +1,7 @@
 use anyhow::{bail, Result as AnyResult};
 use schemars::JsonSchema;
 use serde::de::DeserializeOwned;
+use serde::{Deserialize, Serialize};
 use std::cmp::max;
 use std::fmt::Debug;
 use std::ops::{Deref, DerefMut};
@@ -32,6 +33,8 @@ pub const BLOCK_TIME: u64 = 5;
 
 const PRIVILEGES: Map<&Addr, Privileges> = Map::new("privileges");
 const VOTES: Item<ValidatorVoteResponse> = Item::new("votes");
+const PINNED: Item<Vec<u64>> = Item::new("pinned");
+const PLANNED_UPGRADE: Item<UpgradePlan> = Item::new("planned_upgrade");
 
 const ADMIN_PRIVILEGES: &[Privilege] = &[
     Privilege::GovProposalExecutor,
@@ -51,6 +54,18 @@ impl TgradeModule {
     /// Used to mock out the response for TgradeQuery::ValidatorVotes
     pub fn set_votes(&self, storage: &mut dyn Storage, votes: Vec<ValidatorVote>) -> StdResult<()> {
         VOTES.save(storage, &ValidatorVoteResponse { votes })
+    }
+
+    pub fn is_pinned(&self, storage: &dyn Storage, code: u64) -> StdResult<bool> {
+        let pinned = PINNED.may_load(storage)?;
+        match pinned {
+            Some(pinned) => Ok(pinned.contains(&code)),
+            None => Ok(false),
+        }
+    }
+
+    pub fn upgrade_is_planned(&self, storage: &dyn Storage) -> StdResult<Option<UpgradePlan>> {
+        PLANNED_UPGRADE.may_load(storage)
     }
 
     fn require_privilege(
@@ -170,6 +185,43 @@ impl Module for TgradeModule {
                         let sudo = WasmSudo { contract_addr, msg };
                         router.sudo(api, storage, block, sudo.into())
                     }
+                    GovProposal::PinCodes { code_ids } => {
+                        let mut pinned = PINNED.may_load(storage)?.unwrap_or_default();
+                        pinned.extend(code_ids);
+                        pinned.sort_unstable();
+                        pinned.dedup();
+                        PINNED.save(storage, &pinned)?;
+
+                        Ok(AppResponse::default())
+                    }
+                    GovProposal::UnpinCodes { code_ids } => {
+                        let pinned = PINNED
+                            .may_load(storage)?
+                            .unwrap_or_default()
+                            .into_iter()
+                            .filter(|id| !code_ids.contains(id))
+                            .collect();
+                        PINNED.save(storage, &pinned)?;
+
+                        Ok(AppResponse::default())
+                    }
+                    GovProposal::RegisterUpgrade { name, height, info } => {
+                        match PLANNED_UPGRADE.may_load(storage)? {
+                            Some(_) => Err(anyhow::anyhow!("an upgrade plan already exists")),
+                            None => {
+                                PLANNED_UPGRADE
+                                    .save(storage, &UpgradePlan::new(name, height, info))?;
+                                Ok(AppResponse::default())
+                            }
+                        }
+                    }
+                    GovProposal::CancelUpgrade {} => match PLANNED_UPGRADE.may_load(storage)? {
+                        None => Err(anyhow::anyhow!("an upgrade plan doesn't exist")),
+                        Some(_) => {
+                            PLANNED_UPGRADE.remove(storage);
+                            Ok(AppResponse::default())
+                        }
+                    },
                     // these are not yet implemented, but should be
                     GovProposal::InstantiateContract { .. } => {
                         bail!("GovProposal::InstantiateContract not implemented")
@@ -392,6 +444,23 @@ impl TgradeApp {
             None => None,
         };
         Ok((res, diff))
+    }
+}
+
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
+pub struct UpgradePlan {
+    name: String,
+    height: u64,
+    info: String,
+}
+
+impl UpgradePlan {
+    pub fn new(name: impl ToString, height: u64, info: impl ToString) -> Self {
+        Self {
+            name: name.to_string(),
+            height,
+            info: info.to_string(),
+        }
     }
 }
 
