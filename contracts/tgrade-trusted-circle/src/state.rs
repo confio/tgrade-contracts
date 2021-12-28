@@ -196,6 +196,7 @@ impl TrustedCircleAdjustments {
 }
 
 #[derive(Serialize, Deserialize, Clone, PartialEq, Debug, JsonSchema)]
+#[serde(rename_all = "snake_case")]
 pub enum Punishment {
     DistributeEscrow {
         /// Member to slash / expel

@@ -1486,6 +1486,67 @@ fn propose_punish_members_distribution() {
 }
 
 #[test]
+fn propose_punish_members_distribution_zero_slash() {
+    // Just perform `propose_punish_members_distribution` test, but with 0 slashing. At the end
+    // ensure that not bank messages are send. To make test simpler most intermediate checks are
+    // removed.
+    let mut deps = mock_dependencies();
+    let start = mock_env();
+    let info = mock_info(INIT_ADMIN, &escrow_funds());
+    do_instantiate(
+        deps.as_mut(),
+        info,
+        vec![VOTING1.into(), VOTING2.into(), VOTING3.into()],
+        false,
+    )
+    .unwrap();
+
+    // Add new members, and one of them pays in
+    let batch1 = vec![VOTING1.into(), VOTING2.into(), VOTING3.into()];
+    let delay1 = 10;
+    propose_add_voting_members_and_execute(
+        deps.as_mut(),
+        later(&start, delay1),
+        INIT_ADMIN,
+        batch1,
+    )
+    .unwrap();
+    let info = mock_info(VOTING1, &coins(ESCROW_FUNDS + 1, DENOM));
+    execute_deposit_escrow(deps.as_mut(), later(&start, delay1 + 1), info).unwrap();
+
+    // Make a punish proposal
+    let prop = ProposalContent::PunishMembers(vec![Punishment::DistributeEscrow {
+        member: VOTING1.into(),
+        slashing_percentage: Decimal::zero(),
+        distribution_list: vec![VOTING2.into(), NONMEMBER.into()],
+        kick_out: false,
+    }]);
+    let msg = ExecuteMsg::Propose {
+        title: "Punish VOTING1".to_string(),
+        description:
+            "Punish VOTING1 with a 0% slashing. Distribute slashed funds among VOTING2 and NONMEMBER"
+                .to_string(),
+        proposal: prop,
+    };
+    let mut env = mock_env();
+    env.block.height += 10;
+    let res = execute(deps.as_mut(), env.clone(), mock_info(INIT_ADMIN, &[]), msg).unwrap();
+    let proposal_id = parse_prop_id(&res.attributes);
+
+    // execute it
+    let res = execute(
+        deps.as_mut(),
+        env,
+        mock_info(NONVOTING1, &[]),
+        ExecuteMsg::Execute { proposal_id },
+    )
+    .unwrap();
+
+    // Assert the BankMsgs are not in there
+    assert!(res.messages.is_empty());
+}
+
+#[test]
 fn propose_punish_members_burn() {
     let mut deps = mock_dependencies();
     let start = mock_env();
@@ -1600,6 +1661,64 @@ fn propose_punish_members_burn() {
             amount: vec![coin(ESCROW_FUNDS / 4, TRUSTED_CIRCLE_DENOM)]
         })
     );
+}
+
+#[test]
+fn propose_punish_members_burn_zero_slashing() {
+    // Just perform `propose_punish_members_burn` test, but with 0 slashing. At the end
+    // ensure that not bank messages are send. To make test simpler most intermediate checks are
+    // removed.
+    let mut deps = mock_dependencies();
+    let start = mock_env();
+    let info = mock_info(INIT_ADMIN, &escrow_funds());
+    do_instantiate(
+        deps.as_mut(),
+        info,
+        vec![VOTING1.into(), VOTING2.into(), VOTING3.into()],
+        false,
+    )
+    .unwrap();
+
+    // Add new members, and one of them pays in
+    let batch1 = vec![VOTING1.into(), VOTING2.into(), VOTING3.into()];
+    let delay1 = 10;
+    propose_add_voting_members_and_execute(
+        deps.as_mut(),
+        later(&start, delay1),
+        INIT_ADMIN,
+        batch1,
+    )
+    .unwrap();
+    let info = mock_info(VOTING1, &escrow_funds());
+    execute_deposit_escrow(deps.as_mut(), later(&start, delay1 + 1), info).unwrap();
+
+    // Make a punish proposal
+    let prop = ProposalContent::PunishMembers(vec![Punishment::BurnEscrow {
+        member: VOTING1.into(),
+        slashing_percentage: Decimal::zero(),
+        kick_out: false,
+    }]);
+    let msg = ExecuteMsg::Propose {
+        title: "Punish VOTING1".to_string(),
+        description: "Punish VOTING1 with a 25% slashing. Burn slashed funds".to_string(),
+        proposal: prop,
+    };
+    let mut env = mock_env();
+    env.block.height += 10;
+    let res = execute(deps.as_mut(), env.clone(), mock_info(INIT_ADMIN, &[]), msg).unwrap();
+    let proposal_id = parse_prop_id(&res.attributes);
+
+    // execute it
+    let res = execute(
+        deps.as_mut(),
+        env,
+        mock_info(NONVOTING1, &[]),
+        ExecuteMsg::Execute { proposal_id },
+    )
+    .unwrap();
+
+    // Assert the BankMsg is not there
+    assert!(res.messages.is_empty());
 }
 
 #[test]
