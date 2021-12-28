@@ -1120,27 +1120,29 @@ pub fn proposal_punish_members(
         // Remaining escrow amount
         let mut escrow_remaining = escrow_status.paid.u128() - escrow_slashed;
 
-        // Distribute / burn
-        match p {
-            Punishment::DistributeEscrow {
-                distribution_list, ..
-            } => {
-                let escrow_each = escrow_slashed / distribution_list.len() as u128;
-                let escrow_remainder = escrow_slashed % distribution_list.len() as u128;
-                for distr_addr in distribution_list {
-                    // Generate Bank message with distribution payment
-                    res = res.add_message(BankMsg::Send {
-                        to_address: distr_addr.clone(),
-                        amount: vec![coin(escrow_each, TRUSTED_CIRCLE_DENOM)],
+        if escrow_slashed > 0 {
+            // Distribute / burn
+            match p {
+                Punishment::DistributeEscrow {
+                    distribution_list, ..
+                } => {
+                    let escrow_each = escrow_slashed / distribution_list.len() as u128;
+                    let escrow_remainder = escrow_slashed % distribution_list.len() as u128;
+                    for distr_addr in distribution_list {
+                        // Generate Bank message with distribution payment
+                        res = res.add_message(BankMsg::Send {
+                            to_address: distr_addr.clone(),
+                            amount: vec![coin(escrow_each, TRUSTED_CIRCLE_DENOM)],
+                        });
+                    }
+                    // Keep remainder escrow in member account
+                    escrow_remaining += escrow_remainder;
+                }
+                Punishment::BurnEscrow { .. } => {
+                    res = res.add_message(BankMsg::Burn {
+                        amount: vec![coin(escrow_slashed, TRUSTED_CIRCLE_DENOM)],
                     });
                 }
-                // Keep remainder escrow in member account
-                escrow_remaining += escrow_remainder;
-            }
-            Punishment::BurnEscrow { .. } => {
-                res = res.add_message(BankMsg::Burn {
-                    amount: vec![coin(escrow_slashed, TRUSTED_CIRCLE_DENOM)],
-                });
             }
         }
 

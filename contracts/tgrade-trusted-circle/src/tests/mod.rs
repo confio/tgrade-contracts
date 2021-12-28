@@ -174,6 +174,7 @@ fn assert_nonvoting<S: Storage, A: Api, Q: Querier>(
     }
 }
 
+#[track_caller]
 fn assert_escrow_paid<S: Storage, A: Api, Q: Querier>(
     deps: &OwnedDeps<S, A, Q>,
     voting0_escrow: Option<u128>,
@@ -206,6 +207,7 @@ fn assert_escrow_paid<S: Storage, A: Api, Q: Querier>(
     };
 }
 
+#[track_caller]
 fn assert_escrow_status<S: Storage, A: Api, Q: Querier>(
     deps: &OwnedDeps<S, A, Q>,
     voting0_status: Option<MemberStatus>,
