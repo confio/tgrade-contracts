@@ -2,13 +2,20 @@
 
 ## [Unreleased](https://github.com/confio/tgrade-contracts/tree/HEAD)
 
-[Full Changelog](https://github.com/confio/tgrade-contracts/compare/v0.5.0...HEAD)
+[Full Changelog](https://github.com/confio/tgrade-contracts/compare/v0.5.1...HEAD)
 
-## [v0.5.1](https://github.com/confio/tgrade-contracts/tree/v0.5.1) (2021-12-20)
+**Closed issues:**
+
+- Make Punishment snake case [\#411](https://github.com/confio/tgrade-contracts/issues/411)
+- Kicking Out on Trusted Circle with 0% slashing leads to error [\#410](https://github.com/confio/tgrade-contracts/issues/410)
+- Implement Community Pool Send Proposal [\#406](https://github.com/confio/tgrade-contracts/issues/406)
+- Add GovProposal handling to bindings-test [\#317](https://github.com/confio/tgrade-contracts/issues/317)
+- tgrade-trusted-circle: init without deposit and forced membership [\#269](https://github.com/confio/tgrade-contracts/issues/269)
 
 **Merged pull requests:**
-
 - community-pool: Send proposal implementation [\#407](https://github.com/confio/tgrade-contracts/pull/407) ([hashedone](https://github.com/hashedone))
+- tgrade-trusted-circle: Properly punish on 0% slashing percentage [\#419](https://github.com/confio/tgrade-contracts/pull/419) ([hashedone](https://github.com/hashedone))
+- multitest: handle more GovProposals [\#409](https://github.com/confio/tgrade-contracts/pull/409) ([uint](https://github.com/uint))
 
 ## [v0.5.0](https://github.com/confio/tgrade-contracts/tree/v0.5.0) (2021-12-17)
 
