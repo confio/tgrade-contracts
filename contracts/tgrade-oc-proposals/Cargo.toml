@@ -1,6 +1,6 @@
 [package]
 name = "tgrade-oc-proposals"
-version = "0.5.1"
+version = "v0.5.2"
 authors = ["Ethan Frey <ethanfrey@users.noreply.github.com>"]
 edition = "2018"
 description = "Implementing tgrade-oc-proposals"
@@ -19,11 +19,11 @@ cw3 = "0.10.2"
 cosmwasm-std = "1.0.0-beta"
 schemars = "0.8.1"
 serde = { version = "1", default-features = false, features = ["derive"] }
-tg4 = { path = "../../packages/tg4", version = "0.5.1" }
-tg4-engagement = { path = "../tg4-engagement", version = "0.5.1", features = ["library"] }
-tg-bindings = { path = "../../packages/bindings", version = "0.5.1" }
-tg-utils = { version = "0.5.1", path = "../../packages/utils" }
-tg-voting-contract = { version = "0.5.1", path = "../../packages/voting-contract" }
+tg4 = { path = "../../packages/tg4", version = "v0.5.2" }
+tg4-engagement = { path = "../tg4-engagement", version = "v0.5.2", features = ["library"] }
+tg-bindings = { path = "../../packages/bindings", version = "v0.5.2" }
+tg-utils = { version = "v0.5.2", path = "../../packages/utils" }
+tg-voting-contract = { version = "v0.5.2", path = "../../packages/voting-contract" }
 thiserror = "1"
 cw-storage-plus = "0.10.2"
 
@@ -31,6 +31,6 @@ cw-storage-plus = "0.10.2"
 anyhow = "1"
 cosmwasm-schema = "1.0.0-beta"
 cw-multi-test = "0.10.2"
-tg-bindings-test = { version = "0.5.1", path = "../../packages/bindings-test" }
-tg-test-utils = { version = "0.5.1", path = "../../packages/test-utils" }
-tgrade-valset = { path = "../tgrade-valset", version = "0.5.1", features = ["library"] }
+tg-bindings-test = { version = "v0.5.2", path = "../../packages/bindings-test" }
+tg-test-utils = { version = "v0.5.2", path = "../../packages/test-utils" }
+tgrade-valset = { path = "../tgrade-valset", version = "v0.5.2", features = ["library"] }
