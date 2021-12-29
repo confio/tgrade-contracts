@@ -1,14 +1,12 @@
 // Copied from cw-plus repository: https://github.com/CosmWasm/cw-plus/tree/main/packages/controllers
 // Original file distributed on Apache license
 
-use std::convert::TryInto;
-
 use itertools::Itertools;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
-use cosmwasm_std::{Addr, BlockInfo, Decimal, Deps, Order, StdError, StdResult, Storage, Uint128};
-use cw_storage_plus::{Bound, Index, IndexList, IndexedMap, MultiIndex, PrimaryKey, U64Key};
+use cosmwasm_std::{Addr, BlockInfo, Decimal, Deps, Order, StdResult, Storage, Uint128};
+use cw_storage_plus::{Bound, Index, IndexList, IndexedMap, MultiIndex, PrimaryKey};
 use tg_utils::Expiration;
 
 // settings for pagination
@@ -31,7 +29,8 @@ pub struct Claim {
 }
 
 struct ClaimIndexes<'a> {
-    pub release_at: MultiIndex<'a, (U64Key, Vec<u8>), Claim>,
+    // Lat type param defines the pk deserialization type
+    pub release_at: MultiIndex<'a, (u64, Addr), Claim, (Addr, u64)>,
 }
 
 impl<'a> IndexList<Claim> for ClaimIndexes<'a> {
@@ -55,14 +54,14 @@ impl Claim {
 pub struct Claims<'a> {
     /// Claims are indexed by `(addr, release_at)` pair. Claims falling into the same key are
     /// merged (summarized) as there is no point to distinguish them.
-    claims: IndexedMap<'a, (&'a Addr, U64Key), Claim, ClaimIndexes<'a>>,
+    claims: IndexedMap<'a, (&'a Addr, u64), Claim, ClaimIndexes<'a>>,
 }
 
 impl<'a> Claims<'a> {
     pub fn new(storage_key: &'a str, release_subkey: &'a str) -> Self {
         let indexes = ClaimIndexes {
             release_at: MultiIndex::new(
-                |claim, k| (claim.release_at.as_key(), k),
+                |claim| (claim.release_at.as_key(), claim.addr.clone()),
                 storage_key,
                 release_subkey,
             ),
@@ -160,10 +159,12 @@ impl<'a> Claims<'a> {
                 None,
                 Some(Bound::exclusive(self.claims.idx.release_at.index_key((
                     Expiration::at_timestamp(excluded_timestamp).as_key(),
-                    vec![],
+                    Addr::unchecked(""),
                 )))),
                 Order::Ascending,
-            );
+            )
+            // FIXME: This is artificial (needed for calling collect_claims below)
+            .map(|r| r.map(|((_addr, expires_at), c)| (expires_at, c)));
 
         let mut claims = self.collect_claims(claims, limit.into())?;
         claims.sort_by_key(|claim| claim.addr.clone());
@@ -186,7 +187,7 @@ impl<'a> Claims<'a> {
     /// released
     fn collect_claims(
         &self,
-        claims: impl IntoIterator<Item = StdResult<(Vec<u8>, Claim)>>,
+        claims: impl IntoIterator<Item = StdResult<(u64, Claim)>>,
         limit: Option<u64>,
     ) -> StdResult<Vec<Claim>> {
         // apply limit and collect - it is needed to collect intermediately, as it is impossible to
@@ -221,16 +222,6 @@ impl<'a> Claims<'a> {
         address: Addr,
         portion: Decimal,
     ) -> StdResult<Uint128> {
-        // This should be unnecessary in the future, maybe after
-        // https://github.com/CosmWasm/cw-plus/pull/500
-        fn deser_key(k: Vec<u8>) -> StdResult<U64Key> {
-            Ok(U64Key::new(u64::from_be_bytes(
-                k.as_slice()
-                    .try_into()
-                    .map_err(|_| StdError::generic_err("Invalid length for U64Key"))?,
-            )))
-        }
-
         let claims: StdResult<Vec<_>> = self
             .claims
             .prefix(&address)
@@ -240,8 +231,8 @@ impl<'a> Claims<'a> {
 
         let mut total_slashed = Uint128::zero();
 
-        for (key, claim) in claims {
-            let key = (&address, deser_key(key)?);
+        for (release_at, claim) in claims {
+            let key = (&address, release_at);
 
             let slashed = claim.amount * portion;
             let mut new_claim = claim.clone();
@@ -264,7 +255,7 @@ impl<'a> Claims<'a> {
         start_after: Option<Expiration>,
     ) -> StdResult<Vec<Claim>> {
         let limit = limit.unwrap_or(DEFAULT_LIMIT).min(MAX_LIMIT) as usize;
-        let start = start_after.map(|s| Bound::exclusive(s.as_key()));
+        let start = start_after.map(|s| Bound::exclusive_int(s.as_key()));
 
         self.claims
             .prefix(&address)
