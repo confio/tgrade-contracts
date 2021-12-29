@@ -9,7 +9,7 @@ use tg_bindings::TgradeMsg;
 type SubMsg = cosmwasm_std::SubMsg<TgradeMsg>;
 
 // this is copied from cw4
-// TODO: pull into cw0 as common dep
+// TODO: pull into cw_utils as common dep
 #[derive(Serialize, Deserialize, Clone, PartialEq, JsonSchema, Debug)]
 pub struct HooksResponse {
     pub hooks: Vec<String>,

@@ -5,10 +5,10 @@ use cosmwasm_std::{
     Empty, Env, Event, MessageInfo, Order, QuerierWrapper, QueryRequest, StdError, StdResult,
     Storage, SystemError, SystemResult, Uint128, WasmQuery,
 };
-use cw0::{maybe_addr, Expiration};
 use cw2::set_contract_version;
 use cw3::{Status, Vote};
-use cw_storage_plus::{Bound, PrimaryKey, U64Key};
+use cw_storage_plus::{Bound, PrimaryKey};
+use cw_utils::{maybe_addr, Expiration};
 use tg4::{member_key, Member, MemberListResponse, MemberResponse, TotalWeightResponse};
 use tg_bindings::TgradeMsg;
 use tg_utils::{members, TOTAL};
@@ -20,10 +20,9 @@ use crate::msg::{
 };
 use crate::state::MemberStatus::NonVoting;
 use crate::state::{
-    batches, create_batch, create_proposal, parse_id, save_ballot, Ballot, Batch, EscrowStatus,
-    MemberStatus, Proposal, ProposalContent, Punishment, TrustedCircle, TrustedCircleAdjustments,
-    Votes, VotingRules, BALLOTS, BALLOTS_BY_VOTER, ESCROWS, PROPOSALS, PROPOSAL_BY_EXPIRY,
-    TRUSTED_CIRCLE,
+    batches, create_batch, create_proposal, save_ballot, Ballot, Batch, EscrowStatus, MemberStatus,
+    Proposal, ProposalContent, Punishment, TrustedCircle, TrustedCircleAdjustments, Votes,
+    VotingRules, BALLOTS, BALLOTS_BY_VOTER, ESCROWS, PROPOSALS, PROPOSAL_BY_EXPIRY, TRUSTED_CIRCLE,
 };
 
 // version info for migration info
@@ -67,7 +66,7 @@ pub fn instantiate(
 
     // Store sender as initial member, and define its weight / state
     // based on init_funds
-    let amount = cw0::must_pay(&info, TRUSTED_CIRCLE_DENOM)?;
+    let amount = cw_utils::must_pay(&info, TRUSTED_CIRCLE_DENOM)?;
     if amount < trusted_circle.get_escrow() {
         return Err(ContractError::InsufficientFunds(amount));
     }
@@ -139,7 +138,7 @@ pub fn execute_deposit_escrow(
         .ok_or(ContractError::NotAMember {})?;
 
     // update the amount
-    let amount = cw0::must_pay(&info, TRUSTED_CIRCLE_DENOM)?;
+    let amount = cw_utils::must_pay(&info, TRUSTED_CIRCLE_DENOM)?;
     escrow.paid += amount;
 
     let mut res = Response::new()
@@ -186,7 +185,7 @@ fn update_batch_after_escrow_paid(
     paid_escrow: &Addr,
 ) -> Result<Option<Event>, ContractError> {
     // We first check and update this batch state
-    let mut batch = batches().load(deps.storage, proposal_id.into())?;
+    let mut batch = batches().load(deps.storage, proposal_id)?;
     // This will panic if we hit 0. That said, it can never go below 0 if we call this once per member.
     // And we trigger batch promotion below if this does hit 0 (batch.can_promote() == true)
     batch.waiting_escrow -= 1;
@@ -194,7 +193,7 @@ fn update_batch_after_escrow_paid(
     let height = env.block.height;
     match (batch.can_promote(&env.block), batch.batch_promoted) {
         (true, true) => {
-            batches().save(deps.storage, proposal_id.into(), &batch)?;
+            batches().save(deps.storage, proposal_id, &batch)?;
             // just promote this one, everyone else has been promoted
             if convert_to_voter_if_paid(deps.storage, paid_escrow, height)? {
                 // update the total with the new weight
@@ -214,7 +213,7 @@ fn update_batch_after_escrow_paid(
         }
         // not ready yet
         _ => {
-            batches().save(deps.storage, proposal_id.into(), &batch)?;
+            batches().save(deps.storage, proposal_id, &batch)?;
             Ok(None)
         }
     }
@@ -256,7 +255,7 @@ fn convert_all_paid_members_to_voters(
     }
     // make this a promoted and save
     batch.batch_promoted = true;
-    batches().save(storage, batch_id.into(), batch)?;
+    batches().save(storage, batch_id, batch)?;
 
     // update the total with the new weight
     if added > 0 {
@@ -295,7 +294,7 @@ pub fn execute_return_escrow(
     env: Env,
     info: MessageInfo,
 ) -> Result<Response, ContractError> {
-    cw0::nonpayable(&info)?;
+    cw_utils::nonpayable(&info)?;
 
     let mut escrow = ESCROWS
         .may_load(deps.storage, &info.sender)?
@@ -358,7 +357,7 @@ pub fn execute_propose(
     description: String,
     proposal: ProposalContent,
 ) -> Result<Response, ContractError> {
-    cw0::nonpayable(&info)?;
+    cw_utils::nonpayable(&info)?;
     // trigger check_pending (we should get this cheaper)
     // Note, we check this at the end of last block, so they will actually be included in the voters
     // of this proposal (which uses a snapshot)
@@ -498,10 +497,10 @@ pub fn execute_vote(
     proposal_id: u64,
     vote: Vote,
 ) -> Result<Response, ContractError> {
-    cw0::nonpayable(&info)?;
+    cw_utils::nonpayable(&info)?;
 
     // ensure proposal exists and can be voted on
-    let mut prop = PROPOSALS.load(deps.storage, proposal_id.into())?;
+    let mut prop = PROPOSALS.load(deps.storage, proposal_id)?;
     if prop.status != Status::Open && prop.status != Status::Passed {
         return Err(ContractError::NotOpen {});
     }
@@ -528,7 +527,7 @@ pub fn execute_vote(
     }
 
     if BALLOTS
-        .may_load(deps.storage, (proposal_id.into(), &info.sender))?
+        .may_load(deps.storage, (proposal_id, &info.sender))?
         .is_some()
     {
         return Err(ContractError::AlreadyVoted {});
@@ -543,7 +542,7 @@ pub fn execute_vote(
     // update vote tally
     prop.votes.add_vote(vote, vote_power);
     prop.update_status(&env.block);
-    PROPOSALS.save(deps.storage, proposal_id.into(), &prop)?;
+    PROPOSALS.save(deps.storage, proposal_id, &prop)?;
 
     let res = Response::new()
         .add_attribute("action", "vote")
@@ -559,10 +558,10 @@ pub fn execute_execute(
     info: MessageInfo,
     proposal_id: u64,
 ) -> Result<Response, ContractError> {
-    cw0::nonpayable(&info)?;
+    cw_utils::nonpayable(&info)?;
 
     // anyone can trigger this if the vote passed
-    let mut prop = PROPOSALS.load(deps.storage, proposal_id.into())?;
+    let mut prop = PROPOSALS.load(deps.storage, proposal_id)?;
 
     if let ProposalContent::EditTrustedCircle(..) = prop.proposal {
         let trusted_circle = TRUSTED_CIRCLE.load(deps.storage)?;
@@ -580,7 +579,7 @@ pub fn execute_execute(
 
     // set it to executed
     prop.status = Status::Executed;
-    PROPOSALS.save(deps.storage, proposal_id.into(), &prop)?;
+    PROPOSALS.save(deps.storage, proposal_id, &prop)?;
 
     // execute the proposal
     let res = proposal_execute(deps.branch(), env, proposal_id, prop.proposal)?
@@ -596,11 +595,11 @@ pub fn execute_close(
     info: MessageInfo,
     proposal_id: u64,
 ) -> Result<Response, ContractError> {
-    cw0::nonpayable(&info)?;
+    cw_utils::nonpayable(&info)?;
 
     // anyone can trigger this if the vote passed
 
-    let mut prop = PROPOSALS.load(deps.storage, proposal_id.into())?;
+    let mut prop = PROPOSALS.load(deps.storage, proposal_id)?;
     if [Status::Executed, Status::Rejected, Status::Passed]
         .iter()
         .any(|x| *x == prop.status)
@@ -613,7 +612,7 @@ pub fn execute_close(
 
     // set it to failed
     prop.status = Status::Rejected;
-    PROPOSALS.save(deps.storage, proposal_id.into(), &prop)?;
+    PROPOSALS.save(deps.storage, proposal_id, &prop)?;
 
     let res = Response::new()
         .add_attribute("action", "close")
@@ -627,7 +626,7 @@ pub fn execute_leave_trusted_circle(
     env: Env,
     info: MessageInfo,
 ) -> Result<Response, ContractError> {
-    cw0::nonpayable(&info)?;
+    cw_utils::nonpayable(&info)?;
 
     // FIXME: special check if last member leaving (future story)
     let escrow = ESCROWS
@@ -694,21 +693,18 @@ fn adjust_open_proposals_for_leaver(
 ) -> Result<(), ContractError> {
     // find all open proposals that have not yet expired
     let now = env.block.time.seconds();
-    let start = Bound::Exclusive(U64Key::from(now).into());
+    let start = Bound::exclusive_int(now);
     let open_prop_ids = PROPOSAL_BY_EXPIRY
         .range(deps.storage, Some(start), None, Order::Ascending)
         .collect::<StdResult<Vec<_>>>()?;
 
     // check which ones we have not voted on and update them
     for (_, prop_id) in open_prop_ids {
-        if BALLOTS
-            .may_load(deps.storage, (prop_id.into(), leaver))?
-            .is_none()
-        {
-            let mut prop = PROPOSALS.load(deps.storage, prop_id.into())?;
+        if BALLOTS.may_load(deps.storage, (prop_id, leaver))?.is_none() {
+            let mut prop = PROPOSALS.load(deps.storage, prop_id)?;
             if prop.status == (Status::Open {}) {
                 prop.total_weight -= VOTING_WEIGHT;
-                PROPOSALS.save(deps.storage, prop_id.into(), &prop)?;
+                PROPOSALS.save(deps.storage, prop_id, &prop)?;
             }
         }
     }
@@ -721,7 +717,7 @@ pub fn execute_check_pending(
     env: Env,
     info: MessageInfo,
 ) -> Result<Response, ContractError> {
-    cw0::nonpayable(&info)?;
+    cw_utils::nonpayable(&info)?;
 
     let events = check_pending(deps.storage, &env)?;
     let res = Response::new()
@@ -790,8 +786,7 @@ fn pending_escrow_demote_promote_members(
             .collect::<StdResult<_>>()?;
         let mut evt = Event::new(DEMOTE_TYPE).add_attribute(PROPOSAL_KEY, proposal_id.to_string());
         let mut demoted_addrs = vec![];
-        for (key, mut escrow_status) in demoted {
-            let addr = Addr::unchecked(String::from_utf8(key)?);
+        for (addr, mut escrow_status) in demoted {
             escrow_status.status = MemberStatus::Pending { proposal_id };
             ESCROWS.save(storage, &addr, &escrow_status)?;
             // Remove voting weight
@@ -820,8 +815,7 @@ fn pending_escrow_demote_promote_members(
             })
             .collect::<StdResult<_>>()?;
         let mut evt = Event::new(PROMOTE_TYPE).add_attribute(PROPOSAL_KEY, proposal_id.to_string());
-        for (key, mut escrow_status) in promoted {
-            let addr = Addr::unchecked(String::from_utf8(key)?);
+        for (addr, mut escrow_status) in promoted {
             // Get _original_ proposal_id, i.e. don't reset proposal_id (So this member is still
             // promoted with its batch).
             let original_proposal_id = match escrow_status.status {
@@ -849,20 +843,19 @@ fn check_pending_batches(storage: &mut dyn Storage, block: &BlockInfo) -> StdRes
     // These are all eligible for timeout-based promotion
     let now = block.time.seconds();
     // as we want to keep the last item (pk) unbounded, we increment time by 1 and use exclusive (below the next tick)
-    let max_key = (U64Key::from(now + 1), U64Key::from(0)).joined_key();
+    let max_key = (now + 1, 0u64).joined_key();
     let bound = Bound::Exclusive(max_key);
 
     let ready = batch_map
         .idx
         .promotion_time
-        .sub_prefix(0u8.into())
+        .sub_prefix(0u8)
         .range(storage, None, Some(bound), Order::Ascending)
         .collect::<StdResult<Vec<_>>>()?;
 
     ready
         .into_iter()
-        .map(|(key, mut batch)| {
-            let batch_id = parse_id(&key)?;
+        .map(|(batch_id, mut batch)| {
             convert_all_paid_members_to_voters(storage, batch_id, &mut batch, block.height)
         })
         .collect()
@@ -1353,9 +1346,9 @@ pub(crate) fn list_members(
         .range(deps.storage, start, None, Order::Ascending)
         .take(limit)
         .map(|item| {
-            let (key, weight) = item?;
+            let (addr, weight) = item?;
             Ok(Member {
-                addr: String::from_utf8(key)?,
+                addr: addr.into(),
                 weight,
             })
         })
@@ -1376,13 +1369,13 @@ pub(crate) fn list_voting_members(
         .idx
         .weight
         // Note: if we allow members to have a weight > 1, we must adjust, until then, this works well
-        .prefix(VOTING_WEIGHT.into())
+        .prefix(VOTING_WEIGHT)
         .range(deps.storage, start, None, Order::Ascending)
         .take(limit)
         .map(|item| {
-            let (key, weight) = item?;
+            let (addr, weight) = item?;
             Ok(Member {
-                addr: String::from_utf8(key)?,
+                addr: addr.into(),
                 weight,
             })
         })
@@ -1401,13 +1394,13 @@ pub(crate) fn list_non_voting_members(
     let members: StdResult<Vec<_>> = members()
         .idx
         .weight
-        .prefix(U64Key::from(0))
+        .prefix(0)
         .range(deps.storage, start, None, Order::Ascending)
         .take(limit)
         .map(|item| {
-            let (key, weight) = item?;
+            let (addr, weight) = item?;
             Ok(Member {
-                addr: String::from_utf8(key)?,
+                addr: addr.into(),
                 weight,
             })
         })
@@ -1429,9 +1422,9 @@ pub(crate) fn list_escrows(
         .range(deps.storage, start, None, Order::Ascending)
         .take(limit)
         .map(|item| {
-            let (key, escrow_status) = item?;
+            let (addr, escrow_status) = item?;
             Ok(Escrow {
-                addr: String::from_utf8(key)?,
+                addr: addr.into(),
                 escrow_status,
             })
         })
@@ -1441,7 +1434,7 @@ pub(crate) fn list_escrows(
 }
 
 pub(crate) fn query_proposal(deps: Deps, env: Env, id: u64) -> StdResult<ProposalResponse> {
-    let prop = PROPOSALS.load(deps.storage, id.into())?;
+    let prop = PROPOSALS.load(deps.storage, id)?;
     let status = prop.current_status(&env.block);
     Ok(ProposalResponse {
         id,
@@ -1480,12 +1473,12 @@ pub(crate) fn list_proposals(
 
 fn map_proposal(
     block: &BlockInfo,
-    item: StdResult<(Vec<u8>, Proposal)>,
+    item: StdResult<(u64, Proposal)>,
 ) -> StdResult<ProposalResponse> {
-    let (key, prop) = item?;
+    let (id, prop) = item?;
     let status = prop.current_status(block);
     Ok(ProposalResponse {
-        id: parse_id(&key)?,
+        id,
         title: prop.title,
         description: prop.description,
         proposal: prop.proposal,
@@ -1499,7 +1492,7 @@ fn map_proposal(
 
 pub(crate) fn query_vote(deps: Deps, proposal_id: u64, voter: String) -> StdResult<VoteResponse> {
     let voter_addr = deps.api.addr_validate(&voter)?;
-    let prop = BALLOTS.may_load(deps.storage, (proposal_id.into(), &voter_addr))?;
+    let prop = BALLOTS.may_load(deps.storage, (proposal_id, &voter_addr))?;
     let vote = prop.map(|b| VoteInfo {
         proposal_id,
         voter,
@@ -1520,14 +1513,14 @@ pub(crate) fn list_votes_by_proposal(
     let start = addr.map(|addr| Bound::exclusive(addr.as_ref()));
 
     let votes: StdResult<Vec<_>> = BALLOTS
-        .prefix(proposal_id.into())
+        .prefix(proposal_id)
         .range(deps.storage, start, None, Order::Ascending)
         .take(limit)
         .map(|item| {
             let (voter, ballot) = item?;
             Ok(VoteInfo {
                 proposal_id,
-                voter: String::from_utf8(voter)?,
+                voter: voter.into(),
                 vote: ballot.vote,
                 weight: ballot.weight,
             })
@@ -1544,7 +1537,7 @@ pub(crate) fn list_votes_by_voter(
     limit: Option<u32>,
 ) -> StdResult<VoteListResponse> {
     let limit = limit.unwrap_or(DEFAULT_LIMIT).min(MAX_LIMIT) as usize;
-    let end = start_before.map(|addr| Bound::exclusive(U64Key::from(addr)));
+    let end = start_before.map(Bound::exclusive_int);
     let voter_addr = deps.api.addr_validate(&voter)?;
 
     let votes: StdResult<Vec<_>> = BALLOTS_BY_VOTER
@@ -1552,8 +1545,7 @@ pub(crate) fn list_votes_by_voter(
         .range(deps.storage, None, end, Order::Descending)
         .take(limit)
         .map(|item| {
-            let (key, ballot) = item?;
-            let proposal_id: u64 = parse_id(&key)?;
+            let (proposal_id, ballot) = item?;
             Ok(VoteInfo {
                 proposal_id,
                 voter: voter.clone(),

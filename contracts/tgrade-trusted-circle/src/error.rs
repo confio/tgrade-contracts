@@ -2,7 +2,7 @@ use cosmwasm_std::{Addr, Decimal, OverflowError, StdError, Uint128};
 use thiserror::Error;
 
 use crate::state::MemberStatus;
-use cw0::PaymentError;
+use cw_utils::PaymentError;
 
 #[derive(Error, Debug, PartialEq)]
 pub enum ContractError {

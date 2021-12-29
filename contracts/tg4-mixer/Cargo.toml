@@ -22,10 +22,10 @@ library = []
 benches = [ "cosmwasm-vm" ]
 
 [dependencies]
-cw0 = "0.10.2"
-cw2 = "0.10.2"
-cw20 = "0.10.2"
-cw-storage-plus = "0.10.2"
+cw-utils = "0.11.0"
+cw2 = "0.11.0"
+cw20 = "0.11.0"
+cw-storage-plus = "0.11.0"
 tg4 = { path = "../../packages/tg4", version = "0.5.2" }
 tg-utils = { path = "../../packages/utils", version = "0.5.2" }
 tg-bindings = { path = "../../packages/bindings", version = "0.5.2" }
@@ -41,7 +41,7 @@ rust_decimal_macros = { version = "1.16", default-features = false }
 cosmwasm-vm = { version = "1.0.0-beta", optional = true }
 
 [dev-dependencies]
-cw-multi-test = { version = "0.10.2" }
+cw-multi-test = { version = "0.11.0" }
 cosmwasm-schema = { version = "1.0.0-beta" }
 tg4-engagement = { path = "../tg4-engagement", version = "0.5.2", features = ["library"] }
 tg4-stake = { path = "../tg4-stake", version = "0.5.2", features = ["library"] }

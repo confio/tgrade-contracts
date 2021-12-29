@@ -9,10 +9,10 @@ use cosmwasm_std::{
     StdResult, Timestamp, WasmMsg,
 };
 
-use cw0::{maybe_addr, parse_reply_instantiate_data};
 use cw2::set_contract_version;
 use cw_controllers::AdminError;
 use cw_storage_plus::Bound;
+use cw_utils::{maybe_addr, parse_reply_instantiate_data};
 
 use tg4::{Member, Tg4Contract};
 use tg_bindings::{
@@ -409,15 +409,14 @@ fn list_validator_keys(
     let operators: StdResult<Vec<_>> = operators()
         .range(deps.storage, start, None, Order::Ascending)
         .map(|r| {
-            let (key, info) = r?;
-            let operator = String::from_utf8(key)?;
+            let (operator, info) = r?;
 
             let jailed_until = JAIL
                 .may_load(deps.storage, &Addr::unchecked(&operator))?
                 .filter(|expires| !(cfg.auto_unjail && expires.is_expired(&env.block)));
 
             Ok(OperatorResponse {
-                operator,
+                operator: operator.into(),
                 metadata: info.metadata,
                 pubkey: info.pubkey.into(),
                 jailed_until,
@@ -745,8 +744,6 @@ mod evidence {
                     if start_height >= evidence_height {
                         return Ok(None);
                     }
-                    // Recreating address from Vec<u8>
-                    let addr = Addr::unchecked(std::str::from_utf8(&addr)?);
                     let operator = operators().load(deps.storage, &addr)?;
                     let hash = Binary::from(operator.pubkey.to_address());
                     if hash == suspect.address {

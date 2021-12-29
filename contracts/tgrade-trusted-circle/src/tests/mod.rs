@@ -14,8 +14,8 @@ use cosmwasm_std::{
     MessageInfo, OwnedDeps, Querier, Storage, Uint128,
 };
 
-use cw0::PaymentError;
 use cw3::{Status, Vote};
+use cw_utils::PaymentError;
 use tg4::{member_key, TOTAL_KEY};
 
 use crate::contract::*;

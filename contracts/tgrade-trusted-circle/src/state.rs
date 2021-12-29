@@ -8,11 +8,10 @@ use cosmwasm_std::{
     attr, Addr, Attribute, BlockInfo, Decimal, Deps, Env, Event, StdError, StdResult, Storage,
     Timestamp, Uint128,
 };
-use cw0::Expiration;
 use cw3::{Status, Vote};
-use cw_storage_plus::{Index, IndexList, IndexedMap, Item, Map, MultiIndex, U64Key, U8Key};
+use cw_storage_plus::{Index, IndexList, IndexedMap, Item, Map, MultiIndex};
+use cw_utils::Expiration;
 use std::cmp::max;
-use std::convert::TryInto;
 
 const ONE_TGD: u128 = 1_000_000; // One million µTGD
 
@@ -429,7 +428,7 @@ pub(crate) fn create_batch(
             batch_promoted: false,
             members: addrs.into(),
         };
-        batches().update(storage, proposal_id.into(), |old| match old {
+        batches().update(storage, proposal_id, |old| match old {
             Some(_) => Err(ContractError::AlreadyUsedProposal(proposal_id)),
             None => Ok(batch),
         })?;
@@ -439,9 +438,9 @@ pub(crate) fn create_batch(
 
 // We need a secondary index for batches, such that we can look up batches that have
 // not been promoted, ordered by expiration (ascending) up to now.
-// Index: (U8Key/bool: batch_promoted, U64Key: grace_ends_at) -> U64Key: pk
+// Index: (u8/bool: batch_promoted, u64: grace_ends_at) -> (u64: pk, Batch: batch)
 pub struct BatchIndexes<'a> {
-    pub promotion_time: MultiIndex<'a, (U8Key, U64Key, U64Key), Batch>,
+    pub promotion_time: MultiIndex<'a, (u8, u64), Batch, u64>,
 }
 
 impl<'a> IndexList<Batch> for BatchIndexes<'a> {
@@ -451,12 +450,12 @@ impl<'a> IndexList<Batch> for BatchIndexes<'a> {
     }
 }
 
-pub fn batches<'a>() -> IndexedMap<'a, U64Key, Batch, BatchIndexes<'a>> {
+pub fn batches<'a>() -> IndexedMap<'a, u64, Batch, BatchIndexes<'a>> {
     let indexes = BatchIndexes {
         promotion_time: MultiIndex::new(
-            |b: &Batch, pk: Vec<u8>| {
+            |b: &Batch| {
                 let promoted = if b.batch_promoted { 1u8 } else { 0u8 };
-                (promoted.into(), b.grace_ends_at.into(), pk.into())
+                (promoted, b.grace_ends_at)
             },
             "batch",
             "batch__promotion",
@@ -610,13 +609,13 @@ pub struct Ballot {
 pub const PROPOSAL_COUNT: Item<u64> = Item::new("proposal_count");
 
 // multiple-item map
-pub const BALLOTS: Map<(U64Key, &Addr), Ballot> = Map::new("votes");
-pub const BALLOTS_BY_VOTER: Map<(&Addr, U64Key), Ballot> = Map::new("votes_by_voter");
-pub const PROPOSALS: Map<U64Key, Proposal> = Map::new("proposals");
+pub const BALLOTS: Map<(u64, &Addr), Ballot> = Map::new("votes");
+pub const BALLOTS_BY_VOTER: Map<(&Addr, u64), Ballot> = Map::new("votes_by_voter");
+pub const PROPOSALS: Map<u64, Proposal> = Map::new("proposals");
 // This maps expiration timestamp (seconds) to Proposal primary key,
 // needed for bounded size queries in adjust_open_proposals_for_leaver
 // Just add in create_proposal
-pub const PROPOSAL_BY_EXPIRY: Map<U64Key, u64> = Map::new("proposals_by_expiry");
+pub const PROPOSAL_BY_EXPIRY: Map<u64, u64> = Map::new("proposals_by_expiry");
 
 pub fn save_ballot(
     storage: &mut dyn Storage,
@@ -624,8 +623,8 @@ pub fn save_ballot(
     sender: &Addr,
     ballot: &Ballot,
 ) -> StdResult<()> {
-    BALLOTS.save(storage, (proposal_id.into(), sender), ballot)?;
-    BALLOTS_BY_VOTER.save(storage, (sender, proposal_id.into()), ballot)
+    BALLOTS.save(storage, (proposal_id, sender), ballot)?;
+    BALLOTS_BY_VOTER.save(storage, (sender, proposal_id), ballot)
 }
 
 pub fn create_proposal(store: &mut dyn Storage, proposal: &Proposal) -> StdResult<u64> {
@@ -635,18 +634,9 @@ pub fn create_proposal(store: &mut dyn Storage, proposal: &Proposal) -> StdResul
     };
     let id: u64 = PROPOSAL_COUNT.may_load(store)?.unwrap_or_default() + 1;
     PROPOSAL_COUNT.save(store, &id)?;
-    PROPOSALS.save(store, id.into(), proposal)?;
-    PROPOSAL_BY_EXPIRY.save(store, expiry.into(), &id)?;
+    PROPOSALS.save(store, id, proposal)?;
+    PROPOSAL_BY_EXPIRY.save(store, expiry, &id)?;
     Ok(id)
-}
-
-pub fn parse_id(data: &[u8]) -> StdResult<u64> {
-    match data[0..8].try_into() {
-        Ok(bytes) => Ok(u64::from_be_bytes(bytes)),
-        Err(_) => Err(StdError::generic_err(
-            "Corrupted data found. 8 byte expected.",
-        )),
-    }
 }
 
 #[cfg(test)]

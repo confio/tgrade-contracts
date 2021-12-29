@@ -38,7 +38,7 @@ fn create_vesting_account(
     info: MessageInfo,
     msg: InstantiateMsg,
 ) -> Result<(), ContractError> {
-    let initial_tokens = cw0::must_pay(&info, msg.denom.as_str())?;
+    let initial_tokens = cw_utils::must_pay(&info, msg.denom.as_str())?;
     let account = VestingAccount {
         denom: msg.denom,
         recipient: msg.recipient,
@@ -243,21 +243,25 @@ fn hand_over(deps: DepsMut, env: Env, sender: Addr) -> Result<Response, Contract
     }
 
     let frozen_tokens = account.frozen_tokens.u128();
-    let msg = BankMsg::Burn {
-        amount: coins(frozen_tokens, account.denom.clone()),
-    };
-
     account.frozen_tokens = Uint128::zero();
     account.handed_over = true;
     account.oversight = account.recipient.clone();
     account.operator = account.recipient.clone();
     VESTING_ACCOUNT.save(deps.storage, &account)?;
 
-    Ok(Response::new()
+    let mut response = Response::new()
         .add_attribute("action", "hand_over")
-        .add_attribute("burnt_tokens", frozen_tokens.to_string())
-        .add_attribute("sender", sender)
-        .add_message(msg))
+        .add_attribute("sender", sender);
+
+    if frozen_tokens > 0 {
+        let msg = BankMsg::Burn {
+            amount: coins(frozen_tokens, account.denom),
+        };
+        response = response
+            .add_attribute("burnt_tokens", frozen_tokens.to_string())
+            .add_message(msg);
+    }
+    Ok(response)
 }
 
 mod helpers {
@@ -897,8 +901,8 @@ mod tests {
                 suite.hand_over(OVERSIGHT),
                 Ok(Response::new()
                     .add_attribute("action", "hand_over")
-                    .add_attribute("burnt_tokens", tokens_to_burn.to_string())
                     .add_attribute("sender", OVERSIGHT.to_string())
+                    .add_attribute("burnt_tokens", tokens_to_burn.to_string())
                     .add_message(BankMsg::Burn {
                         amount: coins(tokens_to_burn, VESTING_DENOM)
                     }))

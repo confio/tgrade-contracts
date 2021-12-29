@@ -114,7 +114,7 @@ pub fn execute_execute(
     use ValidatorProposal::*;
     // anyone can trigger this if the vote passed
 
-    let mut proposal = proposals::<ValidatorProposal>().load(deps.storage, proposal_id.into())?;
+    let mut proposal = proposals::<ValidatorProposal>().load(deps.storage, proposal_id)?;
 
     // we allow execution even after the proposal "expiration" as long as all vote come in before
     // that point. If it was approved on time, it can be executed any time.
@@ -175,7 +175,7 @@ pub fn execute_execute(
 
     // set it to executed
     proposal.status = Status::Executed;
-    proposals::<ValidatorProposal>().save(deps.storage, proposal_id.into(), &proposal)?;
+    proposals::<ValidatorProposal>().save(deps.storage, proposal_id, &proposal)?;
 
     Ok(Response::new()
         .add_attribute("action", "execute")
@@ -276,7 +276,7 @@ mod tests {
         proposals()
             .save(
                 &mut deps.storage,
-                1.into(),
+                1,
                 &Proposal {
                     title: "MigrateContract".to_owned(),
                     description: "MigrateContract testing proposal".to_owned(),
@@ -324,7 +324,7 @@ mod tests {
         proposals()
             .save(
                 &mut deps.storage,
-                1.into(),
+                1,
                 &Proposal {
                     title: "CancelUpgrade".to_owned(),
                     description: "CancelUpgrade testing proposal".to_owned(),
@@ -369,7 +369,7 @@ mod tests {
         proposals()
             .save(
                 &mut deps.storage,
-                1.into(),
+                1,
                 &Proposal {
                     title: "PinCodes".to_owned(),
                     description: "PinCodes testing proposal".to_owned(),
@@ -414,7 +414,7 @@ mod tests {
         proposals()
             .save(
                 &mut deps.storage,
-                1.into(),
+                1,
                 &Proposal {
                     title: "UnpinCodes".to_owned(),
                     description: "UnpinCodes testing proposal".to_owned(),
@@ -459,7 +459,7 @@ mod tests {
         proposals()
             .save(
                 &mut deps.storage,
-                1.into(),
+                1,
                 &Proposal {
                     title: "UnpinCodes".to_owned(),
                     description: "UnpinCodes testing proposal".to_owned(),
@@ -509,7 +509,7 @@ mod tests {
         proposals()
             .save(
                 &mut deps.storage,
-                1.into(),
+                1,
                 &Proposal {
                     title: "UnpinCodes".to_owned(),
                     description: "UnpinCodes testing proposal".to_owned(),

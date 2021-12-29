@@ -3,8 +3,8 @@ use serde::{Deserialize, Serialize};
 
 use crate::state::{EscrowStatus, PendingEscrow, ProposalContent, Votes, VotingRules};
 use cosmwasm_std::{Addr, Decimal, Uint128};
-use cw0::Expiration;
 use cw3::{Status, Vote};
+use cw_utils::Expiration;
 
 #[derive(Serialize, Deserialize, Clone, PartialEq, JsonSchema, Debug)]
 #[serde(rename_all = "snake_case")]
