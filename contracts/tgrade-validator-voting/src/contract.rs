@@ -276,7 +276,7 @@ mod tests {
         proposals()
             .save(
                 &mut deps.storage,
-                1.into(),
+                1u64,
                 &Proposal {
                     title: "MigrateContract".to_owned(),
                     description: "MigrateContract testing proposal".to_owned(),
@@ -324,7 +324,7 @@ mod tests {
         proposals()
             .save(
                 &mut deps.storage,
-                1.into(),
+                1u64,
                 &Proposal {
                     title: "CancelUpgrade".to_owned(),
                     description: "CancelUpgrade testing proposal".to_owned(),
@@ -369,7 +369,7 @@ mod tests {
         proposals()
             .save(
                 &mut deps.storage,
-                1.into(),
+                1u64,
                 &Proposal {
                     title: "PinCodes".to_owned(),
                     description: "PinCodes testing proposal".to_owned(),
@@ -414,7 +414,7 @@ mod tests {
         proposals()
             .save(
                 &mut deps.storage,
-                1.into(),
+                1u64,
                 &Proposal {
                     title: "UnpinCodes".to_owned(),
                     description: "UnpinCodes testing proposal".to_owned(),
@@ -459,7 +459,7 @@ mod tests {
         proposals()
             .save(
                 &mut deps.storage,
-                1.into(),
+                1u64,
                 &Proposal {
                     title: "UnpinCodes".to_owned(),
                     description: "UnpinCodes testing proposal".to_owned(),
@@ -509,7 +509,7 @@ mod tests {
         proposals()
             .save(
                 &mut deps.storage,
-                1.into(),
+                1u64,
                 &Proposal {
                     title: "UnpinCodes".to_owned(),
                     description: "UnpinCodes testing proposal".to_owned(),
