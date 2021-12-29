@@ -82,14 +82,14 @@ where
     };
     prop.update_status(&env.block);
     let id = next_id(deps.storage)?;
-    proposals().save(deps.storage, id.into(), &prop)?;
+    proposals().save(deps.storage, id, &prop)?;
 
     // add the first yes vote from voter
     let ballot = Ballot {
         weight: vote_power,
         vote: Vote::Yes,
     };
-    BALLOTS.save(deps.storage, (id.into(), &info.sender), &ballot)?;
+    BALLOTS.save(deps.storage, (id, &info.sender), &ballot)?;
 
     let resp = msg::ProposalCreationResponse { proposal_id: id };
 
@@ -112,7 +112,7 @@ where
     P: Serialize + DeserializeOwned,
 {
     // ensure proposal exists and can be voted on
-    let mut prop = proposals().load(deps.storage, proposal_id.into())?;
+    let mut prop = proposals().load(deps.storage, proposal_id)?;
     if prop.status != Status::Open {
         return Err(ContractError::NotOpen {});
     }
@@ -128,22 +128,18 @@ where
             .was_voting_member(&deps.querier, &info.sender, prop.start_height)?;
 
     // cast vote if no vote previously cast
-    BALLOTS.update(
-        deps.storage,
-        (proposal_id.into(), &info.sender),
-        |bal| match bal {
-            Some(_) => Err(ContractError::AlreadyVoted {}),
-            None => Ok(Ballot {
-                weight: vote_power,
-                vote,
-            }),
-        },
-    )?;
+    BALLOTS.update(deps.storage, (proposal_id, &info.sender), |bal| match bal {
+        Some(_) => Err(ContractError::AlreadyVoted {}),
+        None => Ok(Ballot {
+            weight: vote_power,
+            vote,
+        }),
+    })?;
 
     // update vote tally
     prop.votes.add_vote(vote, vote_power);
     prop.update_status(&env.block);
-    proposals::<P>().save(deps.storage, proposal_id.into(), &prop)?;
+    proposals::<P>().save(deps.storage, proposal_id, &prop)?;
 
     Ok(Response::new()
         .add_attribute("action", "vote")
@@ -163,7 +159,7 @@ where
 {
     // anyone can trigger this if the vote passed
 
-    let mut prop = proposals::<P>().load(deps.storage, proposal_id.into())?;
+    let mut prop = proposals::<P>().load(deps.storage, proposal_id)?;
     if [Status::Executed, Status::Rejected, Status::Passed]
         .iter()
         .any(|x| *x == prop.status)
@@ -176,7 +172,7 @@ where
 
     // set it to failed
     prop.status = Status::Rejected;
-    proposals::<P>().save(deps.storage, proposal_id.into(), &prop)?;
+    proposals::<P>().save(deps.storage, proposal_id, &prop)?;
 
     Ok(Response::new()
         .add_attribute("action", "close")
@@ -193,7 +189,7 @@ pub fn query_proposal<P>(deps: Deps, env: Env, id: u64) -> StdResult<ProposalRes
 where
     P: Serialize + DeserializeOwned,
 {
-    let prop = proposals().load(deps.storage, id.into())?;
+    let prop = proposals().load(deps.storage, id)?;
     let status = prop.current_status(&env.block);
     let rules = prop.rules;
     Ok(ProposalResponse {
@@ -268,7 +264,7 @@ where
 
 pub fn query_vote(deps: Deps, proposal_id: u64, voter: String) -> StdResult<VoteResponse> {
     let voter_addr = deps.api.addr_validate(&voter)?;
-    let prop = BALLOTS.may_load(deps.storage, (proposal_id.into(), &voter_addr))?;
+    let prop = BALLOTS.may_load(deps.storage, (proposal_id, &voter_addr))?;
     let vote = prop.map(|b| VoteInfo {
         voter,
         vote: b.vote,
@@ -287,7 +283,7 @@ pub fn list_votes(
     let start = addr.map(|addr| Bound::exclusive(addr.as_ref()));
 
     let votes: StdResult<Vec<_>> = BALLOTS
-        .prefix(proposal_id.into())
+        .prefix(proposal_id)
         .range(deps.storage, start, None, Order::Ascending)
         .take(limit)
         .map(|item| {
