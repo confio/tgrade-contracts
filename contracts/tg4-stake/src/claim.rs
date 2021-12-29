@@ -29,7 +29,7 @@ pub struct Claim {
 }
 
 struct ClaimIndexes<'a> {
-    // Lat type param defines the pk deserialization type
+    // Last type param defines the pk deserialization type
     pub release_at: MultiIndex<'a, (u64, Addr), Claim, (Addr, u64)>,
 }
 
