@@ -8,7 +8,7 @@ pub enum ContractError {
     Std(#[from] StdError),
 
     #[error("{0}")]
-    PaymentError(#[from] cw0::PaymentError),
+    PaymentError(#[from] cw_utils::PaymentError),
 
     #[error("Unauthorized: action requires sender to be Operator or Oversight")]
     RequireOperator,

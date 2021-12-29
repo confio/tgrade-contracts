@@ -38,7 +38,7 @@ fn create_vesting_account(
     info: MessageInfo,
     msg: InstantiateMsg,
 ) -> Result<(), ContractError> {
-    let initial_tokens = cw0::must_pay(&info, msg.denom.as_str())?;
+    let initial_tokens = cw_utils::must_pay(&info, msg.denom.as_str())?;
     let account = VestingAccount {
         denom: msg.denom,
         recipient: msg.recipient,
