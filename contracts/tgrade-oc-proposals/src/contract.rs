@@ -86,7 +86,7 @@ pub fn execute_execute(
 ) -> Result<Response, ContractError> {
     // anyone can trigger this if the vote passed
 
-    let mut prop = proposals().load(deps.storage, proposal_id.into())?;
+    let mut prop = proposals().load(deps.storage, proposal_id)?;
     // we allow execution even after the proposal "expiration" as long as all vote come in before
     // that point. If it was approved on time, it can be executed any time.
     if prop.status != Status::Passed {
@@ -100,7 +100,7 @@ pub fn execute_execute(
 
     // set it to executed
     prop.status = Status::Executed;
-    proposals().save(deps.storage, proposal_id.into(), &prop)?;
+    proposals().save(deps.storage, proposal_id, &prop)?;
 
     // dispatch all proposed messages
     let mut res = Response::new()

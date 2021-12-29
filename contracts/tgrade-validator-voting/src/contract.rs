@@ -114,7 +114,7 @@ pub fn execute_execute(
     use ValidatorProposal::*;
     // anyone can trigger this if the vote passed
 
-    let mut proposal = proposals::<ValidatorProposal>().load(deps.storage, proposal_id.into())?;
+    let mut proposal = proposals::<ValidatorProposal>().load(deps.storage, proposal_id)?;
 
     // we allow execution even after the proposal "expiration" as long as all vote come in before
     // that point. If it was approved on time, it can be executed any time.
@@ -175,7 +175,7 @@ pub fn execute_execute(
 
     // set it to executed
     proposal.status = Status::Executed;
-    proposals::<ValidatorProposal>().save(deps.storage, proposal_id.into(), &proposal)?;
+    proposals::<ValidatorProposal>().save(deps.storage, proposal_id, &proposal)?;
 
     Ok(Response::new()
         .add_attribute("action", "execute")
