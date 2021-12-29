@@ -12,7 +12,8 @@ pub const PREAUTH_SLASHING: Preauth = Preauth::new("tg4-preauth_slashing");
 pub const TOTAL: Item<u64> = Item::new(TOTAL_KEY);
 
 pub struct MemberIndexes<'a> {
-    pub weight: MultiIndex<'a, u64, u64>,
+    // Weights (multi-)index (deserializing the (hidden) pk to Addr)
+    pub weight: MultiIndex<'a, u64, u64, Addr>,
 }
 
 impl<'a> IndexList<u64> for MemberIndexes<'a> {
