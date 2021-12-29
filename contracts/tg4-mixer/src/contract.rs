@@ -4,9 +4,9 @@ use cosmwasm_std::{
     to_binary, Addr, Binary, Decimal, Deps, DepsMut, Env, MessageInfo, Order, StdError, StdResult,
 };
 
-use cw0::maybe_addr;
 use cw2::set_contract_version;
-use cw_storage_plus::{Bound, PrimaryKey, U64Key};
+use cw_storage_plus::{Bound, PrimaryKey};
+use cw_utils::maybe_addr;
 
 use tg_bindings::TgradeMsg;
 use tg_utils::{
@@ -419,9 +419,9 @@ fn list_members(
         .range(deps.storage, start, None, Order::Ascending)
         .take(limit)
         .map(|item| {
-            let (key, weight) = item?;
+            let (addr, weight) = item?;
             Ok(Member {
-                addr: String::from_utf8(key)?,
+                addr: addr.into(),
                 weight,
             })
         })
@@ -436,17 +436,16 @@ fn list_members_by_weight(
     limit: Option<u32>,
 ) -> StdResult<MemberListResponse> {
     let limit = limit.unwrap_or(DEFAULT_LIMIT).min(MAX_LIMIT) as usize;
-    let start = start_after
-        .map(|m| Bound::exclusive((U64Key::from(m.weight), m.addr.as_str()).joined_key()));
+    let start = start_after.map(|m| Bound::exclusive((m.weight, m.addr).joined_key()));
     let members: StdResult<Vec<_>> = members()
         .idx
         .weight
         .range(deps.storage, None, start, Order::Descending)
         .take(limit)
         .map(|item| {
-            let (key, weight) = item?;
+            let (addr, weight) = item?;
             Ok(Member {
-                addr: String::from_utf8(key)?,
+                addr: addr.into(),
                 weight,
             })
         })
