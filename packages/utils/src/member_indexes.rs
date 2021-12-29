@@ -1,7 +1,7 @@
 use crate::{Hooks, Preauth, Slashers};
 use cosmwasm_std::Addr;
 use cw_controllers::Admin;
-use cw_storage_plus::{Index, IndexList, IndexedSnapshotMap, Item, MultiIndex, Strategy, U64Key};
+use cw_storage_plus::{Index, IndexList, IndexedSnapshotMap, Item, MultiIndex, Strategy};
 use tg4::TOTAL_KEY;
 
 pub const ADMIN: Admin = Admin::new("admin");
@@ -12,8 +12,7 @@ pub const PREAUTH_SLASHING: Preauth = Preauth::new("tg4-preauth_slashing");
 pub const TOTAL: Item<u64> = Item::new(TOTAL_KEY);
 
 pub struct MemberIndexes<'a> {
-    // pk goes to second tuple element
-    pub weight: MultiIndex<'a, (U64Key, Vec<u8>), u64>,
+    pub weight: MultiIndex<'a, u64, u64>,
 }
 
 impl<'a> IndexList<u64> for MemberIndexes<'a> {
@@ -31,11 +30,7 @@ impl<'a> IndexList<u64> for MemberIndexes<'a> {
 /// The weight index is not snapshotted; only the current weights are indexed at any given time.
 pub fn members<'a>() -> IndexedSnapshotMap<'a, &'a Addr, u64, MemberIndexes<'a>> {
     let indexes = MemberIndexes {
-        weight: MultiIndex::new(
-            |&w, k| (U64Key::new(w), k),
-            tg4::MEMBERS_KEY,
-            "members__weight",
-        ),
+        weight: MultiIndex::new(|&w| w, tg4::MEMBERS_KEY, "members__weight"),
     };
     IndexedSnapshotMap::new(
         tg4::MEMBERS_KEY,

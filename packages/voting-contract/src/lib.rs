@@ -5,17 +5,17 @@ pub mod state;
 pub use error::ContractError;
 
 use cosmwasm_std::{Addr, BlockInfo, Deps, DepsMut, Env, MessageInfo, Order, StdResult};
-use cw0::maybe_addr;
 use cw3::{
     Status, Vote, VoteInfo, VoteListResponse, VoteResponse, VoterDetail, VoterListResponse,
     VoterResponse,
 };
 use cw_storage_plus::Bound;
+use cw_utils::maybe_addr;
 use serde::de::DeserializeOwned;
 use serde::Serialize;
 use state::{
-    next_id, parse_id, proposals, Ballot, Config, Proposal, ProposalListResponse, ProposalResponse,
-    Votes, VotingRules, BALLOTS, CONFIG,
+    next_id, proposals, Ballot, Config, Proposal, ProposalListResponse, ProposalResponse, Votes,
+    VotingRules, BALLOTS, CONFIG,
 };
 use tg4::Tg4Contract;
 use tg_bindings::TgradeMsg;
@@ -211,12 +211,12 @@ where
 
 fn map_proposal<P>(
     block: &BlockInfo,
-    item: StdResult<(Vec<u8>, Proposal<P>)>,
+    item: StdResult<(u64, Proposal<P>)>,
 ) -> StdResult<ProposalResponse<P>> {
-    let (key, prop) = item?;
+    let (id, prop) = item?;
     let status = prop.current_status(block);
     Ok(ProposalResponse {
-        id: parse_id(&key)?,
+        id,
         title: prop.title,
         description: prop.description,
         proposal: prop.proposal,
@@ -293,7 +293,7 @@ pub fn list_votes(
         .map(|item| {
             let (voter, ballot) = item?;
             Ok(VoteInfo {
-                voter: String::from_utf8(voter)?,
+                voter: voter.into(),
                 vote: ballot.vote,
                 weight: ballot.weight,
             })

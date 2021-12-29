@@ -2,7 +2,6 @@ use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
 use cosmwasm_std::{BlockInfo, Timestamp};
-use cw_storage_plus::U64Key;
 
 /// Duration is an amount of time, measured in seconds
 #[derive(Serialize, Deserialize, Clone, Copy, PartialEq, JsonSchema, Debug)]
@@ -50,8 +49,8 @@ impl Expiration {
         self.0
     }
 
-    pub fn as_key(&self) -> U64Key {
-        U64Key::new(self.0.nanos())
+    pub fn as_key(&self) -> u64 {
+        self.0.nanos()
     }
 }
 impl From<Expiration> for Timestamp {

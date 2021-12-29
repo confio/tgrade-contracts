@@ -1,10 +1,9 @@
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
-use std::convert::TryInto;
 
-use cosmwasm_std::{Addr, BlockInfo, Decimal, StdError, StdResult, Storage, Uint128};
+use cosmwasm_std::{Addr, BlockInfo, Decimal, StdResult, Storage, Uint128};
 use cw3::{Status, Vote};
-use cw_storage_plus::{Item, Map, U64Key};
+use cw_storage_plus::{Item, Map};
 use tg4::Tg4Contract;
 use tg_utils::Expiration;
 
@@ -203,8 +202,8 @@ pub const CONFIG: Item<Config> = Item::new("voting_config");
 pub const PROPOSAL_COUNT: Item<u64> = Item::new("proposal_count");
 
 // multiple-item map
-pub const BALLOTS: Map<(U64Key, &Addr), Ballot> = Map::new("votes");
-pub fn proposals<'m, P>() -> Map<'m, U64Key, Proposal<P>> {
+pub const BALLOTS: Map<(u64, &Addr), Ballot> = Map::new("votes");
+pub fn proposals<'m, P>() -> Map<'m, u64, Proposal<P>> {
     Map::new("proposals")
 }
 
@@ -212,13 +211,4 @@ pub fn next_id(store: &mut dyn Storage) -> StdResult<u64> {
     let id: u64 = PROPOSAL_COUNT.may_load(store)?.unwrap_or_default() + 1;
     PROPOSAL_COUNT.save(store, &id)?;
     Ok(id)
-}
-
-pub fn parse_id(data: &[u8]) -> StdResult<u64> {
-    match data[0..8].try_into() {
-        Ok(bytes) => Ok(u64::from_be_bytes(bytes)),
-        Err(_) => Err(StdError::generic_err(
-            "Corrupted data found. 8 byte expected.",
-        )),
-    }
 }

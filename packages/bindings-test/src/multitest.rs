@@ -278,10 +278,8 @@ impl Module for TgradeModule {
                 let privileged = PRIVILEGES
                     .range(storage, None, None, Order::Ascending)
                     .filter_map(|r| {
-                        r.map(|(k, privs)| match privs.iter().any(|p| *p == check) {
-                            true => {
-                                Some(Addr::unchecked(unsafe { String::from_utf8_unchecked(k) }))
-                            }
+                        r.map(|(addr, privs)| match privs.iter().any(|p| *p == check) {
+                            true => Some(addr),
                             false => None,
                         })
                         .transpose()
