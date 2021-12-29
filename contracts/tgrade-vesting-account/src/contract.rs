@@ -255,7 +255,7 @@ fn hand_over(deps: DepsMut, env: Env, sender: Addr) -> Result<Response, Contract
 
     if frozen_tokens > 0 {
         let msg = BankMsg::Burn {
-            amount: coins(frozen_tokens, account.denom.clone()),
+            amount: coins(frozen_tokens, account.denom),
         };
         response = response
             .add_attribute("burnt_tokens", frozen_tokens.to_string())
