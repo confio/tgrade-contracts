@@ -428,7 +428,7 @@ pub(crate) fn create_batch(
             batch_promoted: false,
             members: addrs.into(),
         };
-        batches().update(storage, proposal_id.into(), |old| match old {
+        batches().update(storage, proposal_id, |old| match old {
             Some(_) => Err(ContractError::AlreadyUsedProposal(proposal_id)),
             None => Ok(batch),
         })?;
@@ -455,7 +455,7 @@ pub fn batches<'a>() -> IndexedMap<'a, u64, Batch, BatchIndexes<'a>> {
         promotion_time: MultiIndex::new(
             |b: &Batch| {
                 let promoted = if b.batch_promoted { 1u8 } else { 0u8 };
-                (promoted.into(), b.grace_ends_at.into())
+                (promoted, b.grace_ends_at)
             },
             "batch",
             "batch__promotion",
@@ -623,8 +623,8 @@ pub fn save_ballot(
     sender: &Addr,
     ballot: &Ballot,
 ) -> StdResult<()> {
-    BALLOTS.save(storage, (proposal_id.into(), sender), ballot)?;
-    BALLOTS_BY_VOTER.save(storage, (sender, proposal_id.into()), ballot)
+    BALLOTS.save(storage, (proposal_id, sender), ballot)?;
+    BALLOTS_BY_VOTER.save(storage, (sender, proposal_id), ballot)
 }
 
 pub fn create_proposal(store: &mut dyn Storage, proposal: &Proposal) -> StdResult<u64> {
@@ -634,8 +634,8 @@ pub fn create_proposal(store: &mut dyn Storage, proposal: &Proposal) -> StdResul
     };
     let id: u64 = PROPOSAL_COUNT.may_load(store)?.unwrap_or_default() + 1;
     PROPOSAL_COUNT.save(store, &id)?;
-    PROPOSALS.save(store, id.into(), proposal)?;
-    PROPOSAL_BY_EXPIRY.save(store, expiry.into(), &id)?;
+    PROPOSALS.save(store, id, proposal)?;
+    PROPOSAL_BY_EXPIRY.save(store, expiry, &id)?;
     Ok(id)
 }
 

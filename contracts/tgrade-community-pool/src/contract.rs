@@ -103,7 +103,7 @@ pub fn execute_execute(
     use Proposal::*;
 
     // anyone can trigger this if the vote passed
-    let prop = proposals::<Proposal>().load(deps.storage, proposal_id.into())?;
+    let prop = proposals::<Proposal>().load(deps.storage, proposal_id)?;
 
     // we allow execution even after the proposal "expiration" as long as all vote come in before
     // that point. If it was approved on time, it can be executed any time.
