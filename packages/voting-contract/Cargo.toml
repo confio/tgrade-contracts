@@ -16,9 +16,9 @@ cw-storage-plus = "0.11.0"
 cosmwasm-std = "1.0.0-beta"
 schemars = "0.8.1"
 serde = { version = "1", default-features = false, features = ["derive"] }
-tg4 = { path = "../tg4", version = "0.5.2" }
-tg-bindings = { path = "../bindings", version = "0.5.2" }
-tg-utils = { version = "0.5.2", path = "../utils" }
+tg4 = { git = "ssh://git@github.com/confio/poe-contracts.git", version = "0.5.2" }
+tg-bindings = { git = "ssh://git@github.com/confio/poe-contracts.git", version = "0.5.2" }
+tg-utils = { git = "ssh://git@github.com/confio/poe-contracts.git", version = "0.5.2" }
 thiserror = { version = "1" }
 
 [dev-dependencies]
