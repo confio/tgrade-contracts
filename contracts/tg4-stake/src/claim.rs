@@ -118,7 +118,7 @@ impl<'a> Claims<'a> {
             .claims
             .prefix(addr)
             // take all claims for the addr
-            .range(
+            .range_raw(
                 storage,
                 None,
                 Some(Bound::inclusive(
@@ -156,16 +156,14 @@ impl<'a> Claims<'a> {
             .idx
             .release_at
             // take all claims which are expired (at most same timestamp as current block)
-            .range(
+            .range_raw(
                 storage,
                 None,
                 Some(Bound::exclusive(self.claims.idx.release_at.index_key(
                     Expiration::at_timestamp(excluded_timestamp).as_key(),
                 ))),
                 Order::Ascending,
-            )
-            // FIXME: This is artificial (needed for calling collect_claims below)
-            .map(|r| r.map(|((_addr, expires_at), c)| (expires_at, c)));
+            );
 
         let mut claims = self.collect_claims(claims, limit.into())?;
         claims.sort_by_key(|claim| claim.addr.clone());
@@ -188,7 +186,7 @@ impl<'a> Claims<'a> {
     /// released
     fn collect_claims(
         &self,
-        claims: impl IntoIterator<Item = StdResult<(u64, Claim)>>,
+        claims: impl IntoIterator<Item = StdResult<(Vec<u8>, Claim)>>,
         limit: Option<u64>,
     ) -> StdResult<Vec<Claim>> {
         // apply limit and collect - it is needed to collect intermediately, as it is impossible to
