@@ -30,7 +30,7 @@ pub struct Claim {
 
 struct ClaimIndexes<'a> {
     // Last type param defines the pk deserialization type
-    pub release_at: MultiIndex<'a, (u64, Addr), Claim, (Addr, u64)>,
+    pub release_at: MultiIndex<'a, u64, Claim, (Addr, u64)>,
 }
 
 impl<'a> IndexList<Claim> for ClaimIndexes<'a> {
@@ -61,7 +61,7 @@ impl<'a> Claims<'a> {
     pub fn new(storage_key: &'a str, release_subkey: &'a str) -> Self {
         let indexes = ClaimIndexes {
             release_at: MultiIndex::new(
-                |claim| (claim.release_at.as_key(), claim.addr.clone()),
+                |claim| claim.release_at.as_key(),
                 storage_key,
                 release_subkey,
             ),
@@ -157,10 +157,9 @@ impl<'a> Claims<'a> {
             .range(
                 storage,
                 None,
-                Some(Bound::exclusive(self.claims.idx.release_at.index_key((
+                Some(Bound::exclusive(self.claims.idx.release_at.index_key(
                     Expiration::at_timestamp(excluded_timestamp).as_key(),
-                    Addr::unchecked(""),
-                )))),
+                ))),
                 Order::Ascending,
             )
             // FIXME: This is artificial (needed for calling collect_claims below)
