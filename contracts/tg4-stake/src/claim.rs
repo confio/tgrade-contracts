@@ -30,7 +30,7 @@ pub struct Claim {
 
 struct ClaimIndexes<'a> {
     // Last type param defines the pk deserialization type
-    pub release_at: MultiIndex<'a, u64, Claim, (Addr, u64)>,
+    pub release_at: MultiIndex<'a, u64, Claim>,
 }
 
 impl<'a> IndexList<Claim> for ClaimIndexes<'a> {
