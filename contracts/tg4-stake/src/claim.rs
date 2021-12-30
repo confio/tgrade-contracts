@@ -148,8 +148,8 @@ impl<'a> Claims<'a> {
         // `Bound::inclusive` range, but its implementation seems to be buggy. As claim expiration
         // is measured in seconds, offsetting it by 1ns would make and querying exclusive range
         // would have expected behavior.
-        // Note: This is because `index_key` always builds a "minimum" primary key, i.e. b"".
-        // Possible solution: https://github.com/CosmWasm/cw-plus/issues/462
+        // Note: This is solved by `prefix_range_raw` + `PrefixBound::inclusive`
+        // (after https://github.com/CosmWasm/cw-plus/pull/616)
         let excluded_timestamp = block.time.plus_nanos(1);
         let claims = self
             .claims
