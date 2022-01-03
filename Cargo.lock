@@ -640,7 +640,7 @@ dependencies = [
 [[package]]
 name = "tg-bindings"
 version = "0.5.3"
-source = "git+ssh://git@github.com/confio/poe-contracts.git#cfe396a5a2e224601a9e8589e6e462fb43ee401d"
+source = "git+ssh://git@github.com/confio/poe-contracts.git#83ef810e844ca33c74e141837822f861b79a34fe"
 dependencies = [
  "base64",
  "cosmwasm-std",
@@ -652,7 +652,7 @@ dependencies = [
 [[package]]
 name = "tg-bindings-test"
 version = "0.5.3"
-source = "git+ssh://git@github.com/confio/poe-contracts.git#cfe396a5a2e224601a9e8589e6e462fb43ee401d"
+source = "git+ssh://git@github.com/confio/poe-contracts.git#83ef810e844ca33c74e141837822f861b79a34fe"
 dependencies = [
  "anyhow",
  "cosmwasm-std",
@@ -666,16 +666,17 @@ dependencies = [
 
 [[package]]
 name = "tg-test-utils"
-version = "0.5.2"
+version = "0.5.3"
+source = "git+ssh://git@github.com/confio/poe-contracts.git#83ef810e844ca33c74e141837822f861b79a34fe"
 dependencies = [
  "cosmwasm-std",
- "tg-voting-contract 0.5.2",
+ "tg-voting-contract",
 ]
 
 [[package]]
 name = "tg-utils"
 version = "0.5.3"
-source = "git+ssh://git@github.com/confio/poe-contracts.git#cfe396a5a2e224601a9e8589e6e462fb43ee401d"
+source = "git+ssh://git@github.com/confio/poe-contracts.git#83ef810e844ca33c74e141837822f861b79a34fe"
 dependencies = [
  "cosmwasm-std",
  "cw-controllers",
@@ -690,25 +691,8 @@ dependencies = [
 
 [[package]]
 name = "tg-voting-contract"
-version = "0.5.2"
-dependencies = [
- "cosmwasm-schema",
- "cosmwasm-std",
- "cw-storage-plus",
- "cw-utils",
- "cw3",
- "schemars",
- "serde",
- "tg-bindings",
- "tg-utils",
- "tg4",
- "thiserror",
-]
-
-[[package]]
-name = "tg-voting-contract"
 version = "0.5.3"
-source = "git+ssh://git@github.com/confio/poe-contracts.git#cfe396a5a2e224601a9e8589e6e462fb43ee401d"
+source = "git+ssh://git@github.com/confio/poe-contracts.git#83ef810e844ca33c74e141837822f861b79a34fe"
 dependencies = [
  "cosmwasm-std",
  "cw-storage-plus",
@@ -725,7 +709,7 @@ dependencies = [
 [[package]]
 name = "tg4"
 version = "0.5.3"
-source = "git+ssh://git@github.com/confio/poe-contracts.git#cfe396a5a2e224601a9e8589e6e462fb43ee401d"
+source = "git+ssh://git@github.com/confio/poe-contracts.git#83ef810e844ca33c74e141837822f861b79a34fe"
 dependencies = [
  "cosmwasm-std",
  "schemars",
@@ -736,7 +720,7 @@ dependencies = [
 [[package]]
 name = "tg4-engagement"
 version = "0.5.3"
-source = "git+ssh://git@github.com/confio/poe-contracts.git#cfe396a5a2e224601a9e8589e6e462fb43ee401d"
+source = "git+ssh://git@github.com/confio/poe-contracts.git#83ef810e844ca33c74e141837822f861b79a34fe"
 dependencies = [
  "cosmwasm-std",
  "cw-controllers",
@@ -768,7 +752,7 @@ dependencies = [
  "tg-bindings-test",
  "tg-test-utils",
  "tg-utils",
- "tg-voting-contract 0.5.3",
+ "tg-voting-contract",
  "tg4",
  "tg4-engagement",
  "tgrade-oc-proposals",
@@ -805,7 +789,7 @@ dependencies = [
  "tg-bindings-test",
  "tg-test-utils",
  "tg-utils",
- "tg-voting-contract 0.5.2",
+ "tg-voting-contract",
  "tg4",
  "tg4-engagement",
  "tgrade-valset",
@@ -840,7 +824,7 @@ dependencies = [
 [[package]]
 name = "tgrade-valset"
 version = "0.5.3"
-source = "git+ssh://git@github.com/confio/poe-contracts.git#cfe396a5a2e224601a9e8589e6e462fb43ee401d"
+source = "git+ssh://git@github.com/confio/poe-contracts.git#83ef810e844ca33c74e141837822f861b79a34fe"
 dependencies = [
  "cosmwasm-std",
  "cw-controllers",
