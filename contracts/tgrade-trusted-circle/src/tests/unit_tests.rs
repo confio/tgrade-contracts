@@ -1,12 +1,11 @@
 #![cfg(test)]
 use super::*;
-use serde::{Deserialize, Serialize};
 use std::marker::PhantomData;
 
 use cosmwasm_std::testing::{MockApi, MockStorage};
 use cosmwasm_std::{
-    to_binary, Addr, Binary, ContractResult, Deps, Empty, QuerierResult, QueryRequest, StdError,
-    SubMsg, SystemError, SystemResult, WasmQuery,
+    to_binary, Addr, Binary, ContractInfoResponse, ContractResult, Deps, Empty, QuerierResult,
+    QueryRequest, StdError, SubMsg, SystemError, SystemResult, WasmQuery,
 };
 use cw_storage_plus::Item;
 
@@ -21,20 +20,6 @@ pub const TOKEN_CONTRACT: Item<String> = Item::new("contract_info");
 struct TokenQuerier {
     contract: String,
     storage: MockStorage,
-}
-
-// TODO: we should import this from cosmwasm-std, but cannot due to non_exhaustive so copy here
-#[derive(Serialize, Deserialize, Clone, Debug, PartialEq)]
-pub struct ContractInfoResponse {
-    pub code_id: u64,
-    /// address that instantiated this contract
-    pub creator: String,
-    /// admin who can run migrations (if any)
-    pub admin: Option<String>,
-    /// if set, the contract is pinned to the cache, and thus uses less gas when called
-    pub pinned: bool,
-    /// set if this contract has bound an IBC port
-    pub ibc_port: Option<String>,
 }
 
 impl TokenQuerier {
@@ -97,13 +82,8 @@ impl TokenQuerier {
                 ibc_port: None,
             };
             */
-            let res = ContractInfoResponse {
-                code_id: 1,
-                creator: "dummy_creator".into(),
-                admin: None,
-                pinned: false,
-                ibc_port: None,
-            };
+
+            let res = ContractInfoResponse::new(1, "dummy_creator");
             let bin = to_binary(&res).unwrap();
             SystemResult::Ok(ContractResult::Ok(bin))
         }
