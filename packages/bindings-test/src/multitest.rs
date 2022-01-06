@@ -338,7 +338,7 @@ impl TgradeApp {
     pub fn new_genesis(owner: &str) -> Self {
         let owner = Addr::unchecked(owner);
         let block_info = BlockInfo {
-            height: 1,
+            height: 0,
             time: Timestamp::from_nanos(1_571_797_419_879_305_533),
             chain_id: "tgrade-testnet-14002".to_owned(),
         };

@@ -3,10 +3,9 @@ use super::suite::contract_trusted_circle;
 use crate::msg::{ExecuteMsg, InstantiateMsg, QueryMsg};
 use crate::state::ProposalContent;
 use anyhow::Result as AnyResult;
-use cosmwasm_std::{coins, Addr, CosmosMsg, Decimal, Uint128};
-use cw_multi_test::{CosmosRouter, Executor};
+use cosmwasm_std::{coins, Addr, Decimal, Uint128};
+use cw_multi_test::Executor;
 use tg4::MemberListResponse;
-use tg_bindings::TgradeMsg;
 use tg_bindings_test::TgradeApp;
 
 // This test doesn't use the generic test suite to ensure flow is well-tuned to the real live
@@ -20,22 +19,15 @@ fn genesis_oc() {
     let denom = "utgd";
 
     let mut app = TgradeApp::new_genesis(genesis_members[0]);
-    let block_info = app.block_info();
 
-    app.init_modules(|router, api, storage| -> AnyResult<()> {
+    app.init_modules(|router, _, storage| -> AnyResult<()> {
         for member in &genesis_members {
             router
-                .execute(
-                    api,
+                .bank
+                .init_balance(
                     storage,
-                    &block_info,
-                    member1.clone(),
-                    CosmosMsg::Custom(TgradeMsg::MintTokens {
-                        denom: denom.to_owned(),
-                        amount: Uint128::new(escrow_amount),
-                        recipient: (*member).to_owned(),
-                    })
-                    .into(),
+                    &Addr::unchecked(*member),
+                    coins(escrow_amount, denom),
                 )
                 .unwrap();
         }
@@ -66,6 +58,13 @@ fn genesis_oc() {
         )
         .unwrap();
 
+    let voters = genesis_members
+        .iter()
+        .skip(1)
+        .copied()
+        .map(str::to_owned)
+        .collect();
+
     let resp = app
         .execute_contract(
             member1.clone(),
@@ -73,14 +72,7 @@ fn genesis_oc() {
             &ExecuteMsg::Propose {
                 title: "Add genesis members".to_owned(),
                 description: "Add genesis members".to_owned(),
-                proposal: ProposalContent::AddVotingMembers {
-                    voters: genesis_members
-                        .iter()
-                        .skip(1)
-                        .copied()
-                        .map(str::to_owned)
-                        .collect(),
-                },
+                proposal: ProposalContent::AddVotingMembers { voters },
             },
             &[],
         )
@@ -125,6 +117,6 @@ fn genesis_oc() {
 
     // Ensure we are still in genesis (double check environment didn't perform accidential
     // advancement)
-    assert_eq!(1, app.block_info().height);
+    assert_eq!(0, app.block_info().height);
     assert_eq!(voting_members, genesis_members);
 }
