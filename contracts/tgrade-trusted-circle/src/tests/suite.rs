@@ -9,7 +9,7 @@ use tg_bindings_test::TgradeApp;
 use crate::msg::{ExecuteMsg, InstantiateMsg};
 use crate::state::ProposalContent;
 
-fn contract_trusted_circle() -> Box<dyn Contract<TgradeMsg>> {
+pub fn contract_trusted_circle() -> Box<dyn Contract<TgradeMsg>> {
     Box::new(ContractWrapper::new(
         crate::contract::execute,
         crate::contract::instantiate,

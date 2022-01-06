@@ -351,19 +351,29 @@ pub fn execute_return_escrow(
 
 pub fn execute_propose(
     deps: DepsMut,
-    env: Env,
+    mut env: Env,
     info: MessageInfo,
     title: String,
     description: String,
     proposal: ProposalContent,
 ) -> Result<Response, ContractError> {
     cw_utils::nonpayable(&info)?;
+
     // trigger check_pending (we should get this cheaper)
     // Note, we check this at the end of last block, so they will actually be included in the voters
     // of this proposal (which uses a snapshot)
-    let mut last_env = env.clone();
-    last_env.block.height -= 1;
-    let events = check_pending(deps.storage, &last_env)?;
+    // Also as this contract actually may be called on 0-height block, it has to be checked
+    // (probably can be removed in some migration after genesis).
+    let events = if env.block.height > 0 {
+        // As its only altering height for a while there is no point on clonning whole env just for
+        // one call. Height is restored literally 2 lines below.
+        env.block.height -= 1;
+        let events = check_pending(deps.storage, &env)?;
+        env.block.height += 1;
+        events
+    } else {
+        Vec::new()
+    };
 
     // only voting members  can create a proposal
     let vote_power = members()
