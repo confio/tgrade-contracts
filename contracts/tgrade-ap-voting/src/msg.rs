@@ -1,16 +1,21 @@
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
-use cosmwasm_std::Empty;
+use cosmwasm_std::{Coin, Empty};
 use cw3::Vote;
 
+use tg_utils::Duration;
 use tg_voting_contract::state::VotingRules;
 
 #[derive(Serialize, Deserialize, Clone, PartialEq, JsonSchema, Debug)]
 pub struct InstantiateMsg {
     pub rules: VotingRules,
-    // this is the group contract that contains the member list
+    /// this is the group contract that contains the member list
     pub group_addr: String,
+    /// Dispute cost on this contract
+    pub dispute_cost: Coin,
+    /// Waiting period for this contract
+    pub waiting_period: Duration,
 }
 
 // TODO: add some T variants? Maybe good enough as fixed Empty for now
@@ -31,6 +36,18 @@ pub enum ExecuteMsg {
     },
     Close {
         proposal_id: u64,
+    },
+    RegisterComplaint {
+        title: String,
+        description: String,
+        defendant: String,
+    },
+    AcceptComplaint {
+        complaint_id: u64,
+    },
+    WithdrawComplaint {
+        complaint_id: u64,
+        reason: String,
     },
 }
 
