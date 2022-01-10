@@ -1,13 +1,18 @@
 #[cfg(not(feature = "library"))]
 use cosmwasm_std::entry_point;
-use cosmwasm_std::{to_binary, Binary, Deps, DepsMut, Empty, Env, MessageInfo, StdResult};
+use cosmwasm_std::{
+    coin, to_binary, BankMsg, Binary, CosmosMsg, Decimal, Deps, DepsMut, Empty, Env, MessageInfo,
+    StdResult,
+};
 
 use cw2::set_contract_version;
 use cw3::Status;
+use cw_utils::must_pay;
 use tg_bindings::{request_privileges, Privilege, PrivilegeChangeMsg, TgradeMsg, TgradeSudoMsg};
 use tg_utils::ensure_from_older_version;
 
 use crate::msg::{ExecuteMsg, InstantiateMsg, QueryMsg};
+use crate::state::{Complaint, ComplaintState, Config, COMPLAINTS, CONFIG};
 use crate::ContractError;
 
 use tg_voting_contract::state::proposals;
@@ -32,6 +37,16 @@ pub fn instantiate(
     msg: InstantiateMsg,
 ) -> Result<Response, ContractError> {
     set_contract_version(deps.storage, CONTRACT_NAME, CONTRACT_VERSION)?;
+
+    CONFIG.save(
+        deps.storage,
+        &Config {
+            dispute_cost: msg.dispute_cost,
+            waiting_period: msg.waiting_period,
+            next_complaint_id: 0,
+        },
+    )?;
+
     tg_voting_contract::instantiate(deps, msg.rules, &msg.group_addr).map_err(ContractError::from)
 }
 
@@ -60,6 +75,16 @@ pub fn execute(
         Execute { proposal_id } => execute_execute(deps, info, proposal_id),
         Close { proposal_id } => execute_close::<EmptyProposal>(deps, env, info, proposal_id)
             .map_err(ContractError::from),
+        RegisterComplaint {
+            title,
+            description,
+            defendant,
+        } => execute_register_complaint(deps, env, info, title, description, defendant),
+        AcceptComplaint { complaint_id } => execute_accept_complaint(deps, env, info, complaint_id),
+        WithdrawComplaint {
+            complaint_id,
+            reason,
+        } => execute_withdraw_complaint(deps, env, info, complaint_id, reason),
     }
 }
 
@@ -88,6 +113,161 @@ pub fn execute_execute(
     Ok(Response::new()
         .add_attribute("action", "execute")
         .add_attribute("sender", info.sender))
+}
+
+pub fn execute_register_complaint(
+    deps: DepsMut,
+    env: Env,
+    info: MessageInfo,
+    title: String,
+    description: String,
+    defendant: String,
+) -> Result<Response, ContractError> {
+    let mut config = CONFIG.load(deps.storage)?;
+    let payment = must_pay(&info, &config.dispute_cost.denom)?;
+
+    if payment != config.dispute_cost.amount {
+        return Err(ContractError::InvalidDisputePayment {
+            paid: coin(payment.u128(), &config.dispute_cost.denom),
+            required: config.dispute_cost,
+        });
+    }
+
+    let complaint_id = std::iter::successors(Some(config.next_complaint_id), |next| {
+        Some(next.wrapping_add(1))
+    })
+    .find(|id| !COMPLAINTS.has(deps.storage, *id))
+    // This is `None` if and only if we already keep `u64::MAX_LIMIT` active complaints in storage,
+    // which is not a reasonable case to support
+    .unwrap();
+
+    let complaint = Complaint {
+        title,
+        description,
+        plaintiff: info.sender,
+        defendant: deps.api.addr_validate(&defendant)?,
+        state: ComplaintState::Initiated {
+            expiration: config.waiting_period.after(&env.block),
+        },
+    };
+
+    COMPLAINTS.save(deps.storage, complaint_id, &complaint)?;
+
+    config.next_complaint_id = config.next_complaint_id.wrapping_add(1);
+    CONFIG.save(deps.storage, &config)?;
+
+    let resp = Response::new()
+        .add_attribute("action", "register_complaint")
+        .add_attribute("title", complaint.title)
+        .add_attribute("plaintiff", complaint.plaintiff)
+        .add_attribute("defendant", complaint.defendant)
+        .add_attribute("complaint_id", complaint_id.to_string());
+
+    Ok(resp)
+}
+
+pub fn execute_accept_complaint(
+    deps: DepsMut,
+    env: Env,
+    info: MessageInfo,
+    complaint_id: u64,
+) -> Result<Response, ContractError> {
+    let config = CONFIG.load(deps.storage)?;
+    let payment = must_pay(&info, &config.dispute_cost.denom)?;
+
+    if payment != config.dispute_cost.amount {
+        return Err(ContractError::InvalidDisputePayment {
+            paid: coin(payment.u128(), &config.dispute_cost.denom),
+            required: config.dispute_cost,
+        });
+    }
+
+    COMPLAINTS.update(
+        deps.storage,
+        complaint_id,
+        |complaint| -> Result<Complaint, ContractError> {
+            let mut complaint = complaint.ok_or(ContractError::ComplaintMissing(complaint_id))?;
+
+            if info.sender != complaint.defendant {
+                return Err(ContractError::Unauthorized(info.sender.to_string()));
+            }
+
+            complaint.state = ComplaintState::Waiting {
+                wait_over: config.waiting_period.after(&env.block),
+            };
+
+            Ok(complaint)
+        },
+    )?;
+
+    let resp = Response::new()
+        .add_attribute("action", "accept_complaint")
+        .add_attribute("complaint_id", complaint_id.to_string());
+
+    Ok(resp)
+}
+
+fn execute_withdraw_complaint(
+    deps: DepsMut,
+    env: Env,
+    info: MessageInfo,
+    complaint_id: u64,
+    reason: String,
+) -> Result<Response, ContractError> {
+    let config = CONFIG.load(deps.storage)?;
+    let mut messages = vec![];
+
+    COMPLAINTS.update(
+        deps.storage,
+        complaint_id,
+        |complaint| -> Result<Complaint, ContractError> {
+            let mut complaint = complaint.ok_or(ContractError::ComplaintMissing(complaint_id))?;
+            if complaint.plaintiff != info.sender {
+                return Err(ContractError::Unauthorized(info.sender.into_string()));
+            }
+
+            match complaint.state {
+                ComplaintState::Initiated { expiration } if expiration.is_expired(&env.block) => {
+                    messages.push(CosmosMsg::from(BankMsg::Send {
+                        to_address: info.sender.into_string(),
+                        amount: vec![config.dispute_cost],
+                    }));
+                }
+                ComplaintState::Initiated { .. } => {
+                    let mut coin = config.dispute_cost;
+                    coin.amount = coin.amount * Decimal::percent(80);
+
+                    messages.push(CosmosMsg::from(BankMsg::Send {
+                        to_address: info.sender.into_string(),
+                        amount: vec![coin],
+                    }));
+                }
+                ComplaintState::Waiting { .. } => {
+                    let mut coin = config.dispute_cost;
+                    coin.amount = coin.amount * Decimal::percent(80);
+
+                    messages.push(CosmosMsg::from(BankMsg::Send {
+                        to_address: info.sender.into_string(),
+                        amount: vec![coin.clone()],
+                    }));
+                    messages.push(CosmosMsg::from(BankMsg::Send {
+                        to_address: complaint.defendant.to_string(),
+                        amount: vec![coin],
+                    }));
+                }
+                ComplaintState::Withdrawn { .. } => return Err(ContractError::ComplaintWithdrawn),
+            }
+
+            complaint.state = ComplaintState::Withdrawn { reason };
+            Ok(complaint)
+        },
+    )?;
+
+    let resp = Response::new()
+        .add_messages(messages)
+        .add_attribute("action", "withdraw_complaint")
+        .add_attribute("complaint_id", complaint_id.to_string());
+    Ok(resp)
 }
 
 fn align_limit(limit: Option<u32>) -> usize {
@@ -171,7 +351,8 @@ pub fn migrate(deps: DepsMut, _env: Env, _msg: Empty) -> Result<Response, Contra
 #[cfg(test)]
 mod tests {
     use cosmwasm_std::testing::{mock_dependencies, mock_env};
-    use cosmwasm_std::{from_slice, Addr, Decimal};
+    use cosmwasm_std::{coin, from_slice, Addr, Decimal};
+    use tg_utils::Duration;
     use tg_voting_contract::state::VotingRules;
 
     use super::*;
@@ -197,6 +378,8 @@ mod tests {
             InstantiateMsg {
                 rules,
                 group_addr: group_addr.to_owned(),
+                dispute_cost: coin(100, "utgd"),
+                waiting_period: Duration::new(3600),
             },
         )
         .unwrap();
