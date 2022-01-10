@@ -360,6 +360,17 @@ impl Suite {
         )
     }
 
+    pub fn propose_unjail(&mut self, executor: &str, target: &str) -> AnyResult<AppResponse> {
+        self.propose(
+            executor,
+            "proposal title",
+            "proposal description",
+            OversightProposal::Unjail {
+                member: Addr::unchecked(target),
+            },
+        )
+    }
+
     pub fn unjail(&mut self, operator: &str) -> AnyResult<AppResponse> {
         self.app.execute_contract(
             Addr::unchecked(operator),

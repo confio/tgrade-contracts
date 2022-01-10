@@ -141,6 +141,14 @@ pub fn execute_execute(
                 )?)?);
             }
         }
+
+        OversightProposal::Unjail { ref member } => {
+            res = res.add_submessage(valset_contract.encode_raw_msg(to_binary(
+                &JailMsg::Unjail {
+                    operator: Some(member.to_string()),
+                },
+            )?)?);
+        }
     }
 
     Ok(res)
