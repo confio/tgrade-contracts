@@ -1576,6 +1576,30 @@ dependencies = [
 ]
 
 [[package]]
+name = "tgrade-ap-voting"
+version = "0.5.2"
+dependencies = [
+ "anyhow",
+ "cosmwasm-schema",
+ "cosmwasm-std",
+ "cw-multi-test",
+ "cw-storage-plus",
+ "cw2",
+ "cw3",
+ "schemars",
+ "serde",
+ "tg-bindings",
+ "tg-bindings-test",
+ "tg-test-utils",
+ "tg-utils",
+ "tg-voting-contract",
+ "tg4",
+ "tg4-engagement",
+ "tgrade-oc-proposals",
+ "thiserror",
+]
+
+[[package]]
 name = "tgrade-community-pool"
 version = "0.5.2"
 dependencies = [
