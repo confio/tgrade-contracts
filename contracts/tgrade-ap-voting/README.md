@@ -1,4 +1,4 @@
-# Tgrade Validator Voting Proposals
+# Tgrade AP Voting Proposals
 
 This defines and implements Oversight Community functionality for managing
 engagement points and validator slashing, according to proposals voting,
