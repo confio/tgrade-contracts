@@ -597,4 +597,59 @@ mod voting {
             10 + 6
         );
     }
+
+    #[test]
+    fn unjail_through_proposal() {
+        let members = vec!["owner", "voter1", "voter2"];
+
+        let rules = RulesBuilder::new()
+            .with_threshold(Decimal::percent(50))
+            .build();
+
+        let reward_token = "REWARD";
+
+        let mut suite = SuiteBuilder::new()
+            .with_group_member(members[0], 1)
+            .with_group_member(members[1], 2)
+            .with_group_member(members[2], 3)
+            .with_epoch_reward(coin(30, reward_token))
+            .with_voting_rules(rules)
+            .build();
+
+        // Create, pass and execute slashing proposal
+        let response = suite
+            .propose_punish(
+                members[2],
+                members[1],
+                Decimal::percent(50),
+                JailingDuration::Duration(suite.epoch_length()),
+            )
+            .unwrap();
+        let proposal_id: u64 = get_proposal_id(&response).unwrap();
+        let proposal_status = suite.query_proposal_status(proposal_id).unwrap();
+        assert_eq!(proposal_status, Status::Passed);
+        suite.execute(members[2], proposal_id).unwrap();
+
+        // Create, pass and execute unjailing member[1] proposal
+        let response = suite.propose_unjail(members[2], members[1]).unwrap();
+        let proposal_id: u64 = get_proposal_id(&response).unwrap();
+        let proposal_status = suite.query_proposal_status(proposal_id).unwrap();
+        assert_eq!(proposal_status, Status::Passed);
+        suite.execute(members[2], proposal_id).unwrap();
+
+        // After first epoch, the rewards are not yet slashed.
+        // Member 1 has 2/6 weight, so gets 10 out of 30 reward tokens.
+        suite.advance_epoch().unwrap();
+        suite.withdraw_validation_reward(members[1]).unwrap();
+        assert_eq!(suite.token_balance(members[1], reward_token).unwrap(), 10);
+
+        // Next epoch, the new rewards are slashed. Member 1 now has
+        // 1/5 weight, so gets 6 out of 30 reward tokens.
+        suite.advance_epoch().unwrap();
+        suite.withdraw_validation_reward(members[1]).unwrap();
+        assert_eq!(
+            suite.token_balance(members[1], reward_token).unwrap(),
+            10 + 6
+        );
+    }
 }

@@ -18,6 +18,9 @@ pub enum OversightProposal {
         portion: Decimal,
         jailing_duration: Option<JailingDuration>,
     },
+    Unjail {
+        member: Addr,
+    },
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
