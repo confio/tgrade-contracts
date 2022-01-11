@@ -2,8 +2,9 @@
 use cosmwasm_std::entry_point;
 use cosmwasm_std::{
     coin, to_binary, BankMsg, Binary, CosmosMsg, Decimal, Deps, DepsMut, Empty, Env, MessageInfo,
-    StdResult,
+    Order, StdResult,
 };
+use cw_storage_plus::Bound;
 
 use cw2::set_contract_version;
 use cw3::Status;
@@ -11,7 +12,7 @@ use cw_utils::must_pay;
 use tg_bindings::{request_privileges, Privilege, PrivilegeChangeMsg, TgradeMsg, TgradeSudoMsg};
 use tg_utils::ensure_from_older_version;
 
-use crate::msg::{ExecuteMsg, InstantiateMsg, QueryMsg};
+use crate::msg::{ExecuteMsg, InstantiateMsg, ListComplaintsResp, QueryMsg};
 use crate::state::{Complaint, ComplaintState, Config, COMPLAINTS, CONFIG};
 use crate::ContractError;
 
@@ -133,13 +134,7 @@ pub fn execute_register_complaint(
         });
     }
 
-    let complaint_id = std::iter::successors(Some(config.next_complaint_id), |next| {
-        Some(next.wrapping_add(1))
-    })
-    .find(|id| !COMPLAINTS.has(deps.storage, *id))
-    // This is `None` if and only if we already keep `u64::MAX_LIMIT` active complaints in storage,
-    // which is not a reasonable case to support
-    .unwrap();
+    let complaint_id = config.next_complaint_id;
 
     let complaint = Complaint {
         title,
@@ -153,7 +148,7 @@ pub fn execute_register_complaint(
 
     COMPLAINTS.save(deps.storage, complaint_id, &complaint)?;
 
-    config.next_complaint_id = config.next_complaint_id.wrapping_add(1);
+    config.next_complaint_id = complaint_id + 1;
     CONFIG.save(deps.storage, &config)?;
 
     let resp = Response::new()
@@ -242,7 +237,7 @@ fn execute_withdraw_complaint(
                         amount: vec![coin],
                     }));
                 }
-                ComplaintState::Waiting { .. } => {
+                ComplaintState::Waiting { wait_over } if !wait_over.is_expired(&env.block) => {
                     let mut coin = config.dispute_cost;
                     coin.amount = coin.amount * Decimal::percent(80);
 
@@ -255,7 +250,12 @@ fn execute_withdraw_complaint(
                         amount: vec![coin],
                     }));
                 }
+                ComplaintState::Waiting { .. } => {
+                    // This is actually should be already in accepted state
+                    return Err(ContractError::ComplainAccepted);
+                }
                 ComplaintState::Withdrawn { .. } => return Err(ContractError::ComplaintWithdrawn),
+                ComplaintState::Accepted {} => return Err(ContractError::ComplainAccepted),
             }
 
             complaint.state = ComplaintState::Withdrawn { reason };
@@ -318,7 +318,34 @@ pub fn query(deps: Deps, env: Env, msg: QueryMsg) -> StdResult<Binary> {
         Voter { address } => to_binary(&query_voter(deps, address)?),
         ListVoters { start_after, limit } => to_binary(&list_voters(deps, start_after, limit)?),
         GroupContract {} => to_binary(&query_group_contract(deps)?),
+        Complaint { complaint_id } => to_binary(&query_complaint(deps, complaint_id)?),
+        ListComplaints { start_after, limit } => to_binary(&query_list_complaints(
+            deps,
+            start_after,
+            align_limit(limit),
+        )?),
     }
+}
+
+pub fn query_complaint(deps: Deps, complaint_id: u64) -> StdResult<Complaint> {
+    COMPLAINTS.load(deps.storage, complaint_id)
+}
+
+pub fn query_list_complaints(
+    deps: Deps,
+    start_after: Option<u64>,
+    limit: usize,
+) -> StdResult<ListComplaintsResp> {
+    let start = start_after.map(Bound::exclusive_int);
+    let complaints: StdResult<Vec<_>> = COMPLAINTS
+        .range(deps.storage, start, None, Order::Ascending)
+        .take(limit)
+        .map(|c| c.map(|(_, c)| c))
+        .collect();
+
+    Ok(ListComplaintsResp {
+        complaints: complaints?,
+    })
 }
 
 #[cfg_attr(not(feature = "library"), entry_point)]
