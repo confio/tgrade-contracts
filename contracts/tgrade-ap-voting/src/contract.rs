@@ -318,21 +318,35 @@ pub fn query(deps: Deps, env: Env, msg: QueryMsg) -> StdResult<Binary> {
         Voter { address } => to_binary(&query_voter(deps, address)?),
         ListVoters { start_after, limit } => to_binary(&list_voters(deps, start_after, limit)?),
         GroupContract {} => to_binary(&query_group_contract(deps)?),
-        Complaint { complaint_id } => to_binary(&query_complaint(deps, complaint_id)?),
+        Complaint { complaint_id } => to_binary(&query_complaint(deps, env, complaint_id)?),
         ListComplaints { start_after, limit } => to_binary(&query_list_complaints(
             deps,
+            env,
             start_after,
             align_limit(limit),
         )?),
     }
 }
 
-pub fn query_complaint(deps: Deps, complaint_id: u64) -> StdResult<Complaint> {
-    COMPLAINTS.load(deps.storage, complaint_id)
+pub fn accept_waiting_complaints(env: &Env, complaints: &mut [Complaint]) {
+    for complaint in complaints {
+        if matches!(&complaint.state, ComplaintState::Waiting { wait_over } if wait_over.is_expired(&env.block))
+        {
+            complaint.state = ComplaintState::Accepted {};
+        }
+    }
+}
+
+pub fn query_complaint(deps: Deps, env: Env, complaint_id: u64) -> StdResult<Complaint> {
+    let mut complaint = [COMPLAINTS.load(deps.storage, complaint_id)?];
+    accept_waiting_complaints(&env, &mut complaint);
+    let [complaint] = complaint;
+    Ok(complaint)
 }
 
 pub fn query_list_complaints(
     deps: Deps,
+    env: Env,
     start_after: Option<u64>,
     limit: usize,
 ) -> StdResult<ListComplaintsResp> {
@@ -343,8 +357,11 @@ pub fn query_list_complaints(
         .map(|c| c.map(|(_, c)| c))
         .collect();
 
+    let mut complaints = complaints?;
+    accept_waiting_complaints(&env, &mut complaints);
+
     Ok(ListComplaintsResp {
-        complaints: complaints?,
+        complaints: complaints,
     })
 }
 
@@ -414,5 +431,335 @@ mod tests {
         let query: Addr =
             from_slice(&query(deps.as_ref(), env, QueryMsg::GroupContract {}).unwrap()).unwrap();
         assert_eq!(query, Addr::unchecked(group_addr));
+    }
+
+    #[test]
+    fn register_complaint_requires_dispute() {
+        let sender = Addr::unchecked("sender");
+        let defendant = Addr::unchecked("defendant");
+        let dispute_cost = coin(100, "utgd");
+
+        let mut deps = mock_dependencies();
+        let env = mock_env();
+        let rules = VotingRules {
+            voting_period: 1,
+            quorum: Decimal::percent(50),
+            threshold: Decimal::percent(50),
+            allow_end_early: false,
+        };
+        let group_addr = "group_addr";
+        instantiate(
+            deps.as_mut(),
+            env.clone(),
+            MessageInfo {
+                sender: sender.clone(),
+                funds: vec![],
+            },
+            InstantiateMsg {
+                rules,
+                group_addr: group_addr.to_owned(),
+                dispute_cost: dispute_cost.clone(),
+                waiting_period: Duration::new(3600),
+            },
+        )
+        .unwrap();
+
+        let err = execute(
+            deps.as_mut(),
+            env.clone(),
+            MessageInfo {
+                sender: Addr::unchecked("sender"),
+                funds: vec![],
+            },
+            ExecuteMsg::RegisterComplaint {
+                title: "Complaint".to_owned(),
+                description: "Fist complaint".to_owned(),
+                defendant: defendant.to_string(),
+            },
+        )
+        .unwrap_err();
+
+        assert_eq!(
+            err,
+            ContractError::Payment(cw_utils::PaymentError::NoFunds {})
+        );
+    }
+
+    #[test]
+    fn register_complaint() {
+        let sender = Addr::unchecked("sender");
+        let defendant = Addr::unchecked("defendant");
+        let dispute_cost = coin(100, "utgd");
+        let waiting_period = Duration::new(3600);
+
+        let mut deps = mock_dependencies();
+        let env = mock_env();
+        let rules = VotingRules {
+            voting_period: 1,
+            quorum: Decimal::percent(50),
+            threshold: Decimal::percent(50),
+            allow_end_early: false,
+        };
+        let group_addr = "group_addr";
+        instantiate(
+            deps.as_mut(),
+            env.clone(),
+            MessageInfo {
+                sender: sender.clone(),
+                funds: vec![],
+            },
+            InstantiateMsg {
+                rules,
+                group_addr: group_addr.to_owned(),
+                dispute_cost: dispute_cost.clone(),
+                waiting_period: waiting_period.clone(),
+            },
+        )
+        .unwrap();
+
+        let result = execute(
+            deps.as_mut(),
+            env.clone(),
+            MessageInfo {
+                sender: sender.clone(),
+                funds: vec![dispute_cost.clone()],
+            },
+            ExecuteMsg::RegisterComplaint {
+                title: "Complaint".to_owned(),
+                description: "First complaint".to_owned(),
+                defendant: defendant.to_string(),
+            },
+        )
+        .unwrap();
+
+        let complaint_id: u64 = result
+            .attributes
+            .into_iter()
+            .find(|attr| attr.key == "complaint_id")
+            .unwrap()
+            .value
+            .parse()
+            .unwrap();
+
+        let resp: Complaint = from_slice(
+            &query(
+                deps.as_ref(),
+                env.clone(),
+                QueryMsg::Complaint { complaint_id },
+            )
+            .unwrap(),
+        )
+        .unwrap();
+
+        assert_eq!(
+            resp,
+            Complaint {
+                title: "Complaint".to_owned(),
+                description: "First complaint".to_owned(),
+                plaintiff: sender.clone(),
+                defendant: defendant.clone(),
+                state: ComplaintState::Initiated {
+                    expiration: waiting_period.after(&env.block)
+                },
+            }
+        );
+
+        let resp: ListComplaintsResp = from_slice(
+            &query(
+                deps.as_ref(),
+                env.clone(),
+                QueryMsg::ListComplaints {
+                    start_after: None,
+                    limit: None,
+                },
+            )
+            .unwrap(),
+        )
+        .unwrap();
+
+        assert_eq!(
+            resp,
+            ListComplaintsResp {
+                complaints: vec![Complaint {
+                    title: "Complaint".to_owned(),
+                    description: "First complaint".to_owned(),
+                    plaintiff: sender.clone(),
+                    defendant: defendant.clone(),
+                    state: ComplaintState::Initiated {
+                        expiration: waiting_period.after(&env.block)
+                    },
+                }]
+            }
+        )
+    }
+
+    #[test]
+    fn accept_complaint() {
+        let sender = Addr::unchecked("sender");
+        let defendant = Addr::unchecked("defendant");
+        let dispute_cost = coin(100, "utgd");
+        let waiting_period = Duration::new(3600);
+
+        let mut deps = mock_dependencies();
+        let mut env = mock_env();
+        let rules = VotingRules {
+            voting_period: 1,
+            quorum: Decimal::percent(50),
+            threshold: Decimal::percent(50),
+            allow_end_early: false,
+        };
+        let group_addr = "group_addr";
+        instantiate(
+            deps.as_mut(),
+            env.clone(),
+            MessageInfo {
+                sender: sender.clone(),
+                funds: vec![],
+            },
+            InstantiateMsg {
+                rules,
+                group_addr: group_addr.to_owned(),
+                dispute_cost: dispute_cost.clone(),
+                waiting_period: waiting_period.clone(),
+            },
+        )
+        .unwrap();
+
+        env.block.time = env.block.time.plus_seconds(1);
+
+        let result = execute(
+            deps.as_mut(),
+            env.clone(),
+            MessageInfo {
+                sender: sender.clone(),
+                funds: vec![dispute_cost.clone()],
+            },
+            ExecuteMsg::RegisterComplaint {
+                title: "Complaint".to_owned(),
+                description: "First complaint".to_owned(),
+                defendant: defendant.to_string(),
+            },
+        )
+        .unwrap();
+
+        let complaint_id: u64 = result
+            .attributes
+            .into_iter()
+            .find(|attr| attr.key == "complaint_id")
+            .unwrap()
+            .value
+            .parse()
+            .unwrap();
+
+        execute(
+            deps.as_mut(),
+            env.clone(),
+            MessageInfo {
+                sender: defendant.clone(),
+                funds: vec![dispute_cost.clone()],
+            },
+            ExecuteMsg::AcceptComplaint { complaint_id },
+        )
+        .unwrap();
+
+        let resp: Complaint = from_slice(
+            &query(
+                deps.as_ref(),
+                env.clone(),
+                QueryMsg::Complaint { complaint_id },
+            )
+            .unwrap(),
+        )
+        .unwrap();
+
+        assert_eq!(
+            resp,
+            Complaint {
+                title: "Complaint".to_owned(),
+                description: "First complaint".to_owned(),
+                plaintiff: sender.clone(),
+                defendant: defendant.clone(),
+                state: ComplaintState::Waiting {
+                    wait_over: waiting_period.after(&env.block)
+                },
+            }
+        );
+
+        let resp: ListComplaintsResp = from_slice(
+            &query(
+                deps.as_ref(),
+                env.clone(),
+                QueryMsg::ListComplaints {
+                    start_after: None,
+                    limit: None,
+                },
+            )
+            .unwrap(),
+        )
+        .unwrap();
+
+        assert_eq!(
+            resp,
+            ListComplaintsResp {
+                complaints: vec![Complaint {
+                    title: "Complaint".to_owned(),
+                    description: "First complaint".to_owned(),
+                    plaintiff: sender.clone(),
+                    defendant: defendant.clone(),
+                    state: ComplaintState::Waiting {
+                        wait_over: waiting_period.after(&env.block)
+                    },
+                }]
+            }
+        );
+
+        env.block.time = env.block.time.plus_seconds(waiting_period.seconds());
+
+        let resp: Complaint = from_slice(
+            &query(
+                deps.as_ref(),
+                env.clone(),
+                QueryMsg::Complaint { complaint_id },
+            )
+            .unwrap(),
+        )
+        .unwrap();
+
+        assert_eq!(
+            resp,
+            Complaint {
+                title: "Complaint".to_owned(),
+                description: "First complaint".to_owned(),
+                plaintiff: sender.clone(),
+                defendant: defendant.clone(),
+                state: ComplaintState::Accepted {},
+            }
+        );
+
+        let resp: ListComplaintsResp = from_slice(
+            &query(
+                deps.as_ref(),
+                env.clone(),
+                QueryMsg::ListComplaints {
+                    start_after: None,
+                    limit: None,
+                },
+            )
+            .unwrap(),
+        )
+        .unwrap();
+
+        assert_eq!(
+            resp,
+            ListComplaintsResp {
+                complaints: vec![Complaint {
+                    title: "Complaint".to_owned(),
+                    description: "First complaint".to_owned(),
+                    plaintiff: sender.clone(),
+                    defendant: defendant.clone(),
+                    state: ComplaintState::Accepted {},
+                }]
+            }
+        );
     }
 }
