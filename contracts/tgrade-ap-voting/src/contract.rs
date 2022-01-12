@@ -360,9 +360,7 @@ pub fn query_list_complaints(
     let mut complaints = complaints?;
     accept_waiting_complaints(&env, &mut complaints);
 
-    Ok(ListComplaintsResp {
-        complaints: complaints,
-    })
+    Ok(ListComplaintsResp { complaints })
 }
 
 #[cfg_attr(not(feature = "library"), entry_point)]
@@ -452,13 +450,13 @@ mod tests {
             deps.as_mut(),
             env.clone(),
             MessageInfo {
-                sender: sender.clone(),
+                sender,
                 funds: vec![],
             },
             InstantiateMsg {
                 rules,
                 group_addr: group_addr.to_owned(),
-                dispute_cost: dispute_cost.clone(),
+                dispute_cost,
                 waiting_period: Duration::new(3600),
             },
         )
@@ -466,7 +464,7 @@ mod tests {
 
         let err = execute(
             deps.as_mut(),
-            env.clone(),
+            env,
             MessageInfo {
                 sender: Addr::unchecked("sender"),
                 funds: vec![],
@@ -512,7 +510,7 @@ mod tests {
                 rules,
                 group_addr: group_addr.to_owned(),
                 dispute_cost: dispute_cost.clone(),
-                waiting_period: waiting_period.clone(),
+                waiting_period,
             },
         )
         .unwrap();
@@ -522,7 +520,7 @@ mod tests {
             env.clone(),
             MessageInfo {
                 sender: sender.clone(),
-                funds: vec![dispute_cost.clone()],
+                funds: vec![dispute_cost],
             },
             ExecuteMsg::RegisterComplaint {
                 title: "Complaint".to_owned(),
@@ -583,14 +581,161 @@ mod tests {
                 complaints: vec![Complaint {
                     title: "Complaint".to_owned(),
                     description: "First complaint".to_owned(),
-                    plaintiff: sender.clone(),
-                    defendant: defendant.clone(),
+                    plaintiff: sender,
+                    defendant,
                     state: ComplaintState::Initiated {
                         expiration: waiting_period.after(&env.block)
                     },
                 }]
             }
         )
+    }
+
+    #[test]
+    fn accept_complaint_required_dispute() {
+        let sender = Addr::unchecked("sender");
+        let defendant = Addr::unchecked("defendant");
+        let dispute_cost = coin(100, "utgd");
+        let waiting_period = Duration::new(3600);
+
+        let mut deps = mock_dependencies();
+        let mut env = mock_env();
+        let rules = VotingRules {
+            voting_period: 1,
+            quorum: Decimal::percent(50),
+            threshold: Decimal::percent(50),
+            allow_end_early: false,
+        };
+        let group_addr = "group_addr";
+        instantiate(
+            deps.as_mut(),
+            env.clone(),
+            MessageInfo {
+                sender: sender.clone(),
+                funds: vec![],
+            },
+            InstantiateMsg {
+                rules,
+                group_addr: group_addr.to_owned(),
+                dispute_cost: dispute_cost.clone(),
+                waiting_period,
+            },
+        )
+        .unwrap();
+
+        env.block.time = env.block.time.plus_seconds(1);
+
+        let result = execute(
+            deps.as_mut(),
+            env.clone(),
+            MessageInfo {
+                sender,
+                funds: vec![dispute_cost],
+            },
+            ExecuteMsg::RegisterComplaint {
+                title: "Complaint".to_owned(),
+                description: "First complaint".to_owned(),
+                defendant: defendant.to_string(),
+            },
+        )
+        .unwrap();
+
+        let complaint_id: u64 = result
+            .attributes
+            .into_iter()
+            .find(|attr| attr.key == "complaint_id")
+            .unwrap()
+            .value
+            .parse()
+            .unwrap();
+
+        let err = execute(
+            deps.as_mut(),
+            env,
+            MessageInfo {
+                sender: defendant,
+                funds: vec![],
+            },
+            ExecuteMsg::AcceptComplaint { complaint_id },
+        )
+        .unwrap_err();
+
+        assert_eq!(
+            err,
+            ContractError::Payment(cw_utils::PaymentError::NoFunds {})
+        );
+    }
+
+    #[test]
+    fn accept_complaint_only_by_defendant() {
+        let sender = Addr::unchecked("sender");
+        let defendant = Addr::unchecked("defendant");
+        let dispute_cost = coin(100, "utgd");
+        let waiting_period = Duration::new(3600);
+
+        let mut deps = mock_dependencies();
+        let mut env = mock_env();
+        let rules = VotingRules {
+            voting_period: 1,
+            quorum: Decimal::percent(50),
+            threshold: Decimal::percent(50),
+            allow_end_early: false,
+        };
+        let group_addr = "group_addr";
+        instantiate(
+            deps.as_mut(),
+            env.clone(),
+            MessageInfo {
+                sender: sender.clone(),
+                funds: vec![],
+            },
+            InstantiateMsg {
+                rules,
+                group_addr: group_addr.to_owned(),
+                dispute_cost: dispute_cost.clone(),
+                waiting_period,
+            },
+        )
+        .unwrap();
+
+        env.block.time = env.block.time.plus_seconds(1);
+
+        let result = execute(
+            deps.as_mut(),
+            env.clone(),
+            MessageInfo {
+                sender,
+                funds: vec![dispute_cost.clone()],
+            },
+            ExecuteMsg::RegisterComplaint {
+                title: "Complaint".to_owned(),
+                description: "First complaint".to_owned(),
+                defendant: defendant.to_string(),
+            },
+        )
+        .unwrap();
+
+        let complaint_id: u64 = result
+            .attributes
+            .into_iter()
+            .find(|attr| attr.key == "complaint_id")
+            .unwrap()
+            .value
+            .parse()
+            .unwrap();
+
+        let err = execute(
+            deps.as_mut(),
+            env,
+            MessageInfo {
+                sender: Addr::unchecked("random"),
+                funds: vec![dispute_cost],
+            },
+            ExecuteMsg::AcceptComplaint { complaint_id },
+        )
+        .unwrap_err();
+
+        assert_eq!(err, ContractError::Unauthorized("random".to_owned()));
     }
 
     #[test]
@@ -620,7 +765,7 @@ mod tests {
                 rules,
                 group_addr: group_addr.to_owned(),
                 dispute_cost: dispute_cost.clone(),
-                waiting_period: waiting_period.clone(),
+                waiting_period,
             },
         )
         .unwrap();
@@ -656,7 +801,7 @@ mod tests {
             env.clone(),
             MessageInfo {
                 sender: defendant.clone(),
-                funds: vec![dispute_cost.clone()],
+                funds: vec![dispute_cost],
             },
             ExecuteMsg::AcceptComplaint { complaint_id },
         )
@@ -739,7 +884,7 @@ mod tests {
         let resp: ListComplaintsResp = from_slice(
             &query(
                 deps.as_ref(),
-                env.clone(),
+                env,
                 QueryMsg::ListComplaints {
                     start_after: None,
                     limit: None,
@@ -755,8 +900,8 @@ mod tests {
                 complaints: vec![Complaint {
                     title: "Complaint".to_owned(),
                     description: "First complaint".to_owned(),
-                    plaintiff: sender.clone(),
-                    defendant: defendant.clone(),
+                    plaintiff: sender,
+                    defendant,
                     state: ComplaintState::Accepted {},
                 }]
             }
