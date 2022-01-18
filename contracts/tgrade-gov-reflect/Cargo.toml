@@ -22,10 +22,10 @@ backtraces = ["cosmwasm-std/backtraces"]
 [dependencies]
 cosmwasm-std = "1.0.0-beta"
 cw-storage-plus = "0.11.0"
-tg-bindings = { version = "0.5.2", path = "../../packages/bindings" }
+tg-bindings = { git = "ssh://git@github.com/confio/poe-contracts.git", version = "0.5.3" }
 schemars = "0.8.1"
 serde = { version = "1.0.103", default-features = false, features = ["derive"] }
 thiserror = "1"
 
 [dev-dependencies]
-cosmwasm-schema = "1.0.0-beta"
+cosmwasm-schema = "1.0.0-beta4"

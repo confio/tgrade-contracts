@@ -24,9 +24,9 @@ cw2 = "0.11.0"
 cw3 = "0.11.0"
 cw-controllers = "0.11.0"
 cw-storage-plus = "0.11.0"
-tg4 = { path = "../../packages/tg4", version = "0.5.2" }
-tg-bindings = { path = "../../packages/bindings", version = "0.5.2" }
-tg-utils = { path = "../../packages/utils", version = "0.5.2" }
+tg4 = { git = "ssh://git@github.com/confio/poe-contracts.git", version = "0.5.3" }
+tg-bindings = { git = "ssh://git@github.com/confio/poe-contracts.git", version = "0.5.3" }
+tg-utils = { git = "ssh://git@github.com/confio/poe-contracts.git", version = "0.5.3" }
 cosmwasm-std = "1.0.0-beta4"
 schemars = "0.8"
 serde = { version = "1.0.103", default-features = false, features = ["derive"] }
@@ -36,7 +36,7 @@ thiserror = { version = "1.0.21" }
 cosmwasm-schema = { version = "1.0.0-beta4" }
 cw-multi-test = "0.11.0"
 anyhow = "1"
-tg-bindings-test = { version = "0.5.2", path = "../../packages/bindings-test" }
+tg-bindings-test = { git = "ssh://git@github.com/confio/poe-contracts.git", version = "0.5.3" }
 derivative = "2"
-tg4-engagement = { version = "0.5.2", path = "../../contracts/tg4-engagement" }
+tg4-engagement = { git = "ssh://git@github.com/confio/poe-contracts.git", version = "0.5.3" }
 assert_matches = "1"
