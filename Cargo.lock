@@ -652,9 +652,9 @@ dependencies = [
 
 [[package]]
 name = "tg-bindings-test"
-version = "0.5.3"
+version = "0.5.3-2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "6e12febb1bb54d0dff4000a5054c0fec36631646bc02e6cbd9af458b55d4b5ea"
+checksum = "d5e3e469353e0138008e79cda52e2f98c75dcca44d08b648e7f3cee1d8eb333a"
 dependencies = [
  "anyhow",
  "cosmwasm-std",

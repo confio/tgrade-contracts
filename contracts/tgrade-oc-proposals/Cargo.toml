@@ -19,11 +19,11 @@ cw3 = "0.11.0"
 cosmwasm-std = "1.0.0-beta4"
 schemars = "0.8.1"
 serde = { version = "1", default-features = false, features = ["derive"] }
-tg4 = { version = "0.5.3" }
-tg4-engagement = { version = "0.5.3", features = ["library"] }
-tg-bindings = { version = "0.5.3" }
-tg-utils = { version = "0.5.3" }
-tg-voting-contract = { version = "0.5.3" }
+tg4 = { version = "0.5.3-2" }
+tg4-engagement = { version = "0.5.3-2", features = ["library"] }
+tg-bindings = { version = "0.5.3-2" }
+tg-utils = { version = "0.5.3-2" }
+tg-voting-contract = { version = "0.5.3-2" }
 thiserror = "1"
 cw-storage-plus = "0.11.0"
 
@@ -31,6 +31,6 @@ cw-storage-plus = "0.11.0"
 anyhow = "1"
 cosmwasm-schema = "1.0.0-beta4"
 cw-multi-test = "0.11.0"
-tg-bindings-test = { version = "0.5.3" }
-tg-test-utils = { version = "0.5.3" }
-tgrade-valset = { version = "0.5.3" }
+tg-bindings-test = { version = "0.5.3-2" }
+tg-test-utils = { version = "0.5.3-2" }
+tgrade-valset = { version = "0.5.3-2" }
