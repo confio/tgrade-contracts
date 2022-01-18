@@ -148,7 +148,7 @@ pub fn execute_register_complaint(
 
     COMPLAINTS.save(deps.storage, complaint_id, &complaint)?;
 
-    config.next_complaint_id = complaint_id + 1;
+    config.next_complaint_id += 1;
     CONFIG.save(deps.storage, &config)?;
 
     let resp = Response::new()
@@ -187,6 +187,11 @@ pub fn execute_accept_complaint(
                 return Err(ContractError::Unauthorized(info.sender.to_string()));
             }
 
+            let state = complaint.current_state(&env.block);
+            if !matches!(state, ComplaintState::Initiated { .. }) {
+                return Err(ContractError::ImproperState(state));
+            }
+
             complaint.state = ComplaintState::Waiting {
                 wait_over: config.waiting_period.after(&env.block),
             };
@@ -221,13 +226,7 @@ fn execute_withdraw_complaint(
                 return Err(ContractError::Unauthorized(info.sender.into_string()));
             }
 
-            match complaint.state {
-                ComplaintState::Initiated { expiration } if expiration.is_expired(&env.block) => {
-                    messages.push(CosmosMsg::from(BankMsg::Send {
-                        to_address: info.sender.into_string(),
-                        amount: vec![config.dispute_cost],
-                    }));
-                }
+            match complaint.current_state(&env.block) {
                 ComplaintState::Initiated { .. } => {
                     let mut coin = config.dispute_cost;
                     coin.amount = coin.amount * Decimal::percent(80);
@@ -237,7 +236,7 @@ fn execute_withdraw_complaint(
                         amount: vec![coin],
                     }));
                 }
-                ComplaintState::Waiting { wait_over } if !wait_over.is_expired(&env.block) => {
+                ComplaintState::Waiting { .. } => {
                     let mut coin = config.dispute_cost;
                     coin.amount = coin.amount * Decimal::percent(80);
 
@@ -250,12 +249,18 @@ fn execute_withdraw_complaint(
                         amount: vec![coin],
                     }));
                 }
-                ComplaintState::Waiting { .. } => {
-                    // This is actually should be already in accepted state
-                    return Err(ContractError::ComplainAccepted);
+                ComplaintState::Aborted { .. } => {
+                    messages.push(CosmosMsg::from(BankMsg::Send {
+                        to_address: info.sender.into_string(),
+                        amount: vec![config.dispute_cost],
+                    }));
                 }
-                ComplaintState::Withdrawn { .. } => return Err(ContractError::ComplaintWithdrawn),
-                ComplaintState::Accepted {} => return Err(ContractError::ComplainAccepted),
+                state @ ComplaintState::Withdrawn { .. } => {
+                    return Err(ContractError::ImproperState(state))
+                }
+                ComplaintState::Accepted {} => {
+                    return Err(ContractError::ImproperState(ComplaintState::Accepted {}))
+                }
             }
 
             complaint.state = ComplaintState::Withdrawn { reason };
@@ -328,20 +333,9 @@ pub fn query(deps: Deps, env: Env, msg: QueryMsg) -> StdResult<Binary> {
     }
 }
 
-pub fn accept_waiting_complaints(env: &Env, complaints: &mut [Complaint]) {
-    for complaint in complaints {
-        if matches!(&complaint.state, ComplaintState::Waiting { wait_over } if wait_over.is_expired(&env.block))
-        {
-            complaint.state = ComplaintState::Accepted {};
-        }
-    }
-}
-
 pub fn query_complaint(deps: Deps, env: Env, complaint_id: u64) -> StdResult<Complaint> {
-    let mut complaint = [COMPLAINTS.load(deps.storage, complaint_id)?];
-    accept_waiting_complaints(&env, &mut complaint);
-    let [complaint] = complaint;
-    Ok(complaint)
+    let complaint = COMPLAINTS.load(deps.storage, complaint_id)?;
+    Ok(complaint.update_state(&env.block))
 }
 
 pub fn query_list_complaints(
@@ -351,16 +345,12 @@ pub fn query_list_complaints(
     limit: usize,
 ) -> StdResult<ListComplaintsResp> {
     let start = start_after.map(Bound::exclusive_int);
-    let complaints: StdResult<Vec<_>> = COMPLAINTS
+    COMPLAINTS
         .range(deps.storage, start, None, Order::Ascending)
         .take(limit)
-        .map(|c| c.map(|(_, c)| c))
-        .collect();
-
-    let mut complaints = complaints?;
-    accept_waiting_complaints(&env, &mut complaints);
-
-    Ok(ListComplaintsResp { complaints })
+        .map(|c| c.map(|(_, complaint)| complaint.update_state(&env.block)))
+        .collect::<Result<_, _>>()
+        .map(|complaints| ListComplaintsResp { complaints })
 }
 
 #[cfg_attr(not(feature = "library"), entry_point)]
