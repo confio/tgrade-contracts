@@ -1,6 +1,6 @@
 [package]
 name = "tgrade-gov-reflect"
-version = "0.5.2"
+version = "0.5.3"
 authors = ["Ethan Frey <ethanfrey@users.noreply.github.com>"]
 edition = "2018"
 

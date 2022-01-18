@@ -1,6 +1,6 @@
 [package]
 name = "tgrade-ap-voting"
-version = "0.5.2"
+version = "0.5.3"
 authors = ["Bartłomiej Kuras <bart.k@confio.gmbh>"]
 edition = "2018"
 description = "Implementing tgrade-ap-voting"
