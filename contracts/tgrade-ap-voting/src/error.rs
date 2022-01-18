@@ -1,6 +1,8 @@
 use cosmwasm_std::{Coin, StdError};
 use thiserror::Error;
 
+use crate::state::ComplaintState;
+
 #[derive(Error, Debug, PartialEq)]
 pub enum ContractError {
     #[error("{0}")]
@@ -33,11 +35,8 @@ pub enum ContractError {
     #[error("Requested complaint does not exist, complaint id: {0}")]
     ComplaintMissing(u64),
 
-    #[error("Complaint withdrawn")]
-    ComplaintWithdrawn,
-
-    #[error("Complaint accepted")]
-    ComplainAccepted,
+    #[error("This operation is not valid for this complaint state ({0:?})")]
+    ImproperState(ComplaintState),
 }
 
 impl From<tg_voting_contract::ContractError> for ContractError {
