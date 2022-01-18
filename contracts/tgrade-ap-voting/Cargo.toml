@@ -1,6 +1,6 @@
 [package]
 name = "tgrade-ap-voting"
-version = "0.5.2"
+version = "0.5.3"
 authors = ["Bartłomiej Kuras <bart.k@confio.gmbh>"]
 edition = "2018"
 description = "Implementing tgrade-ap-voting"
@@ -19,19 +19,9 @@ cw3 = "0.11.0"
 cosmwasm-std = "1.0.0-beta"
 schemars = "0.8.1"
 serde = { version = "1", default-features = false, features = ["derive"] }
-tg-bindings = { git = "ssh://git@github.com/confio/poe-contracts.git", version = "0.5.3" }
-tg-voting-contract = { git = "ssh://git@github.com/confio/poe-contracts.git", version = "0.5.3" }
+tg-bindings = { version = "0.5.3-2" }
+tg-voting-contract = { version = "0.5.3-2" }
 thiserror = "1"
 
 [dev-dependencies]
-anyhow = "1"
 cosmwasm-schema = "1.0.0-beta4"
-cw-multi-test = "0.11.0"
-cw-storage-plus = "0.11.0"
-tg-bindings-test = { git = "ssh://git@github.com/confio/poe-contracts.git", version = "0.5.3" }
-tg-utils = { git = "ssh://git@github.com/confio/poe-contracts.git", version = "0.5.3" }
-tg-test-utils = { git = "ssh://git@github.com/confio/poe-contracts.git", version = "0.5.3" }
-tg-voting-contract = { git = "ssh://git@github.com/confio/poe-contracts.git", version = "0.5.3" }
-tg4 = { git = "ssh://git@github.com/confio/poe-contracts.git", version = "0.5.3" }
-tg4-engagement = { git = "ssh://git@github.com/confio/poe-contracts.git", version = "0.5.3", features = ["library"] }
-tgrade-oc-proposals = { version = "0.5.2", path = "../tgrade-oc-proposals" }
