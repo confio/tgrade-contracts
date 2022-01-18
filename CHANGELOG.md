@@ -2,7 +2,11 @@
 
 ## [Unreleased](https://github.com/confio/tgrade-contracts/tree/HEAD)
 
-[Full Changelog](https://github.com/confio/tgrade-contracts/compare/v0.5.2...HEAD)
+[Full Changelog](https://github.com/confio/tgrade-contracts/compare/v0.5.3...HEAD)
+
+## [v0.5.3](https://github.com/confio/tgrade-contracts/tree/v0.5.3) (2022-01-18)
+
+[Full Changelog](https://github.com/confio/tgrade-contracts/compare/v0.5.2...v0.5.3)
 
 **Closed issues:**
 
@@ -24,7 +28,6 @@
 - Removed contract moved to poe-contracts repo [\#425](https://github.com/confio/tgrade-contracts/pull/425) ([hashedone](https://github.com/hashedone))
 - Simplify claims index [\#423](https://github.com/confio/tgrade-contracts/pull/423) ([maurolacy](https://github.com/maurolacy))
 - Upgrade to cw-plus v0.11.0 [\#422](https://github.com/confio/tgrade-contracts/pull/422) ([maurolacy](https://github.com/maurolacy))
-- 0.5.2 release [\#421](https://github.com/confio/tgrade-contracts/pull/421) ([hashedone](https://github.com/hashedone))
 
 ## [v0.5.2](https://github.com/confio/tgrade-contracts/tree/v0.5.2) (2021-12-28)
 
@@ -32,6 +35,7 @@
 
 **Closed issues:**
 
+- 0.5.2 release [\#421](https://github.com/confio/tgrade-contracts/pull/421) ([hashedone](https://github.com/hashedone))
 - Make Punishment snake case [\#411](https://github.com/confio/tgrade-contracts/issues/411)
 - Kicking Out on Trusted Circle with 0% slashing leads to error [\#410](https://github.com/confio/tgrade-contracts/issues/410)
 - Implement Community Pool Send Proposal [\#406](https://github.com/confio/tgrade-contracts/issues/406)
