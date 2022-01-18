@@ -1,5 +1,31 @@
 # Changelog
 
+## [Unreleased](https://github.com/confio/tgrade-contracts/tree/HEAD)
+
+[Full Changelog](https://github.com/confio/tgrade-contracts/compare/v0.5.2...HEAD)
+
+**Closed issues:**
+
+- valset: remove bytzantine validators immediately [\#439](https://github.com/confio/tgrade-contracts/issues/439)
+- valset: JailingPeriod contains upper case key [\#438](https://github.com/confio/tgrade-contracts/issues/438)
+- \[tgrade-oc-proposals\] Add Unjail proposal [\#430](https://github.com/confio/tgrade-contracts/issues/430)
+- trusted-circle: Test we can create OC in genesis [\#426](https://github.com/confio/tgrade-contracts/issues/426)
+- Make sure all `BankMsg`s doesn't try to send 0 tokens [\#424](https://github.com/confio/tgrade-contracts/issues/424)
+- Upgrade to cw-plus 0.11 [\#418](https://github.com/confio/tgrade-contracts/issues/418)
+- Cut tgrade-contracts v0.5.2 [\#412](https://github.com/confio/tgrade-contracts/issues/412)
+- Use `cosmwasm_std::ContractInfoReponse` [\#374](https://github.com/confio/tgrade-contracts/issues/374)
+
+**Merged pull requests:**
+
+- OC proposals: add unjail proposal [\#431](https://github.com/confio/tgrade-contracts/pull/431) ([ueco-jb](https://github.com/ueco-jb))
+- tgrade-ap-voting: Base contract [\#429](https://github.com/confio/tgrade-contracts/pull/429) ([hashedone](https://github.com/hashedone))
+- tgrade-trusted-circle: Genesis instantiation test [\#428](https://github.com/confio/tgrade-contracts/pull/428) ([hashedone](https://github.com/hashedone))
+- tgrade-trusted-circle: Use std ContractInfoResponse in tests [\#427](https://github.com/confio/tgrade-contracts/pull/427) ([hashedone](https://github.com/hashedone))
+- Removed contract moved to poe-contracts repo [\#425](https://github.com/confio/tgrade-contracts/pull/425) ([hashedone](https://github.com/hashedone))
+- Simplify claims index [\#423](https://github.com/confio/tgrade-contracts/pull/423) ([maurolacy](https://github.com/maurolacy))
+- Upgrade to cw-plus v0.11.0 [\#422](https://github.com/confio/tgrade-contracts/pull/422) ([maurolacy](https://github.com/maurolacy))
+- 0.5.2 release [\#421](https://github.com/confio/tgrade-contracts/pull/421) ([hashedone](https://github.com/hashedone))
+
 ## [v0.5.2](https://github.com/confio/tgrade-contracts/tree/v0.5.2) (2021-12-28)
 
 [Full Changelog](https://github.com/confio/tgrade-contracts/compare/v0.5.1...v0.5.2)
