@@ -1,8 +1,8 @@
 # Changelog
 
-## [v.0.5.2](https://github.com/confio/tgrade-contracts/tree/v0.5.2) (2021-12-28)
+## [v0.5.2](https://github.com/confio/tgrade-contracts/tree/v0.5.2) (2021-12-28)
 
-[Full Changelog](https://github.com/confio/tgrade-contracts/compare/v0.5.1...HEAD)
+[Full Changelog](https://github.com/confio/tgrade-contracts/compare/v0.5.1...v0.5.2)
 
 **Closed issues:**
 
