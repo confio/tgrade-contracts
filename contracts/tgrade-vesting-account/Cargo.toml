@@ -15,20 +15,20 @@ crate-type = ["cdylib", "rlib"]
 library = []
 
 [dependencies]
-cosmwasm-std = "1.0.0-beta"
+cosmwasm-std = "1.0.0-beta4"
 cw-utils = "0.11.0"
 cw2 = "0.11.0"
 cw-storage-plus = "0.11.0"
 schemars = "0.8.1"
 serde = { version = "1.0.103", default-features = false, features = ["derive"] }
-tg-bindings = { git = "ssh://git@github.com/confio/poe-contracts.git", version = "0.5.2" }
-tg-utils = { git = "ssh://git@github.com/confio/poe-contracts.git", version = "0.5.2" }
+tg-bindings = { git = "ssh://git@github.com/confio/poe-contracts.git", version = "0.5.3" }
+tg-utils = { git = "ssh://git@github.com/confio/poe-contracts.git", version = "0.5.3" }
 thiserror = "1"
 
 [dev-dependencies]
 anyhow = "1"
 assert_matches = "1"
 derivative = "2"
-cosmwasm-schema = "1.0.0-beta"
+cosmwasm-schema = "1.0.0-beta4"
 cw-multi-test = "0.11.0"
-tg-bindings-test = { git = "ssh://git@github.com/confio/poe-contracts.git", version = "0.5.2" }
+tg-bindings-test = { git = "ssh://git@github.com/confio/poe-contracts.git", version = "0.5.3" }
