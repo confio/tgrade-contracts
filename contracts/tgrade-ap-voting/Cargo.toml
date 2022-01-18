@@ -24,14 +24,4 @@ tg-voting-contract = { version = "0.5.3" }
 thiserror = "1"
 
 [dev-dependencies]
-anyhow = "1"
 cosmwasm-schema = "1.0.0-beta4"
-cw-multi-test = "0.11.0"
-cw-storage-plus = "0.11.0"
-tg-bindings-test = { version = "0.5.3" }
-tg-utils = { version = "0.5.3" }
-tg-test-utils = { version = "0.5.3" }
-tg-voting-contract = { version = "0.5.3" }
-tg4 = { version = "0.5.3" }
-tg4-engagement = { version = "0.5.3", features = ["library"] }
-tgrade-oc-proposals = { version = "0.5.2", path = "../tgrade-oc-proposals" }
