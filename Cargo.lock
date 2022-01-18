@@ -640,7 +640,8 @@ dependencies = [
 [[package]]
 name = "tg-bindings"
 version = "0.5.3"
-source = "git+ssh://git@github.com/confio/poe-contracts.git#83ef810e844ca33c74e141837822f861b79a34fe"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "21625e53f745fc1d814f915e256b5f9d429b9ded76d4474a14bf4583e16857d5"
 dependencies = [
  "base64",
  "cosmwasm-std",
@@ -652,7 +653,8 @@ dependencies = [
 [[package]]
 name = "tg-bindings-test"
 version = "0.5.3"
-source = "git+ssh://git@github.com/confio/poe-contracts.git#83ef810e844ca33c74e141837822f861b79a34fe"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "6e12febb1bb54d0dff4000a5054c0fec36631646bc02e6cbd9af458b55d4b5ea"
 dependencies = [
  "anyhow",
  "cosmwasm-std",
@@ -667,7 +669,8 @@ dependencies = [
 [[package]]
 name = "tg-test-utils"
 version = "0.5.3"
-source = "git+ssh://git@github.com/confio/poe-contracts.git#83ef810e844ca33c74e141837822f861b79a34fe"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "3e1a72b68a409a35fe663ffb3b7f0a537a51ed56c2cc7a2e0481dda1f652b437"
 dependencies = [
  "cosmwasm-std",
  "tg-voting-contract",
@@ -676,7 +679,8 @@ dependencies = [
 [[package]]
 name = "tg-utils"
 version = "0.5.3"
-source = "git+ssh://git@github.com/confio/poe-contracts.git#83ef810e844ca33c74e141837822f861b79a34fe"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "9401bffed6ee158c15940018904d1007de54ea8d3ad6681c68e0c0dfb9698e63"
 dependencies = [
  "cosmwasm-std",
  "cw-controllers",
@@ -692,7 +696,8 @@ dependencies = [
 [[package]]
 name = "tg-voting-contract"
 version = "0.5.3"
-source = "git+ssh://git@github.com/confio/poe-contracts.git#83ef810e844ca33c74e141837822f861b79a34fe"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "e3fa4788e62b63e037b741ba489bce86c597e730ef834e6ffd027cc62f94c130"
 dependencies = [
  "cosmwasm-std",
  "cw-storage-plus",
@@ -709,7 +714,8 @@ dependencies = [
 [[package]]
 name = "tg4"
 version = "0.5.3"
-source = "git+ssh://git@github.com/confio/poe-contracts.git#83ef810e844ca33c74e141837822f861b79a34fe"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "3f5d593ac840a55076ffd4180c581fd33a8cf6e59ea49e52474252615da181cf"
 dependencies = [
  "cosmwasm-std",
  "schemars",
@@ -720,7 +726,8 @@ dependencies = [
 [[package]]
 name = "tg4-engagement"
 version = "0.5.3"
-source = "git+ssh://git@github.com/confio/poe-contracts.git#83ef810e844ca33c74e141837822f861b79a34fe"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "8343b88da08c2ad91ef3cb33ad015da9688983262c6ba8cc01143967b59e3d63"
 dependencies = [
  "cosmwasm-std",
  "cw-controllers",
@@ -739,23 +746,14 @@ dependencies = [
 name = "tgrade-ap-voting"
 version = "0.5.2"
 dependencies = [
- "anyhow",
  "cosmwasm-schema",
  "cosmwasm-std",
- "cw-multi-test",
- "cw-storage-plus",
  "cw2",
  "cw3",
  "schemars",
  "serde",
  "tg-bindings",
- "tg-bindings-test",
- "tg-test-utils",
- "tg-utils",
  "tg-voting-contract",
- "tg4",
- "tg4-engagement",
- "tgrade-oc-proposals",
  "thiserror",
 ]
 
@@ -824,7 +822,8 @@ dependencies = [
 [[package]]
 name = "tgrade-valset"
 version = "0.5.3"
-source = "git+ssh://git@github.com/confio/poe-contracts.git#83ef810e844ca33c74e141837822f861b79a34fe"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "9b7a595dc9b0ab57cb7e88b44ce589ce0edacfaaa334227ea40538584d7dcc3d"
 dependencies = [
  "cosmwasm-std",
  "cw-controllers",
