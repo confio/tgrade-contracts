@@ -7,6 +7,7 @@ workflows:
       - contract_tgrade_gov_reflect
       - contract_tgrade_oc_proposals
       - contract_tgrade_vesting_account
+      - contract_tgrade_ap_voting
   build:
     jobs:
       - lint
@@ -145,6 +146,33 @@ jobs:
           command: rustc --version; cargo --version; rustup --version
       - restore_cache:
           keys:
+            - cargocache-tgrade-vesting-account-rust:1.53.0-{{ checksum "~/project/Cargo.lock" }}
+      - run:
+          name: Unit Tests
+          environment:
+            RUST_BACKTRACE: 1
+          command: cargo unit-test --locked
+      - run:
+          name: Build and run schema generator
+          command: cargo schema --locked
+      - save_cache:
+          paths:
+            - /usr/local/cargo/registry
+            - target
+          key: cargocache-tgrade-vesting-account-rust:1.53.0-{{ checksum "~/project/Cargo.lock" }}
+
+  contract_tgrade_ap_voting:
+    docker:
+      - image: rust:1.53.0
+    working_directory: ~/project/contracts/tgrade-ap-voting
+    steps:
+      - checkout:
+          path: ~/project
+      - run:
+          name: Version information
+          command: rustc --version; cargo --version; rustup --version
+      - restore_cache:
+          keys:
             - cargocache-tgrade-ap-voting-rust:1.53.0-{{ checksum "~/project/Cargo.lock" }}
       - run:
           name: Unit Tests
@@ -160,4 +188,3 @@ jobs:
             - target
           key: cargocache-tgrade-ap-voting-rust:1.53.0-{{ checksum "~/project/Cargo.lock" }}
 
->>>>>>> 7c4d505 (CI config cleaned up)
