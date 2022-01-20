@@ -1,12 +1,12 @@
 #[cfg(not(feature = "library"))]
 use cosmwasm_std::entry_point;
-use cosmwasm_std::{to_binary, Binary, Decimal, Deps, DepsMut, Env, MessageInfo, StdResult};
+use cosmwasm_std::{to_binary, Binary, Decimal, Deps, DepsMut, Env, MessageInfo, StdResult, Empty};
 
 use cw2::set_contract_version;
 use cw3::Status;
 use tg4::Tg4Contract;
 use tg_bindings::TgradeMsg;
-use tg_utils::{JailMsg, SlashMsg};
+use tg_utils::{ensure_from_older_version, JailMsg, SlashMsg};
 
 use crate::msg::{ExecuteMsg, InstantiateMsg, QueryMsg};
 use crate::state::{Config, OversightProposal, CONFIG};
@@ -204,6 +204,12 @@ pub fn query(deps: Deps, env: Env, msg: QueryMsg) -> StdResult<Binary> {
         ListVoters { start_after, limit } => to_binary(&list_voters(deps, start_after, limit)?),
         GroupContract {} => to_binary(&query_group_contract(deps)?),
     }
+}
+
+#[cfg_attr(not(feature = "library"), entry_point)]
+pub fn migrate(deps: DepsMut, _env: Env, _msg: Empty) -> Result<Response, ContractError> {
+    ensure_from_older_version(deps.storage, CONTRACT_NAME, CONTRACT_VERSION)?;
+    Ok(Response::new())
 }
 
 #[cfg(test)]

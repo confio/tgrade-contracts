@@ -761,6 +761,7 @@ dependencies = [
  "schemars",
  "serde",
  "tg-bindings",
+ "tg-utils",
  "tg-voting-contract",
  "thiserror",
 ]
