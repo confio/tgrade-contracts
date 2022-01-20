@@ -21,8 +21,8 @@ cw2 = "0.11.0"
 cw-storage-plus = "0.11.0"
 schemars = "0.8.1"
 serde = { version = "1.0.103", default-features = false, features = ["derive"] }
-tg-bindings = { version = "0.5.3-2" }
-tg-utils = { version = "0.5.3-2" }
+tg-bindings = { version = "0.5.4" }
+tg-utils = { version = "0.5.4" }
 thiserror = "1"
 
 [dev-dependencies]
@@ -31,4 +31,4 @@ assert_matches = "1"
 derivative = "2"
 cosmwasm-schema = "1.0.0-beta4"
 cw-multi-test = "0.11.0"
-tg-bindings-test = { version = "0.5.3-2" }
+tg-bindings-test = { version = "0.5.4" }
