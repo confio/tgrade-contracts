@@ -29,16 +29,10 @@ if [[ -n "$CHANGES_IN_REPO" ]]; then
 fi
 
 NEW="$1"
-OLD=$(sed -n -e 's/^version[[:space:]]*=[[:space:]]*"\(.*\)"/\1/p' packages/bindings/Cargo.toml)
+OLD=$(sed -n -e 's/^version[[:space:]]*=[[:space:]]*"\(.*\)"/\1/p' contracts/tgrade-trusted-circle/Cargo.toml)
 echo "Updating old version $OLD to new version $NEW ..."
 
 FILES_MODIFIED=()
-
-for package_dir in packages/*/; do
-  CARGO_TOML="$package_dir/Cargo.toml"
-  sed -i -e "s/version[[:space:]]*=[[:space:]]*\"$OLD\"/version = \"$NEW\"/" "$CARGO_TOML"
-  FILES_MODIFIED+=("$CARGO_TOML")
-done
 
 for contract_dir in contracts/*/; do
   CARGO_TOML="$contract_dir/Cargo.toml"
