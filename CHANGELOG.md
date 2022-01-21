@@ -6,16 +6,21 @@
 
 ## [v0.5.4](https://github.com/confio/tgrade-contracts/tree/v0.5.4) (2022-01-21)
 
-[Full Changelog](https://github.com/confio/tgrade-contracts/compare/v0.5.3...v0.5.4)
+[Full Changelog](https://github.com/confio/tgrade-contracts/compare/v0.5.3-2...v0.5.4)
 
 **Merged pull requests:**
 
+- Release 0.5.4 [\#446](https://github.com/confio/tgrade-contracts/pull/446) ([ethanfrey](https://github.com/ethanfrey))
 - Remove contracts already in poe-contracts [\#445](https://github.com/confio/tgrade-contracts/pull/445) ([ethanfrey](https://github.com/ethanfrey))
 - Add migrations to contracts [\#444](https://github.com/confio/tgrade-contracts/pull/444) ([ethanfrey](https://github.com/ethanfrey))
 
-## [v0.5.3](https://github.com/confio/tgrade-contracts/tree/v0.5.3) (2022-01-18)
+## [v0.5.3](https://github.com/confio/tgrade-contracts/tree/v0.5.3-2) (2022-01-18)
 
-[Full Changelog](https://github.com/confio/tgrade-contracts/compare/v0.5.2...v0.5.3)
+[Full Changelog](https://github.com/confio/tgrade-contracts/compare/v0.5.2...v0.5.3-2)
+
+**Merged pull requests:**
+
+- Release v0.5.3-2 [\#442](https://github.com/confio/tgrade-contracts/pull/442) ([maurolacy](https://github.com/maurolacy))
 
 **Closed issues:**
 
