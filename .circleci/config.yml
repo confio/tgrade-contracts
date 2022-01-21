@@ -4,9 +4,7 @@ workflows:
   test:
     jobs:
       - contract_tgrade_trusted_circle
-      - contract_tgrade_gov_reflect
       - contract_tgrade_oc_proposals
-      - contract_tgrade_vesting_account
       - contract_tgrade_ap_voting
   build:
     jobs:
@@ -55,33 +53,6 @@ jobs:
             - target
           key: cargocache-tgrade-trusted-circle-rust:1.53.0-{{ checksum "~/project/Cargo.lock" }}
 
-  contract_tgrade_gov_reflect:
-    docker:
-      - image: rust:1.53.0
-    working_directory: ~/project/contracts/tgrade-gov-reflect
-    steps:
-      - checkout:
-          path: ~/project
-      - run:
-          name: Version information
-          command: rustc --version; cargo --version; rustup --version
-      - restore_cache:
-          keys:
-            - cargocache-tgrade-gov-reflect-rust:1.53.0-{{ checksum "~/project/Cargo.lock" }}
-      - run:
-          name: Unit Tests
-          environment:
-            RUST_BACKTRACE: 1
-          command: cargo unit-test --locked
-      - run:
-          name: Build and run schema generator
-          command: cargo schema --locked
-      - save_cache:
-          paths:
-            - /usr/local/cargo/registry
-            - target
-          key: cargocache-tgrade-gov-reflect-rust:1.53.0-{{ checksum "~/project/Cargo.lock" }}
-
   contract_tgrade_oc_proposals:
     docker:
       - image: rust:1.53.0
@@ -108,33 +79,6 @@ jobs:
             - /usr/local/cargo/registry
             - target
           key: cargocache-tgrade-oc-proposals-rust:1.53.0-{{ checksum "~/project/Cargo.lock" }}
-
-  contract_tgrade_vesting_account:
-    docker:
-      - image: rust:1.53.0
-    working_directory: ~/project/contracts/tgrade-ap-voting
-    steps:
-      - checkout:
-          path: ~/project
-      - run:
-          name: Version information
-          command: rustc --version; cargo --version; rustup --version
-      - restore_cache:
-          keys:
-            - cargocache-tgrade-vesting-account-rust:1.53.0-{{ checksum "~/project/Cargo.lock" }}
-      - run:
-          name: Unit Tests
-          environment:
-            RUST_BACKTRACE: 1
-          command: cargo unit-test --locked
-      - run:
-          name: Build and run schema generator
-          command: cargo schema --locked
-      - save_cache:
-          paths:
-            - /usr/local/cargo/registry
-            - target
-          key: cargocache-tgrade-vesting-account-rust:1.53.0-{{ checksum "~/project/Cargo.lock" }}
 
   contract_tgrade_ap_voting:
     docker:

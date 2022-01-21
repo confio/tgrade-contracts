@@ -532,6 +532,12 @@ dependencies = [
 ]
 
 [[package]]
+name = "semver"
+version = "1.0.4"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "568a8e6258aa33c13358f81fd834adb854c6f7c9468520910a9b1e8fac068012"
+
+[[package]]
 name = "serde"
 version = "1.0.133"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -639,9 +645,9 @@ dependencies = [
 
 [[package]]
 name = "tg-bindings"
-version = "0.5.3"
+version = "0.5.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "21625e53f745fc1d814f915e256b5f9d429b9ded76d4474a14bf4583e16857d5"
+checksum = "519ffff2f397aa0ff75722ca525a4a27cf39b1ec6602172b9d8a700a941f8cd7"
 dependencies = [
  "base64",
  "cosmwasm-std",
@@ -652,9 +658,9 @@ dependencies = [
 
 [[package]]
 name = "tg-bindings-test"
-version = "0.5.3-2"
+version = "0.5.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "d5e3e469353e0138008e79cda52e2f98c75dcca44d08b648e7f3cee1d8eb333a"
+checksum = "46ae279edca50d4f51e51294f7d5ceaaad4edc7f923fb81e556469c44590d1d4"
 dependencies = [
  "anyhow",
  "cosmwasm-std",
@@ -668,9 +674,9 @@ dependencies = [
 
 [[package]]
 name = "tg-test-utils"
-version = "0.5.3"
+version = "0.5.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "3e1a72b68a409a35fe663ffb3b7f0a537a51ed56c2cc7a2e0481dda1f652b437"
+checksum = "5118dfa07eb438850c21fa4079c62bfa1d95f2bb465c4e65d1aad8b497477cde"
 dependencies = [
  "cosmwasm-std",
  "tg-voting-contract",
@@ -678,15 +684,17 @@ dependencies = [
 
 [[package]]
 name = "tg-utils"
-version = "0.5.3"
+version = "0.5.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "9401bffed6ee158c15940018904d1007de54ea8d3ad6681c68e0c0dfb9698e63"
+checksum = "ebb6b0e62ee242c4e38d11cce57797f188dc0472bd9beb7aa5eee14f40c22cd4"
 dependencies = [
  "cosmwasm-std",
  "cw-controllers",
  "cw-storage-plus",
  "cw-utils",
+ "cw2",
  "schemars",
+ "semver",
  "serde",
  "tg-bindings",
  "tg4",
@@ -695,9 +703,9 @@ dependencies = [
 
 [[package]]
 name = "tg-voting-contract"
-version = "0.5.3"
+version = "0.5.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "e3fa4788e62b63e037b741ba489bce86c597e730ef834e6ffd027cc62f94c130"
+checksum = "8c4cd2503a169b2cedb53ce376083bb158c89739af4934ace53c5be5beb205a6"
 dependencies = [
  "cosmwasm-std",
  "cw-storage-plus",
@@ -713,9 +721,9 @@ dependencies = [
 
 [[package]]
 name = "tg4"
-version = "0.5.3"
+version = "0.5.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "3f5d593ac840a55076ffd4180c581fd33a8cf6e59ea49e52474252615da181cf"
+checksum = "8e973d103ee99127dfcbafea6ee973b33a6a84bc3682b49f5afc63e7e1786d27"
 dependencies = [
  "cosmwasm-std",
  "schemars",
@@ -725,9 +733,9 @@ dependencies = [
 
 [[package]]
 name = "tg4-engagement"
-version = "0.5.3"
+version = "0.5.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "8343b88da08c2ad91ef3cb33ad015da9688983262c6ba8cc01143967b59e3d63"
+checksum = "42769306f16f1c02beb3af683bf1d37337a3574529d165c1a69372c2ff07e045"
 dependencies = [
  "cosmwasm-std",
  "cw-controllers",
@@ -753,20 +761,8 @@ dependencies = [
  "schemars",
  "serde",
  "tg-bindings",
+ "tg-utils",
  "tg-voting-contract",
- "thiserror",
-]
-
-[[package]]
-name = "tgrade-gov-reflect"
-version = "0.5.3"
-dependencies = [
- "cosmwasm-schema",
- "cosmwasm-std",
- "cw-storage-plus",
- "schemars",
- "serde",
- "tg-bindings",
  "thiserror",
 ]
 
@@ -821,9 +817,9 @@ dependencies = [
 
 [[package]]
 name = "tgrade-valset"
-version = "0.5.3"
+version = "0.5.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "9b7a595dc9b0ab57cb7e88b44ce589ce0edacfaaa334227ea40538584d7dcc3d"
+checksum = "116efc467a3a09be52fdea8c4509f56cc2766b07d594ebf78b3435f41bafe387"
 dependencies = [
  "cosmwasm-std",
  "cw-controllers",
@@ -835,27 +831,6 @@ dependencies = [
  "tg-bindings",
  "tg-utils",
  "tg4",
- "thiserror",
-]
-
-[[package]]
-name = "tgrade-vesting-account"
-version = "0.5.3"
-dependencies = [
- "anyhow",
- "assert_matches",
- "cosmwasm-schema",
- "cosmwasm-std",
- "cw-multi-test",
- "cw-storage-plus",
- "cw-utils",
- "cw2",
- "derivative",
- "schemars",
- "serde",
- "tg-bindings",
- "tg-bindings-test",
- "tg-utils",
  "thiserror",
 ]
 

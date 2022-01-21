@@ -5,6 +5,7 @@ use cosmwasm_std::{to_binary, Binary, Deps, DepsMut, Empty, Env, MessageInfo, St
 use cw2::set_contract_version;
 use cw3::Status;
 use tg_bindings::{request_privileges, Privilege, PrivilegeChangeMsg, TgradeMsg, TgradeSudoMsg};
+use tg_utils::ensure_from_older_version;
 
 use crate::msg::{ExecuteMsg, InstantiateMsg, QueryMsg};
 use crate::ContractError;
@@ -159,6 +160,12 @@ fn privilege_change(_deps: DepsMut, change: PrivilegeChangeMsg) -> Response {
         }
         PrivilegeChangeMsg::Demoted {} => Response::new(),
     }
+}
+
+#[cfg_attr(not(feature = "library"), entry_point)]
+pub fn migrate(deps: DepsMut, _env: Env, _msg: Empty) -> Result<Response, ContractError> {
+    ensure_from_older_version(deps.storage, CONTRACT_NAME, CONTRACT_VERSION)?;
+    Ok(Response::new())
 }
 
 #[cfg(test)]

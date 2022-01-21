@@ -11,7 +11,7 @@ use cw_storage_plus::{Bound, PrimaryKey};
 use cw_utils::{maybe_addr, Expiration};
 use tg4::{member_key, Member, MemberListResponse, MemberResponse, TotalWeightResponse};
 use tg_bindings::TgradeMsg;
-use tg_utils::{members, TOTAL};
+use tg_utils::{ensure_from_older_version, members, TOTAL};
 
 use crate::error::ContractError;
 use crate::msg::{
@@ -1566,4 +1566,10 @@ pub(crate) fn list_votes_by_voter(
         .collect();
 
     Ok(VoteListResponse { votes: votes? })
+}
+
+#[cfg_attr(not(feature = "library"), entry_point)]
+pub fn migrate(deps: DepsMut, _env: Env, _msg: Empty) -> Result<Response, ContractError> {
+    ensure_from_older_version(deps.storage, CONTRACT_NAME, CONTRACT_VERSION)?;
+    Ok(Response::new())
 }
