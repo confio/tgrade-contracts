@@ -752,7 +752,7 @@ dependencies = [
 
 [[package]]
 name = "tgrade-ap-voting"
-version = "0.5.3"
+version = "0.5.4"
 dependencies = [
  "cosmwasm-schema",
  "cosmwasm-std",
@@ -768,7 +768,7 @@ dependencies = [
 
 [[package]]
 name = "tgrade-oc-proposals"
-version = "0.5.3"
+version = "0.5.4"
 dependencies = [
  "anyhow",
  "cosmwasm-schema",
@@ -792,7 +792,7 @@ dependencies = [
 
 [[package]]
 name = "tgrade-trusted-circle"
-version = "0.5.3"
+version = "0.5.4"
 dependencies = [
  "anyhow",
  "assert_matches",
