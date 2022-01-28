@@ -84,6 +84,7 @@ pub fn execute_execute(
     info: MessageInfo,
     proposal_id: u64,
 ) -> Result<Response, ContractError> {
+    use OversightProposal::*;
     // anyone can trigger this if the vote passed
 
     let mut prop = proposals().load(deps.storage, proposal_id)?;
@@ -109,7 +110,7 @@ pub fn execute_execute(
         .add_attribute("proposal_id", proposal_id.to_string());
 
     match prop.proposal {
-        OversightProposal::GrantEngagement { ref member, points } => {
+        GrantEngagement { ref member, points } => {
             res = res.add_submessage(engagement_contract.encode_raw_msg(to_binary(
                 &tg4_engagement::ExecuteMsg::AddPoints {
                     addr: member.to_string(),
@@ -118,7 +119,7 @@ pub fn execute_execute(
             )?)?);
         }
 
-        OversightProposal::Punish {
+        Punish {
             ref member,
             portion,
             jailing_duration,
@@ -142,10 +143,22 @@ pub fn execute_execute(
             }
         }
 
-        OversightProposal::Unjail { ref member } => {
+        Unjail { ref member } => {
             res = res.add_submessage(valset_contract.encode_raw_msg(to_binary(
                 &JailMsg::Unjail {
                     operator: Some(member.to_string()),
+                },
+            )?)?);
+        }
+
+        UpdateConfig {
+            min_weight,
+            max_validators,
+        } => {
+            res = res.add_submessage(valset_contract.encode_raw_msg(to_binary(
+                &tgrade_valset::msg::ExecuteMsg::UpdateConfig {
+                    min_weight,
+                    max_validators,
                 },
             )?)?);
         }
