@@ -4,6 +4,24 @@
 
 [Full Changelog](https://github.com/confio/tgrade-contracts/compare/v0.5.4...HEAD)
 
+**Closed issues:**
+
+- Create OC proposal to update valset size [\#448](https://github.com/confio/tgrade-contracts/issues/448)
+- Add basic migrate entry point to tgrade-oc-voting [\#440](https://github.com/confio/tgrade-contracts/issues/440)
+- valset: better error message when jail lock not expired [\#437](https://github.com/confio/tgrade-contracts/issues/437)
+- valset: limit active\_valset query [\#436](https://github.com/confio/tgrade-contracts/issues/436)
+- AP: Register Dispute [\#416](https://github.com/confio/tgrade-contracts/issues/416)
+- Split into poe-contracts repo [\#370](https://github.com/confio/tgrade-contracts/issues/370)
+
+**Merged pull requests:**
+
+- oc-proposal: UpdateValset proposal [\#452](https://github.com/confio/tgrade-contracts/pull/452) ([hashedone](https://github.com/hashedone))
+- Update poe-contract deps to v0.5.5 [\#451](https://github.com/confio/tgrade-contracts/pull/451) ([maurolacy](https://github.com/maurolacy))
+- Update Rust toolchain to 1.54 in CI [\#450](https://github.com/confio/tgrade-contracts/pull/450) ([hashedone](https://github.com/hashedone))
+- Fix update changelog [\#447](https://github.com/confio/tgrade-contracts/pull/447) ([maurolacy](https://github.com/maurolacy))
+- Add images and source for medium article [\#443](https://github.com/confio/tgrade-contracts/pull/443) ([ethanfrey](https://github.com/ethanfrey))
+- tgrade-ap-voting: Basic complaints implementation [\#432](https://github.com/confio/tgrade-contracts/pull/432) ([hashedone](https://github.com/hashedone))
+
 ## [v0.5.4](https://github.com/confio/tgrade-contracts/tree/v0.5.4) (2022-01-21)
 
 [Full Changelog](https://github.com/confio/tgrade-contracts/compare/v0.5.3-2...v0.5.4)
