@@ -652,4 +652,32 @@ mod voting {
             10 + 6
         );
     }
+
+    #[test]
+    fn update_valset() {
+        let members = vec!["owner", "voter1", "voter2"];
+
+        let rules = RulesBuilder::new()
+            .with_threshold(Decimal::percent(50))
+            .build();
+
+        let mut suite = SuiteBuilder::new()
+            .with_group_member(members[0], 1)
+            .with_group_member(members[1], 2)
+            .with_group_member(members[2], 3)
+            .with_voting_rules(rules)
+            .with_min_weight(1)
+            .with_max_validators(99)
+            .build();
+
+        let response = suite.propose_update_config(members[2], None, 50).unwrap();
+        let proposal_id: u64 = get_proposal_id(&response).unwrap();
+        let proposal_status = suite.query_proposal_status(proposal_id).unwrap();
+        assert_eq!(proposal_status, Status::Passed);
+        suite.execute(members[2], proposal_id).unwrap();
+
+        let valset_config = suite.valset_config().unwrap();
+        assert_eq!(valset_config.min_weight, 1);
+        assert_eq!(valset_config.max_validators, 50);
+    }
 }

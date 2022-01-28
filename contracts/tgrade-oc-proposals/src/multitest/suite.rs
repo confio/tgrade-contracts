@@ -62,6 +62,8 @@ pub struct SuiteBuilder {
     rules: VotingRules,
     multisig_as_group_admin: bool,
     epoch_reward: Coin,
+    min_weight: u64,
+    max_validators: u32,
 }
 
 impl SuiteBuilder {
@@ -77,6 +79,8 @@ impl SuiteBuilder {
             },
             multisig_as_group_admin: false,
             epoch_reward: coin(5, "BTC"),
+            min_weight: 1,
+            max_validators: 99,
         }
     }
 
@@ -108,6 +112,16 @@ impl SuiteBuilder {
 
     pub fn with_epoch_reward(mut self, epoch_reward: Coin) -> Self {
         self.epoch_reward = epoch_reward;
+        self
+    }
+
+    pub fn with_min_weight(mut self, min_weight: u64) -> Self {
+        self.min_weight = min_weight;
+        self
+    }
+
+    pub fn with_max_validators(mut self, max_validators: u32) -> Self {
+        self.max_validators = max_validators;
         self
     }
 
@@ -202,9 +216,9 @@ impl SuiteBuilder {
                     epoch_reward: self.epoch_reward,
                     fee_percentage: Decimal::zero(),
                     initial_keys: operators,
-                    max_validators: 9999,
+                    max_validators: self.max_validators,
                     membership: group_contract.to_string(),
-                    min_weight: 1,
+                    min_weight: self.min_weight,
                     rewards_code_id: engagement_id,
                     scaling: None,
                     double_sign_slash_ratio: Decimal::percent(50),
@@ -371,6 +385,23 @@ impl Suite {
         )
     }
 
+    pub fn propose_update_config(
+        &mut self,
+        executor: &str,
+        min_weight: impl Into<Option<u64>>,
+        max_validators: impl Into<Option<u32>>,
+    ) -> AnyResult<AppResponse> {
+        self.propose(
+            executor,
+            "update config",
+            "update config desc",
+            OversightProposal::UpdateConfig {
+                min_weight: min_weight.into(),
+                max_validators: max_validators.into(),
+            },
+        )
+    }
+
     pub fn unjail(&mut self, operator: &str) -> AnyResult<AppResponse> {
         self.app.execute_contract(
             Addr::unchecked(operator),
@@ -512,6 +543,13 @@ impl Suite {
                 receiver: None,
             },
             &[],
+        )
+    }
+
+    pub fn valset_config(&self) -> StdResult<tgrade_valset::state::Config> {
+        self.app.wrap().query_wasm_smart(
+            self.valset_contract.to_string(),
+            &tgrade_valset::msg::QueryMsg::Configuration {},
         )
     }
 

@@ -21,6 +21,10 @@ pub enum OversightProposal {
     Unjail {
         member: Addr,
     },
+    UpdateConfig {
+        min_weight: Option<u64>,
+        max_validators: Option<u32>,
+    },
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
