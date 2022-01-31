@@ -12,11 +12,11 @@ use tg_bindings::{request_privileges, Privilege, PrivilegeChangeMsg, TgradeMsg, 
 use tg_utils::ensure_from_older_version;
 
 use crate::msg::{ExecuteMsg, InstantiateMsg, ListComplaintsResp, QueryMsg};
-use crate::state::{Complaint, ComplaintState, Config, COMPLAINTS, CONFIG};
+use crate::state::{ArbiterProposal, Complaint, ComplaintState, Config, COMPLAINTS, CONFIG};
 use crate::ContractError;
 
 use tg_voting_contract::{
-    close as execute_close, list_proposals, list_voters, list_votes, mark_executed,
+    close as execute_close, execute_text, list_proposals, list_voters, list_votes, mark_executed,
     propose as execute_propose, query_group_contract, query_proposal, query_rules, query_vote,
     query_voter, reverse_proposals, vote as execute_vote,
 };
@@ -56,8 +56,6 @@ pub fn execute(
     info: MessageInfo,
     msg: ExecuteMsg,
 ) -> Result<Response, ContractError> {
-    type EmptyProposal = Empty;
-
     use ExecuteMsg::*;
 
     match msg {
@@ -68,11 +66,11 @@ pub fn execute(
         } => execute_propose(deps, env, info, title, description, proposal)
             .map_err(ContractError::from),
         Vote { proposal_id, vote } => {
-            execute_vote::<EmptyProposal>(deps, env, info, proposal_id, vote)
+            execute_vote::<ArbiterProposal>(deps, env, info, proposal_id, vote)
                 .map_err(ContractError::from)
         }
         Execute { proposal_id } => execute_execute(deps, env, info, proposal_id),
-        Close { proposal_id } => execute_close::<EmptyProposal>(deps, env, info, proposal_id)
+        Close { proposal_id } => execute_close::<ArbiterProposal>(deps, env, info, proposal_id)
             .map_err(ContractError::from),
         RegisterComplaint {
             title,
@@ -93,11 +91,13 @@ pub fn execute_execute(
     info: MessageInfo,
     proposal_id: u64,
 ) -> Result<Response, ContractError> {
-    type EmptyProposal = Empty;
+    use ArbiterProposal::Text;
 
-    let _proposal = mark_executed::<EmptyProposal>(deps.storage, env, proposal_id)?;
+    let proposal = mark_executed::<ArbiterProposal>(deps.storage, env, proposal_id)?;
 
-    // perform execution of proposal here
+    match proposal.proposal {
+        Text {} => execute_text(deps, proposal_id, proposal)?,
+    }
 
     Ok(Response::new()
         .add_attribute("action", "execute")

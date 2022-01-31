@@ -12,7 +12,7 @@ use crate::state::{Config, OversightProposal, CONFIG};
 use crate::ContractError;
 
 use tg_voting_contract::{
-    close as execute_close, list_proposals, list_voters, list_votes, mark_executed,
+    close as execute_close, execute_text, list_proposals, list_voters, list_votes, mark_executed,
     propose as execute_propose, query_group_contract, query_proposal, query_rules, query_vote,
     query_voter, reverse_proposals, vote as execute_vote,
 };
@@ -151,6 +151,7 @@ pub fn execute_execute(
                 },
             )?)?);
         }
+        Text {} => execute_text(deps, proposal_id, proposal)?,
     }
 
     Ok(res)
