@@ -24,9 +24,9 @@ cw2 = "0.11.0"
 cw3 = "0.11.0"
 cw-controllers = "0.11.0"
 cw-storage-plus = "0.11.0"
-tg4 = { version = "0.5.5" }
-tg-bindings = { version = "0.5.5" }
-tg-utils = { version = "0.5.5" }
+tg4 = { version = "0.6.0-alpha1" }
+tg-bindings = { version = "0.6.0-alpha1" }
+tg-utils = { version = "0.6.0-alpha1" }
 cosmwasm-std = "1.0.0-beta4"
 schemars = "0.8"
 serde = { version = "1.0.103", default-features = false, features = ["derive"] }
@@ -36,7 +36,7 @@ thiserror = { version = "1.0.21" }
 cosmwasm-schema = { version = "1.0.0-beta4" }
 cw-multi-test = "0.11.0"
 anyhow = "1"
-tg-bindings-test = { version = "0.5.5" }
+tg-bindings-test = { version = "0.6.0-alpha1" }
 derivative = "2"
-tg4-engagement = { version = "0.5.5" }
+tg4-engagement = { version = "0.6.0-alpha1" }
 assert_matches = "1"

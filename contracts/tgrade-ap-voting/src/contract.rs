@@ -7,7 +7,6 @@ use cosmwasm_std::{
 use cw_storage_plus::Bound;
 
 use cw2::set_contract_version;
-use cw3::Status;
 use cw_utils::must_pay;
 use tg_bindings::{request_privileges, Privilege, PrivilegeChangeMsg, TgradeMsg, TgradeSudoMsg};
 use tg_utils::ensure_from_older_version;
@@ -16,11 +15,10 @@ use crate::msg::{ExecuteMsg, InstantiateMsg, ListComplaintsResp, QueryMsg};
 use crate::state::{Complaint, ComplaintState, Config, COMPLAINTS, CONFIG};
 use crate::ContractError;
 
-use tg_voting_contract::state::proposals;
 use tg_voting_contract::{
-    close as execute_close, list_proposals, list_voters, list_votes, propose as execute_propose,
-    query_group_contract, query_proposal, query_rules, query_vote, query_voter, reverse_proposals,
-    vote as execute_vote,
+    close as execute_close, list_proposals, list_voters, list_votes, mark_executed,
+    propose as execute_propose, query_group_contract, query_proposal, query_rules, query_vote,
+    query_voter, reverse_proposals, vote as execute_vote,
 };
 
 pub type Response = cosmwasm_std::Response<TgradeMsg>;
@@ -73,7 +71,7 @@ pub fn execute(
             execute_vote::<EmptyProposal>(deps, env, info, proposal_id, vote)
                 .map_err(ContractError::from)
         }
-        Execute { proposal_id } => execute_execute(deps, info, proposal_id),
+        Execute { proposal_id } => execute_execute(deps, env, info, proposal_id),
         Close { proposal_id } => execute_close::<EmptyProposal>(deps, env, info, proposal_id)
             .map_err(ContractError::from),
         RegisterComplaint {
@@ -91,25 +89,15 @@ pub fn execute(
 
 pub fn execute_execute(
     deps: DepsMut,
+    env: Env,
     info: MessageInfo,
     proposal_id: u64,
 ) -> Result<Response, ContractError> {
     type EmptyProposal = Empty;
-    // anyone can trigger this if the vote passed
 
-    let mut proposal = proposals::<EmptyProposal>().load(deps.storage, proposal_id)?;
-
-    // we allow execution even after the proposal "expiration" as long as all vote come in before
-    // that point. If it was approved on time, it can be executed any time.
-    if proposal.status != Status::Passed {
-        return Err(ContractError::WrongExecuteStatus {});
-    }
+    let _proposal = mark_executed::<EmptyProposal>(deps.storage, env, proposal_id)?;
 
     // perform execution of proposal here
-
-    // set it to executed
-    proposal.status = Status::Executed;
-    proposals::<EmptyProposal>().save(deps.storage, proposal_id, &proposal)?;
 
     Ok(Response::new()
         .add_attribute("action", "execute")
