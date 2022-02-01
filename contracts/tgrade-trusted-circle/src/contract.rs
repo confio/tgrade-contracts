@@ -13,10 +13,6 @@ use tg4::{member_key, Member, MemberListResponse, MemberResponse, TotalWeightRes
 use tg_bindings::TgradeMsg;
 use tg_utils::{ensure_from_older_version, members, TOTAL};
 
-use crate::distribution::{
-    adjusted_withdrawable_funds, apply_points_correction, distribute_funds, distributed_funds,
-    init_distribution, points_per_weight, undistributed_funds, withdraw_tokens,
-};
 use crate::error::ContractError;
 use crate::msg::{
     Escrow, EscrowListResponse, EscrowResponse, ExecuteMsg, FundsResponse, InstantiateMsg,
@@ -27,7 +23,8 @@ use crate::state::MemberStatus::NonVoting;
 use crate::state::{
     batches, create_batch, create_proposal, save_ballot, Ballot, Batch, EscrowStatus, MemberStatus,
     Proposal, ProposalContent, Punishment, TrustedCircle, TrustedCircleAdjustments, Votes,
-    VotingRules, BALLOTS, BALLOTS_BY_VOTER, ESCROWS, PROPOSALS, PROPOSAL_BY_EXPIRY, TRUSTED_CIRCLE,
+    VotingRules, BALLOTS, BALLOTS_BY_VOTER, DISTRIBUTION, ESCROWS, PROPOSALS, PROPOSAL_BY_EXPIRY,
+    TRUSTED_CIRCLE,
 };
 
 // version info for migration info
@@ -90,7 +87,7 @@ pub fn instantiate(
     TOTAL.save(deps.storage, &VOTING_WEIGHT)?;
     let promote_ev = Event::new(PROMOTE_TYPE).add_attribute(MEMBER_KEY, info.sender);
 
-    init_distribution(deps.branch(), msg.reward)?;
+    DISTRIBUTION.init(deps.branch(), msg.reward)?;
 
     // add all members
     let add_evs = add_remove_non_voting_members(
@@ -196,9 +193,6 @@ fn update_batch_after_escrow_paid(
     proposal_id: u64,
     paid_escrow: &Addr,
 ) -> Result<Option<Event>, ContractError> {
-    // For distribution correction
-    let ppw = points_per_weight(deps.as_ref())?;
-
     // We first check and update this batch state
     let mut batch = batches().load(deps.storage, proposal_id)?;
     // This will panic if we hit 0. That said, it can never go below 0 if we call this once per member.
@@ -213,7 +207,10 @@ fn update_batch_after_escrow_paid(
             if convert_to_voter_if_paid(deps.branch(), paid_escrow, height)? {
                 // update the total with the new weight
                 TOTAL.update::<_, StdError>(deps.storage, |old| Ok(old + VOTING_WEIGHT))?;
-                apply_points_correction(deps.branch(), paid_escrow, ppw, VOTING_WEIGHT as i128)?;
+                DISTRIBUTION.apply_points_correction(
+                    deps.branch(),
+                    &[(paid_escrow, VOTING_WEIGHT as i128)],
+                )?;
                 let evt = Event::new(PROMOTE_TYPE)
                     .add_attribute(PROPOSAL_KEY, proposal_id.to_string())
                     .add_attribute(MEMBER_KEY, paid_escrow);
@@ -259,18 +256,20 @@ fn convert_all_paid_members_to_voters(
     batch: &mut Batch,
     height: u64,
 ) -> StdResult<Event> {
-    let ppw = points_per_weight(deps.as_ref())?;
     let mut evt = Event::new(PROMOTE_TYPE).add_attribute(PROPOSAL_KEY, batch_id.to_string());
 
     // try to promote them all
     let mut added = 0;
+    let mut diff = vec![];
     for waiting in batch.members.iter() {
         if convert_to_voter_if_paid(deps.branch(), waiting, height)? {
-            apply_points_correction(deps.branch(), waiting, ppw, VOTING_WEIGHT as i128)?;
+            diff.push((waiting, VOTING_WEIGHT as i128));
             evt = evt.add_attribute(MEMBER_KEY, waiting);
             added += VOTING_WEIGHT;
         }
     }
+    DISTRIBUTION.apply_points_correction(deps.branch(), &diff)?;
+
     // make this a promoted and save
     batch.batch_promoted = true;
     batches().save(deps.storage, batch_id, batch)?;
@@ -287,7 +286,6 @@ fn convert_all_paid_members_to_voters(
 /// Make sure you update TOTAL after calling this
 /// (Not done here, so we can update TOTAL once when promoting a whole batch)
 fn convert_to_voter_if_paid(mut deps: DepsMut, to_promote: &Addr, height: u64) -> StdResult<bool> {
-    let ppw = points_per_weight(deps.as_ref())?;
     let mut escrow = ESCROWS.load(deps.storage, to_promote)?;
     // if this one was not yet paid up, do nothing
     if !escrow.status.is_pending_paid() {
@@ -297,7 +295,7 @@ fn convert_to_voter_if_paid(mut deps: DepsMut, to_promote: &Addr, height: u64) -
     // update status
     escrow.status = MemberStatus::Voting {};
     ESCROWS.save(deps.storage, to_promote, &escrow)?;
-    apply_points_correction(deps.branch(), to_promote, ppw, VOTING_WEIGHT as i128)?;
+    DISTRIBUTION.apply_points_correction(deps.branch(), &[(to_promote, VOTING_WEIGHT as i128)])?;
 
     // update voting weight
     members().save(deps.storage, to_promote, &VOTING_WEIGHT, height)?;
@@ -686,7 +684,6 @@ fn trigger_long_leave(
     leaver: Addr,
     mut escrow: EscrowStatus,
 ) -> Result<Response, ContractError> {
-    let ppw = points_per_weight(deps.as_ref())?;
     // if we are voting member, reduce vote to 0 (otherwise, it is already 0)
     if escrow.status == (MemberStatus::Voting {}) {
         members().save(deps.storage, &leaver, &0, env.block.height)?;
@@ -694,7 +691,8 @@ fn trigger_long_leave(
             old.checked_sub(VOTING_WEIGHT)
                 .ok_or_else(|| StdError::generic_err("Total underflow"))
         })?;
-        apply_points_correction(deps.branch(), &leaver, ppw, -(VOTING_WEIGHT as i128))?;
+        DISTRIBUTION
+            .apply_points_correction(deps.branch(), &[(&leaver, -(VOTING_WEIGHT as i128))])?;
         // now, we reduce total weight of all open proposals that this member has not yet voted on
         adjust_open_proposals_for_leaver(deps.branch(), &env, &leaver)?;
     }
@@ -802,7 +800,6 @@ fn pending_escrow_demote_promote_members(
     new_escrow_amount: Uint128,
     height: u64,
 ) -> Result<Option<Event>, ContractError> {
-    let ppw = points_per_weight(deps.as_ref())?;
     #[allow(clippy::comparison_chain)]
     if new_escrow_amount > escrow_amount {
         let demoted: Vec<_> = ESCROWS
@@ -824,7 +821,8 @@ fn pending_escrow_demote_promote_members(
                 old.checked_sub(VOTING_WEIGHT)
                     .ok_or_else(|| StdError::generic_err("Total underflow"))
             })?;
-            apply_points_correction(deps.branch(), &addr, ppw, -(VOTING_WEIGHT as i128))?;
+            DISTRIBUTION
+                .apply_points_correction(deps.branch(), &[(&addr, -(VOTING_WEIGHT as i128))])?;
             demoted_addrs.push(addr.clone());
             evt = evt.add_attribute(MEMBER_KEY, addr);
         }
@@ -1108,7 +1106,6 @@ pub fn proposal_punish_members(
     proposal_id: u64,
     punishments: &[Punishment],
 ) -> Result<Response, ContractError> {
-    let ppw = points_per_weight(deps.as_ref())?;
     let mut res = Response::new().add_attribute("proposal", "punish_members");
     let mut demoted_addrs = vec![];
     for (i, p) in (1..).zip(punishments) {
@@ -1187,7 +1184,8 @@ pub fn proposal_punish_members(
             }
             escrow_status.status = MemberStatus::Pending { proposal_id };
             ESCROWS.save(deps.storage, &addr, &escrow_status)?;
-            apply_points_correction(deps.branch(), &addr, ppw, -(VOTING_WEIGHT as i128))?;
+            DISTRIBUTION
+                .apply_points_correction(deps.branch(), &[(&addr, -(VOTING_WEIGHT as i128))])?;
             demoted_addrs.push(addr);
         } else {
             // Just update remaining escrow
@@ -1597,7 +1595,7 @@ fn execute_distribute_funds(
     info: MessageInfo,
 ) -> Result<Response, ContractError> {
     let total = TOTAL.load(deps.storage)?;
-    let funds = distribute_funds(deps, env, total as u128)?;
+    let funds = DISTRIBUTION.distribute_funds(deps, env, total as u128)?;
 
     let resp = Response::new()
         .add_attribute("action", "distribute_tokens")
@@ -1615,7 +1613,7 @@ fn execute_withdraw_funds(deps: DepsMut, info: MessageInfo) -> Result<Response, 
         return Err(ContractError::InvalidStatus(escrow.status));
     }
 
-    let token = withdraw_tokens(deps, &info.sender, 1)?;
+    let token = DISTRIBUTION.withdraw_tokens(deps, &info.sender, 1)?;
 
     let resp = Response::new()
         .add_attribute("action", "withdraw_tokens")
@@ -1640,17 +1638,17 @@ fn query_withdrawable_funds(deps: Deps, owner: String) -> StdResult<FundsRespons
         _ => 0,
     };
 
-    let funds = adjusted_withdrawable_funds(deps, addr, weight)?;
+    let funds = DISTRIBUTION.adjusted_withdrawable_funds(deps, addr, weight)?;
     Ok(FundsResponse { funds })
 }
 
 fn query_distributed_funds(deps: Deps) -> StdResult<FundsResponse> {
-    let funds = distributed_funds(deps)?;
+    let funds = DISTRIBUTION.distributed_funds(deps)?;
     Ok(FundsResponse { funds })
 }
 
 fn query_undistributed_funds(deps: Deps, env: Env) -> StdResult<FundsResponse> {
-    let funds = undistributed_funds(deps, env)?;
+    let funds = DISTRIBUTION.undistributed_funds(deps, env)?;
     Ok(FundsResponse { funds })
 }
 

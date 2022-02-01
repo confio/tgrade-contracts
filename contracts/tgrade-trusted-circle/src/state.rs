@@ -2,6 +2,7 @@ use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use std::fmt;
 
+use crate::distribution::Distribution;
 use crate::error::ContractError;
 use crate::state::MemberStatus::NonVoting;
 use cosmwasm_std::{
@@ -638,6 +639,8 @@ pub fn create_proposal(store: &mut dyn Storage, proposal: &Proposal) -> StdResul
     PROPOSAL_BY_EXPIRY.save(store, expiry, &id)?;
     Ok(id)
 }
+
+pub const DISTRIBUTION: Distribution = Distribution::new("distribution", "distribution-adj");
 
 #[cfg(test)]
 mod test {
