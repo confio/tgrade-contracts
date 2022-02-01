@@ -3,7 +3,7 @@ use cosmwasm_std::entry_point;
 use cosmwasm_std::{
     coin, to_binary, to_vec, Addr, BankMsg, Binary, BlockInfo, ContractResult, Deps, DepsMut,
     Empty, Env, Event, MessageInfo, Order, QuerierWrapper, QueryRequest, StdError, StdResult,
-    Storage, SystemError, SystemResult, Uint128, WasmQuery,
+    SystemError, SystemResult, Uint128, WasmQuery,
 };
 use cw2::set_contract_version;
 use cw3::{Status, Vote};
@@ -13,10 +13,15 @@ use tg4::{member_key, Member, MemberListResponse, MemberResponse, TotalWeightRes
 use tg_bindings::TgradeMsg;
 use tg_utils::{ensure_from_older_version, members, TOTAL};
 
+use crate::distribution::{
+    adjusted_withdrawable_funds, apply_points_correction, distribute_funds, distributed_funds,
+    init_distribution, points_per_weight, undistributed_funds, withdraw_tokens,
+};
 use crate::error::ContractError;
 use crate::msg::{
-    Escrow, EscrowListResponse, EscrowResponse, ExecuteMsg, InstantiateMsg, ProposalListResponse,
-    ProposalResponse, QueryMsg, TrustedCircleResponse, VoteInfo, VoteListResponse, VoteResponse,
+    Escrow, EscrowListResponse, EscrowResponse, ExecuteMsg, FundsResponse, InstantiateMsg,
+    ProposalListResponse, ProposalResponse, QueryMsg, TrustedCircleResponse, VoteInfo,
+    VoteListResponse, VoteResponse,
 };
 use crate::state::MemberStatus::NonVoting;
 use crate::state::{
@@ -39,7 +44,7 @@ pub type SubMsg = cosmwasm_std::SubMsg<TgradeMsg>;
 // make use of the custom errors
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn instantiate(
-    deps: DepsMut,
+    mut deps: DepsMut,
     env: Env,
     info: MessageInfo,
     msg: InstantiateMsg,
@@ -85,6 +90,8 @@ pub fn instantiate(
     TOTAL.save(deps.storage, &VOTING_WEIGHT)?;
     let promote_ev = Event::new(PROMOTE_TYPE).add_attribute(MEMBER_KEY, info.sender);
 
+    init_distribution(deps.branch(), msg.reward)?;
+
     // add all members
     let add_evs = add_remove_non_voting_members(
         deps,
@@ -111,19 +118,24 @@ pub fn execute(
     info: MessageInfo,
     msg: ExecuteMsg,
 ) -> Result<Response, ContractError> {
+    use ExecuteMsg::*;
+
     match msg {
-        ExecuteMsg::DepositEscrow {} => execute_deposit_escrow(deps, env, info),
-        ExecuteMsg::ReturnEscrow {} => execute_return_escrow(deps, env, info),
-        ExecuteMsg::Propose {
+        DepositEscrow {} => execute_deposit_escrow(deps, env, info),
+        ReturnEscrow {} => execute_return_escrow(deps, env, info),
+        Propose {
             title,
             description,
             proposal,
         } => execute_propose(deps, env, info, title, description, proposal),
-        ExecuteMsg::Vote { proposal_id, vote } => execute_vote(deps, env, info, proposal_id, vote),
-        ExecuteMsg::Execute { proposal_id } => execute_execute(deps, env, info, proposal_id),
-        ExecuteMsg::Close { proposal_id } => execute_close(deps, env, info, proposal_id),
-        ExecuteMsg::LeaveTrustedCircle {} => execute_leave_trusted_circle(deps, env, info),
-        ExecuteMsg::CheckPending {} => execute_check_pending(deps, env, info),
+        Vote { proposal_id, vote } => execute_vote(deps, env, info, proposal_id, vote),
+        Execute { proposal_id } => execute_execute(deps, env, info, proposal_id),
+        Close { proposal_id } => execute_close(deps, env, info, proposal_id),
+        LeaveTrustedCircle {} => execute_leave_trusted_circle(deps, env, info),
+        CheckPending {} => execute_check_pending(deps, env, info),
+
+        DistributeFunds {} => execute_distribute_funds(deps, env, info),
+        WithdrawFunds { .. } => execute_withdraw_funds(deps, info),
     }
 }
 
@@ -179,11 +191,14 @@ pub fn execute_deposit_escrow(
 ///
 /// Returns a list of attributes for each user promoted
 fn update_batch_after_escrow_paid(
-    deps: DepsMut,
+    mut deps: DepsMut,
     env: Env,
     proposal_id: u64,
     paid_escrow: &Addr,
 ) -> Result<Option<Event>, ContractError> {
+    // For distribution correction
+    let ppw = points_per_weight(deps.as_ref())?;
+
     // We first check and update this batch state
     let mut batch = batches().load(deps.storage, proposal_id)?;
     // This will panic if we hit 0. That said, it can never go below 0 if we call this once per member.
@@ -195,9 +210,10 @@ fn update_batch_after_escrow_paid(
         (true, true) => {
             batches().save(deps.storage, proposal_id, &batch)?;
             // just promote this one, everyone else has been promoted
-            if convert_to_voter_if_paid(deps.storage, paid_escrow, height)? {
+            if convert_to_voter_if_paid(deps.branch(), paid_escrow, height)? {
                 // update the total with the new weight
                 TOTAL.update::<_, StdError>(deps.storage, |old| Ok(old + VOTING_WEIGHT))?;
+                apply_points_correction(deps.branch(), paid_escrow, ppw, VOTING_WEIGHT as i128)?;
                 let evt = Event::new(PROMOTE_TYPE)
                     .add_attribute(PROPOSAL_KEY, proposal_id.to_string())
                     .add_attribute(MEMBER_KEY, paid_escrow);
@@ -208,7 +224,7 @@ fn update_batch_after_escrow_paid(
         }
         (true, false) => {
             let evt =
-                convert_all_paid_members_to_voters(deps.storage, proposal_id, &mut batch, height)?;
+                convert_all_paid_members_to_voters(deps.branch(), proposal_id, &mut batch, height)?;
             Ok(Some(evt))
         }
         // not ready yet
@@ -238,28 +254,30 @@ const REMOVE_VOTING_TYPE: &str = "remove_voting";
 /// As well as making members voter, it will update and save the batch and the
 /// total vote count.
 fn convert_all_paid_members_to_voters(
-    storage: &mut dyn Storage,
+    mut deps: DepsMut,
     batch_id: u64,
     batch: &mut Batch,
     height: u64,
 ) -> StdResult<Event> {
+    let ppw = points_per_weight(deps.as_ref())?;
     let mut evt = Event::new(PROMOTE_TYPE).add_attribute(PROPOSAL_KEY, batch_id.to_string());
 
     // try to promote them all
     let mut added = 0;
     for waiting in batch.members.iter() {
-        if convert_to_voter_if_paid(storage, waiting, height)? {
+        if convert_to_voter_if_paid(deps.branch(), waiting, height)? {
+            apply_points_correction(deps.branch(), waiting, ppw, VOTING_WEIGHT as i128)?;
             evt = evt.add_attribute(MEMBER_KEY, waiting);
             added += VOTING_WEIGHT;
         }
     }
     // make this a promoted and save
     batch.batch_promoted = true;
-    batches().save(storage, batch_id, batch)?;
+    batches().save(deps.storage, batch_id, batch)?;
 
     // update the total with the new weight
     if added > 0 {
-        TOTAL.update::<_, StdError>(storage, |old| Ok(old + added))?;
+        TOTAL.update::<_, StdError>(deps.storage, |old| Ok(old + added))?;
     }
 
     Ok(evt)
@@ -268,12 +286,9 @@ fn convert_all_paid_members_to_voters(
 /// Returns true if this address was fully paid, false otherwise.
 /// Make sure you update TOTAL after calling this
 /// (Not done here, so we can update TOTAL once when promoting a whole batch)
-fn convert_to_voter_if_paid(
-    storage: &mut dyn Storage,
-    to_promote: &Addr,
-    height: u64,
-) -> StdResult<bool> {
-    let mut escrow = ESCROWS.load(storage, to_promote)?;
+fn convert_to_voter_if_paid(mut deps: DepsMut, to_promote: &Addr, height: u64) -> StdResult<bool> {
+    let ppw = points_per_weight(deps.as_ref())?;
+    let mut escrow = ESCROWS.load(deps.storage, to_promote)?;
     // if this one was not yet paid up, do nothing
     if !escrow.status.is_pending_paid() {
         return Ok(false);
@@ -281,10 +296,11 @@ fn convert_to_voter_if_paid(
 
     // update status
     escrow.status = MemberStatus::Voting {};
-    ESCROWS.save(storage, to_promote, &escrow)?;
+    ESCROWS.save(deps.storage, to_promote, &escrow)?;
+    apply_points_correction(deps.branch(), to_promote, ppw, VOTING_WEIGHT as i128)?;
 
     // update voting weight
-    members().save(storage, to_promote, &VOTING_WEIGHT, height)?;
+    members().save(deps.storage, to_promote, &VOTING_WEIGHT, height)?;
 
     Ok(true)
 }
@@ -350,7 +366,7 @@ pub fn execute_return_escrow(
 }
 
 pub fn execute_propose(
-    deps: DepsMut,
+    mut deps: DepsMut,
     mut env: Env,
     info: MessageInfo,
     title: String,
@@ -368,7 +384,7 @@ pub fn execute_propose(
         // As its only altering height for a while there is no point on clonning whole env just for
         // one call. Height is restored literally 2 lines below.
         env.block.height -= 1;
-        let events = check_pending(deps.storage, &env)?;
+        let events = check_pending(deps.branch(), &env)?;
         env.block.height += 1;
         events
     } else {
@@ -670,6 +686,7 @@ fn trigger_long_leave(
     leaver: Addr,
     mut escrow: EscrowStatus,
 ) -> Result<Response, ContractError> {
+    let ppw = points_per_weight(deps.as_ref())?;
     // if we are voting member, reduce vote to 0 (otherwise, it is already 0)
     if escrow.status == (MemberStatus::Voting {}) {
         members().save(deps.storage, &leaver, &0, env.block.height)?;
@@ -677,7 +694,7 @@ fn trigger_long_leave(
             old.checked_sub(VOTING_WEIGHT)
                 .ok_or_else(|| StdError::generic_err("Total underflow"))
         })?;
-
+        apply_points_correction(deps.branch(), &leaver, ppw, -(VOTING_WEIGHT as i128))?;
         // now, we reduce total weight of all open proposals that this member has not yet voted on
         adjust_open_proposals_for_leaver(deps.branch(), &env, &leaver)?;
     }
@@ -729,7 +746,7 @@ pub fn execute_check_pending(
 ) -> Result<Response, ContractError> {
     cw_utils::nonpayable(&info)?;
 
-    let events = check_pending(deps.storage, &env)?;
+    let events = check_pending(deps, &env)?;
     let res = Response::new()
         .add_attribute("action", "check_pending")
         .add_attribute("sender", &info.sender)
@@ -737,22 +754,22 @@ pub fn execute_check_pending(
     Ok(res)
 }
 
-fn check_pending(storage: &mut dyn Storage, env: &Env) -> Result<Vec<Event>, ContractError> {
+fn check_pending(mut deps: DepsMut, env: &Env) -> Result<Vec<Event>, ContractError> {
     // Check if there's a pending escrow, and update escrow_amount if grace period is expired
-    let mut evts = check_pending_escrow(storage, env)?;
+    let mut evts = check_pending_escrow(deps.branch(), env)?;
     // Then, check pending batches
-    evts.extend_from_slice(&check_pending_batches(storage, &env.block)?);
+    evts.extend_from_slice(&check_pending_batches(deps, &env.block)?);
     Ok(evts)
 }
 
-fn check_pending_escrow(storage: &mut dyn Storage, env: &Env) -> Result<Vec<Event>, ContractError> {
-    let mut trusted_circle = TRUSTED_CIRCLE.load(storage)?;
+fn check_pending_escrow(mut deps: DepsMut, env: &Env) -> Result<Vec<Event>, ContractError> {
+    let mut trusted_circle = TRUSTED_CIRCLE.load(deps.storage)?;
     if let Some(pending_escrow) = trusted_circle.escrow_pending {
         if env.block.time.seconds() >= pending_escrow.grace_ends_at {
             // Demote all Voting without enough escrow to Pending (pending_escrow > escrow_amount)
             // Promote all Pending with enough escrow to PendingPaid (pending_escrow < escrow_amount)
             let evt = pending_escrow_demote_promote_members(
-                storage,
+                deps.branch(),
                 env,
                 pending_escrow.proposal_id,
                 trusted_circle.escrow_amount,
@@ -763,7 +780,7 @@ fn check_pending_escrow(storage: &mut dyn Storage, env: &Env) -> Result<Vec<Even
             // Enforce new escrow from now on
             trusted_circle.escrow_amount = pending_escrow.amount;
             trusted_circle.escrow_pending = None;
-            TRUSTED_CIRCLE.save(storage, &trusted_circle)?;
+            TRUSTED_CIRCLE.save(deps.storage, &trusted_circle)?;
 
             if let Some(evt) = evt {
                 return Ok(vec![evt]);
@@ -778,17 +795,18 @@ fn check_pending_escrow(storage: &mut dyn Storage, env: &Env) -> Result<Vec<Even
 /// Else if new_escrow_amount < escrow_amount:
 /// Iterates over all Pending, and promotes those with enough escrow to PendingPaid
 fn pending_escrow_demote_promote_members(
-    storage: &mut dyn Storage,
+    mut deps: DepsMut,
     env: &Env,
     proposal_id: u64,
     escrow_amount: Uint128,
     new_escrow_amount: Uint128,
     height: u64,
 ) -> Result<Option<Event>, ContractError> {
+    let ppw = points_per_weight(deps.as_ref())?;
     #[allow(clippy::comparison_chain)]
     if new_escrow_amount > escrow_amount {
         let demoted: Vec<_> = ESCROWS
-            .range(storage, None, None, Order::Ascending)
+            .range(deps.storage, None, None, Order::Ascending)
             .filter(|r| match r.as_ref() {
                 Err(_) => true,
                 Ok((_, es)) => es.status == MemberStatus::Voting {} && es.paid < new_escrow_amount,
@@ -798,24 +816,25 @@ fn pending_escrow_demote_promote_members(
         let mut demoted_addrs = vec![];
         for (addr, mut escrow_status) in demoted {
             escrow_status.status = MemberStatus::Pending { proposal_id };
-            ESCROWS.save(storage, &addr, &escrow_status)?;
+            ESCROWS.save(deps.storage, &addr, &escrow_status)?;
             // Remove voting weight
-            members().save(storage, &addr, &0, height)?;
+            members().save(deps.storage, &addr, &0, height)?;
             // And adjust TOTAL
-            TOTAL.update::<_, StdError>(storage, |old| {
+            TOTAL.update::<_, StdError>(deps.storage, |old| {
                 old.checked_sub(VOTING_WEIGHT)
                     .ok_or_else(|| StdError::generic_err("Total underflow"))
             })?;
+            apply_points_correction(deps.branch(), &addr, ppw, -(VOTING_WEIGHT as i128))?;
             demoted_addrs.push(addr.clone());
             evt = evt.add_attribute(MEMBER_KEY, addr);
         }
         // Create and store batch (so that promotion can work)!
         let grace_period = 0; // promote them as soon as they pay (this is like a "batch of one")
-        create_batch(storage, env, proposal_id, grace_period, &demoted_addrs)?;
+        create_batch(deps.storage, env, proposal_id, grace_period, &demoted_addrs)?;
         return Ok(Some(evt));
     } else if new_escrow_amount < escrow_amount {
         let promoted: Vec<_> = ESCROWS
-            .range(storage, None, None, Order::Ascending)
+            .range(deps.storage, None, None, Order::Ascending)
             .filter(|r| match r.as_ref() {
                 Err(_) => true,
                 Ok((_, es)) => match es.status {
@@ -835,7 +854,7 @@ fn pending_escrow_demote_promote_members(
             escrow_status.status = MemberStatus::PendingPaid {
                 proposal_id: original_proposal_id,
             };
-            ESCROWS.save(storage, &addr, &escrow_status)?;
+            ESCROWS.save(deps.storage, &addr, &escrow_status)?;
             evt = evt
                 .add_attribute("original_proposal", original_proposal_id.to_string())
                 .add_attribute(MEMBER_KEY, addr);
@@ -845,7 +864,7 @@ fn pending_escrow_demote_promote_members(
     Ok(None)
 }
 
-fn check_pending_batches(storage: &mut dyn Storage, block: &BlockInfo) -> StdResult<Vec<Event>> {
+fn check_pending_batches(mut deps: DepsMut, block: &BlockInfo) -> StdResult<Vec<Event>> {
     let batch_map = batches();
 
     // Limit to batches that have not yet been promoted (0), using sub_prefix.
@@ -860,13 +879,13 @@ fn check_pending_batches(storage: &mut dyn Storage, block: &BlockInfo) -> StdRes
         .idx
         .promotion_time
         .sub_prefix(0u8)
-        .range(storage, None, Some(bound), Order::Ascending)
+        .range(deps.storage, None, Some(bound), Order::Ascending)
         .collect::<StdResult<Vec<_>>>()?;
 
     ready
         .into_iter()
         .map(|(batch_id, mut batch)| {
-            convert_all_paid_members_to_voters(storage, batch_id, &mut batch, block.height)
+            convert_all_paid_members_to_voters(deps.branch(), batch_id, &mut batch, block.height)
         })
         .collect()
 }
@@ -1089,6 +1108,7 @@ pub fn proposal_punish_members(
     proposal_id: u64,
     punishments: &[Punishment],
 ) -> Result<Response, ContractError> {
+    let ppw = points_per_weight(deps.as_ref())?;
     let mut res = Response::new().add_attribute("proposal", "punish_members");
     let mut demoted_addrs = vec![];
     for (i, p) in (1..).zip(punishments) {
@@ -1167,6 +1187,7 @@ pub fn proposal_punish_members(
             }
             escrow_status.status = MemberStatus::Pending { proposal_id };
             ESCROWS.save(deps.storage, &addr, &escrow_status)?;
+            apply_points_correction(deps.branch(), &addr, ppw, -(VOTING_WEIGHT as i128))?;
             demoted_addrs.push(addr);
         } else {
             // Just update remaining escrow
@@ -1246,26 +1267,26 @@ pub fn is_contract(querier: &QuerierWrapper, addr: &Addr) -> StdResult<bool> {
 
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn query(deps: Deps, env: Env, msg: QueryMsg) -> StdResult<Binary> {
+    use QueryMsg::*;
+
     match msg {
-        QueryMsg::Member {
+        Member {
             addr,
             at_height: height,
         } => to_binary(&query_member(deps, addr, height)?),
-        QueryMsg::Escrow { addr } => to_binary(&query_escrow(deps, addr)?),
-        QueryMsg::ListMembers { start_after, limit } => {
-            to_binary(&list_members(deps, start_after, limit)?)
-        }
-        QueryMsg::ListVotingMembers { start_after, limit } => {
+        Escrow { addr } => to_binary(&query_escrow(deps, addr)?),
+        ListMembers { start_after, limit } => to_binary(&list_members(deps, start_after, limit)?),
+        ListVotingMembers { start_after, limit } => {
             to_binary(&list_voting_members(deps, start_after, limit)?)
         }
-        QueryMsg::ListNonVotingMembers { start_after, limit } => {
+        ListNonVotingMembers { start_after, limit } => {
             to_binary(&list_non_voting_members(deps, start_after, limit)?)
         }
-        QueryMsg::TotalWeight {} => to_binary(&query_total_weight(deps)?),
-        QueryMsg::TrustedCircle {} => to_binary(&query_trusted_circle(deps)?),
-        QueryMsg::Proposal { proposal_id } => to_binary(&query_proposal(deps, env, proposal_id)?),
-        QueryMsg::Vote { proposal_id, voter } => to_binary(&query_vote(deps, proposal_id, voter)?),
-        QueryMsg::ListProposals {
+        TotalWeight {} => to_binary(&query_total_weight(deps)?),
+        TrustedCircle {} => to_binary(&query_trusted_circle(deps)?),
+        Proposal { proposal_id } => to_binary(&query_proposal(deps, env, proposal_id)?),
+        Vote { proposal_id, voter } => to_binary(&query_vote(deps, proposal_id, voter)?),
+        ListProposals {
             start_after,
             limit,
             reverse,
@@ -1276,7 +1297,7 @@ pub fn query(deps: Deps, env: Env, msg: QueryMsg) -> StdResult<Binary> {
             limit,
             reverse.unwrap_or(false),
         )?),
-        QueryMsg::ListVotesByProposal {
+        ListVotesByProposal {
             proposal_id,
             start_after,
             limit,
@@ -1286,14 +1307,16 @@ pub fn query(deps: Deps, env: Env, msg: QueryMsg) -> StdResult<Binary> {
             start_after,
             limit,
         )?),
-        QueryMsg::ListVotesByVoter {
+        ListVotesByVoter {
             voter,
             start_before,
             limit,
         } => to_binary(&list_votes_by_voter(deps, voter, start_before, limit)?),
-        QueryMsg::ListEscrows { start_after, limit } => {
-            to_binary(&list_escrows(deps, start_after, limit)?)
-        }
+        ListEscrows { start_after, limit } => to_binary(&list_escrows(deps, start_after, limit)?),
+
+        WithdrawableFunds { owner } => to_binary(&query_withdrawable_funds(deps, owner)?),
+        DistributedFunds {} => to_binary(&query_distributed_funds(deps)?),
+        UndistributedFunds {} => to_binary(&query_undistributed_funds(deps, env)?),
     }
 }
 
@@ -1566,6 +1589,69 @@ pub(crate) fn list_votes_by_voter(
         .collect();
 
     Ok(VoteListResponse { votes: votes? })
+}
+
+fn execute_distribute_funds(
+    deps: DepsMut,
+    env: Env,
+    info: MessageInfo,
+) -> Result<Response, ContractError> {
+    let total = TOTAL.load(deps.storage)?;
+    let funds = distribute_funds(deps, env, total as u128)?;
+
+    let resp = Response::new()
+        .add_attribute("action", "distribute_tokens")
+        .add_attribute("sender", info.sender)
+        .add_attribute("denom", funds.denom)
+        .add_attribute("amount", &funds.amount.to_string());
+
+    Ok(resp)
+}
+
+fn execute_withdraw_funds(deps: DepsMut, info: MessageInfo) -> Result<Response, ContractError> {
+    let escrow = ESCROWS.load(deps.storage, &info.sender)?;
+
+    if escrow.status != (MemberStatus::Voting {}) {
+        return Err(ContractError::InvalidStatus(escrow.status));
+    }
+
+    let token = withdraw_tokens(deps, &info.sender, 1)?;
+
+    let resp = Response::new()
+        .add_attribute("action", "withdraw_tokens")
+        .add_attribute("owner", info.sender.as_str())
+        .add_attribute("token", &token.denom)
+        .add_attribute("amount", &token.amount.to_string())
+        .add_submessage(SubMsg::new(BankMsg::Send {
+            to_address: info.sender.to_string(),
+            amount: vec![token],
+        }));
+
+    Ok(resp)
+}
+
+fn query_withdrawable_funds(deps: Deps, owner: String) -> StdResult<FundsResponse> {
+    // Unchecked - if the address is invalid, querying escrow would fail
+    let addr = Addr::unchecked(&owner);
+    let escrow = ESCROWS.load(deps.storage, &addr)?;
+
+    let weight = match escrow.status {
+        MemberStatus::Voting {} => 1,
+        _ => 0,
+    };
+
+    let funds = adjusted_withdrawable_funds(deps, addr, weight)?;
+    Ok(FundsResponse { funds })
+}
+
+fn query_distributed_funds(deps: Deps) -> StdResult<FundsResponse> {
+    let funds = distributed_funds(deps)?;
+    Ok(FundsResponse { funds })
+}
+
+fn query_undistributed_funds(deps: Deps, env: Env) -> StdResult<FundsResponse> {
+    let funds = undistributed_funds(deps, env)?;
+    Ok(FundsResponse { funds })
 }
 
 #[cfg_attr(not(feature = "library"), entry_point)]

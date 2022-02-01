@@ -104,9 +104,11 @@ pub enum ContractError {
 
     #[error("Address {addr} is member of deny list {deny_list}")]
     DeniedAddress { addr: String, deny_list: Addr },
-
     #[error("The Trusted Circle rules have been frozen and can no longer be edited")]
     FrozenRules,
+
+    #[error("No members to distribute tokens to")]
+    NoMembersToDistributeTo,
 }
 
 impl From<OverflowError> for ContractError {

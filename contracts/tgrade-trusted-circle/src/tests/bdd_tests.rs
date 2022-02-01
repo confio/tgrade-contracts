@@ -94,6 +94,7 @@ fn setup_bdd(mut deps: DepsMut) {
         initial_members: vec![NON_VOTING.into()],
         deny_list: None,
         edit_trusted_circle_disabled: false,
+        reward: "usdc".to_owned(),
     };
     let info = mock_info(VOTING, &coins(VOTING_ESCROW, DENOM));
     instantiate(deps.branch(), start.clone(), info, msg).unwrap();
