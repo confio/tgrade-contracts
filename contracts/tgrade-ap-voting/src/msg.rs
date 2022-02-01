@@ -51,6 +51,7 @@ pub enum ExecuteMsg {
         complaint_id: u64,
         reason: String,
     },
+    Distribute {},
 }
 
 // We can also add this as a cw3 extension

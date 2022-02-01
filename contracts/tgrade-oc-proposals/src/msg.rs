@@ -36,6 +36,7 @@ pub enum ExecuteMsg {
     Close {
         proposal_id: u64,
     },
+    Distribute {},
 }
 
 // We can also add this as a cw3 extension
