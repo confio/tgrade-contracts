@@ -52,3 +52,10 @@ impl Complaint {
 
 pub const CONFIG: Item<Config> = Item::new("ap_config");
 pub const COMPLAINTS: Map<u64, Complaint> = Map::new("complaints");
+
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
+#[serde(rename_all = "snake_case")]
+pub enum ArbiterProposal {
+    /// An open text proposal with no actual logic executed when it passes
+    Text {},
+}

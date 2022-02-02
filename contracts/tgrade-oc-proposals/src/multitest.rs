@@ -103,7 +103,7 @@ fn grant_engagement_reward() {
     let proposal_id: u64 = get_proposal_id(&response).unwrap();
     let err = suite.execute(members[0], proposal_id).unwrap_err();
     assert_eq!(
-        ContractError::WrongExecuteStatus {},
+        ContractError::Voting(tg_voting_contract::ContractError::WrongExecuteStatus {}),
         err.downcast().unwrap()
     );
 

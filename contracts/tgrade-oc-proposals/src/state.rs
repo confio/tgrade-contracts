@@ -25,6 +25,8 @@ pub enum OversightProposal {
         min_weight: Option<u64>,
         max_validators: Option<u32>,
     },
+    /// An open text proposal with no actual logic executed when it passes
+    Text {},
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]

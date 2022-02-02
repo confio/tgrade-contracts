@@ -3,7 +3,6 @@ use cosmwasm_std::entry_point;
 use cosmwasm_std::{to_binary, Binary, Decimal, Deps, DepsMut, Empty, Env, MessageInfo, StdResult};
 
 use cw2::set_contract_version;
-use cw3::Status;
 use tg4::Tg4Contract;
 use tg_bindings::TgradeMsg;
 use tg_utils::{ensure_from_older_version, JailMsg, SlashMsg};
@@ -12,11 +11,10 @@ use crate::msg::{ExecuteMsg, InstantiateMsg, QueryMsg};
 use crate::state::{Config, OversightProposal, CONFIG};
 use crate::ContractError;
 
-use tg_voting_contract::state::proposals;
 use tg_voting_contract::{
-    close as execute_close, list_proposals, list_voters, list_votes, propose as execute_propose,
-    query_group_contract, query_proposal, query_rules, query_vote, query_voter, reverse_proposals,
-    vote as execute_vote,
+    close as execute_close, execute_text, list_proposals, list_voters, list_votes, mark_executed,
+    propose as execute_propose, query_group_contract, query_proposal, query_rules, query_vote,
+    query_voter, reverse_proposals, vote as execute_vote,
 };
 
 pub type Response = cosmwasm_std::Response<TgradeMsg>;
@@ -73,7 +71,7 @@ pub fn execute(
             execute_vote::<OversightProposal>(deps, env, info, proposal_id, vote)
                 .map_err(ContractError::from)
         }
-        Execute { proposal_id } => execute_execute(deps, info, proposal_id),
+        Execute { proposal_id } => execute_execute(deps, env, info, proposal_id),
         Close { proposal_id } => execute_close::<OversightProposal>(deps, env, info, proposal_id)
             .map_err(ContractError::from),
     }
@@ -81,27 +79,18 @@ pub fn execute(
 
 pub fn execute_execute(
     deps: DepsMut,
+    env: Env,
     info: MessageInfo,
     proposal_id: u64,
 ) -> Result<Response, ContractError> {
     use OversightProposal::*;
-    // anyone can trigger this if the vote passed
 
-    let mut prop = proposals().load(deps.storage, proposal_id)?;
-    // we allow execution even after the proposal "expiration" as long as all vote come in before
-    // that point. If it was approved on time, it can be executed any time.
-    if prop.status != Status::Passed {
-        return Err(ContractError::WrongExecuteStatus {});
-    }
+    let proposal = mark_executed::<OversightProposal>(deps.storage, env, proposal_id)?;
 
     let Config {
         engagement_contract,
         valset_contract,
     } = CONFIG.load(deps.storage)?;
-
-    // set it to executed
-    prop.status = Status::Executed;
-    proposals().save(deps.storage, proposal_id, &prop)?;
 
     // dispatch all proposed messages
     let mut res = Response::new()
@@ -109,7 +98,7 @@ pub fn execute_execute(
         .add_attribute("sender", info.sender)
         .add_attribute("proposal_id", proposal_id.to_string());
 
-    match prop.proposal {
+    match proposal.proposal {
         GrantEngagement { ref member, points } => {
             res = res.add_submessage(engagement_contract.encode_raw_msg(to_binary(
                 &tg4_engagement::ExecuteMsg::AddPoints {
@@ -162,6 +151,7 @@ pub fn execute_execute(
                 },
             )?)?);
         }
+        Text {} => execute_text(deps, proposal_id, proposal)?,
     }
 
     Ok(res)
@@ -229,7 +219,7 @@ pub fn migrate(deps: DepsMut, _env: Env, _msg: Empty) -> Result<Response, Contra
 mod tests {
     use cosmwasm_std::{coin, coins, Addr, BlockInfo, Coin, Decimal};
 
-    use cw3::{Vote, VoterDetail, VoterListResponse};
+    use cw3::{Status, Vote, VoterDetail, VoterListResponse};
     use cw_multi_test::{next_block, Contract, ContractWrapper, Executor};
     use tg4::{Member, Tg4ExecuteMsg};
     use tg_bindings_test::TgradeApp;
@@ -752,6 +742,7 @@ mod tests {
             title,
             description,
             proposal,
+            created_by: VOTER2.into(),
             expires: voting_period.after(&proposed_at),
             status: Status::Open,
             rules,
