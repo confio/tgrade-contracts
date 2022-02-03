@@ -1276,9 +1276,6 @@ pub fn query(deps: Deps, env: Env, msg: QueryMsg) -> StdResult<Binary> {
         } => to_binary(&query_member(deps, addr, height)?),
         Escrow { addr } => to_binary(&query_escrow(deps, addr)?),
         ListMembers { start_after, limit } => to_binary(&list_members(deps, start_after, limit)?),
-        ListVotingMembers { start_after, limit } => {
-            to_binary(&list_voting_members(deps, start_after, limit)?)
-        }
         ListNonVotingMembers { start_after, limit } => {
             to_binary(&list_non_voting_members(deps, start_after, limit)?)
         }
@@ -1308,8 +1305,11 @@ pub fn query(deps: Deps, env: Env, msg: QueryMsg) -> StdResult<Binary> {
             start_before,
             limit,
         } => to_binary(&list_votes_by_voter(deps, voter, start_before, limit)?),
+        Voter { address } => to_binary(&query_member(deps, address, None)?),
+        ListVoters { start_after, limit } => {
+            to_binary(&list_voting_members(deps, start_after, limit)?)
+        }
         ListEscrows { start_after, limit } => to_binary(&list_escrows(deps, start_after, limit)?),
-
         WithdrawableRewards { owner } => to_binary(&query_withdrawable_funds(deps, owner)?),
         DistributedRewards {} => to_binary(&query_distributed_funds(deps)?),
         UndistributedRewards {} => to_binary(&query_undistributed_funds(deps, env)?),

@@ -81,11 +81,6 @@ pub enum QueryMsg {
         start_after: Option<String>,
         limit: Option<u32>,
     },
-    /// Returns MemberListResponse, only active voting members (weight > 0)
-    ListVotingMembers {
-        start_after: Option<String>,
-        limit: Option<u32>,
-    },
     /// Returns MemberListResponse, only weight == 0 members
     ListNonVotingMembers {
         start_after: Option<String>,
@@ -127,12 +122,18 @@ pub enum QueryMsg {
         start_before: Option<u64>,
         limit: Option<u32>,
     },
+    /// Returns MemberResponse
+    Voter { address: String },
+    /// Returns MembersListResponse, only active voting members (weight > 0)
+    ListVoters {
+        start_after: Option<String>,
+        limit: Option<u32>,
+    },
     /// Returns an EscrowListResponse, with all members that have escrow.
     ListEscrows {
         start_after: Option<String>,
         limit: Option<u32>,
     },
-
     /// Return how much rewards are assigned for withdrawal to given address. Returns
     /// `RewardsResponse`.
     WithdrawableRewards { owner: String },
