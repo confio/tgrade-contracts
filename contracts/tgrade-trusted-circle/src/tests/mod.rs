@@ -86,6 +86,7 @@ fn do_instantiate(
         initial_members,
         deny_list: None,
         edit_trusted_circle_disabled,
+        reward_denom: "utgd".to_owned(),
     };
     instantiate(deps, mock_env(), info, msg)
 }

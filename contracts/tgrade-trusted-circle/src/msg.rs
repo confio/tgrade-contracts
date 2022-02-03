@@ -2,7 +2,7 @@ use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
 use crate::state::{EscrowStatus, PendingEscrow, ProposalContent, Votes, VotingRules};
-use cosmwasm_std::{Addr, Decimal, Uint128};
+use cosmwasm_std::{Addr, Coin, Decimal, Uint128};
 use cw3::{Status, Vote};
 use cw_utils::Expiration;
 
@@ -28,6 +28,8 @@ pub struct InstantiateMsg {
     pub deny_list: Option<String>,
     /// If true, no further adjustments may happen.
     pub edit_trusted_circle_disabled: bool,
+    /// Distributed reward denom
+    pub reward_denom: String,
 }
 
 #[allow(clippy::large_enum_variant)]
@@ -57,6 +59,13 @@ pub enum ExecuteMsg {
     /// Run through these groups and promote anyone who has paid escrow.
     /// This also checks if there's a pending escrow that needs to be applied.
     CheckPending {},
+
+    /// Distributes rewards sent with this message, and all funds transferred since last call of this
+    /// to members equally. Rewards are not immediately send to members, but assigned to them for later
+    /// withdrawal (see: `ExecuteMsg::WithdrawRewards`)
+    DistributeRewards {},
+    /// Withdraws rewards which were previously distributed and assigned to sender.
+    WithdrawRewards {},
 }
 
 // TODO: expose batch query
@@ -119,6 +128,17 @@ pub enum QueryMsg {
         start_after: Option<String>,
         limit: Option<u32>,
     },
+
+    /// Return how much rewards are assigned for withdrawal to given address. Returns
+    /// `RewardsResponse`.
+    WithdrawableRewards { owner: String },
+    /// Return how much rewards were distributed in total by this contract. Returns
+    /// `RewardsResponse`.
+    DistributedRewards {},
+    /// Return how much rewards were send to this contract since last
+    /// `ExecuteMsg::DistribtueRewards`, and wait for distribution.
+    /// Returns `RewardsResponse`.
+    UndistributedRewards {},
 }
 
 pub type EscrowResponse = Option<EscrowStatus>;
@@ -192,4 +212,9 @@ impl Escrow {
 #[derive(Serialize, Deserialize, Clone, PartialEq, JsonSchema, Debug)]
 pub struct EscrowListResponse {
     pub escrows: Vec<Escrow>,
+}
+
+#[derive(Serialize, Deserialize, Clone, PartialEq, JsonSchema, Debug)]
+pub struct RewardsResponse {
+    pub rewards: Coin,
 }
