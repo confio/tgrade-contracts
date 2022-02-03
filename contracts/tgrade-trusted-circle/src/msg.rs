@@ -29,7 +29,7 @@ pub struct InstantiateMsg {
     /// If true, no further adjustments may happen.
     pub edit_trusted_circle_disabled: bool,
     /// Distributed reward denom
-    pub reward: String,
+    pub reward_denom: String,
 }
 
 #[allow(clippy::large_enum_variant)]
@@ -60,12 +60,12 @@ pub enum ExecuteMsg {
     /// This also checks if there's a pending escrow that needs to be applied.
     CheckPending {},
 
-    /// Distributes funds sent with this message, and all funds transferred since last call of this
-    /// to members equally. Funds are not immediately send to members, but assigned to them for later
-    /// withdrawal (see: `ExecuteMsg::WithdrawFunds`)
-    DistributeFunds {},
-    /// Withdraws funds which were previously distributed and assigned to sender.
-    WithdrawFunds {},
+    /// Distributes rewards sent with this message, and all funds transferred since last call of this
+    /// to members equally. Rewards are not immediately send to members, but assigned to them for later
+    /// withdrawal (see: `ExecuteMsg::WithdrawRewards`)
+    DistributeRewards {},
+    /// Withdraws rewards which were previously distributed and assigned to sender.
+    WithdrawRewards {},
 }
 
 // TODO: expose batch query
@@ -129,15 +129,16 @@ pub enum QueryMsg {
         limit: Option<u32>,
     },
 
-    /// Return how much funds are assigned for withdrawal to given address. Returns
-    /// `FundsResponse`.
-    WithdrawableFunds { owner: String },
-    /// Return how much funds were distributed in total by this contract. Returns
-    /// `FundsResponse`.
-    DistributedFunds {},
-    /// Return how much funds were send to this contract since last `ExecuteMsg::DistribtueFunds`,
-    /// and wait for distribution. Returns `FundsResponse`.
-    UndistributedFunds {},
+    /// Return how much rewards are assigned for withdrawal to given address. Returns
+    /// `RewardsResponse`.
+    WithdrawableRewards { owner: String },
+    /// Return how much rewards were distributed in total by this contract. Returns
+    /// `RewardsResponse`.
+    DistributedRewards {},
+    /// Return how much rewards were send to this contract since last
+    /// `ExecuteMsg::DistribtueRewards`, and wait for distribution.
+    /// Returns `RewardsResponse`.
+    UndistributedRewards {},
 }
 
 pub type EscrowResponse = Option<EscrowStatus>;
@@ -214,6 +215,6 @@ pub struct EscrowListResponse {
 }
 
 #[derive(Serialize, Deserialize, Clone, PartialEq, JsonSchema, Debug)]
-pub struct FundsResponse {
-    pub funds: Coin,
+pub struct RewardsResponse {
+    pub rewards: Coin,
 }

@@ -1197,7 +1197,7 @@ fn leaving_voter_cannot_vote_anymore() {
         initial_members: vec![],
         deny_list: None,
         edit_trusted_circle_disabled: false,
-        reward: "utgd".to_owned(),
+        reward_denom: "utgd".to_owned(),
     };
     instantiate(deps.as_mut(), mock_env(), info, msg).unwrap();
 

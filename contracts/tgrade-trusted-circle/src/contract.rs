@@ -15,9 +15,9 @@ use tg_utils::{ensure_from_older_version, members, TOTAL};
 
 use crate::error::ContractError;
 use crate::msg::{
-    Escrow, EscrowListResponse, EscrowResponse, ExecuteMsg, FundsResponse, InstantiateMsg,
-    ProposalListResponse, ProposalResponse, QueryMsg, TrustedCircleResponse, VoteInfo,
-    VoteListResponse, VoteResponse,
+    Escrow, EscrowListResponse, EscrowResponse, ExecuteMsg, InstantiateMsg, ProposalListResponse,
+    ProposalResponse, QueryMsg, RewardsResponse, TrustedCircleResponse, VoteInfo, VoteListResponse,
+    VoteResponse,
 };
 use crate::state::MemberStatus::NonVoting;
 use crate::state::{
@@ -87,7 +87,7 @@ pub fn instantiate(
     TOTAL.save(deps.storage, &VOTING_WEIGHT)?;
     let promote_ev = Event::new(PROMOTE_TYPE).add_attribute(MEMBER_KEY, info.sender);
 
-    DISTRIBUTION.init(deps.branch(), msg.reward)?;
+    DISTRIBUTION.init(deps.branch(), msg.reward_denom)?;
 
     // add all members
     let add_evs = add_remove_non_voting_members(
@@ -131,8 +131,8 @@ pub fn execute(
         LeaveTrustedCircle {} => execute_leave_trusted_circle(deps, env, info),
         CheckPending {} => execute_check_pending(deps, env, info),
 
-        DistributeFunds {} => execute_distribute_funds(deps, env, info),
-        WithdrawFunds { .. } => execute_withdraw_funds(deps, info),
+        DistributeRewards {} => execute_distribute_funds(deps, env, info),
+        WithdrawRewards {} => execute_withdraw_funds(deps, info),
     }
 }
 
@@ -1181,11 +1181,11 @@ pub fn proposal_punish_members(
                     old.checked_sub(VOTING_WEIGHT)
                         .ok_or_else(|| StdError::generic_err("Total underflow"))
                 })?;
+                DISTRIBUTION
+                    .apply_points_correction(deps.branch(), &[(&addr, -(VOTING_WEIGHT as i128))])?;
             }
             escrow_status.status = MemberStatus::Pending { proposal_id };
             ESCROWS.save(deps.storage, &addr, &escrow_status)?;
-            DISTRIBUTION
-                .apply_points_correction(deps.branch(), &[(&addr, -(VOTING_WEIGHT as i128))])?;
             demoted_addrs.push(addr);
         } else {
             // Just update remaining escrow
@@ -1312,9 +1312,9 @@ pub fn query(deps: Deps, env: Env, msg: QueryMsg) -> StdResult<Binary> {
         } => to_binary(&list_votes_by_voter(deps, voter, start_before, limit)?),
         ListEscrows { start_after, limit } => to_binary(&list_escrows(deps, start_after, limit)?),
 
-        WithdrawableFunds { owner } => to_binary(&query_withdrawable_funds(deps, owner)?),
-        DistributedFunds {} => to_binary(&query_distributed_funds(deps)?),
-        UndistributedFunds {} => to_binary(&query_undistributed_funds(deps, env)?),
+        WithdrawableRewards { owner } => to_binary(&query_withdrawable_funds(deps, owner)?),
+        DistributedRewards {} => to_binary(&query_distributed_funds(deps)?),
+        UndistributedRewards {} => to_binary(&query_undistributed_funds(deps, env)?),
     }
 }
 
@@ -1595,7 +1595,7 @@ fn execute_distribute_funds(
     info: MessageInfo,
 ) -> Result<Response, ContractError> {
     let total = TOTAL.load(deps.storage)?;
-    let funds = DISTRIBUTION.distribute_funds(deps, env, total as u128)?;
+    let funds = DISTRIBUTION.distribute_rewards(deps, env, total as u128)?;
 
     let resp = Response::new()
         .add_attribute("action", "distribute_tokens")
@@ -1613,7 +1613,7 @@ fn execute_withdraw_funds(deps: DepsMut, info: MessageInfo) -> Result<Response, 
         return Err(ContractError::InvalidStatus(escrow.status));
     }
 
-    let token = DISTRIBUTION.withdraw_tokens(deps, &info.sender, 1)?;
+    let token = DISTRIBUTION.withdraw_rewards(deps, &info.sender, 1)?;
 
     let resp = Response::new()
         .add_attribute("action", "withdraw_tokens")
@@ -1628,7 +1628,7 @@ fn execute_withdraw_funds(deps: DepsMut, info: MessageInfo) -> Result<Response, 
     Ok(resp)
 }
 
-fn query_withdrawable_funds(deps: Deps, owner: String) -> StdResult<FundsResponse> {
+fn query_withdrawable_funds(deps: Deps, owner: String) -> StdResult<RewardsResponse> {
     // Unchecked - if the address is invalid, querying escrow would fail
     let addr = Addr::unchecked(&owner);
     let escrow = ESCROWS.load(deps.storage, &addr)?;
@@ -1638,18 +1638,18 @@ fn query_withdrawable_funds(deps: Deps, owner: String) -> StdResult<FundsRespons
         _ => 0,
     };
 
-    let funds = DISTRIBUTION.adjusted_withdrawable_funds(deps, addr, weight)?;
-    Ok(FundsResponse { funds })
+    let rewards = DISTRIBUTION.adjusted_withdrawable_rewards(deps, addr, weight)?;
+    Ok(RewardsResponse { rewards })
 }
 
-fn query_distributed_funds(deps: Deps) -> StdResult<FundsResponse> {
-    let funds = DISTRIBUTION.distributed_funds(deps)?;
-    Ok(FundsResponse { funds })
+fn query_distributed_funds(deps: Deps) -> StdResult<RewardsResponse> {
+    let rewards = DISTRIBUTION.distributed_rewards(deps)?;
+    Ok(RewardsResponse { rewards })
 }
 
-fn query_undistributed_funds(deps: Deps, env: Env) -> StdResult<FundsResponse> {
-    let funds = DISTRIBUTION.undistributed_funds(deps, env)?;
-    Ok(FundsResponse { funds })
+fn query_undistributed_funds(deps: Deps, env: Env) -> StdResult<RewardsResponse> {
+    let rewards = DISTRIBUTION.undistributed_rewards(deps, env)?;
+    Ok(RewardsResponse { rewards })
 }
 
 #[cfg_attr(not(feature = "library"), entry_point)]

@@ -82,11 +82,6 @@ pub fn execute(
             complaint_id,
             reason,
         } => execute_withdraw_complaint(deps, env, info, complaint_id, reason),
-
-        Distribute {} => {
-            let resp = Response::new().add_attribute("action", "distribute");
-            Ok(resp)
-        }
     }
 }
 

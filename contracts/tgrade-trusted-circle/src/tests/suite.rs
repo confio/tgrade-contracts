@@ -160,7 +160,7 @@ impl SuiteBuilder {
                     initial_members: self.members,
                     deny_list: Some(deny_list.to_string()),
                     edit_trusted_circle_disabled: false,
-                    reward: "utgd".to_owned(),
+                    reward_denom: "utgd".to_owned(),
                 },
                 &coins(1_000_000, "utgd"),
                 "trusted-circle",

@@ -51,7 +51,7 @@ fn genesis_oc() {
                 initial_members: vec![genesis_members[0].to_owned()],
                 deny_list: None,
                 edit_trusted_circle_disabled: false,
-                reward: "utgd".to_owned(),
+                reward_denom: "utgd".to_owned(),
             },
             &coins(escrow_amount, denom),
             "oc-trusted-circle",

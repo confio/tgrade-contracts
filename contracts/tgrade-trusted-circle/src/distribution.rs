@@ -63,8 +63,8 @@ impl<'a> Distribution<'a> {
         )
     }
 
-    /// Returns total number of tokens distributed
-    pub fn distribute_funds(
+    /// Returns total number of tokens distributed as rewards
+    pub fn distribute_rewards(
         &self,
         deps: DepsMut,
         env: Env,
@@ -107,7 +107,7 @@ impl<'a> Distribution<'a> {
     }
 
     /// Returns Coin which should be send to receiver as a withdrawal
-    pub fn withdraw_tokens(
+    pub fn withdraw_rewards(
         &self,
         deps: DepsMut,
         owner: &Addr,
@@ -122,7 +122,7 @@ impl<'a> Distribution<'a> {
                 withdrawn_funds: Uint128::zero(),
             });
 
-        let token = withdrawable_funds(weight, &distribution, &adjustment)?;
+        let token = withdrawable_rewards(weight, &distribution, &adjustment)?;
         if token.amount.is_zero() {
             // Just do nothing
             return Ok(coin(0, distribution.denom));
@@ -137,7 +137,8 @@ impl<'a> Distribution<'a> {
         Ok(token)
     }
 
-    pub fn adjusted_withdrawable_funds(
+    /// Returns how much rewards is available for withdrawal for owner
+    pub fn adjusted_withdrawable_rewards(
         &self,
         deps: Deps,
         owner: Addr,
@@ -152,11 +153,12 @@ impl<'a> Distribution<'a> {
                 withdrawn_funds: Uint128::zero(),
             });
 
-        let token = withdrawable_funds(weight, &distribution, &adjustment)?;
+        let token = withdrawable_rewards(weight, &distribution, &adjustment)?;
         Ok(token)
     }
 
-    pub fn distributed_funds(&self, deps: Deps) -> StdResult<Coin> {
+    /// Returns how much rewards was already distributed
+    pub fn distributed_rewards(&self, deps: Deps) -> StdResult<Coin> {
         let distribution = self.config.load(deps.storage)?;
         Ok(coin(
             distribution.distributed_total.into(),
@@ -164,7 +166,8 @@ impl<'a> Distribution<'a> {
         ))
     }
 
-    pub fn undistributed_funds(&self, deps: Deps, env: Env) -> StdResult<Coin> {
+    /// Returns how much rewards are pending for distribution
+    pub fn undistributed_rewards(&self, deps: Deps, env: Env) -> StdResult<Coin> {
         let distribution = self.config.load(deps.storage)?;
         let balance = deps
             .querier
@@ -177,6 +180,7 @@ impl<'a> Distribution<'a> {
         ))
     }
 
+    /// Performs points correction basing on points changes
     pub fn apply_points_correction(&self, deps: DepsMut, diff: &[(&Addr, i128)]) -> StdResult<()> {
         let points_per_weight = self.config.load(deps.storage)?.points_per_weight.u128();
 
@@ -201,7 +205,7 @@ impl<'a> Distribution<'a> {
 }
 
 /// Calculates withdrawable funds from distribution and adjustment info.
-fn withdrawable_funds(
+fn withdrawable_rewards(
     weight: u128,
     distribution: &DistributionConfig,
     adjustment: &WithdrawAdjustment,
@@ -237,10 +241,12 @@ mod tests {
         let mut deps = mock_dependencies();
         dist.init(deps.as_mut(), DENOM.to_owned()).unwrap();
 
-        let distributed = dist.distributed_funds(deps.as_ref()).unwrap();
+        let distributed = dist.distributed_rewards(deps.as_ref()).unwrap();
         assert_eq!(distributed, coin(0, DENOM));
 
-        let undistributed = dist.undistributed_funds(deps.as_ref(), mock_env()).unwrap();
+        let undistributed = dist
+            .undistributed_rewards(deps.as_ref(), mock_env())
+            .unwrap();
         assert_eq!(undistributed, coin(0, DENOM));
     }
 
@@ -266,54 +272,74 @@ mod tests {
         deps.querier
             .update_balance(MOCK_CONTRACT_ADDR, coins(1000, DENOM));
         let distributed = dist
-            .distribute_funds(deps.as_mut(), mock_env(), total_weight)
+            .distribute_rewards(deps.as_mut(), mock_env(), total_weight)
             .unwrap();
         assert_eq!(distributed, coin(1000, DENOM));
 
         let funds = dist
-            .adjusted_withdrawable_funds(deps.as_ref(), members[0].addr.clone(), members[0].weight)
+            .adjusted_withdrawable_rewards(
+                deps.as_ref(),
+                members[0].addr.clone(),
+                members[0].weight,
+            )
             .unwrap();
         assert_eq!(funds, coin(250, DENOM));
 
         let funds = dist
-            .adjusted_withdrawable_funds(deps.as_ref(), members[1].addr.clone(), members[1].weight)
+            .adjusted_withdrawable_rewards(
+                deps.as_ref(),
+                members[1].addr.clone(),
+                members[1].weight,
+            )
             .unwrap();
         assert_eq!(funds, coin(750, DENOM));
 
-        let distributed = dist.distributed_funds(deps.as_ref()).unwrap();
+        let distributed = dist.distributed_rewards(deps.as_ref()).unwrap();
         assert_eq!(distributed, coin(1000, DENOM));
 
-        let undistributed = dist.undistributed_funds(deps.as_ref(), mock_env()).unwrap();
+        let undistributed = dist
+            .undistributed_rewards(deps.as_ref(), mock_env())
+            .unwrap();
         assert_eq!(undistributed, coin(0, DENOM));
 
         let funds = dist
-            .withdraw_tokens(deps.as_mut(), &members[0].addr, members[0].weight)
+            .withdraw_rewards(deps.as_mut(), &members[0].addr, members[0].weight)
             .unwrap();
         assert_eq!(funds, coin(250, DENOM));
         deps.querier
             .update_balance(MOCK_CONTRACT_ADDR, coins(750, DENOM));
 
         let funds = dist
-            .withdraw_tokens(deps.as_mut(), &members[1].addr, members[1].weight)
+            .withdraw_rewards(deps.as_mut(), &members[1].addr, members[1].weight)
             .unwrap();
         assert_eq!(funds, coin(750, DENOM));
         deps.querier
             .update_balance(MOCK_CONTRACT_ADDR, coins(0, DENOM));
 
         let funds = dist
-            .adjusted_withdrawable_funds(deps.as_ref(), members[0].addr.clone(), members[0].weight)
+            .adjusted_withdrawable_rewards(
+                deps.as_ref(),
+                members[0].addr.clone(),
+                members[0].weight,
+            )
             .unwrap();
         assert_eq!(funds, coin(0, DENOM));
 
         let funds = dist
-            .adjusted_withdrawable_funds(deps.as_ref(), members[1].addr.clone(), members[1].weight)
+            .adjusted_withdrawable_rewards(
+                deps.as_ref(),
+                members[1].addr.clone(),
+                members[1].weight,
+            )
             .unwrap();
         assert_eq!(funds, coin(0, DENOM));
 
-        let distributed = dist.distributed_funds(deps.as_ref()).unwrap();
+        let distributed = dist.distributed_rewards(deps.as_ref()).unwrap();
         assert_eq!(distributed, coin(1000, DENOM));
 
-        let undistributed = dist.undistributed_funds(deps.as_ref(), mock_env()).unwrap();
+        let undistributed = dist
+            .undistributed_rewards(deps.as_ref(), mock_env())
+            .unwrap();
         assert_eq!(undistributed, coin(0, DENOM));
     }
 
@@ -339,19 +365,19 @@ mod tests {
         deps.querier
             .update_balance(MOCK_CONTRACT_ADDR, coins(1000, DENOM));
         let distributed = dist
-            .distribute_funds(deps.as_mut(), mock_env(), total_weight)
+            .distribute_rewards(deps.as_mut(), mock_env(), total_weight)
             .unwrap();
         assert_eq!(distributed, coin(1000, DENOM));
 
         let funds = dist
-            .withdraw_tokens(deps.as_mut(), &members[0].addr, members[0].weight)
+            .withdraw_rewards(deps.as_mut(), &members[0].addr, members[0].weight)
             .unwrap();
         assert_eq!(funds, coin(250, DENOM));
         deps.querier
             .update_balance(MOCK_CONTRACT_ADDR, coins(750, DENOM));
 
         let funds = dist
-            .withdraw_tokens(deps.as_mut(), &members[1].addr, members[1].weight)
+            .withdraw_rewards(deps.as_mut(), &members[1].addr, members[1].weight)
             .unwrap();
         assert_eq!(funds, coin(750, DENOM));
         deps.querier
@@ -360,28 +386,30 @@ mod tests {
         deps.querier
             .update_balance(MOCK_CONTRACT_ADDR, coins(500, DENOM));
         let distributed = dist
-            .distribute_funds(deps.as_mut(), mock_env(), total_weight)
+            .distribute_rewards(deps.as_mut(), mock_env(), total_weight)
             .unwrap();
         assert_eq!(distributed, coin(500, DENOM));
 
         let funds = dist
-            .withdraw_tokens(deps.as_mut(), &members[0].addr, members[0].weight)
+            .withdraw_rewards(deps.as_mut(), &members[0].addr, members[0].weight)
             .unwrap();
         assert_eq!(funds, coin(125, DENOM));
         deps.querier
             .update_balance(MOCK_CONTRACT_ADDR, coins(375, DENOM));
 
         let funds = dist
-            .withdraw_tokens(deps.as_mut(), &members[1].addr, members[1].weight)
+            .withdraw_rewards(deps.as_mut(), &members[1].addr, members[1].weight)
             .unwrap();
         assert_eq!(funds, coin(375, DENOM));
         deps.querier
             .update_balance(MOCK_CONTRACT_ADDR, coins(0, DENOM));
 
-        let distributed = dist.distributed_funds(deps.as_ref()).unwrap();
+        let distributed = dist.distributed_rewards(deps.as_ref()).unwrap();
         assert_eq!(distributed, coin(1500, DENOM));
 
-        let undistributed = dist.undistributed_funds(deps.as_ref(), mock_env()).unwrap();
+        let undistributed = dist
+            .undistributed_rewards(deps.as_ref(), mock_env())
+            .unwrap();
         assert_eq!(undistributed, coin(0, DENOM));
     }
 
@@ -407,61 +435,81 @@ mod tests {
         deps.querier
             .update_balance(MOCK_CONTRACT_ADDR, coins(1000, DENOM));
         let distributed = dist
-            .distribute_funds(deps.as_mut(), mock_env(), total_weight)
+            .distribute_rewards(deps.as_mut(), mock_env(), total_weight)
             .unwrap();
         assert_eq!(distributed, coin(1000, DENOM));
 
         deps.querier
             .update_balance(MOCK_CONTRACT_ADDR, coins(1500, DENOM));
         let distributed = dist
-            .distribute_funds(deps.as_mut(), mock_env(), total_weight)
+            .distribute_rewards(deps.as_mut(), mock_env(), total_weight)
             .unwrap();
         assert_eq!(distributed, coin(500, DENOM));
 
         let funds = dist
-            .adjusted_withdrawable_funds(deps.as_ref(), members[0].addr.clone(), members[0].weight)
+            .adjusted_withdrawable_rewards(
+                deps.as_ref(),
+                members[0].addr.clone(),
+                members[0].weight,
+            )
             .unwrap();
         assert_eq!(funds, coin(375, DENOM));
 
         let funds = dist
-            .adjusted_withdrawable_funds(deps.as_ref(), members[1].addr.clone(), members[1].weight)
+            .adjusted_withdrawable_rewards(
+                deps.as_ref(),
+                members[1].addr.clone(),
+                members[1].weight,
+            )
             .unwrap();
         assert_eq!(funds, coin(1125, DENOM));
 
-        let distributed = dist.distributed_funds(deps.as_ref()).unwrap();
+        let distributed = dist.distributed_rewards(deps.as_ref()).unwrap();
         assert_eq!(distributed, coin(1500, DENOM));
 
-        let undistributed = dist.undistributed_funds(deps.as_ref(), mock_env()).unwrap();
+        let undistributed = dist
+            .undistributed_rewards(deps.as_ref(), mock_env())
+            .unwrap();
         assert_eq!(undistributed, coin(0, DENOM));
 
         let funds = dist
-            .withdraw_tokens(deps.as_mut(), &members[0].addr, members[0].weight)
+            .withdraw_rewards(deps.as_mut(), &members[0].addr, members[0].weight)
             .unwrap();
         assert_eq!(funds, coin(375, DENOM));
         deps.querier
             .update_balance(MOCK_CONTRACT_ADDR, coins(1125, DENOM));
 
         let funds = dist
-            .withdraw_tokens(deps.as_mut(), &members[1].addr, members[1].weight)
+            .withdraw_rewards(deps.as_mut(), &members[1].addr, members[1].weight)
             .unwrap();
         assert_eq!(funds, coin(1125, DENOM));
         deps.querier
             .update_balance(MOCK_CONTRACT_ADDR, coins(0, DENOM));
 
         let funds = dist
-            .adjusted_withdrawable_funds(deps.as_ref(), members[0].addr.clone(), members[0].weight)
+            .adjusted_withdrawable_rewards(
+                deps.as_ref(),
+                members[0].addr.clone(),
+                members[0].weight,
+            )
             .unwrap();
         assert_eq!(funds, coin(0, DENOM));
 
         let funds = dist
-            .adjusted_withdrawable_funds(deps.as_ref(), members[1].addr.clone(), members[1].weight)
+            .adjusted_withdrawable_rewards(
+                deps.as_ref(),
+                members[1].addr.clone(),
+                members[1].weight,
+            )
             .unwrap();
         assert_eq!(funds, coin(0, DENOM));
 
-        let distributed = dist.distributed_funds(deps.as_ref()).unwrap();
+        let distributed = dist.distributed_rewards(deps.as_ref()).unwrap();
         assert_eq!(distributed, coin(1500, DENOM));
 
-        let undistributed = dist.undistributed_funds(deps.as_ref(), mock_env()).unwrap();
+        let undistributed = dist
+            .undistributed_rewards(deps.as_ref(), mock_env())
+            .unwrap();
         assert_eq!(undistributed, coin(0, DENOM));
     }
 
@@ -491,26 +539,26 @@ mod tests {
         deps.querier
             .update_balance(MOCK_CONTRACT_ADDR, coins(100, DENOM));
         let distributed = dist
-            .distribute_funds(deps.as_mut(), mock_env(), total_weight)
+            .distribute_rewards(deps.as_mut(), mock_env(), total_weight)
             .unwrap();
         assert_eq!(distributed, coin(100, DENOM));
 
         let funds = dist
-            .withdraw_tokens(deps.as_mut(), &members[0].addr, members[0].weight)
+            .withdraw_rewards(deps.as_mut(), &members[0].addr, members[0].weight)
             .unwrap();
         assert_eq!(funds, coin(22, DENOM));
         deps.querier
             .update_balance(MOCK_CONTRACT_ADDR, coins(78, DENOM));
 
         let funds = dist
-            .withdraw_tokens(deps.as_mut(), &members[1].addr, members[1].weight)
+            .withdraw_rewards(deps.as_mut(), &members[1].addr, members[1].weight)
             .unwrap();
         assert_eq!(funds, coin(35, DENOM));
         deps.querier
             .update_balance(MOCK_CONTRACT_ADDR, coins(43, DENOM));
 
         let funds = dist
-            .withdraw_tokens(deps.as_mut(), &members[2].addr, members[2].weight)
+            .withdraw_rewards(deps.as_mut(), &members[2].addr, members[2].weight)
             .unwrap();
         assert_eq!(funds, coin(41, DENOM));
         deps.querier
@@ -519,26 +567,26 @@ mod tests {
         deps.querier
             .update_balance(MOCK_CONTRACT_ADDR, coins(3002, DENOM));
         let distributed = dist
-            .distribute_funds(deps.as_mut(), mock_env(), total_weight)
+            .distribute_rewards(deps.as_mut(), mock_env(), total_weight)
             .unwrap();
         assert_eq!(distributed, coin(3000, DENOM));
 
         let funds = dist
-            .withdraw_tokens(deps.as_mut(), &members[0].addr, members[0].weight)
+            .withdraw_rewards(deps.as_mut(), &members[0].addr, members[0].weight)
             .unwrap();
         assert_eq!(funds, coin(678, DENOM));
         deps.querier
             .update_balance(MOCK_CONTRACT_ADDR, coins(2324, DENOM));
 
         let funds = dist
-            .withdraw_tokens(deps.as_mut(), &members[1].addr, members[1].weight)
+            .withdraw_rewards(deps.as_mut(), &members[1].addr, members[1].weight)
             .unwrap();
         assert_eq!(funds, coin(1065, DENOM));
         deps.querier
             .update_balance(MOCK_CONTRACT_ADDR, coins(1259, DENOM));
 
         let funds = dist
-            .withdraw_tokens(deps.as_mut(), &members[2].addr, members[2].weight)
+            .withdraw_rewards(deps.as_mut(), &members[2].addr, members[2].weight)
             .unwrap();
         assert_eq!(funds, coin(1259, DENOM));
     }
@@ -569,33 +617,33 @@ mod tests {
         deps.querier
             .update_balance(MOCK_CONTRACT_ADDR, coins(100, DENOM));
         let distributed = dist
-            .distribute_funds(deps.as_mut(), mock_env(), total_weight)
+            .distribute_rewards(deps.as_mut(), mock_env(), total_weight)
             .unwrap();
         assert_eq!(distributed, coin(100, DENOM));
 
         deps.querier
             .update_balance(MOCK_CONTRACT_ADDR, coins(3100, DENOM));
         let distributed = dist
-            .distribute_funds(deps.as_mut(), mock_env(), total_weight)
+            .distribute_rewards(deps.as_mut(), mock_env(), total_weight)
             .unwrap();
         assert_eq!(distributed, coin(3000, DENOM));
 
         let funds = dist
-            .withdraw_tokens(deps.as_mut(), &members[0].addr, members[0].weight)
+            .withdraw_rewards(deps.as_mut(), &members[0].addr, members[0].weight)
             .unwrap();
         assert_eq!(funds, coin(700, DENOM));
         deps.querier
             .update_balance(MOCK_CONTRACT_ADDR, coins(2300, DENOM));
 
         let funds = dist
-            .withdraw_tokens(deps.as_mut(), &members[1].addr, members[1].weight)
+            .withdraw_rewards(deps.as_mut(), &members[1].addr, members[1].weight)
             .unwrap();
         assert_eq!(funds, coin(1100, DENOM));
         deps.querier
             .update_balance(MOCK_CONTRACT_ADDR, coins(1300, DENOM));
 
         let funds = dist
-            .withdraw_tokens(deps.as_mut(), &members[2].addr, members[2].weight)
+            .withdraw_rewards(deps.as_mut(), &members[2].addr, members[2].weight)
             .unwrap();
         assert_eq!(funds, coin(1300, DENOM));
     }
@@ -626,7 +674,7 @@ mod tests {
         deps.querier
             .update_balance(MOCK_CONTRACT_ADDR, coins(400, DENOM));
         let distributed = dist
-            .distribute_funds(deps.as_mut(), mock_env(), total_weight)
+            .distribute_rewards(deps.as_mut(), mock_env(), total_weight)
             .unwrap();
         assert_eq!(distributed, coin(400, DENOM));
 
@@ -642,21 +690,21 @@ mod tests {
         .unwrap();
 
         let funds = dist
-            .withdraw_tokens(deps.as_mut(), &members[0].addr, members[0].weight)
+            .withdraw_rewards(deps.as_mut(), &members[0].addr, members[0].weight)
             .unwrap();
         assert_eq!(funds, coin(50, DENOM));
         deps.querier
             .update_balance(MOCK_CONTRACT_ADDR, coins(350, DENOM));
 
         let funds = dist
-            .withdraw_tokens(deps.as_mut(), &members[1].addr, members[1].weight)
+            .withdraw_rewards(deps.as_mut(), &members[1].addr, members[1].weight)
             .unwrap();
         assert_eq!(funds, coin(100, DENOM));
         deps.querier
             .update_balance(MOCK_CONTRACT_ADDR, coins(250, DENOM));
 
         let funds = dist
-            .withdraw_tokens(deps.as_mut(), &members[2].addr, members[2].weight)
+            .withdraw_rewards(deps.as_mut(), &members[2].addr, members[2].weight)
             .unwrap();
         assert_eq!(funds, coin(250, DENOM));
         deps.querier
@@ -665,24 +713,24 @@ mod tests {
         deps.querier
             .update_balance(MOCK_CONTRACT_ADDR, coins(1100, DENOM));
         let distributed = dist
-            .distribute_funds(deps.as_mut(), mock_env(), total_weight)
+            .distribute_rewards(deps.as_mut(), mock_env(), total_weight)
             .unwrap();
         assert_eq!(distributed, coin(1100, DENOM));
 
         let funds = dist
-            .withdraw_tokens(deps.as_mut(), &members[0].addr, members[0].weight)
+            .withdraw_rewards(deps.as_mut(), &members[0].addr, members[0].weight)
             .unwrap();
         assert_eq!(funds, coin(600, DENOM));
         deps.querier
             .update_balance(MOCK_CONTRACT_ADDR, coins(500, DENOM));
 
         let funds = dist
-            .withdraw_tokens(deps.as_mut(), &members[1].addr, members[1].weight)
+            .withdraw_rewards(deps.as_mut(), &members[1].addr, members[1].weight)
             .unwrap();
         assert_eq!(funds, coin(0, DENOM));
 
         let funds = dist
-            .withdraw_tokens(deps.as_mut(), &members[2].addr, members[2].weight)
+            .withdraw_rewards(deps.as_mut(), &members[2].addr, members[2].weight)
             .unwrap();
         assert_eq!(funds, coin(500, DENOM));
     }
@@ -713,7 +761,7 @@ mod tests {
         deps.querier
             .update_balance(MOCK_CONTRACT_ADDR, coins(400, DENOM));
         let distributed = dist
-            .distribute_funds(deps.as_mut(), mock_env(), total_weight)
+            .distribute_rewards(deps.as_mut(), mock_env(), total_weight)
             .unwrap();
         assert_eq!(distributed, coin(400, DENOM));
 
@@ -731,26 +779,26 @@ mod tests {
         deps.querier
             .update_balance(MOCK_CONTRACT_ADDR, coins(1500, DENOM));
         let distributed = dist
-            .distribute_funds(deps.as_mut(), mock_env(), total_weight)
+            .distribute_rewards(deps.as_mut(), mock_env(), total_weight)
             .unwrap();
         assert_eq!(distributed, coin(1100, DENOM));
 
         let funds = dist
-            .withdraw_tokens(deps.as_mut(), &members[0].addr, members[0].weight)
+            .withdraw_rewards(deps.as_mut(), &members[0].addr, members[0].weight)
             .unwrap();
         assert_eq!(funds, coin(650, DENOM));
         deps.querier
             .update_balance(MOCK_CONTRACT_ADDR, coins(850, DENOM));
 
         let funds = dist
-            .withdraw_tokens(deps.as_mut(), &members[1].addr, members[1].weight)
+            .withdraw_rewards(deps.as_mut(), &members[1].addr, members[1].weight)
             .unwrap();
         assert_eq!(funds, coin(100, DENOM));
         deps.querier
             .update_balance(MOCK_CONTRACT_ADDR, coins(750, DENOM));
 
         let funds = dist
-            .withdraw_tokens(deps.as_mut(), &members[2].addr, members[2].weight)
+            .withdraw_rewards(deps.as_mut(), &members[2].addr, members[2].weight)
             .unwrap();
         assert_eq!(funds, coin(750, DENOM));
     }

@@ -74,10 +74,6 @@ pub fn execute(
         Execute { proposal_id } => execute_execute(deps, env, info, proposal_id),
         Close { proposal_id } => execute_close::<OversightProposal>(deps, env, info, proposal_id)
             .map_err(ContractError::from),
-        Distribute {} => {
-            let resp = Response::new().add_attribute("action", "distribute");
-            Ok(resp)
-        }
     }
 }
 
