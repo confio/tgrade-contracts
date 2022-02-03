@@ -18,8 +18,8 @@ use crate::error::ContractError;
 use crate::migration::{migrate_ballots, migrate_proposals};
 use crate::msg::{
     Escrow, EscrowListResponse, EscrowResponse, ExecuteMsg, InstantiateMsg, ProposalListResponse,
-    ProposalResponse, QueryMsg, RewardsResponse, TrustedCircleResponse, VoteInfo, VoteListResponse,
-    VoteResponse,
+    ProposalResponse, QueryMsg, RewardsResponse, RulesResponse, TrustedCircleResponse, VoteInfo,
+    VoteListResponse, VoteResponse,
 };
 use crate::state::MemberStatus::NonVoting;
 use crate::state::{
@@ -1284,6 +1284,7 @@ pub fn query(deps: Deps, env: Env, msg: QueryMsg) -> StdResult<Binary> {
         }
         TotalPoints {} => to_binary(&query_total_points(deps)?),
         TrustedCircle {} => to_binary(&query_trusted_circle(deps)?),
+        Rules {} => to_binary(&query_rules(deps)?),
         Proposal { proposal_id } => to_binary(&query_proposal(deps, env, proposal_id)?),
         Vote { proposal_id, voter } => to_binary(&query_vote(deps, proposal_id, voter)?),
         ListProposals { start_after, limit } => {
@@ -1318,6 +1319,11 @@ pub fn query(deps: Deps, env: Env, msg: QueryMsg) -> StdResult<Binary> {
 pub(crate) fn query_total_points(deps: Deps) -> StdResult<TotalPointsResponse> {
     let points = TOTAL.load(deps.storage)?;
     Ok(TotalPointsResponse { points })
+}
+
+pub(crate) fn query_rules(deps: Deps) -> StdResult<RulesResponse> {
+    let rules = TRUSTED_CIRCLE.load(deps.storage)?.rules;
+    Ok(RulesResponse { rules })
 }
 
 pub(crate) fn query_trusted_circle(deps: Deps) -> StdResult<TrustedCircleResponse> {

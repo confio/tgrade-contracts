@@ -99,6 +99,8 @@ pub enum QueryMsg {
     /// Returns EscrowResponse with status (paying in escrow, leaving, etc) and amount.
     /// Returns None (JSON: null) for non-members
     Escrow { addr: String },
+    /// Returns RulesResponse
+    Rules {},
     /// Returns ProposalResponse
     Proposal { proposal_id: u64 },
     /// Returns ProposalListResponse
@@ -156,6 +158,11 @@ pub struct TrustedCircleResponse {
     pub rules: VotingRules,
     pub deny_list: Option<Addr>,
     pub edit_trusted_circle_disabled: bool,
+}
+
+#[derive(Serialize, Deserialize, Clone, PartialEq, JsonSchema, Debug)]
+pub struct RulesResponse {
+    pub rules: VotingRules,
 }
 
 #[derive(Serialize, Deserialize, Clone, PartialEq, JsonSchema, Debug)]
