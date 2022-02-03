@@ -260,18 +260,9 @@ fn close_proposal() {
     // Move time forward so proposal expires
     suite.app.advance_seconds(rules.voting_period_secs());
 
-    // Expired proposals can be closed
-    let response = suite.close("anybody", proposal_id).unwrap();
-    assert_eq!(
-        response.custom_attrs(1),
-        [
-            ("action", "close"),
-            ("sender", "anybody"),
-            ("proposal_id", proposal_id.to_string().as_str()),
-        ],
-    );
-
-    // Closing second time causes error
+    // Passed proposals cannot be closed
+    let proposal_status = suite.query_proposal_status(proposal_id).unwrap();
+    assert_eq!(proposal_status, Status::Passed);
     let err = suite.close("anybody", proposal_id).unwrap_err();
     assert_eq!(
         ContractError::Voting(VotingError::WrongCloseStatus {}),
@@ -398,7 +389,7 @@ mod voting {
 
         let err = suite.vote(members[1], proposal_id, Vote::Yes).unwrap_err();
         assert_eq!(
-            ContractError::Voting(VotingError::Expired {}),
+            ContractError::Voting(VotingError::NotOpen {}),
             err.downcast().unwrap()
         );
     }
