@@ -2,7 +2,23 @@
 
 ## [Unreleased](https://github.com/confio/tgrade-contracts/tree/HEAD)
 
-[Full Changelog](https://github.com/confio/tgrade-contracts/compare/v0.5.5...HEAD)
+[Full Changelog](https://github.com/confio/tgrade-contracts/compare/v0.6.0-beta1...HEAD)
+
+## [v0.6.0-beta1](https://github.com/confio/tgrade-contracts/tree/v0.6.0-beta1) (2022-02-03)
+
+[Full Changelog](https://github.com/confio/tgrade-contracts/compare/v0.5.5...v0.6.0-beta1)
+
+**Closed issues:**
+
+- Add text proposal to OC and AP [\#435](https://github.com/confio/tgrade-contracts/issues/435)
+- OC/AP payments from Block Rewards [\#434](https://github.com/confio/tgrade-contracts/issues/434)
+
+**Merged pull requests:**
+
+- Update rust to v1.58.1 in CI [\#458](https://github.com/confio/tgrade-contracts/pull/458) ([maurolacy](https://github.com/maurolacy))
+- tgrade-trusted-circle: Cw2222 distribution mechanizm [\#457](https://github.com/confio/tgrade-contracts/pull/457) ([hashedone](https://github.com/hashedone))
+- Open text proposals for AP and OC [\#456](https://github.com/confio/tgrade-contracts/pull/456) ([uint](https://github.com/uint))
+- Update to latest workspace-optimizer v0.12.4 [\#454](https://github.com/confio/tgrade-contracts/pull/454) ([maurolacy](https://github.com/maurolacy))
 
 ## [v0.5.5](https://github.com/confio/tgrade-contracts/tree/v0.5.5) (2022-01-28)
 
