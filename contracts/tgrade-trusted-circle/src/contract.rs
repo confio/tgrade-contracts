@@ -1286,17 +1286,12 @@ pub fn query(deps: Deps, env: Env, msg: QueryMsg) -> StdResult<Binary> {
         TrustedCircle {} => to_binary(&query_trusted_circle(deps)?),
         Proposal { proposal_id } => to_binary(&query_proposal(deps, env, proposal_id)?),
         Vote { proposal_id, voter } => to_binary(&query_vote(deps, proposal_id, voter)?),
-        ListProposals {
-            start_after,
-            limit,
-            reverse,
-        } => to_binary(&list_proposals(
-            deps,
-            env,
-            start_after,
-            limit,
-            reverse.unwrap_or(false),
-        )?),
+        ListProposals { start_after, limit } => {
+            to_binary(&list_proposals(deps, env, start_after, limit, false)?)
+        }
+        ReverseProposals { start_after, limit } => {
+            to_binary(&list_proposals(deps, env, start_after, limit, true)?)
+        }
         ListVotesByProposal {
             proposal_id,
             start_after,

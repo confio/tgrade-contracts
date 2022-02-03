@@ -105,8 +105,10 @@ pub enum QueryMsg {
     ListProposals {
         start_after: Option<u64>,
         limit: Option<u32>,
-        /// If you pass `reverse: true` it goes from newest proposal to oldest
-        reverse: Option<bool>,
+    },
+    ReverseProposals {
+        start_after: Option<u64>,
+        limit: Option<u32>,
     },
     /// Returns VoteResponse
     Vote { proposal_id: u64, voter: String },
