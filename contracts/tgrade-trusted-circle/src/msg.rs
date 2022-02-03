@@ -113,7 +113,7 @@ pub enum QueryMsg {
     /// Returns VoteResponse
     Vote { proposal_id: u64, voter: String },
     /// Returns VoteListResponse, paginate by voter address
-    ListVotesByProposal {
+    ListVotes {
         proposal_id: u64,
         start_after: Option<String>,
         limit: Option<u32>,

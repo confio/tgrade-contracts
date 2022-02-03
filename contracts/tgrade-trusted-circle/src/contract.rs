@@ -1292,7 +1292,7 @@ pub fn query(deps: Deps, env: Env, msg: QueryMsg) -> StdResult<Binary> {
         ReverseProposals { start_after, limit } => {
             to_binary(&list_proposals(deps, env, start_after, limit, true)?)
         }
-        ListVotesByProposal {
+        ListVotes {
             proposal_id,
             start_after,
             limit,
