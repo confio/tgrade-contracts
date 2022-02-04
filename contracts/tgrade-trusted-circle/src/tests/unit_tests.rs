@@ -746,22 +746,21 @@ fn test_update_nonvoting_members() {
     let admin_votes = list_votes_by_voter(deps.as_ref(), INIT_ADMIN.into(), None, None).unwrap();
     assert_eq!(admin_votes.votes.len(), 2);
     assert_eq!(
-        &admin_votes.votes[0],
-        &VoteInfo {
-            voter: INIT_ADMIN.to_string(),
-            vote: Vote::Yes,
-            proposal_id,
-            points: 1
-        }
-    );
-    assert_eq!(
-        &admin_votes.votes[1],
-        &VoteInfo {
-            voter: INIT_ADMIN.to_string(),
-            vote: Vote::Yes,
-            proposal_id: proposal_id - 1,
-            points: 1
-        }
+        admin_votes.votes,
+        [
+            VoteInfo {
+                voter: INIT_ADMIN.to_string(),
+                vote: Vote::Yes,
+                proposal_id: proposal_id - 1,
+                points: 1
+            },
+            VoteInfo {
+                voter: INIT_ADMIN.to_string(),
+                vote: Vote::Yes,
+                proposal_id,
+                points: 1
+            }
+        ]
     );
 }
 

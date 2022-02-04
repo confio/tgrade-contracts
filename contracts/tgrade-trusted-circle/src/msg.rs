@@ -119,7 +119,7 @@ pub enum QueryMsg {
     /// Note this always returns most recent (highest proposal id to lowest)
     ListVotesByVoter {
         voter: String,
-        start_before: Option<u64>,
+        start_after: Option<u64>,
         limit: Option<u32>,
     },
     /// Returns MemberResponse

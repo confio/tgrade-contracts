@@ -1302,9 +1302,9 @@ pub fn query(deps: Deps, env: Env, msg: QueryMsg) -> StdResult<Binary> {
         )?),
         ListVotesByVoter {
             voter,
-            start_before,
+            start_after,
             limit,
-        } => to_binary(&list_votes_by_voter(deps, voter, start_before, limit)?),
+        } => to_binary(&list_votes_by_voter(deps, voter, start_after, limit)?),
         Voter { address } => to_binary(&query_member(deps, address, None)?),
         ListVoters { start_after, limit } => {
             to_binary(&list_voting_members(deps, start_after, limit)?)
@@ -1567,16 +1567,16 @@ pub(crate) fn list_votes_by_proposal(
 pub(crate) fn list_votes_by_voter(
     deps: Deps,
     voter: String,
-    start_before: Option<u64>,
+    start_after: Option<u64>,
     limit: Option<u32>,
 ) -> StdResult<VoteListResponse> {
     let limit = limit.unwrap_or(DEFAULT_LIMIT).min(MAX_LIMIT) as usize;
-    let end = start_before.map(Bound::exclusive_int);
+    let start = start_after.map(Bound::exclusive_int);
     let voter_addr = deps.api.addr_validate(&voter)?;
 
     let votes: StdResult<Vec<_>> = BALLOTS_BY_VOTER
         .prefix(&voter_addr)
-        .range(deps.storage, None, end, Order::Descending)
+        .range(deps.storage, start, None, Order::Ascending)
         .take(limit)
         .map(|item| {
             let (proposal_id, ballot) = item?;
