@@ -69,7 +69,7 @@ pub enum QueryMsg {
     /// Returns VoteListResponse
     ListVotesByVoter {
         voter: String,
-        start_after: Option<String>,
+        start_after: Option<u64>,
         limit: Option<u32>,
     },
     /// Returns VoterResponse

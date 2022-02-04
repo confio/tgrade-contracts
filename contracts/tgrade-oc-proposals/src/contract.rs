@@ -12,9 +12,9 @@ use crate::state::{Config, OversightProposal, CONFIG};
 use crate::ContractError;
 
 use tg_voting_contract::{
-    close as execute_close, execute_text, list_proposals, list_voters, list_votes, mark_executed,
-    propose as execute_propose, query_group_contract, query_proposal, query_rules, query_vote,
-    query_voter, reverse_proposals, vote as execute_vote,
+    close as execute_close, execute_text, list_proposals, list_voters, list_votes,
+    list_votes_by_voter, mark_executed, propose as execute_propose, query_group_contract,
+    query_proposal, query_rules, query_vote, query_voter, reverse_proposals, vote as execute_vote,
 };
 
 pub type Response = cosmwasm_std::Response<TgradeMsg>;
