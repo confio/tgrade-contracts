@@ -203,6 +203,16 @@ pub fn query(deps: Deps, env: Env, msg: QueryMsg) -> StdResult<Binary> {
             start_after,
             align_limit(limit),
         )?),
+        ListVotesByVoter {
+            voter,
+            start_after,
+            limit,
+        } => to_binary(&list_votes_by_voter(
+            deps,
+            voter,
+            start_after,
+            align_limit(limit),
+        )?),
         Voter { address } => to_binary(&query_voter(deps, address)?),
         ListVoters { start_after, limit } => to_binary(&list_voters(deps, start_after, limit)?),
         GroupContract {} => to_binary(&query_group_contract(deps)?),
