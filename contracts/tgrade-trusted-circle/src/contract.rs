@@ -1361,8 +1361,8 @@ pub(crate) fn query_escrow(deps: Deps, addr: String) -> StdResult<EscrowResponse
 }
 
 // settings for pagination
-const MAX_LIMIT: u32 = 30;
-const DEFAULT_LIMIT: u32 = 10;
+const MAX_LIMIT: u32 = 100;
+const DEFAULT_LIMIT: u32 = 30;
 
 pub(crate) fn list_members(
     deps: Deps,
