@@ -15,7 +15,7 @@ use tg_bindings::TgradeMsg;
 use tg_utils::{ensure_from_older_version, members, TOTAL};
 
 use crate::error::ContractError;
-use crate::migration::migrate_ballots;
+use crate::migration::{migrate_ballots, migrate_proposals};
 use crate::msg::{
     Escrow, EscrowListResponse, EscrowResponse, ExecuteMsg, InstantiateMsg, ProposalListResponse,
     ProposalResponse, QueryMsg, RewardsResponse, TrustedCircleResponse, VoteInfo, VoteListResponse,
@@ -1663,6 +1663,7 @@ pub fn migrate(mut deps: DepsMut, env: Env, msg: Empty) -> Result<Response, Cont
     let stored_version: Version = stored_version.version.parse().unwrap();
 
     migrate_ballots(deps.branch(), &env, &msg, &stored_version)?;
+    migrate_proposals(deps.branch(), &env, &msg, &stored_version)?;
 
     Ok(Response::new())
 }

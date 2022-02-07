@@ -16,12 +16,6 @@ This guide lists API changes between releases of *Tgrade* contracts.
 * The `vote.weight` field on response to `vote` query renamed to `points`.
 * The `votes[].weight` field on responses to `list_votes_by_proposal` and
   `list_votes_by_voter` queries renamed to `votes[].weight`.
-* The `total_weight` field on response to `escrow` query renamed to
-  `total_points`.
-* The `escrows[].escrow_status.total_weight` field on response to `list_escrows`
-  query renamed to `escrows[].escrow_status.total_points`.
-* The `total_weight` on `escrows` map in contract storage renamed to
-  `total_points`.
 * The `weight` field on `votes`, `votes_by_voter` maps in contracts storage
   renamed to `points`.
 * The `total_weight` field on `proposals` map in contract storage renamed to
