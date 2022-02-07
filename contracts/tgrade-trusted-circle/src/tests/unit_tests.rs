@@ -141,8 +141,8 @@ fn instantiation_enough_funds() {
 
     do_instantiate(deps.as_mut(), info, vec![], false).unwrap();
 
-    // succeeds, weight = 1
-    let total = query_total_weight(deps.as_ref()).unwrap();
+    // succeeds, points = 1
+    let total = query_total_points(deps.as_ref()).unwrap();
     assert_eq!(1, total.weight);
 
     // ensure trusted_circle query works
@@ -328,7 +328,7 @@ fn test_escrows() {
     let add = vec![VOTING1.into(), VOTING2.into()];
     proposal_add_voting_members(deps.as_mut(), env.clone(), PROPOSAL_ID_1, add).unwrap();
 
-    // Weights properly
+    // Points properly
     assert_voting(&deps, Some(1), Some(0), Some(0), None, None);
     // Check escrows are proper
     assert_escrow_paid(&deps, Some(ESCROW_FUNDS), Some(0), Some(0), None);
@@ -464,7 +464,7 @@ fn test_escrows() {
     let info = mock_info(VOTING2, &[coin(1, "utgd")]);
     execute_deposit_escrow(deps.as_mut(), env.clone(), info).unwrap();
 
-    // batch gets run and weight and status also updated properly
+    // batch gets run and points and status also updated properly
     assert_voting(&deps, Some(1), Some(1), Some(1), None, None);
     assert_escrow_status(
         &deps,
@@ -692,7 +692,7 @@ fn test_update_nonvoting_members() {
     )
     .unwrap();
     let prop: ProposalResponse = from_slice(&raw).unwrap();
-    assert_eq!(prop.total_weight, 1);
+    assert_eq!(prop.total_points, 1);
     assert_eq!(prop.status, Status::Passed);
     assert_eq!(prop.id, 1);
     assert_nonvoting(&deps, None, None, None, None);
@@ -748,7 +748,7 @@ fn test_update_nonvoting_members() {
             voter: INIT_ADMIN.to_string(),
             vote: Vote::Yes,
             proposal_id,
-            weight: 1
+            points: 1
         }
     );
 
@@ -761,7 +761,7 @@ fn test_update_nonvoting_members() {
             voter: INIT_ADMIN.to_string(),
             vote: Vote::Yes,
             proposal_id,
-            weight: 1
+            points: 1
         }
     );
     assert_eq!(
@@ -770,7 +770,7 @@ fn test_update_nonvoting_members() {
             voter: INIT_ADMIN.to_string(),
             vote: Vote::Yes,
             proposal_id: proposal_id - 1,
-            weight: 1
+            points: 1
         }
     );
 }
@@ -814,7 +814,7 @@ fn test_whitelist_contract() {
     )
     .unwrap();
     let prop: ProposalResponse = from_slice(&raw).unwrap();
-    assert_eq!(prop.total_weight, 1);
+    assert_eq!(prop.total_points, 1);
     assert_eq!(prop.status, Status::Passed);
     assert_eq!(prop.id, 1);
 
@@ -852,7 +852,7 @@ fn test_whitelist_contract() {
     )
     .unwrap();
     let prop: ProposalResponse = from_slice(&raw).unwrap();
-    assert_eq!(prop.total_weight, 1);
+    assert_eq!(prop.total_points, 1);
     assert_eq!(prop.status, Status::Passed);
     assert_eq!(prop.id, 2);
 
@@ -1329,7 +1329,7 @@ fn leaving_voter_cannot_vote_anymore() {
     assert_prop_status(deps.as_ref(), prop3, 8000, Status::Passed);
 
     // now, wait for the proposal to expire and ensure prop2 passes now (8 days with 7 day voting period)
-    // This requires that voter4 was removed from the total_weight on this proposal
+    // This requires that voter4 was removed from the total_points on this proposal
     assert_prop_status(deps.as_ref(), prop2, 8 * 86_400, Status::Passed);
 }
 
@@ -1367,7 +1367,7 @@ fn propose_punish_members_distribution() {
     let info = mock_info(VOTING1, &coins(ESCROW_FUNDS + 1, DENOM));
     execute_deposit_escrow(deps.as_mut(), later(&start, delay1 + 1), info).unwrap();
 
-    // Initial weights are proper
+    // Initial points are proper
     assert_voting(&deps, Some(1), Some(0), Some(0), Some(0), None);
 
     // Make a punish proposal
@@ -1426,8 +1426,8 @@ fn propose_punish_members_distribution() {
     );
     assert_eq!(&res.events[0].attributes[5], &attr("kick_out", "false"));
 
-    // Check the escrow amounts, status and voting weight have been updated
-    // Weights properly
+    // Check the escrow amounts, status and voting points have been updated
+    // Points properly
     assert_voting(&deps, Some(1), Some(0), Some(0), Some(0), None);
     // Check VOTING1 escrow is properly slashed
     // VOTING2 escrow amount is not changed. He (along with NONMEMBER) will be sent a BankMsg::Send
@@ -1561,7 +1561,7 @@ fn propose_punish_members_burn() {
     let info = mock_info(VOTING1, &escrow_funds());
     execute_deposit_escrow(deps.as_mut(), later(&start, delay1 + 1), info).unwrap();
 
-    // Initial weights are proper
+    // Initial points are proper
     assert_voting(&deps, Some(1), Some(0), Some(0), Some(0), None);
 
     // Make a punish proposal
@@ -1614,8 +1614,8 @@ fn propose_punish_members_burn() {
     );
     assert_eq!(&res.events[0].attributes[4], &attr("kick_out", "false"));
 
-    // Check the escrow amounts, status and voting weight have been updated
-    // Weights properly
+    // Check the escrow amounts, status and voting points have been updated
+    // Points properly
     assert_voting(&deps, Some(1), Some(0), Some(0), Some(0), None);
     // Check VOTING1 escrow is properly slashed
     assert_escrow_paid(
@@ -1854,7 +1854,7 @@ fn propose_punish_members_kick_out() {
     let info = mock_info(VOTING1, &escrow_funds());
     execute_deposit_escrow(deps.as_mut(), later(&start_env, delay1 + 1), info).unwrap();
 
-    // Initial weights are proper
+    // Initial points are proper
     assert_voting(&deps, Some(1), Some(0), Some(0), Some(0), None);
 
     // Make a punish proposal
@@ -1927,8 +1927,8 @@ fn propose_punish_members_kick_out() {
     );
     assert_eq!(&res.events[0].attributes[5], &attr("kick_out", "true"));
 
-    // Check the escrow amounts, status and voting weight have been updated
-    // Weights properly
+    // Check the escrow amounts, status and voting points have been updated
+    // Points properly
     assert_voting(&deps, Some(1), Some(0), Some(0), Some(0), None);
     // Check VOTING1 escrow is properly slashed
     // VOTING2 escrow amount is not changed. He (along with NONMEMBER) will be sent a BankMsg::Send
@@ -1993,7 +1993,7 @@ fn propose_punish_multiple_members() {
     let info = mock_info(VOTING1, &escrow_funds());
     execute_deposit_escrow(deps.as_mut(), later(&start, delay1 + 1), info).unwrap();
 
-    // Initial weights are proper
+    // Initial points are proper
     assert_voting(&deps, Some(1), Some(0), Some(0), Some(0), None);
 
     // Make a punish proposal
@@ -2073,8 +2073,8 @@ fn propose_punish_multiple_members() {
     );
     assert_eq!(&res.events[1].attributes[4], &attr("kick_out", "false"));
 
-    // Check the escrow amounts, status and voting weight have been updated
-    // Weights properly (INIT_ADMIN demoted)
+    // Check the escrow amounts, status and voting points have been updated
+    // Points properly (INIT_ADMIN demoted)
     assert_voting(&deps, Some(0), Some(0), Some(0), Some(0), None);
     // Check VOTING1 escrow is properly slashed
     // VOTING2 escrow amount is not changed. He (along with NONMEMBER) will be sent a BankMsg::Send

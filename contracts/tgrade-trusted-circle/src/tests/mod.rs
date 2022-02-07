@@ -93,84 +93,84 @@ fn do_instantiate(
 
 fn assert_voting<S: Storage, A: Api, Q: Querier>(
     deps: &OwnedDeps<S, A, Q>,
-    voting0_weight: Option<u64>,
-    voting1_weight: Option<u64>,
-    voting2_weight: Option<u64>,
-    voting3_weight: Option<u64>,
+    voting0_points: Option<u64>,
+    voting1_points: Option<u64>,
+    voting2_points: Option<u64>,
+    voting3_points: Option<u64>,
     height: Option<u64>,
 ) {
     let voting0 = query_member(deps.as_ref(), INIT_ADMIN.into(), height).unwrap();
-    assert_eq!(voting0.weight, voting0_weight);
+    assert_eq!(voting0.weight, voting0_points);
 
     let voting1 = query_member(deps.as_ref(), VOTING1.into(), height).unwrap();
-    assert_eq!(voting1.weight, voting1_weight);
+    assert_eq!(voting1.weight, voting1_points);
 
     let voting2 = query_member(deps.as_ref(), VOTING2.into(), height).unwrap();
-    assert_eq!(voting2.weight, voting2_weight);
+    assert_eq!(voting2.weight, voting2_points);
 
     let voting3 = query_member(deps.as_ref(), VOTING3.into(), height).unwrap();
-    assert_eq!(voting3.weight, voting3_weight);
+    assert_eq!(voting3.weight, voting3_points);
 
     // this is only valid if we are not doing a historical query
     if height.is_none() {
         // compute expected metrics
-        let weights = vec![
-            voting0_weight,
-            voting1_weight,
-            voting2_weight,
-            voting3_weight,
+        let points = vec![
+            voting0_points,
+            voting1_points,
+            voting2_points,
+            voting3_points,
         ];
-        let sum: u64 = weights.iter().map(|x| x.unwrap_or_default()).sum();
+        let sum: u64 = points.iter().map(|x| x.unwrap_or_default()).sum();
 
-        let total_count = weights.iter().filter(|x| x.is_some()).count();
+        let total_count = points.iter().filter(|x| x.is_some()).count();
         let members = list_members(deps.as_ref(), None, None).unwrap().members;
         assert_eq!(total_count, members.len());
 
-        let voting_count = weights.iter().filter(|x| x == &&Some(1)).count();
+        let voting_count = points.iter().filter(|x| x == &&Some(1)).count();
         let voting = list_voting_members(deps.as_ref(), None, None)
             .unwrap()
             .members;
         assert_eq!(voting_count, voting.len());
 
-        let non_voting_count = weights.iter().filter(|x| x == &&Some(0)).count();
+        let non_voting_count = points.iter().filter(|x| x == &&Some(0)).count();
         let non_voting = list_non_voting_members(deps.as_ref(), None, None)
             .unwrap()
             .members;
         assert_eq!(non_voting_count, non_voting.len());
 
-        let total = query_total_weight(deps.as_ref()).unwrap();
+        let total = query_total_points(deps.as_ref()).unwrap();
         assert_eq!(sum, total.weight);
     }
 }
 
 fn assert_nonvoting<S: Storage, A: Api, Q: Querier>(
     deps: &OwnedDeps<S, A, Q>,
-    nonvoting1_weight: Option<u64>,
-    nonvoting2_weight: Option<u64>,
-    nonvoting3_weight: Option<u64>,
+    nonvoting1_points: Option<u64>,
+    nonvoting2_points: Option<u64>,
+    nonvoting3_points: Option<u64>,
     height: Option<u64>,
 ) {
     let nonvoting1 = query_member(deps.as_ref(), NONVOTING1.into(), height).unwrap();
-    assert_eq!(nonvoting1.weight, nonvoting1_weight);
+    assert_eq!(nonvoting1.weight, nonvoting1_points);
 
     let nonvoting2 = query_member(deps.as_ref(), NONVOTING2.into(), height).unwrap();
-    assert_eq!(nonvoting2.weight, nonvoting2_weight);
+    assert_eq!(nonvoting2.weight, nonvoting2_points);
 
     let nonvoting3 = query_member(deps.as_ref(), NONVOTING3.into(), height).unwrap();
-    assert_eq!(nonvoting3.weight, nonvoting3_weight);
+    assert_eq!(nonvoting3.weight, nonvoting3_points);
 
     // this is only valid if we are not doing a historical query
     if height.is_none() {
         // compute expected metrics
-        let weights = vec![nonvoting1_weight, nonvoting2_weight, nonvoting3_weight];
-        let count = weights.iter().filter(|x| x.is_some()).count();
+        let points = vec![nonvoting1_points, nonvoting2_points, nonvoting3_points];
+        let count = points.iter().filter(|x| x.is_some()).count();
 
         let nonvoting = list_non_voting_members(deps.as_ref(), None, None)
             .unwrap()
             .members;
         assert_eq!(count, nonvoting.len());
 
-        // Just confirm all non-voting members weights are zero
+        // Just confirm all non-voting members points are zero
         let total: u64 = nonvoting.iter().map(|m| m.weight).sum();
         assert_eq!(total, 0);
     }

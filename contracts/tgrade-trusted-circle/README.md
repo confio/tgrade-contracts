@@ -32,7 +32,7 @@ pub struct InstantiateMsg {
 }
 ```
 
-Note that 0 *is an allowed weight*. This doesn't give any voting rights, but
+Note that 0 *is an allowed points count*. This doesn't give any voting rights, but
 it does define this address as part of the group, as a non-voting participant.
 This could be used in e.g. a KYC whitelist, to grant non-voting participants
 specific permissions, but they cannot participate in decision-making.
@@ -89,7 +89,7 @@ This is becoming complex, and hard to reason about, so we need to discuss the fu
 - *Pending, Paid Voter* - At this point, they have been approved and have paid the required escrow. However, they may have
   to wait some time before becoming *Voter* (more on this below).
 
-- *Voter* - All voters are assigned a voting weight of 1 and are able to make proposals and vote on them. They can *deposit escrow*
+- *Voter* - All voters are assigned a voting points of 1 and are able to make proposals and vote on them. They can *deposit escrow*
   to raise it and *return* escrow down to the minimum required escrow, but no lower. There are 3 transitions out:
   - Voluntary leave: transition to *Leaving Voter*
   - Punishment: transition to a *Non Member* and escrow is distributed to whoever Trusted Circle Governance decides
@@ -97,7 +97,7 @@ This is becoming complex, and hard to reason about, so we need to discuss the fu
     more escrow to become a *Voter* or remain a *Non Voting Member*
   - By Escrow Increased
 
-- *Leaving Voter* - A voter who has requested to leave is immediately assigned a weight of 0 like a *Non Voting Member*.
+- *Leaving Voter* - A voter who has requested to leave is immediately assigned a points of 0 like a *Non Voting Member*.
   However, the escrow is not immediately returned. It is converted to a "pending withdrawal" for a duration of
   `2 * voting period`. During the period it may be slashed via "Punishment" or "Partial Slashing" as a *Voter*.
   At the end of the period, any remaining escrow can be claimed by the *Leaving Voter*, converting them to a *Non Member*.
@@ -149,7 +149,7 @@ the Trusted Circle, but still be eligible to vote in some existing proposals. To
 any vote cast *before* the voting member left will remain valid, however, they will not be able to vote after this point.
 The way we tally the votes for such proposals is:
 
-> prevent any *Leaving Voter* from casting further votes. Reduce the total weight on any proposal where an
+> prevent any *Leaving Voter* from casting further votes. Reduce the total points on any proposal where an
 > eligible voter left without voting on it, so it was like they were never eligible.
 
 Assume there are 10 voters and 50% quorum (5 votes) needed for passing. There is an open proposal with 2 yes votes
