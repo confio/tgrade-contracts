@@ -325,7 +325,7 @@ impl Punishment {
 pub const TRUSTED_CIRCLE: Item<TrustedCircle> = Item::new("trusted_circle");
 
 /// We store escrow and status together for all members.
-/// This is set for any address where weight is not None.
+/// This is set for any address where points is not None.
 #[derive(Serialize, Deserialize, Clone, PartialEq, JsonSchema, Debug)]
 pub struct EscrowStatus {
     /// how much escrow they have paid
@@ -493,8 +493,8 @@ pub struct Proposal {
     pub status: Status,
     /// pass requirements
     pub rules: VotingRules,
-    // the total weight when the proposal started (used to calculate percentages)
-    pub total_weight: u64,
+    // the total points when the proposal started (used to calculate percentages)
+    pub total_points: u64,
     // summary of existing votes
     pub votes: Votes,
 }
@@ -503,7 +503,7 @@ pub struct Proposal {
 // Note: `10u128.pow(9)` fails as "u128::pow` is not yet stable as a const fn"
 const PRECISION_FACTOR: u128 = 1_000_000_000;
 
-// weight of votes for each option
+// points of votes for each option
 #[derive(Serialize, Deserialize, Clone, PartialEq, JsonSchema, Debug)]
 pub struct Votes {
     pub yes: u64,
@@ -519,21 +519,21 @@ impl Votes {
     }
 
     /// create it with a yes vote for this much
-    pub fn yes(init_weight: u64) -> Self {
+    pub fn yes(init_points: u64) -> Self {
         Votes {
-            yes: init_weight,
+            yes: init_points,
             no: 0,
             abstain: 0,
             veto: 0,
         }
     }
 
-    pub fn add_vote(&mut self, vote: Vote, weight: u64) {
+    pub fn add_vote(&mut self, vote: Vote, points: u64) {
         match vote {
-            Vote::Yes => self.yes += weight,
-            Vote::Abstain => self.abstain += weight,
-            Vote::No => self.no += weight,
-            Vote::Veto => self.veto += weight,
+            Vote::Yes => self.yes += points,
+            Vote::Abstain => self.abstain += points,
+            Vote::No => self.no += points,
+            Vote::Veto => self.veto += points,
         }
     }
 }
@@ -572,7 +572,7 @@ impl Proposal {
         } = self.rules;
 
         // we always require the quorum
-        if self.votes.total() < votes_needed(self.total_weight, quorum) {
+        if self.votes.total() < votes_needed(self.total_points, quorum) {
             return false;
         }
         if self.expires.is_expired(block) {
@@ -581,8 +581,8 @@ impl Proposal {
             self.votes.yes >= votes_needed(opinions, threshold)
         } else if allow_end_early {
             // If not expired, we must assume all non-votes will be cast as No.
-            // We compare threshold against the total weight (minus abstain).
-            let possible_opinions = self.total_weight - self.votes.abstain;
+            // We compare threshold against the total points (minus abstain).
+            let possible_opinions = self.total_points - self.votes.abstain;
             self.votes.yes >= votes_needed(possible_opinions, threshold)
         } else {
             false
@@ -592,17 +592,17 @@ impl Proposal {
 
 // this is a helper function so Decimal works with u64 rather than Uint128
 // also, we must *round up* here, as we need 8, not 7 votes to reach 50% of 15 total
-fn votes_needed(weight: u64, percentage: Decimal) -> u64 {
-    let applied = percentage * Uint128::new(PRECISION_FACTOR * weight as u128);
+fn votes_needed(points: u64, percentage: Decimal) -> u64 {
+    let applied = percentage * Uint128::new(PRECISION_FACTOR * points as u128);
     // Divide by PRECISION_FACTOR, rounding up to the nearest integer
     ((applied.u128() + PRECISION_FACTOR - 1) / PRECISION_FACTOR) as u64
 }
 
-// we cast a ballot with our chosen vote and a given weight
+// we cast a ballot with our chosen vote and a given points
 // stored under the key that voted
 #[derive(Serialize, Deserialize, Clone, PartialEq, JsonSchema, Debug)]
 pub struct Ballot {
-    pub weight: u64,
+    pub points: u64,
     pub vote: Vote,
 }
 
@@ -679,7 +679,7 @@ mod test {
     fn check_is_passed(
         rules: VotingRules,
         votes: Votes,
-        total_weight: u64,
+        total_points: u64,
         is_expired: bool,
     ) -> bool {
         let block = mock_env().block;
@@ -698,7 +698,7 @@ mod test {
             },
             status: Status::Open,
             rules,
-            total_weight,
+            total_points,
             votes,
         };
         prop.is_passed(&block)
@@ -793,7 +793,7 @@ mod test {
             40,
             false
         ));
-        // if we have threshold * total_weight as yes votes this must pass
+        // if we have threshold * total_points as yes votes this must pass
         assert!(check_is_passed(
             early_end.clone(),
             passing.clone(),

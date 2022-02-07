@@ -75,7 +75,7 @@ pub enum QueryMsg {
     /// Return TrustedCircleResponse
     TrustedCircle {},
     /// Return TotalWeightResponse
-    TotalWeight {},
+    TotalPoints {},
     /// Returns MemberListResponse, for all (voting and non-voting) members
     ListMembers {
         start_after: Option<String>,
@@ -168,7 +168,7 @@ pub struct ProposalResponse {
     /// as well as the total_weight of the voting group may have changed since this time. That means
     /// that the generic `Threshold{}` query does not provide valid information for existing proposals.
     pub rules: VotingRules,
-    pub total_weight: u64,
+    pub total_points: u64,
     /// This is a running tally of all votes cast on this proposal so far.
     pub votes: Votes,
 }
@@ -183,7 +183,7 @@ pub struct VoteInfo {
     pub voter: String,
     pub vote: Vote,
     pub proposal_id: u64,
-    pub weight: u64,
+    pub points: u64,
 }
 
 #[derive(Serialize, Deserialize, Clone, PartialEq, JsonSchema, Debug)]

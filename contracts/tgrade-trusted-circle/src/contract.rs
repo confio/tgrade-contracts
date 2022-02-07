@@ -32,7 +32,7 @@ const CONTRACT_NAME: &str = "crates.io:tgrade-trusted_circle";
 const CONTRACT_VERSION: &str = env!("CARGO_PKG_VERSION");
 
 pub const TRUSTED_CIRCLE_DENOM: &str = "utgd";
-pub const VOTING_WEIGHT: u64 = 1;
+pub const VOTING_POINTS: u64 = 1;
 
 pub type Response = cosmwasm_std::Response<TgradeMsg>;
 pub type SubMsg = cosmwasm_std::SubMsg<TgradeMsg>;
@@ -66,7 +66,7 @@ pub fn instantiate(
     };
     trusted_circle.validate()?;
 
-    // Store sender as initial member, and define its weight / state
+    // Store sender as initial member, and define its points / state
     // based on init_funds
     let amount = cw_utils::must_pay(&info, TRUSTED_CIRCLE_DENOM)?;
     if amount < trusted_circle.get_escrow() {
@@ -83,8 +83,8 @@ pub fn instantiate(
     };
     ESCROWS.save(deps.storage, &info.sender, &escrow)?;
 
-    members().save(deps.storage, &info.sender, &VOTING_WEIGHT, env.block.height)?;
-    TOTAL.save(deps.storage, &VOTING_WEIGHT)?;
+    members().save(deps.storage, &info.sender, &VOTING_POINTS, env.block.height)?;
+    TOTAL.save(deps.storage, &VOTING_POINTS)?;
     let promote_ev = Event::new(PROMOTE_TYPE).add_attribute(MEMBER_KEY, info.sender);
 
     DISTRIBUTION.init(deps.branch(), msg.reward_denom)?;
@@ -205,11 +205,11 @@ fn update_batch_after_escrow_paid(
             batches().save(deps.storage, proposal_id, &batch)?;
             // just promote this one, everyone else has been promoted
             if convert_to_voter_if_paid(deps.branch(), paid_escrow, height)? {
-                // update the total with the new weight
-                TOTAL.update::<_, StdError>(deps.storage, |old| Ok(old + VOTING_WEIGHT))?;
+                // update the total with the new points
+                TOTAL.update::<_, StdError>(deps.storage, |old| Ok(old + VOTING_POINTS))?;
                 DISTRIBUTION.apply_points_correction(
                     deps.branch(),
-                    &[(paid_escrow, VOTING_WEIGHT as i128)],
+                    &[(paid_escrow, VOTING_POINTS as i128)],
                 )?;
                 let evt = Event::new(PROMOTE_TYPE)
                     .add_attribute(PROPOSAL_KEY, proposal_id.to_string())
@@ -263,9 +263,9 @@ fn convert_all_paid_members_to_voters(
     let mut diff = vec![];
     for waiting in batch.members.iter() {
         if convert_to_voter_if_paid(deps.branch(), waiting, height)? {
-            diff.push((waiting, VOTING_WEIGHT as i128));
+            diff.push((waiting, VOTING_POINTS as i128));
             evt = evt.add_attribute(MEMBER_KEY, waiting);
-            added += VOTING_WEIGHT;
+            added += VOTING_POINTS;
         }
     }
     DISTRIBUTION.apply_points_correction(deps.branch(), &diff)?;
@@ -274,7 +274,7 @@ fn convert_all_paid_members_to_voters(
     batch.batch_promoted = true;
     batches().save(deps.storage, batch_id, batch)?;
 
-    // update the total with the new weight
+    // update the total with the new points
     if added > 0 {
         TOTAL.update::<_, StdError>(deps.storage, |old| Ok(old + added))?;
     }
@@ -295,10 +295,10 @@ fn convert_to_voter_if_paid(mut deps: DepsMut, to_promote: &Addr, height: u64) -
     // update status
     escrow.status = MemberStatus::Voting {};
     ESCROWS.save(deps.storage, to_promote, &escrow)?;
-    DISTRIBUTION.apply_points_correction(deps.branch(), &[(to_promote, VOTING_WEIGHT as i128)])?;
+    DISTRIBUTION.apply_points_correction(deps.branch(), &[(to_promote, VOTING_POINTS as i128)])?;
 
-    // update voting weight
-    members().save(deps.storage, to_promote, &VOTING_WEIGHT, height)?;
+    // update voting points
+    members().save(deps.storage, to_promote, &VOTING_POINTS, height)?;
 
     Ok(true)
 }
@@ -416,7 +416,7 @@ pub fn execute_propose(
         proposal,
         status: Status::Open,
         votes: Votes::yes(vote_power),
-        total_weight: TOTAL.load(deps.storage)?,
+        total_points: TOTAL.load(deps.storage)?,
         rules: trusted_circle.rules,
     };
     prop.update_status(&env.block);
@@ -424,7 +424,7 @@ pub fn execute_propose(
 
     // add the first yes vote from voter
     let ballot = Ballot {
-        weight: vote_power,
+        points: vote_power,
         vote: Vote::Yes,
     };
     save_ballot(deps.storage, id, &info.sender, &ballot)?;
@@ -558,7 +558,7 @@ pub fn execute_vote(
     }
     // cast vote if no vote previously cast
     let ballot = Ballot {
-        weight: vote_power,
+        points: vote_power,
         vote,
     };
     save_ballot(deps.storage, proposal_id, &info.sender, &ballot)?;
@@ -688,12 +688,12 @@ fn trigger_long_leave(
     if escrow.status == (MemberStatus::Voting {}) {
         members().save(deps.storage, &leaver, &0, env.block.height)?;
         TOTAL.update::<_, StdError>(deps.storage, |old| {
-            old.checked_sub(VOTING_WEIGHT)
+            old.checked_sub(VOTING_POINTS)
                 .ok_or_else(|| StdError::generic_err("Total underflow"))
         })?;
         DISTRIBUTION
-            .apply_points_correction(deps.branch(), &[(&leaver, -(VOTING_WEIGHT as i128))])?;
-        // now, we reduce total weight of all open proposals that this member has not yet voted on
+            .apply_points_correction(deps.branch(), &[(&leaver, -(VOTING_POINTS as i128))])?;
+        // now, we reduce total points of all open proposals that this member has not yet voted on
         adjust_open_proposals_for_leaver(deps.branch(), &env, &leaver)?;
     }
 
@@ -728,7 +728,7 @@ fn adjust_open_proposals_for_leaver(
         if BALLOTS.may_load(deps.storage, (prop_id, leaver))?.is_none() {
             let mut prop = PROPOSALS.load(deps.storage, prop_id)?;
             if prop.status == (Status::Open {}) {
-                prop.total_weight -= VOTING_WEIGHT;
+                prop.total_points -= VOTING_POINTS;
                 PROPOSALS.save(deps.storage, prop_id, &prop)?;
             }
         }
@@ -814,15 +814,15 @@ fn pending_escrow_demote_promote_members(
         for (addr, mut escrow_status) in demoted {
             escrow_status.status = MemberStatus::Pending { proposal_id };
             ESCROWS.save(deps.storage, &addr, &escrow_status)?;
-            // Remove voting weight
+            // Remove voting points
             members().save(deps.storage, &addr, &0, height)?;
             // And adjust TOTAL
             TOTAL.update::<_, StdError>(deps.storage, |old| {
-                old.checked_sub(VOTING_WEIGHT)
+                old.checked_sub(VOTING_POINTS)
                     .ok_or_else(|| StdError::generic_err("Total underflow"))
             })?;
             DISTRIBUTION
-                .apply_points_correction(deps.branch(), &[(&addr, -(VOTING_WEIGHT as i128))])?;
+                .apply_points_correction(deps.branch(), &[(&addr, -(VOTING_POINTS as i128))])?;
             demoted_addrs.push(addr.clone());
             evt = evt.add_attribute(MEMBER_KEY, addr);
         }
@@ -1178,11 +1178,11 @@ pub fn proposal_punish_members(
             if escrow_status.status == (MemberStatus::Voting {}) {
                 members().save(deps.storage, &addr, &0, env.block.height)?;
                 TOTAL.update::<_, StdError>(deps.storage, |old| {
-                    old.checked_sub(VOTING_WEIGHT)
+                    old.checked_sub(VOTING_POINTS)
                         .ok_or_else(|| StdError::generic_err("Total underflow"))
                 })?;
                 DISTRIBUTION
-                    .apply_points_correction(deps.branch(), &[(&addr, -(VOTING_WEIGHT as i128))])?;
+                    .apply_points_correction(deps.branch(), &[(&addr, -(VOTING_POINTS as i128))])?;
             }
             escrow_status.status = MemberStatus::Pending { proposal_id };
             ESCROWS.save(deps.storage, &addr, &escrow_status)?;
@@ -1280,7 +1280,7 @@ pub fn query(deps: Deps, env: Env, msg: QueryMsg) -> StdResult<Binary> {
         ListNonVotingMembers { start_after, limit } => {
             to_binary(&list_non_voting_members(deps, start_after, limit)?)
         }
-        TotalWeight {} => to_binary(&query_total_weight(deps)?),
+        TotalPoints {} => to_binary(&query_total_points(deps)?),
         TrustedCircle {} => to_binary(&query_trusted_circle(deps)?),
         Proposal { proposal_id } => to_binary(&query_proposal(deps, env, proposal_id)?),
         Vote { proposal_id, voter } => to_binary(&query_vote(deps, proposal_id, voter)?),
@@ -1318,9 +1318,9 @@ pub fn query(deps: Deps, env: Env, msg: QueryMsg) -> StdResult<Binary> {
     }
 }
 
-pub(crate) fn query_total_weight(deps: Deps) -> StdResult<TotalWeightResponse> {
-    let weight = TOTAL.load(deps.storage)?;
-    Ok(TotalWeightResponse { weight })
+pub(crate) fn query_total_points(deps: Deps) -> StdResult<TotalWeightResponse> {
+    let points = TOTAL.load(deps.storage)?;
+    Ok(TotalWeightResponse { weight: points })
 }
 
 pub(crate) fn query_trusted_circle(deps: Deps) -> StdResult<TrustedCircleResponse> {
@@ -1348,11 +1348,11 @@ pub(crate) fn query_member(
     height: Option<u64>,
 ) -> StdResult<MemberResponse> {
     let addr = deps.api.addr_validate(&addr)?;
-    let weight = match height {
+    let points = match height {
         Some(h) => members().may_load_at_height(deps.storage, &addr, h),
         None => members().may_load(deps.storage, &addr),
     }?;
-    Ok(MemberResponse { weight })
+    Ok(MemberResponse { weight: points })
 }
 
 pub(crate) fn query_escrow(deps: Deps, addr: String) -> StdResult<EscrowResponse> {
@@ -1377,10 +1377,10 @@ pub(crate) fn list_members(
         .range(deps.storage, start, None, Order::Ascending)
         .take(limit)
         .map(|item| {
-            let (addr, weight) = item?;
+            let (addr, points) = item?;
             Ok(Member {
                 addr: addr.into(),
-                weight,
+                weight: points,
             })
         })
         .collect();
@@ -1400,14 +1400,14 @@ pub(crate) fn list_voting_members(
         .idx
         .weight
         // Note: if we allow members to have a weight > 1, we must adjust, until then, this works well
-        .prefix(VOTING_WEIGHT)
+        .prefix(VOTING_POINTS)
         .range(deps.storage, start, None, Order::Ascending)
         .take(limit)
         .map(|item| {
-            let (addr, weight) = item?;
+            let (addr, points) = item?;
             Ok(Member {
                 addr: addr.into(),
-                weight,
+                weight: points,
             })
         })
         .collect();
@@ -1429,10 +1429,10 @@ pub(crate) fn list_non_voting_members(
         .range(deps.storage, start, None, Order::Ascending)
         .take(limit)
         .map(|item| {
-            let (addr, weight) = item?;
+            let (addr, points) = item?;
             Ok(Member {
                 addr: addr.into(),
-                weight,
+                weight: points,
             })
         })
         .collect();
@@ -1475,7 +1475,7 @@ pub(crate) fn query_proposal(deps: Deps, env: Env, id: u64) -> StdResult<Proposa
         status,
         expires: prop.expires,
         rules: prop.rules,
-        total_weight: prop.total_weight,
+        total_points: prop.total_points,
         votes: prop.votes,
     })
 }
@@ -1516,7 +1516,7 @@ fn map_proposal(
         status,
         expires: prop.expires,
         rules: prop.rules,
-        total_weight: prop.total_weight,
+        total_points: prop.total_points,
         votes: prop.votes,
     })
 }
@@ -1528,7 +1528,7 @@ pub(crate) fn query_vote(deps: Deps, proposal_id: u64, voter: String) -> StdResu
         proposal_id,
         voter,
         vote: b.vote,
-        weight: b.weight,
+        points: b.points,
     });
     Ok(VoteResponse { vote })
 }
@@ -1553,7 +1553,7 @@ pub(crate) fn list_votes_by_proposal(
                 proposal_id,
                 voter: voter.into(),
                 vote: ballot.vote,
-                weight: ballot.weight,
+                points: ballot.points,
             })
         })
         .collect();
@@ -1581,7 +1581,7 @@ pub(crate) fn list_votes_by_voter(
                 proposal_id,
                 voter: voter.clone(),
                 vote: ballot.vote,
-                weight: ballot.weight,
+                points: ballot.points,
             })
         })
         .collect();
@@ -1633,12 +1633,12 @@ fn query_withdrawable_funds(deps: Deps, owner: String) -> StdResult<RewardsRespo
     let addr = Addr::unchecked(&owner);
     let escrow = ESCROWS.load(deps.storage, &addr)?;
 
-    let weight = match escrow.status {
+    let points = match escrow.status {
         MemberStatus::Voting {} => 1,
         _ => 0,
     };
 
-    let rewards = DISTRIBUTION.adjusted_withdrawable_rewards(deps, addr, weight)?;
+    let rewards = DISTRIBUTION.adjusted_withdrawable_rewards(deps, addr, points)?;
     Ok(RewardsResponse { rewards })
 }
 
