@@ -2,6 +2,31 @@
 
 This guide lists API changes between releases of *Tgrade* contracts.
 
+## v0.6.0-beta1 -> v0.6.0-beta2
+
+### `tgrade-trusted-circle`
+
+* The query for total voting weight renamed form `total_weight` to `total_points`.
+  The response stays unchanged for now, still contains `weight` field (it is
+  due to its dependency in future repo, expect it change in the near future).
+* The `total_weight` field on response to `proposal` query renamed to
+  `total_points`.
+* The `proposals[].total_weight` field on response to `list_proposals` query
+  renamed to `proposals[].total_points`.
+* The `vote.weight` field on response to `vote` query renamed to `points`.
+* The `votes[].weight` field on responses to `list_votes_by_proposal` and
+  `list_votes_by_voter` queries renamed to `votes[].weight`.
+* The `total_weight` field on response to `escrow` query renamed to
+  `total_points`.
+* The `escrows[].escrow_status.total_weight` field on response to `list_escrows`
+  query renamed to `escrows[].escrow_status.total_points`.
+* The `total_weight` on `escrows` map in contract storage renamed to
+  `total_points`.
+* The `weight` field on `votes`, `votes_by_voter` maps in contracts storage
+  renamed to `points`.
+* The `total_weight` field on `proposals` map in contract storage renamed to
+  `total_points`.
+
 ## v0.5.0-beta5 -> v0.5.0-beta6
 
 ### `tgrade-oc-proposals`
