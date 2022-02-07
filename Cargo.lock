@@ -814,6 +814,7 @@ dependencies = [
  "cw3",
  "derivative",
  "schemars",
+ "semver",
  "serde",
  "tg-bindings",
  "tg-bindings-test",

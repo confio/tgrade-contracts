@@ -5,15 +5,17 @@ use cosmwasm_std::{
     Empty, Env, Event, MessageInfo, Order, QuerierWrapper, QueryRequest, StdError, StdResult,
     SystemError, SystemResult, Uint128, WasmQuery,
 };
-use cw2::set_contract_version;
+use cw2::{get_contract_version, set_contract_version};
 use cw3::{Status, Vote};
 use cw_storage_plus::{Bound, PrimaryKey};
 use cw_utils::{maybe_addr, Expiration};
+use semver::Version;
 use tg4::{member_key, Member, MemberListResponse, MemberResponse, TotalWeightResponse};
 use tg_bindings::TgradeMsg;
 use tg_utils::{ensure_from_older_version, members, TOTAL};
 
 use crate::error::ContractError;
+use crate::migration::migrate_ballots;
 use crate::msg::{
     Escrow, EscrowListResponse, EscrowResponse, ExecuteMsg, InstantiateMsg, ProposalListResponse,
     ProposalResponse, QueryMsg, RewardsResponse, TrustedCircleResponse, VoteInfo, VoteListResponse,
@@ -1653,7 +1655,14 @@ fn query_undistributed_funds(deps: Deps, env: Env) -> StdResult<RewardsResponse>
 }
 
 #[cfg_attr(not(feature = "library"), entry_point)]
-pub fn migrate(deps: DepsMut, _env: Env, _msg: Empty) -> Result<Response, ContractError> {
+pub fn migrate(mut deps: DepsMut, env: Env, msg: Empty) -> Result<Response, ContractError> {
     ensure_from_older_version(deps.storage, CONTRACT_NAME, CONTRACT_VERSION)?;
+
+    let stored_version = get_contract_version(deps.storage)?;
+    // Unwrapping as version check before would fail if stored version is invalid
+    let stored_version: Version = stored_version.version.parse().unwrap();
+
+    migrate_ballots(deps.branch(), &env, &msg, &stored_version)?;
+
     Ok(Response::new())
 }
