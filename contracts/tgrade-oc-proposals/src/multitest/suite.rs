@@ -115,8 +115,8 @@ impl SuiteBuilder {
         self
     }
 
-    pub fn with_min_points(mut self, min_weight: u64) -> Self {
-        self.min_points = min_weight;
+    pub fn with_min_points(mut self, min_points: u64) -> Self {
+        self.min_points = min_points;
         self
     }
 

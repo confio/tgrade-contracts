@@ -210,7 +210,7 @@ fn execute_group_can_change() {
     let proposal_status = suite.query_proposal_status(second_proposal_id).unwrap();
     assert_eq!(proposal_status, Status::Passed);
 
-    // voter2 can only vote on the first proposal with weight of 2 (not enough to pass)
+    // voter2 can only vote on the first proposal with points of 2 (not enough to pass)
     suite.vote(members[2], proposal_id, Vote::Yes).unwrap();
     let proposal_status = suite.query_proposal_status(proposal_id).unwrap();
     assert_eq!(proposal_status, Status::Open);
@@ -419,7 +419,7 @@ mod voting {
         suite.vote(members[1], proposal_id, Vote::Yes).unwrap();
 
         let tally = suite.get_sum_of_votes(proposal_id);
-        // Weight of owner (1) + weight of voter1 (2)
+        // Points of owner (1) + points of voter1 (2)
         assert_eq!(tally, 3);
 
         // Veto doesn't affect the tally
@@ -429,7 +429,7 @@ mod voting {
 
         suite.vote(members[3], proposal_id, Vote::Yes).unwrap();
         let tally = suite.get_sum_of_votes(proposal_id);
-        // Previous result + weight of voter3 (4)
+        // Previous result + points of voter3 (4)
         assert_eq!(tally, 7);
     }
 
