@@ -881,8 +881,8 @@ mod tests {
         // a few blocks later...
         app.update_block(|block| block.height += 3);
 
-        // VOTER2 votes yes, according to original pointss: 3 yes, 2 no, 5 total (will fail when expired)
-        // with updated pointss, it would be 3 yes, 9 yes, 11 total (will pass when expired)
+        // VOTER2 votes yes, according to original points: 3 yes, 2 no, 5 total (will fail when expired)
+        // with updated points, it would be 3 yes, 9 yes, 11 total (will pass when expired)
         let yes_vote = ExecuteMsg::Vote {
             proposal_id,
             vote: Vote::Yes,

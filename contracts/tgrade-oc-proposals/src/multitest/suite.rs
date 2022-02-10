@@ -525,7 +525,7 @@ impl Suite {
                 },
             )
             .unwrap();
-        // Sum the pointss of the Yes votes to get the tally
+        // Sum the points of the Yes votes to get the tally
         votes
             .votes
             .iter()
