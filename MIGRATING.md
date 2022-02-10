@@ -6,10 +6,10 @@ This guide lists API changes between releases of *Tgrade* contracts.
 
 ### `tgrade-trusted-circle`
 
-* `ListProposals` query was divided into `ListProposals` and `ReverseProposals`
-* `ListVotesByProposal` query was renamed to `ListVotes`
-* `ListVotingMembers` query was renamed to `ListVoters`
-* `ListVotesByVoter` query's parameter `start_after` was changed to `start_before`
+* `list_proposals` query was divided into `list_proposals` and `reverse_proposals`
+* `list_votes_by_proposal` query was renamed to `list_votes`
+* `list_voting_members` query was renamed to `list_voters`
+* `list_votes_by_voter` query's parameter `start_before` was changed to `start_after`
 
 ## v0.6.0-beta1 -> v0.6.0-beta2
 
