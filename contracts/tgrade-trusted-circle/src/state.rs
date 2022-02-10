@@ -1,5 +1,6 @@
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
+use std::cmp::max;
 use std::fmt;
 
 use crate::distribution::Distribution;
@@ -9,10 +10,9 @@ use cosmwasm_std::{
     attr, Addr, Attribute, BlockInfo, Decimal, Deps, Env, Event, StdError, StdResult, Storage,
     Timestamp, Uint128,
 };
-use cw3::{Status, Vote};
 use cw_storage_plus::{Index, IndexList, IndexedMap, Item, Map, MultiIndex};
 use cw_utils::Expiration;
-use std::cmp::max;
+use tg3::{Status, Vote};
 
 const ONE_TGD: u128 = 1_000_000; // One million µTGD
 

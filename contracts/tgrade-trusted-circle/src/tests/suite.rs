@@ -99,7 +99,7 @@ impl SuiteBuilder {
     pub fn with_denied(mut self, addr: &str) -> Self {
         self.deny_list.push(Member {
             addr: addr.to_owned(),
-            weight: 1,
+            points: 1,
         });
         self
     }

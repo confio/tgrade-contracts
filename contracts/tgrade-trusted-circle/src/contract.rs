@@ -6,11 +6,11 @@ use cosmwasm_std::{
     SystemError, SystemResult, Uint128, WasmQuery,
 };
 use cw2::{get_contract_version, set_contract_version};
-use cw3::{Status, Vote};
 use cw_storage_plus::{Bound, PrimaryKey};
 use cw_utils::{maybe_addr, Expiration};
 use semver::Version;
-use tg4::{member_key, Member, MemberListResponse, MemberResponse, TotalWeightResponse};
+use tg3::{Status, Vote};
+use tg4::{member_key, Member, MemberListResponse, MemberResponse, TotalPointsResponse};
 use tg_bindings::TgradeMsg;
 use tg_utils::{ensure_from_older_version, members, TOTAL};
 
@@ -1320,9 +1320,9 @@ pub fn query(deps: Deps, env: Env, msg: QueryMsg) -> StdResult<Binary> {
     }
 }
 
-pub(crate) fn query_total_points(deps: Deps) -> StdResult<TotalWeightResponse> {
+pub(crate) fn query_total_points(deps: Deps) -> StdResult<TotalPointsResponse> {
     let points = TOTAL.load(deps.storage)?;
-    Ok(TotalWeightResponse { weight: points })
+    Ok(TotalPointsResponse { points })
 }
 
 pub(crate) fn query_trusted_circle(deps: Deps) -> StdResult<TrustedCircleResponse> {
@@ -1354,7 +1354,7 @@ pub(crate) fn query_member(
         Some(h) => members().may_load_at_height(deps.storage, &addr, h),
         None => members().may_load(deps.storage, &addr),
     }?;
-    Ok(MemberResponse { weight: points })
+    Ok(MemberResponse { points })
 }
 
 pub(crate) fn query_escrow(deps: Deps, addr: String) -> StdResult<EscrowResponse> {
@@ -1382,7 +1382,7 @@ pub(crate) fn list_members(
             let (addr, points) = item?;
             Ok(Member {
                 addr: addr.into(),
-                weight: points,
+                points,
             })
         })
         .collect();
@@ -1400,8 +1400,8 @@ pub(crate) fn list_voting_members(
 
     let members: StdResult<Vec<_>> = members()
         .idx
-        .weight
-        // Note: if we allow members to have a weight > 1, we must adjust, until then, this works well
+        .points
+        // Note: if we allow members to have a points > 1, we must adjust, until then, this works well
         .prefix(VOTING_POINTS)
         .range(deps.storage, start, None, Order::Ascending)
         .take(limit)
@@ -1409,7 +1409,7 @@ pub(crate) fn list_voting_members(
             let (addr, points) = item?;
             Ok(Member {
                 addr: addr.into(),
-                weight: points,
+                points,
             })
         })
         .collect();
@@ -1426,7 +1426,7 @@ pub(crate) fn list_non_voting_members(
     let start = start_after.map(|sa| Bound::exclusive(sa.as_str()));
     let members: StdResult<Vec<_>> = members()
         .idx
-        .weight
+        .points
         .prefix(0)
         .range(deps.storage, start, None, Order::Ascending)
         .take(limit)
@@ -1434,7 +1434,7 @@ pub(crate) fn list_non_voting_members(
             let (addr, points) = item?;
             Ok(Member {
                 addr: addr.into(),
-                weight: points,
+                points,
             })
         })
         .collect();
