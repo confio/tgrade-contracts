@@ -2,7 +2,30 @@
 
 ## [Unreleased](https://github.com/confio/tgrade-contracts/tree/HEAD)
 
-[Full Changelog](https://github.com/confio/tgrade-contracts/compare/v0.6.0-beta1...HEAD)
+[Full Changelog](https://github.com/confio/tgrade-contracts/compare/v0.6.0-rc2...HEAD)
+
+## [v0.6.0-rc2](https://github.com/confio/tgrade-contracts/tree/v0.6.0-rc2) (2022-02-10)
+
+[Full Changelog](https://github.com/confio/tgrade-contracts/compare/v0.6.0-beta1...v0.6.0-rc2)
+
+**Breaking changes:**
+
+- oc-voting-proposal and trusted-circle should have same queries for votes and voters [\#455](https://github.com/confio/tgrade-contracts/issues/455)
+- API Renaming: Breaks tgrade, app [\#272](https://github.com/confio/tgrade-contracts/issues/272)
+
+**Closed issues:**
+
+- Update contracts to use tg3 in place of cw3 [\#469](https://github.com/confio/tgrade-contracts/issues/469)
+- Increase max limit [\#464](https://github.com/confio/tgrade-contracts/issues/464)
+- valset: config query return ambiguous contract names [\#320](https://github.com/confio/tgrade-contracts/issues/320)
+
+**Merged pull requests:**
+
+- Follow up renaming weight to points in contracts [\#471](https://github.com/confio/tgrade-contracts/pull/471) ([ueco-jb](https://github.com/ueco-jb))
+- Align tgrade-contracts to poe-contracts 0.6.0-rc2 [\#470](https://github.com/confio/tgrade-contracts/pull/470) ([ueco-jb](https://github.com/ueco-jb))
+- tgrade-trusted-circle: Renaming 'weight' to 'points' for voting power [\#466](https://github.com/confio/tgrade-contracts/pull/466) ([hashedone](https://github.com/hashedone))
+- Increase MAX\_LIMIT constant to 100 and DEFAULT\_LIMIT to 30 [\#465](https://github.com/confio/tgrade-contracts/pull/465) ([ueco-jb](https://github.com/ueco-jb))
+- Standarize queries in voting contracts [\#462](https://github.com/confio/tgrade-contracts/pull/462) ([ueco-jb](https://github.com/ueco-jb))
 
 ## [v0.6.0-beta1](https://github.com/confio/tgrade-contracts/tree/v0.6.0-beta1) (2022-02-03)
 

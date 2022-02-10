@@ -74,7 +74,7 @@ pub enum ExecuteMsg {
 pub enum QueryMsg {
     /// Return TrustedCircleResponse
     TrustedCircle {},
-    /// Return TotalWeightResponse
+    /// Return TotalPointsResponse
     TotalPoints {},
     /// Returns MemberListResponse, for all (voting and non-voting) members
     ListMembers {
