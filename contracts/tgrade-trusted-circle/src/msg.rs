@@ -81,12 +81,12 @@ pub enum QueryMsg {
         start_after: Option<String>,
         limit: Option<u32>,
     },
-    /// Returns MemberListResponse, only weight == 0 members
+    /// Returns MemberListResponse, only points == 0 members
     ListNonVotingMembers {
         start_after: Option<String>,
         limit: Option<u32>,
     },
-    /// Returns MemberResponse with voting weight
+    /// Returns MemberResponse with voting points
     Member {
         addr: String,
         at_height: Option<u64>,
@@ -124,7 +124,7 @@ pub enum QueryMsg {
     },
     /// Returns MemberResponse
     Voter { address: String },
-    /// Returns MembersListResponse, only active voting members (weight > 0)
+    /// Returns MembersListResponse, only active voting members (points > 0)
     ListVoters {
         start_after: Option<String>,
         limit: Option<u32>,
@@ -175,7 +175,7 @@ pub struct ProposalResponse {
     pub status: Status,
     pub expires: Expiration,
     /// This is the threshold that is applied to this proposal. Both the rules of the voting contract,
-    /// as well as the total_weight of the voting group may have changed since this time. That means
+    /// as well as the total_points of the voting group may have changed since this time. That means
     /// that the generic `Threshold{}` query does not provide valid information for existing proposals.
     pub rules: VotingRules,
     pub total_points: u64,
