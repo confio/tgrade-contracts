@@ -1,7 +1,7 @@
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
-use cw3::Vote;
+use tg3::Vote;
 
 use crate::state::OversightProposal;
 use tg_voting_contract::state::VotingRules;

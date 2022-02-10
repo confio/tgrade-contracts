@@ -141,12 +141,12 @@ pub fn execute_execute(
         }
 
         UpdateConfig {
-            min_weight,
+            min_points,
             max_validators,
         } => {
             res = res.add_submessage(valset_contract.encode_raw_msg(to_binary(
                 &tgrade_valset::msg::ExecuteMsg::UpdateConfig {
-                    min_weight,
+                    min_points,
                     max_validators,
                 },
             )?)?);
@@ -219,8 +219,8 @@ pub fn migrate(deps: DepsMut, _env: Env, _msg: Empty) -> Result<Response, Contra
 mod tests {
     use cosmwasm_std::{coin, coins, Addr, BlockInfo, Coin, Decimal};
 
-    use cw3::{Status, Vote, VoterDetail, VoterListResponse};
     use cw_multi_test::{next_block, Contract, ContractWrapper, Executor};
+    use tg3::{Status, Vote, VoterDetail, VoterListResponse};
     use tg4::{Member, Tg4ExecuteMsg};
     use tg_bindings_test::TgradeApp;
     use tg_test_utils::RulesBuilder;
@@ -242,10 +242,10 @@ mod tests {
     const ENGAGEMENT_TOKEN: &str = "engagement";
     const EPOCH_LENGTH: u64 = 100;
 
-    fn member<T: Into<String>>(addr: T, weight: u64) -> Member {
+    fn member<T: Into<String>>(addr: T, points: u64) -> Member {
         Member {
             addr: addr.into(),
-            weight,
+            points,
         }
     }
 
@@ -384,8 +384,8 @@ mod tests {
             initial_keys: operators,
             max_validators: 55,
             membership: group.to_string(),
-            min_weight: 1,
-            rewards_code_id: engagement_id,
+            min_points: 1,
+            validator_group_code_id: engagement_id,
             scaling: None,
             double_sign_slash_ratio: Decimal::percent(50),
         };
@@ -556,7 +556,7 @@ mod tests {
         );
         let flex_id = app.store_code(contract_flex());
 
-        // Zero required weight fails
+        // Zero required points fails
         let instantiate_msg = InstantiateMsg {
             group_addr: group_addr.to_string(),
             engagement_addr: engagement_addr.to_string(),
@@ -569,7 +569,7 @@ mod tests {
                 Addr::unchecked(OWNER),
                 &instantiate_msg,
                 &[],
-                "zero required weight",
+                "zero required points",
                 None,
             )
             .unwrap_err();
@@ -625,7 +625,7 @@ mod tests {
             voters.voters,
             vec![VoterDetail {
                 addr: OWNER.into(),
-                weight: 1
+                points: 1
             }]
         );
     }
@@ -746,7 +746,7 @@ mod tests {
             expires: voting_period.after(&proposed_at),
             status: Status::Open,
             rules,
-            total_weight: 23,
+            total_points: 23,
             votes: Votes {
                 yes: 2,
                 no: 0,
@@ -803,8 +803,8 @@ mod tests {
         // a few blocks later...
         app.update_block(|block| block.height += 3);
 
-        // VOTER2 votes according to original weights: 3 + 2 = 5 / 12 => Open
-        // with updated weights, it would be 3 + 9 = 12 / 12 => Passed
+        // VOTER2 votes according to original pointss: 3 + 2 = 5 / 12 => Open
+        // with updated pointss, it would be 3 + 9 = 12 / 12 => Passed
         let yes_vote = ExecuteMsg::Vote {
             proposal_id,
             vote: Vote::Yes,
@@ -881,8 +881,8 @@ mod tests {
         // a few blocks later...
         app.update_block(|block| block.height += 3);
 
-        // VOTER2 votes yes, according to original weights: 3 yes, 2 no, 5 total (will fail when expired)
-        // with updated weights, it would be 3 yes, 9 yes, 11 total (will pass when expired)
+        // VOTER2 votes yes, according to original points: 3 yes, 2 no, 5 total (will fail when expired)
+        // with updated points, it would be 3 yes, 9 yes, 11 total (will pass when expired)
         let yes_vote = ExecuteMsg::Vote {
             proposal_id,
             vote: Vote::Yes,
@@ -941,7 +941,7 @@ mod tests {
         // 9 of 15 is 60% absolute threshold, but less than 12 (80% quorum needed)
         assert_eq!(prop_status(&app), Status::Open);
 
-        // add 3 weight no vote and we hit quorum and this passes
+        // add 3 points no vote and we hit quorum and this passes
         let no_vote = ExecuteMsg::Vote {
             proposal_id,
             vote: Vote::No,

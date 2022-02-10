@@ -143,7 +143,7 @@ fn instantiation_enough_funds() {
 
     // succeeds, points = 1
     let total = query_total_points(deps.as_ref()).unwrap();
-    assert_eq!(1, total.weight);
+    assert_eq!(1, total.points);
 
     // ensure trusted_circle query works
     let expected = TrustedCircleResponse {
@@ -792,7 +792,7 @@ fn test_whitelist_contract() {
 
     // check token address is not there
     let token_addr = query_member(deps.as_ref(), TOKEN_ADDR.into(), None).unwrap();
-    assert_eq!(token_addr.weight, None);
+    assert_eq!(token_addr.points, None);
 
     // make a new proposal
     let prop = ProposalContent::WhitelistContract(TOKEN_ADDR.into());
@@ -830,7 +830,7 @@ fn test_whitelist_contract() {
 
     // check token address added as non-voting member
     let token_addr = query_member(deps.as_ref(), TOKEN_ADDR.into(), None).unwrap();
-    assert_eq!(token_addr.weight, Some(0));
+    assert_eq!(token_addr.points, Some(0));
 
     // now remove it
     let prop = ProposalContent::RemoveContract(TOKEN_ADDR.into());
@@ -868,7 +868,7 @@ fn test_whitelist_contract() {
 
     // check token address removed
     let token_addr = query_member(deps.as_ref(), TOKEN_ADDR.into(), None).unwrap();
-    assert_eq!(token_addr.weight, None);
+    assert_eq!(token_addr.points, None);
 }
 
 #[test]

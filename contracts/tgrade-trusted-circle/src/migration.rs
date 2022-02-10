@@ -1,9 +1,9 @@
 use cosmwasm_std::{Addr, DepsMut, Empty, Env, Order};
-use cw3::{Status, Vote};
 use cw_storage_plus::Map;
 use cw_utils::Expiration;
 use semver::Version;
 use serde::{Deserialize, Serialize};
+use tg3::{Status, Vote};
 
 use crate::error::ContractError;
 use crate::state::{

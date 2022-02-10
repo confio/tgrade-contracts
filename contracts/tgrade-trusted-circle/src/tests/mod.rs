@@ -15,8 +15,8 @@ use cosmwasm_std::{
     MessageInfo, OwnedDeps, Querier, Storage, Uint128,
 };
 
-use cw3::{Status, Vote};
 use cw_utils::PaymentError;
+use tg3::{Status, Vote};
 use tg4::{member_key, TOTAL_KEY};
 
 use crate::contract::*;
@@ -100,16 +100,16 @@ fn assert_voting<S: Storage, A: Api, Q: Querier>(
     height: Option<u64>,
 ) {
     let voting0 = query_member(deps.as_ref(), INIT_ADMIN.into(), height).unwrap();
-    assert_eq!(voting0.weight, voting0_points);
+    assert_eq!(voting0.points, voting0_points);
 
     let voting1 = query_member(deps.as_ref(), VOTING1.into(), height).unwrap();
-    assert_eq!(voting1.weight, voting1_points);
+    assert_eq!(voting1.points, voting1_points);
 
     let voting2 = query_member(deps.as_ref(), VOTING2.into(), height).unwrap();
-    assert_eq!(voting2.weight, voting2_points);
+    assert_eq!(voting2.points, voting2_points);
 
     let voting3 = query_member(deps.as_ref(), VOTING3.into(), height).unwrap();
-    assert_eq!(voting3.weight, voting3_points);
+    assert_eq!(voting3.points, voting3_points);
 
     // this is only valid if we are not doing a historical query
     if height.is_none() {
@@ -139,7 +139,7 @@ fn assert_voting<S: Storage, A: Api, Q: Querier>(
         assert_eq!(non_voting_count, non_voting.len());
 
         let total = query_total_points(deps.as_ref()).unwrap();
-        assert_eq!(sum, total.weight);
+        assert_eq!(sum, total.points);
     }
 }
 
@@ -151,13 +151,13 @@ fn assert_nonvoting<S: Storage, A: Api, Q: Querier>(
     height: Option<u64>,
 ) {
     let nonvoting1 = query_member(deps.as_ref(), NONVOTING1.into(), height).unwrap();
-    assert_eq!(nonvoting1.weight, nonvoting1_points);
+    assert_eq!(nonvoting1.points, nonvoting1_points);
 
     let nonvoting2 = query_member(deps.as_ref(), NONVOTING2.into(), height).unwrap();
-    assert_eq!(nonvoting2.weight, nonvoting2_points);
+    assert_eq!(nonvoting2.points, nonvoting2_points);
 
     let nonvoting3 = query_member(deps.as_ref(), NONVOTING3.into(), height).unwrap();
-    assert_eq!(nonvoting3.weight, nonvoting3_points);
+    assert_eq!(nonvoting3.points, nonvoting3_points);
 
     // this is only valid if we are not doing a historical query
     if height.is_none() {
@@ -171,7 +171,7 @@ fn assert_nonvoting<S: Storage, A: Api, Q: Querier>(
         assert_eq!(count, nonvoting.len());
 
         // Just confirm all non-voting members points are zero
-        let total: u64 = nonvoting.iter().map(|m| m.weight).sum();
+        let total: u64 = nonvoting.iter().map(|m| m.points).sum();
         assert_eq!(total, 0);
     }
 }

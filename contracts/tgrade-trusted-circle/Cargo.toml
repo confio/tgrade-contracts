@@ -21,12 +21,12 @@ library = []
 [dependencies]
 cw-utils = "0.11.0"
 cw2 = "0.11.0"
-cw3 = "0.11.0"
 cw-controllers = "0.11.0"
 cw-storage-plus = "0.11.0"
-tg4 = { version = "0.6.0-beta1" }
-tg-bindings = { version = "0.6.0-beta1" }
-tg-utils = { version = "0.6.0-beta1" }
+tg3 = "0.6.0-rc2"
+tg4 = "0.6.0-rc2"
+tg-bindings = "0.6.0-rc2"
+tg-utils = "0.6.0-rc2"
 cosmwasm-std = "1.0.0-beta4"
 schemars = "0.8"
 serde = { version = "1.0.103", default-features = false, features = ["derive"] }
@@ -37,7 +37,7 @@ semver = "1"
 cosmwasm-schema = { version = "1.0.0-beta4" }
 cw-multi-test = "0.11.0"
 anyhow = "1"
-tg-bindings-test = { version = "0.6.0-beta1" }
+tg-bindings-test = "0.6.0-rc2"
 derivative = "2"
-tg4-engagement = { version = "0.6.0-beta1" }
+tg4-engagement = "0.6.0-rc2"
 assert_matches = "1"

@@ -44,7 +44,7 @@ fn now() -> Env {
 #[track_caller]
 fn assert_membership(deps: Deps, addr: &str, expected: Option<u64>) {
     let val = query_member(deps, addr.into(), None).unwrap();
-    assert_eq!(val.weight, expected);
+    assert_eq!(val.points, expected);
 }
 
 #[track_caller]
@@ -483,7 +483,7 @@ fn voting_deposit_return_propose_leave() {
     // TODO: we need to handle close TRUSTED_CIRCLE here (last voter leaving)
     // check no longer voting
     assert_membership(deps.as_ref(), VOTING, Some(0));
-    assert_eq!(query_total_points(deps.as_ref()).unwrap().weight, 0);
+    assert_eq!(query_total_points(deps.as_ref()).unwrap().points, 0);
     // ensure leaving status
     assert!(matches!(
         get_status(deps.as_ref(), VOTING),
@@ -663,7 +663,7 @@ fn edit_trusted_circle_increase_escrow_voting_demoted_after_grace_period() {
 
     // check still voting
     assert_membership(deps.as_ref(), VOTING, Some(1));
-    assert_eq!(query_total_points(deps.as_ref()).unwrap().weight, 1);
+    assert_eq!(query_total_points(deps.as_ref()).unwrap().points, 1);
 
     // Call CheckPending before grace period ends
     execute(
@@ -675,7 +675,7 @@ fn edit_trusted_circle_increase_escrow_voting_demoted_after_grace_period() {
     .unwrap();
     // check still voting
     assert_membership(deps.as_ref(), VOTING, Some(1));
-    assert_eq!(query_total_points(deps.as_ref()).unwrap().weight, 1);
+    assert_eq!(query_total_points(deps.as_ref()).unwrap().points, 1);
 
     // New grace period (1 day) ends
     execute(
@@ -698,7 +698,7 @@ fn edit_trusted_circle_increase_escrow_voting_demoted_after_grace_period() {
     // Check member's points demoted to zero
     assert_membership(deps.as_ref(), VOTING, Some(0));
     // Check total decreased accordingly
-    assert_eq!(query_total_points(deps.as_ref()).unwrap().weight, 0);
+    assert_eq!(query_total_points(deps.as_ref()).unwrap().points, 0);
 
     // Voting now pays in the new required escrow
     execute(

@@ -2,11 +2,11 @@ mod suite;
 
 use crate::ContractError;
 use suite::{get_proposal_id, member, SuiteBuilder};
-use tg_test_utils::RulesBuilder;
-use tg_voting_contract::ContractError as VotingError;
 
 use cosmwasm_std::{Decimal, StdError};
-use cw3::{Status, Vote, VoteInfo};
+use tg3::{Status, Vote, VoteInfo};
+use tg_test_utils::RulesBuilder;
+use tg_voting_contract::ContractError as VotingError;
 
 #[test]
 fn only_voters_can_propose() {
@@ -187,7 +187,7 @@ fn execute_group_can_change() {
         )
         .unwrap();
     // Membership is properly updated
-    let power = suite.query_voter_weight(members[3]).unwrap();
+    let power = suite.query_voter_points(members[3]).unwrap();
     assert_eq!(power, None);
 
     // Proposal is still open
@@ -461,9 +461,10 @@ mod voting {
         assert_eq!(
             vote,
             Some(VoteInfo {
+                proposal_id,
                 voter: members[0].to_owned(),
                 vote: Vote::Yes,
-                weight: 1
+                points: 1
             })
         );
 
@@ -472,9 +473,10 @@ mod voting {
         assert_eq!(
             vote,
             Some(VoteInfo {
+                proposal_id,
                 voter: members[1].to_owned(),
                 vote: Vote::No,
-                weight: 2
+                points: 2
             })
         );
 
@@ -513,13 +515,13 @@ mod voting {
         suite.execute(members[2], proposal_id).unwrap();
 
         // After first epoch, the rewards are not yet slashed.
-        // Member 1 has 2/6 weight, so gets 10 out of 30 reward tokens.
+        // Member 1 has 2/6 points, so gets 10 out of 30 reward tokens.
         suite.advance_epoch().unwrap();
         suite.withdraw_validation_reward(members[1]).unwrap();
         assert_eq!(suite.token_balance(members[1], reward_token).unwrap(), 10);
 
         // Next epoch, the new rewards are slashed. Member 1 now has
-        // 1/5 weight, so gets 6 out of 30 reward tokens.
+        // 1/5 points, so gets 6 out of 30 reward tokens.
         suite.advance_epoch().unwrap();
         suite.withdraw_validation_reward(members[1]).unwrap();
         assert_eq!(
@@ -566,7 +568,7 @@ mod voting {
         assert!(suite.unjail(members[1]).is_err());
 
         // After first epoch, the rewards are not yet slashed.
-        // Member 1 has 2/6 weight, so gets 10 out of 30 reward tokens.
+        // Member 1 has 2/6 points, so gets 10 out of 30 reward tokens.
         suite.advance_epoch().unwrap();
         suite.withdraw_validation_reward(members[1]).unwrap();
         assert_eq!(suite.token_balance(members[1], reward_token).unwrap(), 10);
@@ -580,7 +582,7 @@ mod voting {
         assert_eq!(suite.token_balance(members[1], reward_token).unwrap(), 10);
 
         // Next epoch, the new rewards are slashed. Member 1 now has
-        // 1/5 weight, so gets 6 out of 30 reward tokens.
+        // 1/5 points, so gets 6 out of 30 reward tokens.
         suite.advance_epoch().unwrap();
         suite.withdraw_validation_reward(members[1]).unwrap();
         assert_eq!(
@@ -629,13 +631,13 @@ mod voting {
         suite.execute(members[2], proposal_id).unwrap();
 
         // After first epoch, the rewards are not yet slashed.
-        // Member 1 has 2/6 weight, so gets 10 out of 30 reward tokens.
+        // Member 1 has 2/6 points, so gets 10 out of 30 reward tokens.
         suite.advance_epoch().unwrap();
         suite.withdraw_validation_reward(members[1]).unwrap();
         assert_eq!(suite.token_balance(members[1], reward_token).unwrap(), 10);
 
         // Next epoch, the new rewards are slashed. Member 1 now has
-        // 1/5 weight, so gets 6 out of 30 reward tokens.
+        // 1/5 points, so gets 6 out of 30 reward tokens.
         suite.advance_epoch().unwrap();
         suite.withdraw_validation_reward(members[1]).unwrap();
         assert_eq!(
@@ -657,7 +659,7 @@ mod voting {
             .with_group_member(members[1], 2)
             .with_group_member(members[2], 3)
             .with_voting_rules(rules)
-            .with_min_weight(1)
+            .with_min_points(1)
             .with_max_validators(99)
             .build();
 
@@ -668,7 +670,7 @@ mod voting {
         suite.execute(members[2], proposal_id).unwrap();
 
         let valset_config = suite.valset_config().unwrap();
-        assert_eq!(valset_config.min_weight, 1);
+        assert_eq!(valset_config.min_points, 1);
         assert_eq!(valset_config.max_validators, 50);
     }
 }
