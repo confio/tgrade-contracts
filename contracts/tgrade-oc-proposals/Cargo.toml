@@ -1,6 +1,6 @@
 [package]
 name = "tgrade-oc-proposals"
-version = "0.6.0-beta1"
+version = "0.6.0-rc2"
 authors = ["Ethan Frey <ethanfrey@users.noreply.github.com>"]
 edition = "2018"
 description = "Implementing tgrade-oc-proposals"

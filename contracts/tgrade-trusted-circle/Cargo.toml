@@ -1,6 +1,6 @@
 [package]
 name = "tgrade-trusted-circle"
-version = "0.6.0-beta1"
+version = "0.6.0-rc2"
 authors = ["Mauro Lacy <maurolacy@users.noreply.github.com>", "Ethan Frey <ethanfrey@users.noreply.github.com>"]
 edition = "2018"
 description = "Trusted Circle implementation based on TG4 for group membership"
