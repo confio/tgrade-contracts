@@ -1,8 +1,8 @@
 use anyhow::Result as AnyResult;
 
 use cosmwasm_std::{coin, Addr, Binary, Coin, Decimal, StdResult};
-use cw3::{Status, Vote, VoteInfo, VoteListResponse, VoteResponse, VoterResponse};
 use cw_multi_test::{AppResponse, Contract, ContractWrapper, Executor};
+use tg3::{Status, Vote, VoteInfo, VoteListResponse, VoteResponse, VoterResponse};
 use tg4::{Member, MemberResponse, Tg4ExecuteMsg, Tg4QueryMsg};
 use tg_bindings::{TgradeMsg, ValidatorDiff};
 use tg_bindings_test::TgradeApp;
@@ -14,10 +14,10 @@ use crate::state::OversightProposal;
 use tg_voting_contract::state::{ProposalResponse, VotingRules};
 use tg_voting_contract::ContractError;
 
-pub fn member<T: Into<String>>(addr: T, weight: u64) -> Member {
+pub fn member<T: Into<String>>(addr: T, points: u64) -> Member {
     Member {
         addr: addr.into(),
-        weight,
+        points,
     }
 }
 
@@ -62,7 +62,7 @@ pub struct SuiteBuilder {
     rules: VotingRules,
     multisig_as_group_admin: bool,
     epoch_reward: Coin,
-    min_weight: u64,
+    min_points: u64,
     max_validators: u32,
 }
 
@@ -79,23 +79,23 @@ impl SuiteBuilder {
             },
             multisig_as_group_admin: false,
             epoch_reward: coin(5, "BTC"),
-            min_weight: 1,
+            min_points: 1,
             max_validators: 99,
         }
     }
 
-    pub fn with_group_member(mut self, addr: &str, weight: u64) -> Self {
+    pub fn with_group_member(mut self, addr: &str, points: u64) -> Self {
         self.group_members.push(Member {
             addr: addr.to_owned(),
-            weight,
+            points,
         });
         self
     }
 
-    pub fn with_engagement_member(mut self, addr: &str, weight: u64) -> Self {
+    pub fn with_engagement_member(mut self, addr: &str, points: u64) -> Self {
         self.engagement_members.push(Member {
             addr: addr.to_owned(),
-            weight,
+            points,
         });
         self
     }
@@ -115,8 +115,8 @@ impl SuiteBuilder {
         self
     }
 
-    pub fn with_min_weight(mut self, min_weight: u64) -> Self {
-        self.min_weight = min_weight;
+    pub fn with_min_points(mut self, min_weight: u64) -> Self {
+        self.min_points = min_weight;
         self
     }
 
@@ -218,8 +218,8 @@ impl SuiteBuilder {
                     initial_keys: operators,
                     max_validators: self.max_validators,
                     membership: group_contract.to_string(),
-                    min_weight: self.min_weight,
-                    rewards_code_id: engagement_id,
+                    min_points: self.min_points,
+                    validator_group_code_id: engagement_id,
                     scaling: None,
                     double_sign_slash_ratio: Decimal::percent(50),
                 },
@@ -288,7 +288,7 @@ impl SuiteBuilder {
                 &tgrade_valset::msg::QueryMsg::Configuration {},
             )
             .unwrap();
-        let rewards_contract = resp.rewards_contract;
+        let validator_group = resp.validator_group;
 
         app.promote(owner.as_str(), valset_contract.as_str())
             .unwrap();
@@ -302,7 +302,7 @@ impl SuiteBuilder {
             valset_contract,
             owner,
             epoch_length,
-            rewards_contract,
+            validator_group,
         }
     }
 }
@@ -315,7 +315,7 @@ pub struct Suite {
     valset_contract: Addr,
     owner: Addr,
     epoch_length: u64,
-    rewards_contract: Addr,
+    validator_group: Addr,
 }
 
 impl Suite {
@@ -388,7 +388,7 @@ impl Suite {
     pub fn propose_update_config(
         &mut self,
         executor: &str,
-        min_weight: impl Into<Option<u64>>,
+        min_points: impl Into<Option<u64>>,
         max_validators: impl Into<Option<u32>>,
     ) -> AnyResult<AppResponse> {
         self.propose(
@@ -396,7 +396,7 @@ impl Suite {
             "update config",
             "update config desc",
             OversightProposal::UpdateConfig {
-                min_weight: min_weight.into(),
+                min_points: min_points.into(),
                 max_validators: max_validators.into(),
             },
         )
@@ -457,7 +457,7 @@ impl Suite {
                 at_height: at_height.into(),
             },
         )?;
-        Ok(response.weight)
+        Ok(response.points)
     }
 
     pub fn assert_engagement_points(&mut self, addr: &str, points: u64) {
@@ -488,14 +488,14 @@ impl Suite {
         Ok(vote.vote)
     }
 
-    pub fn query_voter_weight(&mut self, voter: &str) -> Result<Option<u64>, ContractError> {
+    pub fn query_voter_points(&mut self, voter: &str) -> Result<Option<u64>, ContractError> {
         let voter: VoterResponse = self.app.wrap().query_wasm_smart(
             self.contract.clone(),
             &QueryMsg::Voter {
                 address: voter.into(),
             },
         )?;
-        Ok(voter.weight)
+        Ok(voter.points)
     }
 
     pub fn group_update_members(
@@ -525,20 +525,20 @@ impl Suite {
                 },
             )
             .unwrap();
-        // Sum the weights of the Yes votes to get the tally
+        // Sum the pointss of the Yes votes to get the tally
         votes
             .votes
             .iter()
             .filter(|&v| v.vote == Vote::Yes)
-            .map(|v| v.weight)
+            .map(|v| v.points)
             .sum()
     }
 
     pub fn withdraw_validation_reward(&mut self, executor: &str) -> AnyResult<AppResponse> {
         self.app.execute_contract(
             Addr::unchecked(executor),
-            self.rewards_contract.clone(),
-            &tg4_engagement::msg::ExecuteMsg::WithdrawFunds {
+            self.validator_group.clone(),
+            &tg4_engagement::msg::ExecuteMsg::WithdrawRewards {
                 owner: None,
                 receiver: None,
             },

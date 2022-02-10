@@ -2,7 +2,7 @@ use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
 use cosmwasm_std::{Coin, Empty};
-use cw3::Vote;
+use tg3::Vote;
 
 use tg_utils::Duration;
 use tg_voting_contract::state::VotingRules;

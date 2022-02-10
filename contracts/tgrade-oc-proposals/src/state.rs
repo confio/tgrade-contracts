@@ -22,7 +22,7 @@ pub enum OversightProposal {
         member: Addr,
     },
     UpdateConfig {
-        min_weight: Option<u64>,
+        min_points: Option<u64>,
         max_validators: Option<u32>,
     },
     /// An open text proposal with no actual logic executed when it passes
