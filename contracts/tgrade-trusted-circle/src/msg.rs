@@ -81,11 +81,6 @@ pub enum QueryMsg {
         start_after: Option<String>,
         limit: Option<u32>,
     },
-    /// Returns MemberListResponse, only active voting members (weight > 0)
-    ListVotingMembers {
-        start_after: Option<String>,
-        limit: Option<u32>,
-    },
     /// Returns MemberListResponse, only weight == 0 members
     ListNonVotingMembers {
         start_after: Option<String>,
@@ -99,19 +94,23 @@ pub enum QueryMsg {
     /// Returns EscrowResponse with status (paying in escrow, leaving, etc) and amount.
     /// Returns None (JSON: null) for non-members
     Escrow { addr: String },
+    /// Returns RulesResponse
+    Rules {},
     /// Returns ProposalResponse
     Proposal { proposal_id: u64 },
     /// Returns ProposalListResponse
     ListProposals {
         start_after: Option<u64>,
         limit: Option<u32>,
-        /// If you pass `reverse: true` it goes from newest proposal to oldest
-        reverse: Option<bool>,
+    },
+    ReverseProposals {
+        start_after: Option<u64>,
+        limit: Option<u32>,
     },
     /// Returns VoteResponse
     Vote { proposal_id: u64, voter: String },
     /// Returns VoteListResponse, paginate by voter address
-    ListVotesByProposal {
+    ListVotes {
         proposal_id: u64,
         start_after: Option<String>,
         limit: Option<u32>,
@@ -120,7 +119,14 @@ pub enum QueryMsg {
     /// Note this always returns most recent (highest proposal id to lowest)
     ListVotesByVoter {
         voter: String,
-        start_before: Option<u64>,
+        start_after: Option<u64>,
+        limit: Option<u32>,
+    },
+    /// Returns MemberResponse
+    Voter { address: String },
+    /// Returns MembersListResponse, only active voting members (weight > 0)
+    ListVoters {
+        start_after: Option<String>,
         limit: Option<u32>,
     },
     /// Returns an EscrowListResponse, with all members that have escrow.
@@ -128,7 +134,6 @@ pub enum QueryMsg {
         start_after: Option<String>,
         limit: Option<u32>,
     },
-
     /// Return how much rewards are assigned for withdrawal to given address. Returns
     /// `RewardsResponse`.
     WithdrawableRewards { owner: String },
@@ -154,6 +159,11 @@ pub struct TrustedCircleResponse {
     pub rules: VotingRules,
     pub deny_list: Option<Addr>,
     pub edit_trusted_circle_disabled: bool,
+}
+
+#[derive(Serialize, Deserialize, Clone, PartialEq, JsonSchema, Debug)]
+pub struct RulesResponse {
+    pub rules: VotingRules,
 }
 
 #[derive(Serialize, Deserialize, Clone, PartialEq, JsonSchema, Debug)]

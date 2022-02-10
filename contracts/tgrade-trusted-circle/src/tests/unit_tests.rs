@@ -4,11 +4,12 @@ use std::marker::PhantomData;
 
 use cosmwasm_std::testing::{MockApi, MockStorage};
 use cosmwasm_std::{
-    to_binary, Addr, Binary, ContractInfoResponse, ContractResult, Deps, Empty, QuerierResult,
-    QueryRequest, StdError, SubMsg, SystemError, SystemResult, WasmQuery,
+    to_binary, Addr, Binary, ContractInfoResponse, ContractResult, Decimal, Deps, Empty,
+    QuerierResult, QueryRequest, StdError, SubMsg, SystemError, SystemResult, WasmQuery,
 };
 use cw_storage_plus::Item;
 
+use crate::msg::RulesResponse;
 use crate::state::{EscrowStatus, Punishment};
 use crate::tests::bdd_tests::{
     propose_add_voting_members_and_execute, PROPOSAL_ID_1, PROPOSAL_ID_2,
@@ -72,17 +73,6 @@ impl TokenQuerier {
                 addr: contract_addr,
             })
         } else {
-            // FIXME: Implement mock load_contract and use it here
-            /* let contract = self.storage.load_contract(&addr)?;
-            let res = ContractInfoResponse {
-                code_id: contract.code_id as u64,
-                creator: contract.creator.to_string(),
-                admin: contract.admin.map(|x| x.to_string()),
-                pinned: false,
-                ibc_port: None,
-            };
-            */
-
             let res = ContractInfoResponse::new(1, "dummy_creator");
             let bin = to_binary(&res).unwrap();
             SystemResult::Ok(ContractResult::Ok(bin))
@@ -741,37 +731,34 @@ fn test_update_nonvoting_members() {
 
     // list votes by proposal
     let prop_2_votes = list_votes_by_proposal(deps.as_ref(), proposal_id, None, None).unwrap();
-    assert_eq!(prop_2_votes.votes.len(), 1);
     assert_eq!(
-        &prop_2_votes.votes[0],
-        &VoteInfo {
+        prop_2_votes.votes,
+        [VoteInfo {
             voter: INIT_ADMIN.to_string(),
             vote: Vote::Yes,
             proposal_id,
             points: 1
-        }
+        }]
     );
 
     // list votes by user
     let admin_votes = list_votes_by_voter(deps.as_ref(), INIT_ADMIN.into(), None, None).unwrap();
-    assert_eq!(admin_votes.votes.len(), 2);
     assert_eq!(
-        &admin_votes.votes[0],
-        &VoteInfo {
-            voter: INIT_ADMIN.to_string(),
-            vote: Vote::Yes,
-            proposal_id,
-            points: 1
-        }
-    );
-    assert_eq!(
-        &admin_votes.votes[1],
-        &VoteInfo {
-            voter: INIT_ADMIN.to_string(),
-            vote: Vote::Yes,
-            proposal_id: proposal_id - 1,
-            points: 1
-        }
+        admin_votes.votes,
+        [
+            VoteInfo {
+                voter: INIT_ADMIN.to_string(),
+                vote: Vote::Yes,
+                proposal_id: proposal_id - 1,
+                points: 1
+            },
+            VoteInfo {
+                voter: INIT_ADMIN.to_string(),
+                vote: Vote::Yes,
+                proposal_id,
+                points: 1
+            }
+        ]
     );
 }
 
@@ -2103,5 +2090,25 @@ fn propose_punish_multiple_members() {
         &SubMsg::new(BankMsg::Burn {
             amount: vec![coin(ESCROW_FUNDS / 2, TRUSTED_CIRCLE_DENOM)]
         })
+    );
+}
+
+#[test]
+fn voting_rules_query() {
+    let mut deps = mock_dependencies();
+    let info = mock_info(INIT_ADMIN, &escrow_funds());
+    do_instantiate(deps.as_mut(), info, vec![], false).unwrap();
+
+    // ensure it passed (already via principal voter)
+    let raw = query(deps.as_ref(), mock_env(), QueryMsg::Rules {}).unwrap();
+    let rules: RulesResponse = from_slice(&raw).unwrap();
+    assert_eq!(
+        rules.rules,
+        VotingRules {
+            voting_period: 14,
+            quorum: Decimal::percent(40),
+            threshold: Decimal::percent(60),
+            allow_end_early: true,
+        }
     );
 }

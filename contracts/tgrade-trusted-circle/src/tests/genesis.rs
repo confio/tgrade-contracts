@@ -103,7 +103,7 @@ fn genesis_oc() {
         .wrap()
         .query_wasm_smart(
             contract,
-            &QueryMsg::ListVotingMembers {
+            &QueryMsg::ListVoters {
                 start_after: None,
                 limit: None,
             },

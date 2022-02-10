@@ -18,8 +18,8 @@ use crate::error::ContractError;
 use crate::migration::{migrate_ballots, migrate_proposals};
 use crate::msg::{
     Escrow, EscrowListResponse, EscrowResponse, ExecuteMsg, InstantiateMsg, ProposalListResponse,
-    ProposalResponse, QueryMsg, RewardsResponse, TrustedCircleResponse, VoteInfo, VoteListResponse,
-    VoteResponse,
+    ProposalResponse, QueryMsg, RewardsResponse, RulesResponse, TrustedCircleResponse, VoteInfo,
+    VoteListResponse, VoteResponse,
 };
 use crate::state::MemberStatus::NonVoting;
 use crate::state::{
@@ -1276,28 +1276,21 @@ pub fn query(deps: Deps, env: Env, msg: QueryMsg) -> StdResult<Binary> {
         } => to_binary(&query_member(deps, addr, height)?),
         Escrow { addr } => to_binary(&query_escrow(deps, addr)?),
         ListMembers { start_after, limit } => to_binary(&list_members(deps, start_after, limit)?),
-        ListVotingMembers { start_after, limit } => {
-            to_binary(&list_voting_members(deps, start_after, limit)?)
-        }
         ListNonVotingMembers { start_after, limit } => {
             to_binary(&list_non_voting_members(deps, start_after, limit)?)
         }
         TotalPoints {} => to_binary(&query_total_points(deps)?),
         TrustedCircle {} => to_binary(&query_trusted_circle(deps)?),
+        Rules {} => to_binary(&query_rules(deps)?),
         Proposal { proposal_id } => to_binary(&query_proposal(deps, env, proposal_id)?),
         Vote { proposal_id, voter } => to_binary(&query_vote(deps, proposal_id, voter)?),
-        ListProposals {
-            start_after,
-            limit,
-            reverse,
-        } => to_binary(&list_proposals(
-            deps,
-            env,
-            start_after,
-            limit,
-            reverse.unwrap_or(false),
-        )?),
-        ListVotesByProposal {
+        ListProposals { start_after, limit } => {
+            to_binary(&list_proposals(deps, env, start_after, limit, false)?)
+        }
+        ReverseProposals { start_after, limit } => {
+            to_binary(&list_proposals(deps, env, start_after, limit, true)?)
+        }
+        ListVotes {
             proposal_id,
             start_after,
             limit,
@@ -1309,11 +1302,14 @@ pub fn query(deps: Deps, env: Env, msg: QueryMsg) -> StdResult<Binary> {
         )?),
         ListVotesByVoter {
             voter,
-            start_before,
+            start_after,
             limit,
-        } => to_binary(&list_votes_by_voter(deps, voter, start_before, limit)?),
+        } => to_binary(&list_votes_by_voter(deps, voter, start_after, limit)?),
+        Voter { address } => to_binary(&query_member(deps, address, None)?),
+        ListVoters { start_after, limit } => {
+            to_binary(&list_voting_members(deps, start_after, limit)?)
+        }
         ListEscrows { start_after, limit } => to_binary(&list_escrows(deps, start_after, limit)?),
-
         WithdrawableRewards { owner } => to_binary(&query_withdrawable_funds(deps, owner)?),
         DistributedRewards {} => to_binary(&query_distributed_funds(deps)?),
         UndistributedRewards {} => to_binary(&query_undistributed_funds(deps, env)?),
@@ -1323,6 +1319,11 @@ pub fn query(deps: Deps, env: Env, msg: QueryMsg) -> StdResult<Binary> {
 pub(crate) fn query_total_points(deps: Deps) -> StdResult<TotalPointsResponse> {
     let points = TOTAL.load(deps.storage)?;
     Ok(TotalPointsResponse { points })
+}
+
+pub(crate) fn query_rules(deps: Deps) -> StdResult<RulesResponse> {
+    let rules = TRUSTED_CIRCLE.load(deps.storage)?.rules;
+    Ok(RulesResponse { rules })
 }
 
 pub(crate) fn query_trusted_circle(deps: Deps) -> StdResult<TrustedCircleResponse> {
@@ -1566,16 +1567,16 @@ pub(crate) fn list_votes_by_proposal(
 pub(crate) fn list_votes_by_voter(
     deps: Deps,
     voter: String,
-    start_before: Option<u64>,
+    start_after: Option<u64>,
     limit: Option<u32>,
 ) -> StdResult<VoteListResponse> {
     let limit = limit.unwrap_or(DEFAULT_LIMIT).min(MAX_LIMIT) as usize;
-    let end = start_before.map(Bound::exclusive_int);
+    let start = start_after.map(Bound::exclusive_int);
     let voter_addr = deps.api.addr_validate(&voter)?;
 
     let votes: StdResult<Vec<_>> = BALLOTS_BY_VOTER
         .prefix(&voter_addr)
-        .range(deps.storage, None, end, Order::Descending)
+        .range(deps.storage, start, None, Order::Ascending)
         .take(limit)
         .map(|item| {
             let (proposal_id, ballot) = item?;
