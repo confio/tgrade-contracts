@@ -21,6 +21,7 @@
 
 **Merged pull requests:**
 
+- Follow up renaming weight to points in contracts [\#471](https://github.com/confio/tgrade-contracts/pull/471) ([ueco-jb](https://github.com/ueco-jb))
 - Align tgrade-contracts to poe-contracts 0.6.0-rc2 [\#470](https://github.com/confio/tgrade-contracts/pull/470) ([ueco-jb](https://github.com/ueco-jb))
 - tgrade-trusted-circle: Renaming 'weight' to 'points' for voting power [\#466](https://github.com/confio/tgrade-contracts/pull/466) ([hashedone](https://github.com/hashedone))
 - Increase MAX\_LIMIT constant to 100 and DEFAULT\_LIMIT to 30 [\#465](https://github.com/confio/tgrade-contracts/pull/465) ([ueco-jb](https://github.com/ueco-jb))
