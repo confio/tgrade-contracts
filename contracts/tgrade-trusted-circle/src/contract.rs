@@ -1430,7 +1430,8 @@ pub(crate) fn list_voting_members<Q: CustomQuery>(
     limit: Option<u32>,
 ) -> StdResult<MemberListResponse> {
     let limit = limit.unwrap_or(DEFAULT_LIMIT).min(MAX_LIMIT) as usize;
-    let start = start_after.map(|sa| Bound::exclusive(sa.as_str()));
+    let addr = maybe_addr(deps.api, start_after)?;
+    let start = addr.map(Bound::exclusive);
 
     let members: StdResult<Vec<_>> = members()
         .idx
@@ -1457,7 +1458,8 @@ pub(crate) fn list_non_voting_members<Q: CustomQuery>(
     limit: Option<u32>,
 ) -> StdResult<MemberListResponse> {
     let limit = limit.unwrap_or(DEFAULT_LIMIT).min(MAX_LIMIT) as usize;
-    let start = start_after.map(|sa| Bound::exclusive(sa.as_str()));
+    let addr = maybe_addr(deps.api, start_after)?;
+    let start = addr.map(Bound::exclusive);
     let members: StdResult<Vec<_>> = members()
         .idx
         .points
