@@ -6,7 +6,7 @@ use cosmwasm_std::{
     StdResult, SystemError, SystemResult, Uint128, WasmQuery,
 };
 use cw2::{get_contract_version, set_contract_version};
-use cw_storage_plus::{Bound, PrimaryKey};
+use cw_storage_plus::Bound;
 use cw_utils::{maybe_addr, Expiration};
 use semver::Version;
 use tg3::{Status, Vote};
@@ -896,10 +896,8 @@ fn check_pending_batches<Q: CustomQuery>(
     let now = block.time.seconds();
     // as we want to keep the last item (pk) unbounded, we increment time by 1 and use exclusive (below the next tick)
     let max_key = (now + 1, 0u64);
-    // FIXME: `MultiIndex` Sub/Prefix-generated bounds are still untyped!
-    // let bound = Bound::exclusive(max_key);
-    let bound = Bound::ExclusiveRaw(max_key.joined_key());
-    // Can also use inclusive this way:
+    let bound = Bound::exclusive(max_key);
+    // Can also use inclusive, in this way:
     // let max_key = (now, u64::MAX);
     // let bound = Bound::inclusive(max_key);
 
