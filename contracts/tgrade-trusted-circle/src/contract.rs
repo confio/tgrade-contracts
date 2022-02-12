@@ -720,7 +720,7 @@ fn adjust_open_proposals_for_leaver(
 ) -> Result<(), ContractError> {
     // find all open proposals that have not yet expired
     let now = env.block.time.seconds();
-    let start = Bound::exclusive_int(now);
+    let start = Bound::exclusive(now);
     let open_prop_ids = PROPOSAL_BY_EXPIRY
         .range(deps.storage, Some(start), None, Order::Ascending)
         .collect::<StdResult<Vec<_>>>()?;
@@ -872,8 +872,13 @@ fn check_pending_batches(mut deps: DepsMut, block: &BlockInfo) -> StdResult<Vec<
     // These are all eligible for timeout-based promotion
     let now = block.time.seconds();
     // as we want to keep the last item (pk) unbounded, we increment time by 1 and use exclusive (below the next tick)
-    let max_key = (now + 1, 0u64).joined_key();
-    let bound = Bound::Exclusive(max_key);
+    let max_key = (now + 1, 0u64);
+    // FIXME: `MultiIndex` Sub/Prefix-generated bounds are still untyped!
+    // let bound = Bound::exclusive(max_key);
+    let bound = Bound::ExclusiveRaw(max_key.joined_key());
+    // Can also use inclusive this way:
+    // let max_key = (now, u64::MAX);
+    // let bound = Bound::inclusive(max_key);
 
     let ready = batch_map
         .idx
@@ -1374,7 +1379,7 @@ pub(crate) fn list_members(
 ) -> StdResult<MemberListResponse> {
     let limit = limit.unwrap_or(DEFAULT_LIMIT).min(MAX_LIMIT) as usize;
     let addr = maybe_addr(deps.api, start_after)?;
-    let start = addr.map(|addr| Bound::exclusive(addr.as_ref()));
+    let start = addr.as_ref().map(Bound::exclusive);
 
     let members: StdResult<Vec<_>> = members()
         .range(deps.storage, start, None, Order::Ascending)
@@ -1450,7 +1455,7 @@ pub(crate) fn list_escrows(
 ) -> StdResult<EscrowListResponse> {
     let limit = limit.unwrap_or(DEFAULT_LIMIT).min(MAX_LIMIT) as usize;
     let addr = maybe_addr(deps.api, start_after)?;
-    let start = addr.map(|addr| Bound::exclusive(addr.as_ref()));
+    let start = addr.as_ref().map(Bound::exclusive);
 
     let escrows: StdResult<Vec<_>> = ESCROWS
         .range(deps.storage, start, None, Order::Ascending)
@@ -1491,7 +1496,7 @@ pub(crate) fn list_proposals(
     reverse: bool,
 ) -> StdResult<ProposalListResponse> {
     let limit = limit.unwrap_or(DEFAULT_LIMIT).min(MAX_LIMIT) as usize;
-    let start = start_after.map(Bound::exclusive_int);
+    let start = start_after.map(Bound::exclusive);
     let range = if reverse {
         PROPOSALS.range(deps.storage, None, start, Order::Descending)
     } else {
@@ -1544,7 +1549,7 @@ pub(crate) fn list_votes_by_proposal(
 ) -> StdResult<VoteListResponse> {
     let limit = limit.unwrap_or(DEFAULT_LIMIT).min(MAX_LIMIT) as usize;
     let addr = maybe_addr(deps.api, start_after)?;
-    let start = addr.map(|addr| Bound::exclusive(addr.as_ref()));
+    let start = addr.as_ref().map(Bound::exclusive);
 
     let votes: StdResult<Vec<_>> = BALLOTS
         .prefix(proposal_id)
@@ -1571,7 +1576,7 @@ pub(crate) fn list_votes_by_voter(
     limit: Option<u32>,
 ) -> StdResult<VoteListResponse> {
     let limit = limit.unwrap_or(DEFAULT_LIMIT).min(MAX_LIMIT) as usize;
-    let start = start_after.map(Bound::exclusive_int);
+    let start = start_after.map(Bound::exclusive);
     let voter_addr = deps.api.addr_validate(&voter)?;
 
     let votes: StdResult<Vec<_>> = BALLOTS_BY_VOTER
