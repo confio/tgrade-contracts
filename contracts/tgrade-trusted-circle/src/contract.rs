@@ -894,12 +894,9 @@ fn check_pending_batches<Q: CustomQuery>(
     // Iterate which have expired at or less than the current time (now), using a bound.
     // These are all eligible for timeout-based promotion
     let now = block.time.seconds();
-    // as we want to keep the last item (pk) unbounded, we increment time by 1 and use exclusive (below the next tick)
-    let max_key = (now + 1, 0u64);
-    let bound = Bound::exclusive(max_key);
-    // Can also use inclusive, in this way:
-    // let max_key = (now, u64::MAX);
-    // let bound = Bound::inclusive(max_key);
+    // Use an inclusive bound, exploiting the fact that the type of the next index element is an integer
+    let max_key = (now, u64::MAX);
+    let bound = Bound::inclusive(max_key);
 
     let ready = batch_map
         .idx
