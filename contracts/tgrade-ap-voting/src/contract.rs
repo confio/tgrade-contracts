@@ -342,7 +342,7 @@ pub fn query_list_complaints(
     start_after: Option<u64>,
     limit: usize,
 ) -> StdResult<ListComplaintsResp> {
-    let start = start_after.map(Bound::exclusive_int);
+    let start = start_after.map(Bound::exclusive);
     COMPLAINTS
         .range(deps.storage, start, None, Order::Ascending)
         .take(limit)
