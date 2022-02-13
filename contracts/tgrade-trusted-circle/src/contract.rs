@@ -1,9 +1,9 @@
 #[cfg(not(feature = "library"))]
 use cosmwasm_std::entry_point;
 use cosmwasm_std::{
-    coin, to_binary, to_vec, Addr, BankMsg, Binary, BlockInfo, ContractResult, Deps, DepsMut,
-    Empty, Env, Event, MessageInfo, Order, QuerierWrapper, QueryRequest, StdError, StdResult,
-    SystemError, SystemResult, Uint128, WasmQuery,
+    coin, to_binary, to_vec, Addr, BankMsg, Binary, BlockInfo, ContractResult, CustomQuery, Deps,
+    DepsMut, Empty, Env, Event, MessageInfo, Order, QuerierWrapper, QueryRequest, StdError,
+    StdResult, SystemError, SystemResult, Uint128, WasmQuery,
 };
 use cw2::{get_contract_version, set_contract_version};
 use cw_storage_plus::{Bound, PrimaryKey};
@@ -42,8 +42,8 @@ pub type SubMsg = cosmwasm_std::SubMsg<TgradeMsg>;
 // Note, you can use StdResult in some functions where you do not
 // make use of the custom errors
 #[cfg_attr(not(feature = "library"), entry_point)]
-pub fn instantiate(
-    mut deps: DepsMut,
+pub fn instantiate<Q: CustomQuery>(
+    mut deps: DepsMut<Q>,
     env: Env,
     info: MessageInfo,
     msg: InstantiateMsg,
@@ -111,8 +111,8 @@ pub fn instantiate(
 
 // And declare a custom Error variant for the ones where you will want to make use of it
 #[cfg_attr(not(feature = "library"), entry_point)]
-pub fn execute(
-    deps: DepsMut,
+pub fn execute<Q: CustomQuery>(
+    deps: DepsMut<Q>,
     env: Env,
     info: MessageInfo,
     msg: ExecuteMsg,
@@ -138,8 +138,8 @@ pub fn execute(
     }
 }
 
-pub fn execute_deposit_escrow(
-    deps: DepsMut,
+pub fn execute_deposit_escrow<Q: CustomQuery>(
+    deps: DepsMut<Q>,
     env: Env,
     info: MessageInfo,
 ) -> Result<Response, ContractError> {
@@ -189,8 +189,8 @@ pub fn execute_deposit_escrow(
 /// voters in the proposal can be promoted.
 ///
 /// Returns a list of attributes for each user promoted
-fn update_batch_after_escrow_paid(
-    mut deps: DepsMut,
+fn update_batch_after_escrow_paid<Q: CustomQuery>(
+    mut deps: DepsMut<Q>,
     env: Env,
     proposal_id: u64,
     paid_escrow: &Addr,
@@ -252,8 +252,8 @@ const REMOVE_VOTING_TYPE: &str = "remove_voting";
 /// This checks all members if they have paid up, and if so makes them full voters.
 /// As well as making members voter, it will update and save the batch and the
 /// total vote count.
-fn convert_all_paid_members_to_voters(
-    mut deps: DepsMut,
+fn convert_all_paid_members_to_voters<Q: CustomQuery>(
+    mut deps: DepsMut<Q>,
     batch_id: u64,
     batch: &mut Batch,
     height: u64,
@@ -287,7 +287,11 @@ fn convert_all_paid_members_to_voters(
 /// Returns true if this address was fully paid, false otherwise.
 /// Make sure you update TOTAL after calling this
 /// (Not done here, so we can update TOTAL once when promoting a whole batch)
-fn convert_to_voter_if_paid(mut deps: DepsMut, to_promote: &Addr, height: u64) -> StdResult<bool> {
+fn convert_to_voter_if_paid<Q: CustomQuery>(
+    mut deps: DepsMut<Q>,
+    to_promote: &Addr,
+    height: u64,
+) -> StdResult<bool> {
     let mut escrow = ESCROWS.load(deps.storage, to_promote)?;
     // if this one was not yet paid up, do nothing
     if !escrow.status.is_pending_paid() {
@@ -305,8 +309,8 @@ fn convert_to_voter_if_paid(mut deps: DepsMut, to_promote: &Addr, height: u64) -
     Ok(true)
 }
 
-pub fn execute_return_escrow(
-    deps: DepsMut,
+pub fn execute_return_escrow<Q: CustomQuery>(
+    deps: DepsMut<Q>,
     env: Env,
     info: MessageInfo,
 ) -> Result<Response, ContractError> {
@@ -365,8 +369,8 @@ pub fn execute_return_escrow(
     Ok(res)
 }
 
-pub fn execute_propose(
-    mut deps: DepsMut,
+pub fn execute_propose<Q: CustomQuery>(
+    mut deps: DepsMut<Q>,
     mut env: Env,
     info: MessageInfo,
     title: String,
@@ -440,8 +444,8 @@ pub fn execute_propose(
     Ok(res)
 }
 
-pub fn validate_proposal(
-    deps: Deps,
+pub fn validate_proposal<Q: CustomQuery>(
+    deps: Deps<Q>,
     env: Env,
     proposal: &ProposalContent,
 ) -> Result<(), ContractError> {
@@ -484,7 +488,10 @@ pub fn validate_proposal(
     }
 }
 
-pub fn validate_human_addresses(deps: &Deps, addrs: &[String]) -> Result<(), ContractError> {
+pub fn validate_human_addresses<Q: CustomQuery>(
+    deps: &Deps<Q>,
+    addrs: &[String],
+) -> Result<(), ContractError> {
     addrs
         .iter()
         .try_for_each(|a| match validate_contract_address(deps, a) {
@@ -494,7 +501,10 @@ pub fn validate_human_addresses(deps: &Deps, addrs: &[String]) -> Result<(), Con
         })
 }
 
-pub fn validate_contract_address(deps: &Deps, addr: &str) -> Result<(), ContractError> {
+pub fn validate_contract_address<Q: CustomQuery>(
+    deps: &Deps<Q>,
+    addr: &str,
+) -> Result<(), ContractError> {
     if is_contract(&deps.querier, &deps.api.addr_validate(addr)?)? {
         Ok(())
     } else {
@@ -502,8 +512,8 @@ pub fn validate_contract_address(deps: &Deps, addr: &str) -> Result<(), Contract
     }
 }
 
-pub fn validate_addresses_with_deny_list(
-    deps: Deps,
+pub fn validate_addresses_with_deny_list<Q: CustomQuery>(
+    deps: Deps<Q>,
     addrs: &[String],
 ) -> Result<(), ContractError> {
     let trusted_circle = TRUSTED_CIRCLE.load(deps.storage)?;
@@ -516,8 +526,8 @@ pub fn validate_addresses_with_deny_list(
     Ok(())
 }
 
-pub fn execute_vote(
-    deps: DepsMut,
+pub fn execute_vote<Q: CustomQuery>(
+    deps: DepsMut<Q>,
     env: Env,
     info: MessageInfo,
     proposal_id: u64,
@@ -578,8 +588,8 @@ pub fn execute_vote(
     Ok(res)
 }
 
-pub fn execute_execute(
-    mut deps: DepsMut,
+pub fn execute_execute<Q: CustomQuery>(
+    mut deps: DepsMut<Q>,
     env: Env,
     info: MessageInfo,
     proposal_id: u64,
@@ -615,8 +625,8 @@ pub fn execute_execute(
     Ok(res)
 }
 
-pub fn execute_close(
-    deps: DepsMut,
+pub fn execute_close<Q: CustomQuery>(
+    deps: DepsMut<Q>,
     env: Env,
     info: MessageInfo,
     proposal_id: u64,
@@ -647,8 +657,8 @@ pub fn execute_close(
     Ok(res)
 }
 
-pub fn execute_leave_trusted_circle(
-    deps: DepsMut,
+pub fn execute_leave_trusted_circle<Q: CustomQuery>(
+    deps: DepsMut<Q>,
     env: Env,
     info: MessageInfo,
 ) -> Result<Response, ContractError> {
@@ -668,7 +678,11 @@ pub fn execute_leave_trusted_circle(
 }
 
 /// This is called for members who have never paid any escrow in
-fn leave_immediately(deps: DepsMut, env: Env, leaver: Addr) -> Result<Response, ContractError> {
+fn leave_immediately<Q: CustomQuery>(
+    deps: DepsMut<Q>,
+    env: Env,
+    leaver: Addr,
+) -> Result<Response, ContractError> {
     // non-voting member... remove them and refund any escrow (a pending member who didn't pay it all in)
     members().remove(deps.storage, &leaver, env.block.height)?;
     ESCROWS.remove(deps.storage, &leaver);
@@ -680,8 +694,8 @@ fn leave_immediately(deps: DepsMut, env: Env, leaver: Addr) -> Result<Response, 
     Ok(res)
 }
 
-fn trigger_long_leave(
-    mut deps: DepsMut,
+fn trigger_long_leave<Q: CustomQuery>(
+    mut deps: DepsMut<Q>,
     env: Env,
     leaver: Addr,
     mut escrow: EscrowStatus,
@@ -713,8 +727,8 @@ fn trigger_long_leave(
     Ok(res)
 }
 
-fn adjust_open_proposals_for_leaver(
-    deps: DepsMut,
+fn adjust_open_proposals_for_leaver<Q: CustomQuery>(
+    deps: DepsMut<Q>,
     env: &Env,
     leaver: &Addr,
 ) -> Result<(), ContractError> {
@@ -739,8 +753,8 @@ fn adjust_open_proposals_for_leaver(
     Ok(())
 }
 
-pub fn execute_check_pending(
-    deps: DepsMut,
+pub fn execute_check_pending<Q: CustomQuery>(
+    deps: DepsMut<Q>,
     env: Env,
     info: MessageInfo,
 ) -> Result<Response, ContractError> {
@@ -754,7 +768,10 @@ pub fn execute_check_pending(
     Ok(res)
 }
 
-fn check_pending(mut deps: DepsMut, env: &Env) -> Result<Vec<Event>, ContractError> {
+fn check_pending<Q: CustomQuery>(
+    mut deps: DepsMut<Q>,
+    env: &Env,
+) -> Result<Vec<Event>, ContractError> {
     // Check if there's a pending escrow, and update escrow_amount if grace period is expired
     let mut evts = check_pending_escrow(deps.branch(), env)?;
     // Then, check pending batches
@@ -762,7 +779,10 @@ fn check_pending(mut deps: DepsMut, env: &Env) -> Result<Vec<Event>, ContractErr
     Ok(evts)
 }
 
-fn check_pending_escrow(mut deps: DepsMut, env: &Env) -> Result<Vec<Event>, ContractError> {
+fn check_pending_escrow<Q: CustomQuery>(
+    mut deps: DepsMut<Q>,
+    env: &Env,
+) -> Result<Vec<Event>, ContractError> {
     let mut trusted_circle = TRUSTED_CIRCLE.load(deps.storage)?;
     if let Some(pending_escrow) = trusted_circle.escrow_pending {
         if env.block.time.seconds() >= pending_escrow.grace_ends_at {
@@ -794,8 +814,8 @@ fn check_pending_escrow(mut deps: DepsMut, env: &Env) -> Result<Vec<Event>, Cont
 /// Iterates over all Voting, and demotes those with not enough escrow to Pending.
 /// Else if new_escrow_amount < escrow_amount:
 /// Iterates over all Pending, and promotes those with enough escrow to PendingPaid
-fn pending_escrow_demote_promote_members(
-    mut deps: DepsMut,
+fn pending_escrow_demote_promote_members<Q: CustomQuery>(
+    mut deps: DepsMut<Q>,
     env: &Env,
     proposal_id: u64,
     escrow_amount: Uint128,
@@ -864,7 +884,10 @@ fn pending_escrow_demote_promote_members(
     Ok(None)
 }
 
-fn check_pending_batches(mut deps: DepsMut, block: &BlockInfo) -> StdResult<Vec<Event>> {
+fn check_pending_batches<Q: CustomQuery>(
+    mut deps: DepsMut<Q>,
+    block: &BlockInfo,
+) -> StdResult<Vec<Event>> {
     let batch_map = batches();
 
     // Limit to batches that have not yet been promoted (0), using sub_prefix.
@@ -895,8 +918,8 @@ fn check_pending_batches(mut deps: DepsMut, block: &BlockInfo) -> StdResult<Vec<
         .collect()
 }
 
-pub fn proposal_execute(
-    deps: DepsMut,
+pub fn proposal_execute<Q: CustomQuery>(
+    deps: DepsMut<Q>,
     env: Env,
     proposal_id: u64,
     proposal: ProposalContent,
@@ -921,8 +944,8 @@ pub fn proposal_execute(
     }
 }
 
-pub fn proposal_add_remove_non_voting_members(
-    deps: DepsMut,
+pub fn proposal_add_remove_non_voting_members<Q: CustomQuery>(
+    deps: DepsMut<Q>,
     env: Env,
     add: Vec<String>,
     remove: Vec<String>,
@@ -938,8 +961,8 @@ pub fn proposal_add_remove_non_voting_members(
     Ok(res.add_events(ev))
 }
 
-pub fn proposal_edit_trusted_circle(
-    deps: DepsMut,
+pub fn proposal_edit_trusted_circle<Q: CustomQuery>(
+    deps: DepsMut<Q>,
     env: Env,
     proposal_id: u64,
     adjustments: TrustedCircleAdjustments,
@@ -956,8 +979,8 @@ pub fn proposal_edit_trusted_circle(
     Ok(res)
 }
 
-pub fn proposal_add_voting_members(
-    deps: DepsMut,
+pub fn proposal_add_voting_members<Q: CustomQuery>(
+    deps: DepsMut<Q>,
     env: Env,
     proposal_id: u64,
     to_add: Vec<String>,
@@ -1007,8 +1030,8 @@ pub fn proposal_add_voting_members(
     Ok(res)
 }
 
-pub fn proposal_whitelist_contract_addr(
-    deps: DepsMut,
+pub fn proposal_whitelist_contract_addr<Q: CustomQuery>(
+    deps: DepsMut<Q>,
     env: Env,
     addr: &str,
 ) -> Result<Response, ContractError> {
@@ -1020,8 +1043,8 @@ pub fn proposal_whitelist_contract_addr(
     Ok(res.add_events(ev))
 }
 
-pub fn proposal_remove_contract_addr(
-    deps: DepsMut,
+pub fn proposal_remove_contract_addr<Q: CustomQuery>(
+    deps: DepsMut<Q>,
     env: Env,
     addr: &str,
 ) -> Result<Response, ContractError> {
@@ -1033,8 +1056,8 @@ pub fn proposal_remove_contract_addr(
     Ok(res.add_events(ev))
 }
 
-fn ensure_not_denied(
-    deps: Deps,
+fn ensure_not_denied<Q: CustomQuery>(
+    deps: Deps<Q>,
     trusted_circle: &TrustedCircle,
     addr: &str,
 ) -> Result<Addr, ContractError> {
@@ -1052,8 +1075,8 @@ fn ensure_not_denied(
 }
 
 // This is a helper used both on instantiation as well as on passed proposals
-pub fn add_remove_non_voting_members(
-    deps: DepsMut,
+pub fn add_remove_non_voting_members<Q: CustomQuery>(
+    deps: DepsMut<Q>,
     config: &TrustedCircle,
     height: u64,
     to_add: Vec<String>,
@@ -1107,8 +1130,8 @@ pub fn add_remove_non_voting_members(
     Ok(ev)
 }
 
-pub fn proposal_punish_members(
-    mut deps: DepsMut,
+pub fn proposal_punish_members<Q: CustomQuery>(
+    mut deps: DepsMut<Q>,
     env: Env,
     proposal_id: u64,
     punishments: &[Punishment],
@@ -1220,8 +1243,8 @@ pub fn proposal_punish_members(
     Ok(res)
 }
 
-pub fn whitelist_contract_addr(
-    deps: DepsMut,
+pub fn whitelist_contract_addr<Q: CustomQuery>(
+    deps: DepsMut<Q>,
     height: u64,
     addr: &str,
 ) -> Result<Vec<Event>, ContractError> {
@@ -1233,8 +1256,8 @@ pub fn whitelist_contract_addr(
     Ok(vec![ev])
 }
 
-pub fn remove_contract_addr(
-    deps: DepsMut,
+pub fn remove_contract_addr<Q: CustomQuery>(
+    deps: DepsMut<Q>,
     height: u64,
     addr: &str,
 ) -> Result<Vec<Event>, ContractError> {
@@ -1246,7 +1269,7 @@ pub fn remove_contract_addr(
     Ok(vec![ev])
 }
 
-pub fn is_contract(querier: &QuerierWrapper, addr: &Addr) -> StdResult<bool> {
+pub fn is_contract<Q: CustomQuery>(querier: &QuerierWrapper<Q>, addr: &Addr) -> StdResult<bool> {
     let raw = QueryRequest::<Empty>::Wasm(WasmQuery::ContractInfo {
         contract_addr: addr.to_string(),
     });
@@ -1271,7 +1294,7 @@ pub fn is_contract(querier: &QuerierWrapper, addr: &Addr) -> StdResult<bool> {
 }
 
 #[cfg_attr(not(feature = "library"), entry_point)]
-pub fn query(deps: Deps, env: Env, msg: QueryMsg) -> StdResult<Binary> {
+pub fn query<Q: CustomQuery>(deps: Deps<Q>, env: Env, msg: QueryMsg) -> StdResult<Binary> {
     use QueryMsg::*;
 
     match msg {
@@ -1321,17 +1344,19 @@ pub fn query(deps: Deps, env: Env, msg: QueryMsg) -> StdResult<Binary> {
     }
 }
 
-pub(crate) fn query_total_points(deps: Deps) -> StdResult<TotalPointsResponse> {
+pub(crate) fn query_total_points<Q: CustomQuery>(deps: Deps<Q>) -> StdResult<TotalPointsResponse> {
     let points = TOTAL.load(deps.storage)?;
     Ok(TotalPointsResponse { points })
 }
 
-pub(crate) fn query_rules(deps: Deps) -> StdResult<RulesResponse> {
+pub(crate) fn query_rules<Q: CustomQuery>(deps: Deps<Q>) -> StdResult<RulesResponse> {
     let rules = TRUSTED_CIRCLE.load(deps.storage)?.rules;
     Ok(RulesResponse { rules })
 }
 
-pub(crate) fn query_trusted_circle(deps: Deps) -> StdResult<TrustedCircleResponse> {
+pub(crate) fn query_trusted_circle<Q: CustomQuery>(
+    deps: Deps<Q>,
+) -> StdResult<TrustedCircleResponse> {
     let TrustedCircle {
         name,
         escrow_amount,
@@ -1350,8 +1375,8 @@ pub(crate) fn query_trusted_circle(deps: Deps) -> StdResult<TrustedCircleRespons
     })
 }
 
-pub(crate) fn query_member(
-    deps: Deps,
+pub(crate) fn query_member<Q: CustomQuery>(
+    deps: Deps<Q>,
     addr: String,
     height: Option<u64>,
 ) -> StdResult<MemberResponse> {
@@ -1363,7 +1388,10 @@ pub(crate) fn query_member(
     Ok(MemberResponse { points })
 }
 
-pub(crate) fn query_escrow(deps: Deps, addr: String) -> StdResult<EscrowResponse> {
+pub(crate) fn query_escrow<Q: CustomQuery>(
+    deps: Deps<Q>,
+    addr: String,
+) -> StdResult<EscrowResponse> {
     let addr = deps.api.addr_validate(&addr)?;
     ESCROWS.may_load(deps.storage, &addr)
 }
@@ -1372,8 +1400,8 @@ pub(crate) fn query_escrow(deps: Deps, addr: String) -> StdResult<EscrowResponse
 const MAX_LIMIT: u32 = 100;
 const DEFAULT_LIMIT: u32 = 30;
 
-pub(crate) fn list_members(
-    deps: Deps,
+pub(crate) fn list_members<Q: CustomQuery>(
+    deps: Deps<Q>,
     start_after: Option<String>,
     limit: Option<u32>,
 ) -> StdResult<MemberListResponse> {
@@ -1396,8 +1424,8 @@ pub(crate) fn list_members(
     Ok(MemberListResponse { members: members? })
 }
 
-pub(crate) fn list_voting_members(
-    deps: Deps,
+pub(crate) fn list_voting_members<Q: CustomQuery>(
+    deps: Deps<Q>,
     start_after: Option<String>,
     limit: Option<u32>,
 ) -> StdResult<MemberListResponse> {
@@ -1423,8 +1451,8 @@ pub(crate) fn list_voting_members(
     Ok(MemberListResponse { members: members? })
 }
 
-pub(crate) fn list_non_voting_members(
-    deps: Deps,
+pub(crate) fn list_non_voting_members<Q: CustomQuery>(
+    deps: Deps<Q>,
     start_after: Option<String>,
     limit: Option<u32>,
 ) -> StdResult<MemberListResponse> {
@@ -1448,8 +1476,8 @@ pub(crate) fn list_non_voting_members(
     Ok(MemberListResponse { members: members? })
 }
 
-pub(crate) fn list_escrows(
-    deps: Deps,
+pub(crate) fn list_escrows<Q: CustomQuery>(
+    deps: Deps<Q>,
     start_after: Option<String>,
     limit: Option<u32>,
 ) -> StdResult<EscrowListResponse> {
@@ -1472,7 +1500,11 @@ pub(crate) fn list_escrows(
     Ok(EscrowListResponse { escrows: escrows? })
 }
 
-pub(crate) fn query_proposal(deps: Deps, env: Env, id: u64) -> StdResult<ProposalResponse> {
+pub(crate) fn query_proposal<Q: CustomQuery>(
+    deps: Deps<Q>,
+    env: Env,
+    id: u64,
+) -> StdResult<ProposalResponse> {
     let prop = PROPOSALS.load(deps.storage, id)?;
     let status = prop.current_status(&env.block);
     Ok(ProposalResponse {
@@ -1488,8 +1520,8 @@ pub(crate) fn query_proposal(deps: Deps, env: Env, id: u64) -> StdResult<Proposa
     })
 }
 
-pub(crate) fn list_proposals(
-    deps: Deps,
+pub(crate) fn list_proposals<Q: CustomQuery>(
+    deps: Deps<Q>,
     env: Env,
     start_after: Option<u64>,
     limit: Option<u32>,
@@ -1529,7 +1561,11 @@ fn map_proposal(
     })
 }
 
-pub(crate) fn query_vote(deps: Deps, proposal_id: u64, voter: String) -> StdResult<VoteResponse> {
+pub(crate) fn query_vote<Q: CustomQuery>(
+    deps: Deps<Q>,
+    proposal_id: u64,
+    voter: String,
+) -> StdResult<VoteResponse> {
     let voter_addr = deps.api.addr_validate(&voter)?;
     let prop = BALLOTS.may_load(deps.storage, (proposal_id, &voter_addr))?;
     let vote = prop.map(|b| VoteInfo {
@@ -1541,8 +1577,8 @@ pub(crate) fn query_vote(deps: Deps, proposal_id: u64, voter: String) -> StdResu
     Ok(VoteResponse { vote })
 }
 
-pub(crate) fn list_votes_by_proposal(
-    deps: Deps,
+pub(crate) fn list_votes_by_proposal<Q: CustomQuery>(
+    deps: Deps<Q>,
     proposal_id: u64,
     start_after: Option<String>,
     limit: Option<u32>,
@@ -1569,8 +1605,8 @@ pub(crate) fn list_votes_by_proposal(
     Ok(VoteListResponse { votes: votes? })
 }
 
-pub(crate) fn list_votes_by_voter(
-    deps: Deps,
+pub(crate) fn list_votes_by_voter<Q: CustomQuery>(
+    deps: Deps<Q>,
     voter: String,
     start_after: Option<u64>,
     limit: Option<u32>,
@@ -1597,8 +1633,8 @@ pub(crate) fn list_votes_by_voter(
     Ok(VoteListResponse { votes: votes? })
 }
 
-fn execute_distribute_funds(
-    deps: DepsMut,
+fn execute_distribute_funds<Q: CustomQuery>(
+    deps: DepsMut<Q>,
     env: Env,
     info: MessageInfo,
 ) -> Result<Response, ContractError> {
@@ -1614,7 +1650,10 @@ fn execute_distribute_funds(
     Ok(resp)
 }
 
-fn execute_withdraw_funds(deps: DepsMut, info: MessageInfo) -> Result<Response, ContractError> {
+fn execute_withdraw_funds<Q: CustomQuery>(
+    deps: DepsMut<Q>,
+    info: MessageInfo,
+) -> Result<Response, ContractError> {
     let escrow = ESCROWS.load(deps.storage, &info.sender)?;
 
     if escrow.status != (MemberStatus::Voting {}) {
@@ -1636,7 +1675,10 @@ fn execute_withdraw_funds(deps: DepsMut, info: MessageInfo) -> Result<Response, 
     Ok(resp)
 }
 
-fn query_withdrawable_funds(deps: Deps, owner: String) -> StdResult<RewardsResponse> {
+fn query_withdrawable_funds<Q: CustomQuery>(
+    deps: Deps<Q>,
+    owner: String,
+) -> StdResult<RewardsResponse> {
     // Unchecked - if the address is invalid, querying escrow would fail
     let addr = Addr::unchecked(&owner);
     let escrow = ESCROWS.load(deps.storage, &addr)?;
@@ -1650,18 +1692,25 @@ fn query_withdrawable_funds(deps: Deps, owner: String) -> StdResult<RewardsRespo
     Ok(RewardsResponse { rewards })
 }
 
-fn query_distributed_funds(deps: Deps) -> StdResult<RewardsResponse> {
+fn query_distributed_funds<Q: CustomQuery>(deps: Deps<Q>) -> StdResult<RewardsResponse> {
     let rewards = DISTRIBUTION.distributed_rewards(deps)?;
     Ok(RewardsResponse { rewards })
 }
 
-fn query_undistributed_funds(deps: Deps, env: Env) -> StdResult<RewardsResponse> {
+fn query_undistributed_funds<Q: CustomQuery>(
+    deps: Deps<Q>,
+    env: Env,
+) -> StdResult<RewardsResponse> {
     let rewards = DISTRIBUTION.undistributed_rewards(deps, env)?;
     Ok(RewardsResponse { rewards })
 }
 
 #[cfg_attr(not(feature = "library"), entry_point)]
-pub fn migrate(mut deps: DepsMut, env: Env, msg: Empty) -> Result<Response, ContractError> {
+pub fn migrate<Q: CustomQuery>(
+    mut deps: DepsMut<Q>,
+    env: Env,
+    msg: Empty,
+) -> Result<Response, ContractError> {
     ensure_from_older_version(deps.storage, CONTRACT_NAME, CONTRACT_VERSION)?;
 
     let stored_version = get_contract_version(deps.storage)?;
