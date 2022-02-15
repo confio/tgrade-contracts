@@ -2,7 +2,7 @@
 
 This guide lists API changes between releases of *Tgrade* contracts.
 
-## v0.6.0-beta2 -> v0.6.0-rc2
+## v0.6.0-beta2 -> v0.6.0
 
 ### `tgrade-trusted-circle`
 

@@ -1,6 +1,6 @@
 [package]
 name = "tgrade-ap-voting"
-version = "0.6.0-rc2"
+version = "0.6.0"
 authors = ["Bartłomiej Kuras <bart.k@confio.gmbh>"]
 edition = "2018"
 description = "Implementing tgrade-ap-voting"
@@ -14,24 +14,24 @@ backtraces = ["cosmwasm-std/backtraces"]
 library = []
 
 [dependencies]
-cw2 = "0.11.0"
-cosmwasm-std = "1.0.0-beta"
+cw2 = "0.11.1"
+cosmwasm-std = "1.0.0-beta5"
 schemars = "0.8.1"
 serde = { version = "1", default-features = false, features = ["derive"] }
-tg-bindings = "0.6.0-rc2"
-tg-voting-contract = "0.6.0-rc2"
-tg-utils = "0.6.0-rc2"
-tg3 = "0.6.0-rc2"
-cw-utils = "0.11.0"
-cw-storage-plus = "0.11.0"
+tg-bindings = "0.6.0"
+tg-voting-contract = "0.6.0"
+tg-utils = "0.6.0"
+tg3 = "0.6.0"
+cw-utils = "0.11.1"
+cw-storage-plus = "0.11.1"
 thiserror = "1"
 
 [dev-dependencies]
-cosmwasm-schema = "1.0.0-beta4"
-cw-multi-test = "0.11.0"
-cw-storage-plus = "0.11.0"
-tg-bindings-test = "0.6.0-rc2"
-tg-test-utils = "0.6.0-rc2"
-tg4 = "0.6.0-rc2"
-tg4-engagement = "0.6.0-rc2"
-tgrade-oc-proposals = { path = "../tgrade-oc-proposals", version = "0.6.0-rc2" }
+cosmwasm-schema = "1.0.0-beta5"
+cw-multi-test = "0.11.1"
+cw-storage-plus = "0.11.1"
+tg-bindings-test = "0.6.0"
+tg-test-utils = "0.6.0"
+tg4 = "0.6.0"
+tg4-engagement = "0.6.0"
+tgrade-oc-proposals = { path = "../tgrade-oc-proposals", version = "0.6.0" }
