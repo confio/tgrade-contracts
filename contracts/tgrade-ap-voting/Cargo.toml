@@ -15,7 +15,7 @@ library = []
 
 [dependencies]
 cw2 = "0.11.1"
-cosmwasm-std = "1.0.0-beta"
+cosmwasm-std = "1.0.0-beta5"
 schemars = "0.8.1"
 serde = { version = "1", default-features = false, features = ["derive"] }
 tg-bindings = "0.6.0"
@@ -27,7 +27,7 @@ cw-storage-plus = "0.11.1"
 thiserror = "1"
 
 [dev-dependencies]
-cosmwasm-schema = "1.0.0-beta"
+cosmwasm-schema = "1.0.0-beta5"
 cw-multi-test = "0.11.1"
 cw-storage-plus = "0.11.1"
 tg-bindings-test = "0.6.0"

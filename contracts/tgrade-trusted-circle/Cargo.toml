@@ -27,14 +27,14 @@ tg3 = "0.6.0"
 tg4 = "0.6.0"
 tg-bindings = "0.6.0"
 tg-utils = "0.6.0"
-cosmwasm-std = "1.0.0-beta4"
+cosmwasm-std = "1.0.0-beta5"
 schemars = "0.8"
 serde = { version = "1.0.103", default-features = false, features = ["derive"] }
 thiserror = { version = "1.0.21" }
 semver = "1"
 
 [dev-dependencies]
-cosmwasm-schema = { version = "1.0.0-beta4" }
+cosmwasm-schema = { version = "1.0.0-beta5" }
 cw-multi-test = "0.11.1"
 anyhow = "1"
 tg-bindings-test = "0.6.0"
