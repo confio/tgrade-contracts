@@ -19,10 +19,10 @@ backtraces = ["cosmwasm-std/backtraces"]
 library = []
 
 [dependencies]
-cw-utils = "0.11.0"
-cw2 = "0.11.0"
-cw-controllers = "0.11.0"
-cw-storage-plus = "0.11.0"
+cw-utils = "0.11.1"
+cw2 = "0.11.1"
+cw-controllers = "0.11.1"
+cw-storage-plus = "0.11.1"
 tg3 = "0.6.0"
 tg4 = "0.6.0"
 tg-bindings = "0.6.0"
@@ -35,7 +35,7 @@ semver = "1"
 
 [dev-dependencies]
 cosmwasm-schema = { version = "1.0.0-beta4" }
-cw-multi-test = "0.11.0"
+cw-multi-test = "0.11.1"
 anyhow = "1"
 tg-bindings-test = "0.6.0"
 derivative = "2"
