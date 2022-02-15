@@ -2,11 +2,11 @@
 
 ## [Unreleased](https://github.com/confio/tgrade-contracts/tree/HEAD)
 
-[Full Changelog](https://github.com/confio/tgrade-contracts/compare/v0.6.0-rc2...HEAD)
+[Full Changelog](https://github.com/confio/tgrade-contracts/compare/v0.6.0...HEAD)
 
-## [v0.6.0-rc2](https://github.com/confio/tgrade-contracts/tree/v0.6.0-rc2) (2022-02-10)
+## [v0.6.0](https://github.com/confio/tgrade-contracts/tree/v0.6.0) (2022-02-15)
 
-[Full Changelog](https://github.com/confio/tgrade-contracts/compare/v0.6.0-beta1...v0.6.0-rc2)
+[Full Changelog](https://github.com/confio/tgrade-contracts/compare/v0.6.0-beta1...v0.6.0)
 
 **Breaking changes:**
 
