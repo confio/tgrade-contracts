@@ -633,9 +633,9 @@ dependencies = [
 
 [[package]]
 name = "tg-bindings"
-version = "0.6.0"
+version = "0.6.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "602c0eb998778561fca6b57802c33fdc31f34538653a64db319f190a8e327151"
+checksum = "ba5f33e3cca75cd7b71dab33a88e00e5b7aee2229c5d5b0809537e48fd328265"
 dependencies = [
  "base64",
  "cosmwasm-std",
@@ -646,9 +646,9 @@ dependencies = [
 
 [[package]]
 name = "tg-bindings-test"
-version = "0.6.0"
+version = "0.6.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "880980913d5278611abb3b4cdfad42c9c5070832806e6ef64ee14c7bcf065b39"
+checksum = "0df267f4f8da31f287fc746720831d0f2cef4fe02e0850003b2eb96071349ce0"
 dependencies = [
  "anyhow",
  "cosmwasm-std",
@@ -662,9 +662,9 @@ dependencies = [
 
 [[package]]
 name = "tg-test-utils"
-version = "0.6.0"
+version = "0.6.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "302c2163dd62f57e069e4c7c1c4cf7576d2b8d467aa2e7b952215375393ba54b"
+checksum = "57a3ca967503de5c2f28af3bc9e6afad47a90ea826ae68393265a2019b8915a2"
 dependencies = [
  "cosmwasm-std",
  "tg-voting-contract",
@@ -672,9 +672,9 @@ dependencies = [
 
 [[package]]
 name = "tg-utils"
-version = "0.6.0"
+version = "0.6.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "953bb54b7bd2e79bc514936469387b670c0b0adccb484557201b2a90558a7e49"
+checksum = "e05468d4dbe9da1f51e1d7f9704ab0b20ca6a011020bd841b8a0f9c3e598f088"
 dependencies = [
  "cosmwasm-std",
  "cw-controllers",
@@ -691,9 +691,9 @@ dependencies = [
 
 [[package]]
 name = "tg-voting-contract"
-version = "0.6.0"
+version = "0.6.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "744114c8cab3082c4e1e5c720b1ec82eb6a46890f1b90bd21c0e59b6a8e29ee3"
+checksum = "0a92c70df758708bf45d05ba7b5adc0a17e9cbb43ecb0f6eaf285b1dbac949d1"
 dependencies = [
  "cosmwasm-std",
  "cw-storage-plus",
@@ -709,9 +709,9 @@ dependencies = [
 
 [[package]]
 name = "tg3"
-version = "0.6.0"
+version = "0.6.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "ef90b79ee093aed55a2af8fdd83aeae312e63fc479157e238d28a23caba5a27c"
+checksum = "f9323bb5737c80a83cc17c17617835d03309fc3a9e7c680fb3b3724e96c95859"
 dependencies = [
  "cosmwasm-std",
  "schemars",
@@ -722,9 +722,9 @@ dependencies = [
 
 [[package]]
 name = "tg4"
-version = "0.6.0"
+version = "0.6.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "05720ba94dd5c48807d03165d0f2c0a2b314a288cb1edc31cf3959bec003c2a2"
+checksum = "3cf67429cd808a9d621ef95350f075b0f9fdb66a1fe16985e19c43d98a2b1341"
 dependencies = [
  "cosmwasm-std",
  "schemars",
@@ -734,9 +734,9 @@ dependencies = [
 
 [[package]]
 name = "tg4-engagement"
-version = "0.6.0"
+version = "0.6.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "7346580605b7eaea12794c4d95a4161ad331afbe74e0e03fc865fd7b0b871b25"
+checksum = "cbf9c5bf890cb689146587eea6e48b771f4df111c88ceb1f5e656899e8d39f80"
 dependencies = [
  "cosmwasm-std",
  "cw-controllers",
@@ -753,7 +753,7 @@ dependencies = [
 
 [[package]]
 name = "tgrade-ap-voting"
-version = "0.6.0"
+version = "0.6.2"
 dependencies = [
  "cosmwasm-schema",
  "cosmwasm-std",
@@ -777,7 +777,7 @@ dependencies = [
 
 [[package]]
 name = "tgrade-oc-proposals"
-version = "0.6.0"
+version = "0.6.2"
 dependencies = [
  "anyhow",
  "cosmwasm-schema",
@@ -801,7 +801,7 @@ dependencies = [
 
 [[package]]
 name = "tgrade-trusted-circle"
-version = "0.6.0"
+version = "0.6.2"
 dependencies = [
  "anyhow",
  "assert_matches",
@@ -827,9 +827,9 @@ dependencies = [
 
 [[package]]
 name = "tgrade-valset"
-version = "0.6.0"
+version = "0.6.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "4d5a1e3841ffcf6d07fae0084d91364617fc20d366b42ef0f1324005c5bb769e"
+checksum = "908af98a6fbefd2b8ebf516165b8b616226f671ac0186119f11613feb09b49c2"
 dependencies = [
  "cosmwasm-std",
  "cw-controllers",
