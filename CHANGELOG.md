@@ -2,7 +2,15 @@
 
 ## [Unreleased](https://github.com/confio/tgrade-contracts/tree/HEAD)
 
-[Full Changelog](https://github.com/confio/tgrade-contracts/compare/v0.6.0...HEAD)
+[Full Changelog](https://github.com/confio/tgrade-contracts/compare/v0.6.2...HEAD)
+
+## [v0.6.2](https://github.com/confio/tgrade-contracts/tree/v0.6.2) (2022-02-17)
+
+[Full Changelog](https://github.com/confio/tgrade-contracts/compare/v0.6.0...v0.6.2)
+
+**Closed issues:**
+
+- Add API Migration Guide [\#461](https://github.com/confio/tgrade-contracts/issues/461)
 
 ## [v0.6.0](https://github.com/confio/tgrade-contracts/tree/v0.6.0) (2022-02-15)
 
