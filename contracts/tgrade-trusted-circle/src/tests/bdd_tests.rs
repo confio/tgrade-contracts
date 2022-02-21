@@ -5,6 +5,8 @@ use crate::state::{EscrowStatus, Punishment};
 
 use super::*;
 use crate::error::ContractError::Unauthorized;
+use tg_bindings::TgradeQuery;
+use tg_bindings_test::mock_deps_tgrade;
 
 const BDD_NAME: &str = "bdtrusted_circle";
 
@@ -42,30 +44,34 @@ fn now() -> Env {
 }
 
 #[track_caller]
-fn assert_membership(deps: Deps, addr: &str, expected: Option<u64>) {
+fn assert_membership(deps: Deps<TgradeQuery>, addr: &str, expected: Option<u64>) {
     let val = query_member(deps, addr.into(), None).unwrap();
     assert_eq!(val.points, expected);
 }
 
 #[track_caller]
-fn assert_escrow_status(deps: Deps, addr: &str, expected_status: Option<EscrowStatus>) {
+fn assert_escrow_status(
+    deps: Deps<TgradeQuery>,
+    addr: &str,
+    expected_status: Option<EscrowStatus>,
+) {
     let escrow_status = query_escrow(deps, addr.into()).unwrap();
     assert_eq!(escrow_status, expected_status);
 }
 
 // this will panic on non-members, returns status for those with one
-fn get_status(deps: Deps, addr: &str) -> MemberStatus {
+fn get_status(deps: Deps<TgradeQuery>, addr: &str) -> MemberStatus {
     query_escrow(deps, addr.into()).unwrap().unwrap().status
 }
 
 // this will panic on non-members, returns status for those with one
-fn assert_escrow(deps: Deps, addr: &str, expected: u128) {
+fn assert_escrow(deps: Deps<TgradeQuery>, addr: &str, expected: u128) {
     let paid = query_escrow(deps, addr.into()).unwrap().unwrap().paid;
     assert_eq!(paid.u128(), expected);
 }
 
 fn execute_passed_proposal(
-    deps: DepsMut,
+    deps: DepsMut<TgradeQuery>,
     env: Env,
     proposal_id: u64,
 ) -> Result<Response, ContractError> {
@@ -82,7 +88,7 @@ fn execute_passed_proposal(
     )
 }
 
-fn setup_bdd(mut deps: DepsMut) {
+fn setup_bdd(mut deps: DepsMut<TgradeQuery>) {
     let start = mock_env();
     let msg = InstantiateMsg {
         name: BDD_NAME.to_string(),
@@ -162,7 +168,7 @@ fn setup_bdd(mut deps: DepsMut) {
     assert_eq!(nonvoting.members.len(), 5);
 }
 
-fn deposit(deps: DepsMut, addr: &str) -> Result<Response, ContractError> {
+fn deposit(deps: DepsMut<TgradeQuery>, addr: &str) -> Result<Response, ContractError> {
     execute(
         deps,
         now(),
@@ -171,7 +177,7 @@ fn deposit(deps: DepsMut, addr: &str) -> Result<Response, ContractError> {
     )
 }
 
-fn refund(deps: DepsMut, env: Env, addr: &str) -> Result<Response, ContractError> {
+fn refund(deps: DepsMut<TgradeQuery>, env: Env, addr: &str) -> Result<Response, ContractError> {
     execute(deps, env, mock_info(addr, &[]), ExecuteMsg::ReturnEscrow {})
 }
 
@@ -231,12 +237,12 @@ fn punish_member_proposal(member: String, slashing_percentage: u64, kick_out: bo
     }
 }
 
-fn propose(deps: DepsMut, addr: &str) -> Result<Response, ContractError> {
+fn propose(deps: DepsMut<TgradeQuery>, addr: &str) -> Result<Response, ContractError> {
     execute(deps, now(), mock_info(addr, &[]), demo_proposal())
 }
 
 fn propose_edit_trusted_circle(
-    deps: DepsMut,
+    deps: DepsMut<TgradeQuery>,
     addr: &str,
     escrow_amount: u128,
 ) -> Result<Response, ContractError> {
@@ -249,7 +255,7 @@ fn propose_edit_trusted_circle(
 }
 
 fn propose_add_voting_members(
-    deps: DepsMut,
+    deps: DepsMut<TgradeQuery>,
     env: Env,
     addr: &str,
     members: Vec<String>,
@@ -263,7 +269,7 @@ fn propose_add_voting_members(
 }
 
 fn propose_punish_member(
-    deps: DepsMut,
+    deps: DepsMut<TgradeQuery>,
     env: Env,
     addr: &str,
     member: String,
@@ -280,7 +286,7 @@ fn propose_punish_member(
 
 #[track_caller]
 pub(crate) fn propose_add_voting_members_and_execute(
-    mut deps: DepsMut,
+    mut deps: DepsMut<TgradeQuery>,
     env: Env,
     addr: &str,
     members: Vec<String>,
@@ -290,7 +296,7 @@ pub(crate) fn propose_add_voting_members_and_execute(
     execute_passed_proposal(deps, env, parse_prop_id(&res.attributes))
 }
 
-fn leave(deps: DepsMut, addr: &str) -> Result<Response, ContractError> {
+fn leave(deps: DepsMut<TgradeQuery>, addr: &str) -> Result<Response, ContractError> {
     execute(
         deps,
         now(),
@@ -312,7 +318,7 @@ fn assert_payment(messages: Vec<SubMsg>, to_addr: &str, amount: u128) {
 
 #[test]
 fn non_voting_deposit_return_propose_leave() {
-    let mut deps = mock_dependencies();
+    let mut deps = mock_deps_tgrade();
     setup_bdd(deps.as_mut());
 
     // assert non-voting member
@@ -337,7 +343,7 @@ fn non_voting_deposit_return_propose_leave() {
 
 #[test]
 fn non_member_deposit_return_propose_leave() {
-    let mut deps = mock_dependencies();
+    let mut deps = mock_deps_tgrade();
     setup_bdd(deps.as_mut());
 
     // assert non-voting member
@@ -358,7 +364,7 @@ fn non_member_deposit_return_propose_leave() {
 
 #[test]
 fn pending_broke_deposit_return_propose() {
-    let mut deps = mock_dependencies();
+    let mut deps = mock_deps_tgrade();
     setup_bdd(deps.as_mut());
 
     // assert non-voting member
@@ -377,7 +383,7 @@ fn pending_broke_deposit_return_propose() {
 
 #[test]
 fn pending_broke_leave() {
-    let mut deps = mock_dependencies();
+    let mut deps = mock_deps_tgrade();
     setup_bdd(deps.as_mut());
 
     // assert non-voting member
@@ -392,7 +398,7 @@ fn pending_broke_leave() {
 
 #[test]
 fn pending_some_deposit_return_propose_leave() {
-    let mut deps = mock_dependencies();
+    let mut deps = mock_deps_tgrade();
     setup_bdd(deps.as_mut());
 
     // assert non-voting member
@@ -417,7 +423,7 @@ fn pending_some_deposit_return_propose_leave() {
 
 #[test]
 fn pending_paid_deposit_return_propose_leave() {
-    let mut deps = mock_dependencies();
+    let mut deps = mock_deps_tgrade();
     setup_bdd(deps.as_mut());
 
     // assert non-voting member
@@ -442,7 +448,7 @@ fn pending_paid_deposit_return_propose_leave() {
 
 #[test]
 fn pending_paid_timeout_to_voter() {
-    let mut deps = mock_dependencies();
+    let mut deps = mock_deps_tgrade();
     setup_bdd(deps.as_mut());
 
     execute(
@@ -463,7 +469,7 @@ fn pending_paid_timeout_to_voter() {
 
 #[test]
 fn voting_deposit_return_propose_leave() {
-    let mut deps = mock_dependencies();
+    let mut deps = mock_deps_tgrade();
     setup_bdd(deps.as_mut());
 
     // assert voting member
@@ -493,7 +499,7 @@ fn voting_deposit_return_propose_leave() {
 
 #[test]
 fn leaving_deposit_return_propose_leave() {
-    let mut deps = mock_dependencies();
+    let mut deps = mock_deps_tgrade();
     setup_bdd(deps.as_mut());
 
     // assert non-voting member
@@ -514,7 +520,7 @@ fn leaving_deposit_return_propose_leave() {
 
 #[test]
 fn leaving_return_after_timeout() {
-    let mut deps = mock_dependencies();
+    let mut deps = mock_deps_tgrade();
     setup_bdd(deps.as_mut());
 
     // assert non-voting member
@@ -541,7 +547,7 @@ fn leaving_return_after_timeout() {
 // more...
 #[test]
 fn re_adding_existing_members() {
-    let mut deps = mock_dependencies();
+    let mut deps = mock_deps_tgrade();
     setup_bdd(deps.as_mut());
 
     // NO OP: add non-voting who is already voting
@@ -605,7 +611,7 @@ fn re_adding_existing_members() {
 
 #[test]
 fn remove_existing_members() {
-    let mut deps = mock_dependencies();
+    let mut deps = mock_deps_tgrade();
     setup_bdd(deps.as_mut());
 
     // FAIL: remove voting member
@@ -648,7 +654,7 @@ fn remove_existing_members() {
 
 #[test]
 fn edit_trusted_circle_increase_escrow_voting_demoted_after_grace_period() {
-    let mut deps = mock_dependencies();
+    let mut deps = mock_deps_tgrade();
     let env = mock_env();
     setup_bdd(deps.as_mut());
 
@@ -715,7 +721,7 @@ fn edit_trusted_circle_increase_escrow_voting_demoted_after_grace_period() {
 
 #[test]
 fn edit_trusted_circle_decrease_escrow_pending_promoted_after_grace_period() {
-    let mut deps = mock_dependencies();
+    let mut deps = mock_deps_tgrade();
     let env = mock_env();
     setup_bdd(deps.as_mut());
 
@@ -801,7 +807,7 @@ fn edit_trusted_circle_decrease_escrow_pending_promoted_after_grace_period() {
 
 #[test]
 fn edit_trusted_circle_increase_escrow_enforced_before_new_proposal() {
-    let mut deps = mock_dependencies();
+    let mut deps = mock_deps_tgrade();
     let env = mock_env();
     setup_bdd(deps.as_mut());
 
@@ -826,7 +832,7 @@ fn edit_trusted_circle_increase_escrow_enforced_before_new_proposal() {
 
 #[test]
 fn punish_member_slashing() {
-    let mut deps = mock_dependencies();
+    let mut deps = mock_deps_tgrade();
     let env = mock_env();
     setup_bdd(deps.as_mut());
 
@@ -897,7 +903,7 @@ fn punish_member_slashing() {
 
 #[test]
 fn punish_member_expulsion() {
-    let mut deps = mock_dependencies();
+    let mut deps = mock_deps_tgrade();
     let env = mock_env();
     setup_bdd(deps.as_mut());
 

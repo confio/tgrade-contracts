@@ -1,28 +1,25 @@
 use anyhow::Result as AnyResult;
-use cosmwasm_std::{coins, Addr, CosmosMsg, CustomQuery, Decimal, Uint128};
+use cosmwasm_std::{coins, Addr, CosmosMsg, Decimal, Uint128};
 use cw_multi_test::{AppResponse, Contract, ContractWrapper, CosmosRouter, Executor};
 use derivative::Derivative;
-use serde::de::DeserializeOwned;
 use tg4::Member;
-use tg_bindings::TgradeMsg;
+use tg_bindings::{TgradeMsg, TgradeQuery};
 use tg_bindings_test::TgradeApp;
 
 use crate::msg::{ExecuteMsg, InstantiateMsg};
 use crate::state::ProposalContent;
 
-pub fn contract_trusted_circle<Q: 'static + CustomQuery + DeserializeOwned>(
-) -> Box<dyn Contract<TgradeMsg, Q>> {
-    Box::new(ContractWrapper::<_, _, _, _, _, _, _, Q>::new(
+pub fn contract_trusted_circle() -> Box<dyn Contract<TgradeMsg, TgradeQuery>> {
+    Box::new(ContractWrapper::new(
         crate::contract::execute,
         crate::contract::instantiate,
         crate::contract::query,
     ))
 }
 
-pub fn contract_engagement<Q: 'static + CustomQuery + DeserializeOwned>(
-) -> Box<dyn Contract<TgradeMsg, Q>> {
+pub fn contract_engagement() -> Box<dyn Contract<TgradeMsg, TgradeQuery>> {
     Box::new(
-        ContractWrapper::<_, _, _, _, _, _, _, Q>::new(
+        ContractWrapper::new(
             tg4_engagement::contract::execute,
             tg4_engagement::contract::instantiate,
             tg4_engagement::contract::query,

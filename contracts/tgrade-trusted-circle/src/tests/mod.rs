@@ -9,7 +9,7 @@ mod unit_tests;
 use std::cmp::PartialEq;
 use std::fmt::Debug;
 
-use cosmwasm_std::testing::{mock_dependencies, mock_env, mock_info};
+use cosmwasm_std::testing::{mock_env, mock_info};
 use cosmwasm_std::{
     attr, coin, coins, from_slice, Api, Attribute, BankMsg, Coin, Decimal, Deps, DepsMut, Env,
     MessageInfo, OwnedDeps, Querier, Storage, Uint128,
@@ -25,6 +25,7 @@ use crate::msg::{
     Escrow, ExecuteMsg, InstantiateMsg, ProposalResponse, QueryMsg, TrustedCircleResponse, VoteInfo,
 };
 use crate::state::{MemberStatus, ProposalContent, TrustedCircleAdjustments, VotingRules};
+use tg_bindings::TgradeQuery;
 
 const INIT_ADMIN: &str = "juan";
 
@@ -71,7 +72,7 @@ fn later(env: &Env, seconds: u64) -> Env {
 }
 
 fn do_instantiate(
-    deps: DepsMut,
+    deps: DepsMut<TgradeQuery>,
     info: MessageInfo,
     initial_members: Vec<String>,
     edit_trusted_circle_disabled: bool,
@@ -92,7 +93,7 @@ fn do_instantiate(
 }
 
 fn assert_voting<S: Storage, A: Api, Q: Querier>(
-    deps: &OwnedDeps<S, A, Q>,
+    deps: &OwnedDeps<S, A, Q, TgradeQuery>,
     voting0_points: Option<u64>,
     voting1_points: Option<u64>,
     voting2_points: Option<u64>,
@@ -144,7 +145,7 @@ fn assert_voting<S: Storage, A: Api, Q: Querier>(
 }
 
 fn assert_nonvoting<S: Storage, A: Api, Q: Querier>(
-    deps: &OwnedDeps<S, A, Q>,
+    deps: &OwnedDeps<S, A, Q, TgradeQuery>,
     nonvoting1_points: Option<u64>,
     nonvoting2_points: Option<u64>,
     nonvoting3_points: Option<u64>,
@@ -178,7 +179,7 @@ fn assert_nonvoting<S: Storage, A: Api, Q: Querier>(
 
 #[track_caller]
 fn assert_escrow_paid<S: Storage, A: Api, Q: Querier>(
-    deps: &OwnedDeps<S, A, Q>,
+    deps: &OwnedDeps<S, A, Q, TgradeQuery>,
     voting0_escrow: Option<u128>,
     voting1_escrow: Option<u128>,
     voting2_escrow: Option<u128>,
@@ -211,7 +212,7 @@ fn assert_escrow_paid<S: Storage, A: Api, Q: Querier>(
 
 #[track_caller]
 fn assert_escrow_status<S: Storage, A: Api, Q: Querier>(
-    deps: &OwnedDeps<S, A, Q>,
+    deps: &OwnedDeps<S, A, Q, TgradeQuery>,
     voting0_status: Option<MemberStatus>,
     voting1_status: Option<MemberStatus>,
     voting2_status: Option<MemberStatus>,
@@ -243,7 +244,7 @@ fn assert_escrow_status<S: Storage, A: Api, Q: Querier>(
 }
 
 #[track_caller]
-fn assert_escrows(deps: Deps, member_escrows: Vec<Escrow>) {
+fn assert_escrows(deps: Deps<TgradeQuery>, member_escrows: Vec<Escrow>) {
     let escrows = list_escrows(deps, None, None).unwrap().escrows;
     assert_sorted_eq(member_escrows, escrows, &Escrow::cmp_by_addr);
 }
@@ -251,7 +252,12 @@ fn assert_escrows(deps: Deps, member_escrows: Vec<Escrow>) {
 /// This makes a new proposal at env (height and time)
 /// and ensures that all names in `can_vote` are able to place a 'yes' vote,
 /// and all in `cannot_vote` will get an error when trying to place a vote.
-fn assert_can_vote(mut deps: DepsMut, env: &Env, can_vote: &[&str], cannot_vote: &[&str]) {
+fn assert_can_vote(
+    mut deps: DepsMut<TgradeQuery>,
+    env: &Env,
+    can_vote: &[&str],
+    cannot_vote: &[&str],
+) {
     // make a proposal
     let msg = ExecuteMsg::Propose {
         title: "Another Proposal".into(),
