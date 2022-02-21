@@ -11,7 +11,7 @@ use cw_utils::{maybe_addr, Expiration};
 use semver::Version;
 use tg3::{Status, Vote};
 use tg4::{member_key, Member, MemberListResponse, MemberResponse, TotalPointsResponse};
-use tg_bindings::TgradeMsg;
+use tg_bindings::{TgradeMsg, TgradeQuery};
 use tg_utils::{ensure_from_older_version, members, TOTAL};
 
 use crate::error::ContractError;
@@ -42,8 +42,8 @@ pub type SubMsg = cosmwasm_std::SubMsg<TgradeMsg>;
 // Note, you can use StdResult in some functions where you do not
 // make use of the custom errors
 #[cfg_attr(not(feature = "library"), entry_point)]
-pub fn instantiate<Q: CustomQuery>(
-    mut deps: DepsMut<Q>,
+pub fn instantiate(
+    mut deps: DepsMut<TgradeQuery>,
     env: Env,
     info: MessageInfo,
     msg: InstantiateMsg,
@@ -111,8 +111,8 @@ pub fn instantiate<Q: CustomQuery>(
 
 // And declare a custom Error variant for the ones where you will want to make use of it
 #[cfg_attr(not(feature = "library"), entry_point)]
-pub fn execute<Q: CustomQuery>(
-    deps: DepsMut<Q>,
+pub fn execute(
+    deps: DepsMut<TgradeQuery>,
     env: Env,
     info: MessageInfo,
     msg: ExecuteMsg,
@@ -385,7 +385,7 @@ pub fn execute_propose<Q: CustomQuery>(
     // Also as this contract actually may be called on 0-height block, it has to be checked
     // (probably can be removed in some migration after genesis).
     let events = if env.block.height > 0 {
-        // As its only altering height for a while there is no point on clonning whole env just for
+        // As its only altering height for a while there is no point on cloning whole env just for
         // one call. Height is restored literally 2 lines below.
         env.block.height -= 1;
         let events = check_pending(deps.branch(), &env)?;
@@ -1289,7 +1289,7 @@ pub fn is_contract<Q: CustomQuery>(querier: &QuerierWrapper<Q>, addr: &Addr) -> 
 }
 
 #[cfg_attr(not(feature = "library"), entry_point)]
-pub fn query<Q: CustomQuery>(deps: Deps<Q>, env: Env, msg: QueryMsg) -> StdResult<Binary> {
+pub fn query(deps: Deps<TgradeQuery>, env: Env, msg: QueryMsg) -> StdResult<Binary> {
     use QueryMsg::*;
 
     match msg {
@@ -1703,8 +1703,8 @@ fn query_undistributed_funds<Q: CustomQuery>(
 }
 
 #[cfg_attr(not(feature = "library"), entry_point)]
-pub fn migrate<Q: CustomQuery>(
-    mut deps: DepsMut<Q>,
+pub fn migrate(
+    mut deps: DepsMut<TgradeQuery>,
     env: Env,
     msg: Empty,
 ) -> Result<Response, ContractError> {
