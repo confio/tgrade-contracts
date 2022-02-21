@@ -163,9 +163,7 @@ dependencies = [
 
 [[package]]
 name = "cw-controllers"
-version = "0.11.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "64bfeaf55f8dba5646cc3daddce17cd23a60f8e0c3fbacbe6735d287d7a6e33a"
+version = "0.12.1"
 dependencies = [
  "cosmwasm-std",
  "cw-storage-plus",
@@ -177,9 +175,7 @@ dependencies = [
 
 [[package]]
 name = "cw-multi-test"
-version = "0.11.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "14b44e3ccc6ead7e8c0ecc682e8ab634ce1dec8a2ac97b7b44e84477695adc55"
+version = "0.12.1"
 dependencies = [
  "anyhow",
  "cosmwasm-std",
@@ -196,9 +192,7 @@ dependencies = [
 
 [[package]]
 name = "cw-storage-plus"
-version = "0.11.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "7d7ee1963302b0ac2a9d42fe0faec826209c17452bfd36fbfd9d002a88929261"
+version = "0.12.1"
 dependencies = [
  "cosmwasm-std",
  "schemars",
@@ -207,9 +201,7 @@ dependencies = [
 
 [[package]]
 name = "cw-utils"
-version = "0.11.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "ef842a1792e4285beff7b3b518705f760fa4111dc1e296e53f3e92d1ef7f6220"
+version = "0.12.1"
 dependencies = [
  "cosmwasm-std",
  "schemars",
@@ -219,9 +211,7 @@ dependencies = [
 
 [[package]]
 name = "cw2"
-version = "0.11.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "c1d81d7c359d6c1fba3aa83dad7ec6f999e512571380ae62f81257c3db569743"
+version = "0.12.1"
 dependencies = [
  "cosmwasm-std",
  "cw-storage-plus",
@@ -634,8 +624,6 @@ dependencies = [
 [[package]]
 name = "tg-bindings"
 version = "0.6.2"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "ba5f33e3cca75cd7b71dab33a88e00e5b7aee2229c5d5b0809537e48fd328265"
 dependencies = [
  "base64",
  "cosmwasm-std",
@@ -647,8 +635,6 @@ dependencies = [
 [[package]]
 name = "tg-bindings-test"
 version = "0.6.2"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "0df267f4f8da31f287fc746720831d0f2cef4fe02e0850003b2eb96071349ce0"
 dependencies = [
  "anyhow",
  "cosmwasm-std",
@@ -663,8 +649,6 @@ dependencies = [
 [[package]]
 name = "tg-test-utils"
 version = "0.6.2"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "57a3ca967503de5c2f28af3bc9e6afad47a90ea826ae68393265a2019b8915a2"
 dependencies = [
  "cosmwasm-std",
  "tg-voting-contract",
@@ -673,8 +657,6 @@ dependencies = [
 [[package]]
 name = "tg-utils"
 version = "0.6.2"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "e05468d4dbe9da1f51e1d7f9704ab0b20ca6a011020bd841b8a0f9c3e598f088"
 dependencies = [
  "cosmwasm-std",
  "cw-controllers",
@@ -692,8 +674,6 @@ dependencies = [
 [[package]]
 name = "tg-voting-contract"
 version = "0.6.2"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "0a92c70df758708bf45d05ba7b5adc0a17e9cbb43ecb0f6eaf285b1dbac949d1"
 dependencies = [
  "cosmwasm-std",
  "cw-storage-plus",
@@ -710,8 +690,6 @@ dependencies = [
 [[package]]
 name = "tg3"
 version = "0.6.2"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "f9323bb5737c80a83cc17c17617835d03309fc3a9e7c680fb3b3724e96c95859"
 dependencies = [
  "cosmwasm-std",
  "schemars",
@@ -723,8 +701,6 @@ dependencies = [
 [[package]]
 name = "tg4"
 version = "0.6.2"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "3cf67429cd808a9d621ef95350f075b0f9fdb66a1fe16985e19c43d98a2b1341"
 dependencies = [
  "cosmwasm-std",
  "schemars",
@@ -735,8 +711,6 @@ dependencies = [
 [[package]]
 name = "tg4-engagement"
 version = "0.6.2"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "cbf9c5bf890cb689146587eea6e48b771f4df111c88ceb1f5e656899e8d39f80"
 dependencies = [
  "cosmwasm-std",
  "cw-controllers",
@@ -828,8 +802,6 @@ dependencies = [
 [[package]]
 name = "tgrade-valset"
 version = "0.6.2"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "908af98a6fbefd2b8ebf516165b8b616226f671ac0186119f11613feb09b49c2"
 dependencies = [
  "cosmwasm-std",
  "cw-controllers",
