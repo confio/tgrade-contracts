@@ -13,22 +13,3 @@ incremental = false
 [profile.release.package.tgrade-ap-voting]
 codegen-units = 1
 incremental = false
-
-[patch.crates-io]
-cw2 = { path = "../cw-plus/packages/cw2" }
-cw-controllers = { path = "../cw-plus/packages/controllers" }
-cw-multi-test = { path = "../cw-plus/packages/multi-test" }
-cw-storage-plus = { path = "../cw-plus/packages/storage-plus" }
-cw-utils = { path = "../cw-plus/packages/utils" }
-
-tg3 = { path = "../poe-contracts/packages/tg3" }
-tg4 = { path = "../poe-contracts/packages/tg4" }
-tg-bindings = { path = "../poe-contracts/packages/bindings" }
-tg-bindings-test = { path = "../poe-contracts/packages/bindings-test" }
-tg-test-utils = { path = "../poe-contracts/packages/test-utils" }
-tg-utils = { path = "../poe-contracts/packages/utils" }
-tg-voting-contract = { path = "../poe-contracts/packages/voting-contract" }
-
-tg4-engagement = { path = "../poe-contracts/contracts/tg4-engagement" }
-tgrade-valset = { path = "../poe-contracts/contracts/tgrade-valset" }
-
