@@ -1,11 +1,10 @@
 use anyhow::Result as AnyResult;
 
-use cosmwasm_std::{coin, Addr, Binary, Coin, CustomQuery, Decimal, StdResult};
+use cosmwasm_std::{coin, Addr, Binary, Coin, Decimal, StdResult};
 use cw_multi_test::{AppResponse, Contract, ContractWrapper, Executor};
-use serde::de::DeserializeOwned;
 use tg3::{Status, Vote, VoteInfo, VoteListResponse, VoteResponse, VoterResponse};
 use tg4::{Member, MemberResponse, Tg4ExecuteMsg, Tg4QueryMsg};
-use tg_bindings::{TgradeMsg, ValidatorDiff};
+use tg_bindings::{TgradeMsg, TgradeQuery, ValidatorDiff};
 use tg_bindings_test::TgradeApp;
 use tg_utils::{Duration, JailingDuration};
 use tgrade_valset::msg::UnvalidatedDistributionContracts;
@@ -26,9 +25,8 @@ pub fn get_proposal_id(response: &AppResponse) -> Result<u64, std::num::ParseInt
     response.custom_attrs(1)[2].value.parse()
 }
 
-pub fn contract_oc_proposals<Q: 'static + CustomQuery + DeserializeOwned>(
-) -> Box<dyn Contract<TgradeMsg, Q>> {
-    let contract = ContractWrapper::<_, _, _, _, _, _, _, Q>::new(
+pub fn contract_oc_proposals() -> Box<dyn Contract<TgradeMsg, TgradeQuery>> {
+    let contract = ContractWrapper::new(
         crate::contract::execute,
         crate::contract::instantiate,
         crate::contract::query,
@@ -37,9 +35,8 @@ pub fn contract_oc_proposals<Q: 'static + CustomQuery + DeserializeOwned>(
     Box::new(contract)
 }
 
-pub fn contract_engagement<Q: 'static + CustomQuery + DeserializeOwned>(
-) -> Box<dyn Contract<TgradeMsg, Q>> {
-    let contract = ContractWrapper::<_, _, _, _, _, _, _, Q>::new(
+pub fn contract_engagement() -> Box<dyn Contract<TgradeMsg, TgradeQuery>> {
+    let contract = ContractWrapper::new(
         tg4_engagement::contract::execute,
         tg4_engagement::contract::instantiate,
         tg4_engagement::contract::query,
@@ -48,9 +45,8 @@ pub fn contract_engagement<Q: 'static + CustomQuery + DeserializeOwned>(
     Box::new(contract)
 }
 
-pub fn contract_valset<Q: 'static + CustomQuery + DeserializeOwned>(
-) -> Box<dyn Contract<TgradeMsg, Q>> {
-    let contract = ContractWrapper::<_, _, _, _, _, _, _, Q>::new(
+pub fn contract_valset() -> Box<dyn Contract<TgradeMsg, TgradeQuery>> {
+    let contract = ContractWrapper::new(
         tgrade_valset::contract::execute,
         tgrade_valset::contract::instantiate,
         tgrade_valset::contract::query,

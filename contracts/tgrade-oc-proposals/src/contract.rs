@@ -1,12 +1,12 @@
 #[cfg(not(feature = "library"))]
 use cosmwasm_std::entry_point;
 use cosmwasm_std::{
-    to_binary, Binary, CustomQuery, Decimal, Deps, DepsMut, Env, MessageInfo, StdResult,
+    to_binary, Binary, CustomQuery, Decimal, Deps, DepsMut, Empty, Env, MessageInfo, StdResult,
 };
 
 use cw2::set_contract_version;
 use tg4::Tg4Contract;
-use tg_bindings::TgradeMsg;
+use tg_bindings::{TgradeMsg, TgradeQuery};
 use tg_utils::{ensure_from_older_version, JailMsg, SlashMsg};
 
 use crate::msg::{ExecuteMsg, InstantiateMsg, QueryMsg};
@@ -27,8 +27,8 @@ const CONTRACT_NAME: &str = "crates.io:tgrade_oc_proposals";
 const CONTRACT_VERSION: &str = env!("CARGO_PKG_VERSION");
 
 #[cfg_attr(not(feature = "library"), entry_point)]
-pub fn instantiate<Q: CustomQuery>(
-    deps: DepsMut<Q>,
+pub fn instantiate(
+    deps: DepsMut<TgradeQuery>,
     _env: Env,
     _info: MessageInfo,
     msg: InstantiateMsg,
@@ -54,8 +54,8 @@ pub fn instantiate<Q: CustomQuery>(
 }
 
 #[cfg_attr(not(feature = "library"), entry_point)]
-pub fn execute<Q: CustomQuery>(
-    deps: DepsMut<Q>,
+pub fn execute(
+    deps: DepsMut<TgradeQuery>,
     env: Env,
     info: MessageInfo,
     msg: ExecuteMsg,
@@ -67,15 +67,22 @@ pub fn execute<Q: CustomQuery>(
             title,
             description,
             proposal,
-        } => execute_propose::<OversightProposal, Q>(deps, env, info, title, description, proposal)
-            .map_err(ContractError::from),
+        } => execute_propose::<OversightProposal, TgradeQuery>(
+            deps,
+            env,
+            info,
+            title,
+            description,
+            proposal,
+        )
+        .map_err(ContractError::from),
         Vote { proposal_id, vote } => {
-            execute_vote::<OversightProposal, Q>(deps, env, info, proposal_id, vote)
+            execute_vote::<OversightProposal, TgradeQuery>(deps, env, info, proposal_id, vote)
                 .map_err(ContractError::from)
         }
         Execute { proposal_id } => execute_execute(deps, env, info, proposal_id),
         Close { proposal_id } => {
-            execute_close::<OversightProposal, Q>(deps, env, info, proposal_id)
+            execute_close::<OversightProposal, TgradeQuery>(deps, env, info, proposal_id)
                 .map_err(ContractError::from)
         }
     }
@@ -170,28 +177,30 @@ fn align_limit(limit: Option<u32>) -> usize {
 }
 
 #[cfg_attr(not(feature = "library"), entry_point)]
-pub fn query<Q: CustomQuery>(deps: Deps<Q>, env: Env, msg: QueryMsg) -> StdResult<Binary> {
+pub fn query(deps: Deps<TgradeQuery>, env: Env, msg: QueryMsg) -> StdResult<Binary> {
     use QueryMsg::*;
 
     match msg {
         Configuration {} => to_binary(&CONFIG.load(deps.storage)?),
         Rules {} => to_binary(&query_rules(deps)?),
-        Proposal { proposal_id } => to_binary(&query_proposal::<OversightProposal, Q>(
+        Proposal { proposal_id } => to_binary(&query_proposal::<OversightProposal, TgradeQuery>(
             deps,
             env,
             proposal_id,
         )?),
         Vote { proposal_id, voter } => to_binary(&query_vote(deps, proposal_id, voter)?),
-        ListProposals { start_after, limit } => to_binary(&list_proposals::<OversightProposal, Q>(
-            deps,
-            env,
-            start_after,
-            align_limit(limit),
-        )?),
+        ListProposals { start_after, limit } => {
+            to_binary(&list_proposals::<OversightProposal, TgradeQuery>(
+                deps,
+                env,
+                start_after,
+                align_limit(limit),
+            )?)
+        }
         ReverseProposals {
             start_before,
             limit,
-        } => to_binary(&reverse_proposals::<OversightProposal, Q>(
+        } => to_binary(&reverse_proposals::<OversightProposal, TgradeQuery>(
             deps,
             env,
             start_before,
@@ -224,10 +233,10 @@ pub fn query<Q: CustomQuery>(deps: Deps<Q>, env: Env, msg: QueryMsg) -> StdResul
 }
 
 #[cfg_attr(not(feature = "library"), entry_point)]
-pub fn migrate<Q: CustomQuery>(
-    deps: DepsMut<Q>,
+pub fn migrate(
+    deps: DepsMut<TgradeQuery>,
     _env: Env,
-    _msg: Q,
+    _msg: Empty,
 ) -> Result<Response, ContractError> {
     ensure_from_older_version(deps.storage, CONTRACT_NAME, CONTRACT_VERSION)?;
     Ok(Response::new())
@@ -238,7 +247,6 @@ mod tests {
     use cosmwasm_std::{coin, coins, Addr, BlockInfo, Coin, Decimal};
 
     use cw_multi_test::{next_block, Contract, ContractWrapper, Executor};
-    use serde::de::DeserializeOwned;
     use tg3::{Status, Vote, VoterDetail, VoterListResponse};
     use tg4::{Member, Tg4ExecuteMsg};
     use tg_bindings::TgradeQuery;
@@ -270,7 +278,7 @@ mod tests {
     }
 
     pub fn contract_flex() -> Box<dyn Contract<TgradeMsg, TgradeQuery>> {
-        let contract = ContractWrapper::<_, _, _, _, _, _, _, TgradeQuery>::new(
+        let contract = ContractWrapper::new(
             crate::contract::execute,
             crate::contract::instantiate,
             crate::contract::query,
@@ -278,9 +286,8 @@ mod tests {
         Box::new(contract)
     }
 
-    pub fn contract_engagement<Q: 'static + CustomQuery + DeserializeOwned>(
-    ) -> Box<dyn Contract<TgradeMsg, Q>> {
-        let contract = ContractWrapper::<_, _, _, _, _, _, _, Q>::new(
+    pub fn contract_engagement() -> Box<dyn Contract<TgradeMsg, TgradeQuery>> {
+        let contract = ContractWrapper::new(
             tg4_engagement::contract::execute,
             tg4_engagement::contract::instantiate,
             tg4_engagement::contract::query,
@@ -288,9 +295,8 @@ mod tests {
         Box::new(contract)
     }
 
-    pub fn contract_valset<Q: 'static + CustomQuery + DeserializeOwned>(
-    ) -> Box<dyn Contract<TgradeMsg, Q>> {
-        let contract = ContractWrapper::<_, _, _, _, _, _, _, Q>::new(
+    pub fn contract_valset() -> Box<dyn Contract<TgradeMsg, TgradeQuery>> {
+        let contract = ContractWrapper::new(
             tgrade_valset::contract::execute,
             tgrade_valset::contract::instantiate,
             tgrade_valset::contract::query,
