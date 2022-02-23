@@ -6,7 +6,7 @@ use cosmwasm_std::{
     StdResult, SystemError, SystemResult, Uint128, WasmQuery,
 };
 use cw2::{get_contract_version, set_contract_version};
-use cw_storage_plus::{Bound, PrimaryKey};
+use cw_storage_plus::Bound;
 use cw_utils::{maybe_addr, Expiration};
 use semver::Version;
 use tg3::{Status, Vote};
@@ -895,8 +895,8 @@ fn check_pending_batches<Q: CustomQuery>(
     // These are all eligible for timeout-based promotion
     let now = block.time.seconds();
     // as we want to keep the last item (pk) unbounded, we increment time by 1 and use exclusive (below the next tick)
-    let max_key = (now + 1, 0u64).joined_key();
-    let bound = Bound::Exclusive(max_key);
+    let max_key = (now + 1, 0u64);
+    let bound = Bound::exclusive(max_key);
 
     let ready = batch_map
         .idx
@@ -1339,17 +1339,19 @@ pub fn query<Q: CustomQuery>(deps: Deps<Q>, env: Env, msg: QueryMsg) -> StdResul
     }
 }
 
-pub(crate) fn query_total_points<Q: CustomQuery>(deps: Deps) -> StdResult<TotalPointsResponse> {
+pub(crate) fn query_total_points<Q: CustomQuery>(deps: Deps<Q>) -> StdResult<TotalPointsResponse> {
     let points = TOTAL.load(deps.storage)?;
     Ok(TotalPointsResponse { points })
 }
 
-pub(crate) fn query_rules<Q: CustomQuery>(deps: Deps) -> StdResult<RulesResponse> {
+pub(crate) fn query_rules<Q: CustomQuery>(deps: Deps<Q>) -> StdResult<RulesResponse> {
     let rules = TRUSTED_CIRCLE.load(deps.storage)?.rules;
     Ok(RulesResponse { rules })
 }
 
-pub(crate) fn query_trusted_circle<Q: CustomQuery>(deps: Deps) -> StdResult<TrustedCircleResponse> {
+pub(crate) fn query_trusted_circle<Q: CustomQuery>(
+    deps: Deps<Q>,
+) -> StdResult<TrustedCircleResponse> {
     let TrustedCircle {
         name,
         escrow_amount,
@@ -1400,7 +1402,7 @@ pub(crate) fn list_members<Q: CustomQuery>(
 ) -> StdResult<MemberListResponse> {
     let limit = limit.unwrap_or(DEFAULT_LIMIT).min(MAX_LIMIT) as usize;
     let addr = maybe_addr(deps.api, start_after)?;
-    let start = addr.map(|addr| Bound::exclusive(addr.as_ref()));
+    let start = addr.as_ref().map(Bound::exclusive);
 
     let members: StdResult<Vec<_>> = members()
         .range(deps.storage, start, None, Order::Ascending)
@@ -1423,7 +1425,8 @@ pub(crate) fn list_voting_members<Q: CustomQuery>(
     limit: Option<u32>,
 ) -> StdResult<MemberListResponse> {
     let limit = limit.unwrap_or(DEFAULT_LIMIT).min(MAX_LIMIT) as usize;
-    let start = start_after.map(|sa| Bound::exclusive(sa.as_str()));
+    let start_after = maybe_addr(deps.api, start_after)?;
+    let start = start_after.map(Bound::exclusive);
 
     let members: StdResult<Vec<_>> = members()
         .idx
@@ -1450,7 +1453,8 @@ pub(crate) fn list_non_voting_members<Q: CustomQuery>(
     limit: Option<u32>,
 ) -> StdResult<MemberListResponse> {
     let limit = limit.unwrap_or(DEFAULT_LIMIT).min(MAX_LIMIT) as usize;
-    let start = start_after.map(|sa| Bound::exclusive(sa.as_str()));
+    let start_after = maybe_addr(deps.api, start_after)?;
+    let start = start_after.map(Bound::exclusive);
     let members: StdResult<Vec<_>> = members()
         .idx
         .points
@@ -1476,7 +1480,7 @@ pub(crate) fn list_escrows<Q: CustomQuery>(
 ) -> StdResult<EscrowListResponse> {
     let limit = limit.unwrap_or(DEFAULT_LIMIT).min(MAX_LIMIT) as usize;
     let addr = maybe_addr(deps.api, start_after)?;
-    let start = addr.map(|addr| Bound::exclusive(addr.as_ref()));
+    let start = addr.as_ref().map(Bound::exclusive);
 
     let escrows: StdResult<Vec<_>> = ESCROWS
         .range(deps.storage, start, None, Order::Ascending)
@@ -1521,7 +1525,7 @@ pub(crate) fn list_proposals<Q: CustomQuery>(
     reverse: bool,
 ) -> StdResult<ProposalListResponse> {
     let limit = limit.unwrap_or(DEFAULT_LIMIT).min(MAX_LIMIT) as usize;
-    let start = start_after.map(Bound::exclusive_int);
+    let start = start_after.map(Bound::exclusive);
     let range = if reverse {
         PROPOSALS.range(deps.storage, None, start, Order::Descending)
     } else {
@@ -1578,7 +1582,7 @@ pub(crate) fn list_votes_by_proposal<Q: CustomQuery>(
 ) -> StdResult<VoteListResponse> {
     let limit = limit.unwrap_or(DEFAULT_LIMIT).min(MAX_LIMIT) as usize;
     let addr = maybe_addr(deps.api, start_after)?;
-    let start = addr.map(|addr| Bound::exclusive(addr.as_ref()));
+    let start = addr.as_ref().map(Bound::exclusive);
 
     let votes: StdResult<Vec<_>> = BALLOTS
         .prefix(proposal_id)
@@ -1605,7 +1609,7 @@ pub(crate) fn list_votes_by_voter<Q: CustomQuery>(
     limit: Option<u32>,
 ) -> StdResult<VoteListResponse> {
     let limit = limit.unwrap_or(DEFAULT_LIMIT).min(MAX_LIMIT) as usize;
-    let start = start_after.map(Bound::exclusive_int);
+    let start = start_after.map(Bound::exclusive);
     let voter_addr = deps.api.addr_validate(&voter)?;
 
     let votes: StdResult<Vec<_>> = BALLOTS_BY_VOTER
@@ -1685,7 +1689,7 @@ fn query_withdrawable_funds<Q: CustomQuery>(
     Ok(RewardsResponse { rewards })
 }
 
-fn query_distributed_funds<Q: CustomQuery>(deps: Deps) -> StdResult<RewardsResponse> {
+fn query_distributed_funds<Q: CustomQuery>(deps: Deps<Q>) -> StdResult<RewardsResponse> {
     let rewards = DISTRIBUTION.distributed_rewards(deps)?;
     Ok(RewardsResponse { rewards })
 }
