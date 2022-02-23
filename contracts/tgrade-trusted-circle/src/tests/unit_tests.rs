@@ -14,6 +14,8 @@ use crate::state::{EscrowStatus, Punishment};
 use crate::tests::bdd_tests::{
     propose_add_voting_members_and_execute, PROPOSAL_ID_1, PROPOSAL_ID_2,
 };
+use tg_bindings::TgradeQuery;
+use tg_bindings_test::mock_deps_tgrade;
 
 // Used for the whitelisting test
 pub const TOKEN_CONTRACT: Item<String> = Item::new("contract_info");
@@ -97,7 +99,7 @@ impl Querier for TokenQuerier {
 
 #[test]
 fn instantiation_no_funds() {
-    let mut deps = mock_dependencies();
+    let mut deps = mock_deps_tgrade();
     let info = mock_info(INIT_ADMIN, &[]);
     let res = do_instantiate(deps.as_mut(), info, vec![], false);
 
@@ -111,7 +113,7 @@ fn instantiation_no_funds() {
 
 #[test]
 fn instantiation_some_funds() {
-    let mut deps = mock_dependencies();
+    let mut deps = mock_deps_tgrade();
     let info = mock_info(INIT_ADMIN, &[coin(1u128, "utgd")]);
 
     let res = do_instantiate(deps.as_mut(), info, vec![], false);
@@ -126,7 +128,7 @@ fn instantiation_some_funds() {
 
 #[test]
 fn instantiation_enough_funds() {
-    let mut deps = mock_dependencies();
+    let mut deps = mock_deps_tgrade();
     let info = mock_info(INIT_ADMIN, &escrow_funds());
 
     do_instantiate(deps.as_mut(), info, vec![], false).unwrap();
@@ -155,7 +157,7 @@ fn instantiation_enough_funds() {
 
 #[test]
 fn test_proposal_validation() {
-    let mut deps = mock_dependencies();
+    let mut deps = mock_deps_tgrade();
     let info = mock_info(INIT_ADMIN, &escrow_funds());
     let env = mock_env();
 
@@ -203,7 +205,7 @@ fn test_proposal_validation() {
 
 #[test]
 fn add_voting_members_validation() {
-    let mut deps = mock_dependencies();
+    let mut deps = mock_deps_tgrade();
     let info = mock_info(INIT_ADMIN, &escrow_funds());
     do_instantiate(deps.as_mut(), info, vec![], false).unwrap();
 
@@ -223,7 +225,7 @@ fn add_voting_members_validation() {
 
 #[test]
 fn test_add_voting_members_overlapping_batches() {
-    let mut deps = mock_dependencies();
+    let mut deps = mock_deps_tgrade();
     // use different admin, so we have 4 available slots for queries
     let info = mock_info(INIT_ADMIN, &escrow_funds());
     do_instantiate(deps.as_mut(), info, vec![], false).unwrap();
@@ -294,7 +296,7 @@ fn test_add_voting_members_overlapping_batches() {
 
 #[test]
 fn test_escrows() {
-    let mut deps = mock_dependencies();
+    let mut deps = mock_deps_tgrade();
     let info = mock_info(INIT_ADMIN, &escrow_funds());
     do_instantiate(deps.as_mut(), info, vec![], false).unwrap();
 
@@ -619,7 +621,7 @@ fn test_escrows() {
 
 #[test]
 fn test_initial_nonvoting_members() {
-    let mut deps = mock_dependencies();
+    let mut deps = mock_deps_tgrade();
     let info = mock_info(INIT_ADMIN, &escrow_funds());
     // even handle duplicates ignoring the copy
     let initial = vec![NONVOTING1.into(), NONVOTING3.into(), NONVOTING1.into()];
@@ -629,7 +631,7 @@ fn test_initial_nonvoting_members() {
 
 #[test]
 fn update_non_voting_members_validation() {
-    let mut deps = mock_dependencies();
+    let mut deps = mock_deps_tgrade();
     let info = mock_info(INIT_ADMIN, &escrow_funds());
     do_instantiate(deps.as_mut(), info, vec![], false).unwrap();
 
@@ -652,7 +654,7 @@ fn update_non_voting_members_validation() {
 
 #[test]
 fn test_update_nonvoting_members() {
-    let mut deps = mock_dependencies();
+    let mut deps = mock_deps_tgrade();
     let info = mock_info(INIT_ADMIN, &escrow_funds());
     do_instantiate(deps.as_mut(), info, vec![], false).unwrap();
 
@@ -771,7 +773,7 @@ fn test_whitelist_contract() {
         storage: MockStorage::default(),
         api: MockApi::default(),
         querier,
-        custom_query_type: PhantomData::<Empty>,
+        custom_query_type: PhantomData::<TgradeQuery>,
     };
 
     let info = mock_info(INIT_ADMIN, &escrow_funds());
@@ -860,7 +862,7 @@ fn test_whitelist_contract() {
 
 #[test]
 fn propose_new_voting_rules() {
-    let mut deps = mock_dependencies();
+    let mut deps = mock_deps_tgrade();
     let info = mock_info(INIT_ADMIN, &escrow_funds());
     do_instantiate(deps.as_mut(), info, vec![], false).unwrap();
 
@@ -940,7 +942,7 @@ fn propose_new_voting_rules() {
 
 #[test]
 fn rules_can_be_frozen_on_instantiation() {
-    let mut deps = mock_dependencies();
+    let mut deps = mock_deps_tgrade();
     let info = mock_info(INIT_ADMIN, &escrow_funds());
     do_instantiate(deps.as_mut(), info, vec![], true).unwrap();
 
@@ -978,7 +980,7 @@ fn rules_can_be_frozen_on_instantiation() {
 
 #[test]
 fn rules_can_be_frozen_with_adjustment() {
-    let mut deps = mock_dependencies();
+    let mut deps = mock_deps_tgrade();
     let info = mock_info(INIT_ADMIN, &escrow_funds());
     do_instantiate(deps.as_mut(), info, vec![], false).unwrap();
 
@@ -1071,7 +1073,7 @@ fn rules_can_be_frozen_with_adjustment() {
 
 #[test]
 fn propose_new_voting_rules_validation() {
-    let mut deps = mock_dependencies();
+    let mut deps = mock_deps_tgrade();
     let info = mock_info(INIT_ADMIN, &escrow_funds());
     do_instantiate(deps.as_mut(), info, vec![], false).unwrap();
 
@@ -1111,7 +1113,7 @@ fn propose_new_voting_rules_validation() {
 #[test]
 fn raw_queries_work() {
     let info = mock_info(INIT_ADMIN, &escrow_funds());
-    let mut deps = mock_dependencies();
+    let mut deps = mock_deps_tgrade();
     do_instantiate(deps.as_mut(), info, vec![], false).unwrap();
 
     // get total from raw key
@@ -1131,7 +1133,7 @@ fn raw_queries_work() {
 
 const VOTING4: &str = "bouncer";
 
-fn create_proposal(deps: DepsMut, delay: u64) -> u64 {
+fn create_proposal(deps: DepsMut<TgradeQuery>, delay: u64) -> u64 {
     // meaningless proposal
     let msg = ExecuteMsg::Propose {
         title: "Another Proposal".into(),
@@ -1146,7 +1148,7 @@ fn create_proposal(deps: DepsMut, delay: u64) -> u64 {
     parse_prop_id(&res.attributes)
 }
 
-fn assert_prop_status(deps: Deps, proposal_id: u64, delay: u64, expected: Status) {
+fn assert_prop_status(deps: Deps<TgradeQuery>, proposal_id: u64, delay: u64, expected: Status) {
     let time = later(&mock_env(), delay);
     let prop = query_proposal(deps, time, proposal_id).unwrap();
     assert_eq!(prop.status, expected);
@@ -1173,7 +1175,7 @@ fn yes_vote(proposal_id: u64) -> ExecuteMsg {
 #[test]
 fn leaving_voter_cannot_vote_anymore() {
     let info = mock_info(INIT_ADMIN, &escrow_funds());
-    let mut deps = mock_dependencies();
+    let mut deps = mock_deps_tgrade();
     let msg = InstantiateMsg {
         name: "Leaving votes".to_string(),
         escrow_amount: Uint128::new(ESCROW_FUNDS),
@@ -1322,7 +1324,7 @@ fn leaving_voter_cannot_vote_anymore() {
 
 #[test]
 fn propose_punish_members_distribution() {
-    let mut deps = mock_dependencies();
+    let mut deps = mock_deps_tgrade();
     let start = mock_env();
     let info = mock_info(INIT_ADMIN, &escrow_funds());
     do_instantiate(
@@ -1458,7 +1460,7 @@ fn propose_punish_members_distribution_zero_slash() {
     // Just perform `propose_punish_members_distribution` test, but with 0 slashing. At the end
     // ensure that not bank messages are send. To make test simpler most intermediate checks are
     // removed.
-    let mut deps = mock_dependencies();
+    let mut deps = mock_deps_tgrade();
     let start = mock_env();
     let info = mock_info(INIT_ADMIN, &escrow_funds());
     do_instantiate(
@@ -1516,7 +1518,7 @@ fn propose_punish_members_distribution_zero_slash() {
 
 #[test]
 fn propose_punish_members_burn() {
-    let mut deps = mock_dependencies();
+    let mut deps = mock_deps_tgrade();
     let start = mock_env();
     let info = mock_info(INIT_ADMIN, &escrow_funds());
     do_instantiate(
@@ -1636,7 +1638,7 @@ fn propose_punish_members_burn_zero_slashing() {
     // Just perform `propose_punish_members_burn` test, but with 0 slashing. At the end
     // ensure that not bank messages are send. To make test simpler most intermediate checks are
     // removed.
-    let mut deps = mock_dependencies();
+    let mut deps = mock_deps_tgrade();
     let start = mock_env();
     let info = mock_info(INIT_ADMIN, &escrow_funds());
     do_instantiate(
@@ -1691,7 +1693,7 @@ fn propose_punish_members_burn_zero_slashing() {
 
 #[test]
 fn punish_members_validation() {
-    let mut deps = mock_dependencies();
+    let mut deps = mock_deps_tgrade();
     let info = mock_info(INIT_ADMIN, &escrow_funds());
     do_instantiate(
         deps.as_mut(),
@@ -1808,7 +1810,7 @@ fn punish_members_validation() {
 
 #[test]
 fn propose_punish_members_kick_out() {
-    let mut deps = mock_dependencies();
+    let mut deps = mock_deps_tgrade();
     let start_env = mock_env();
     let info = mock_info(INIT_ADMIN, &escrow_funds());
     do_instantiate(
@@ -1949,7 +1951,7 @@ fn propose_punish_members_kick_out() {
 
 #[test]
 fn propose_punish_multiple_members() {
-    let mut deps = mock_dependencies();
+    let mut deps = mock_deps_tgrade();
     let start = mock_env();
     let info = mock_info(INIT_ADMIN, &escrow_funds());
     do_instantiate(
@@ -2095,7 +2097,7 @@ fn propose_punish_multiple_members() {
 
 #[test]
 fn voting_rules_query() {
-    let mut deps = mock_dependencies();
+    let mut deps = mock_deps_tgrade();
     let info = mock_info(INIT_ADMIN, &escrow_funds());
     do_instantiate(deps.as_mut(), info, vec![], false).unwrap();
 

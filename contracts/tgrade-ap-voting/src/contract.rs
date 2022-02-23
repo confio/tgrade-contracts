@@ -66,12 +66,14 @@ pub fn execute(
         } => execute_propose(deps, env, info, title, description, proposal)
             .map_err(ContractError::from),
         Vote { proposal_id, vote } => {
-            execute_vote::<ArbiterProposal>(deps, env, info, proposal_id, vote)
+            execute_vote::<ArbiterProposal, Empty>(deps, env, info, proposal_id, vote)
                 .map_err(ContractError::from)
         }
         Execute { proposal_id } => execute_execute(deps, env, info, proposal_id),
-        Close { proposal_id } => execute_close::<ArbiterProposal>(deps, env, info, proposal_id)
-            .map_err(ContractError::from),
+        Close { proposal_id } => {
+            execute_close::<ArbiterProposal, Empty>(deps, env, info, proposal_id)
+                .map_err(ContractError::from)
+        }
         RegisterComplaint {
             title,
             description,
@@ -279,11 +281,13 @@ pub fn query(deps: Deps, env: Env, msg: QueryMsg) -> StdResult<Binary> {
 
     match msg {
         Rules {} => to_binary(&query_rules(deps)?),
-        Proposal { proposal_id } => {
-            to_binary(&query_proposal::<EmptyProposal>(deps, env, proposal_id)?)
-        }
+        Proposal { proposal_id } => to_binary(&query_proposal::<EmptyProposal, Empty>(
+            deps,
+            env,
+            proposal_id,
+        )?),
         Vote { proposal_id, voter } => to_binary(&query_vote(deps, proposal_id, voter)?),
-        ListProposals { start_after, limit } => to_binary(&list_proposals::<EmptyProposal>(
+        ListProposals { start_after, limit } => to_binary(&list_proposals::<EmptyProposal, Empty>(
             deps,
             env,
             start_after,
@@ -292,7 +296,7 @@ pub fn query(deps: Deps, env: Env, msg: QueryMsg) -> StdResult<Binary> {
         ReverseProposals {
             start_before,
             limit,
-        } => to_binary(&reverse_proposals::<EmptyProposal>(
+        } => to_binary(&reverse_proposals::<EmptyProposal, Empty>(
             deps,
             env,
             start_before,
@@ -342,7 +346,7 @@ pub fn query_list_complaints(
     start_after: Option<u64>,
     limit: usize,
 ) -> StdResult<ListComplaintsResp> {
-    let start = start_after.map(Bound::exclusive_int);
+    let start = start_after.map(Bound::exclusive);
     COMPLAINTS
         .range(deps.storage, start, None, Order::Ascending)
         .take(limit)

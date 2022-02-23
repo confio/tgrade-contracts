@@ -7,8 +7,8 @@ use crate::distribution::Distribution;
 use crate::error::ContractError;
 use crate::state::MemberStatus::NonVoting;
 use cosmwasm_std::{
-    attr, Addr, Attribute, BlockInfo, Decimal, Deps, Env, Event, StdError, StdResult, Storage,
-    Timestamp, Uint128,
+    attr, Addr, Attribute, BlockInfo, CustomQuery, Decimal, Deps, Env, Event, StdError, StdResult,
+    Storage, Timestamp, Uint128,
 };
 use cw_storage_plus::{Index, IndexList, IndexedMap, Item, Map, MultiIndex};
 use cw_utils::Expiration;
@@ -257,7 +257,7 @@ impl Punishment {
         evt
     }
 
-    pub fn validate(&self, deps: &Deps) -> Result<(), ContractError> {
+    pub fn validate<Q: CustomQuery>(&self, deps: &Deps<Q>) -> Result<(), ContractError> {
         match &self {
             Punishment::DistributeEscrow {
                 member,
