@@ -1,8 +1,9 @@
-use cosmwasm_std::{Addr, DepsMut, Empty, Env, Order};
-use cw_storage_plus::Map;
-use cw_utils::Expiration;
 use semver::Version;
 use serde::{Deserialize, Serialize};
+
+use cosmwasm_std::{Addr, CustomQuery, DepsMut, Empty, Env, Order};
+use cw_storage_plus::Map;
+use cw_utils::Expiration;
 use tg3::{Status, Vote};
 
 use crate::error::ContractError;
@@ -26,8 +27,8 @@ impl BallotV0_6_0Beta1 {
     }
 }
 
-pub fn migrate_ballots(
-    deps: DepsMut,
+pub fn migrate_ballots<Q: CustomQuery>(
+    deps: DepsMut<Q>,
     _env: &Env,
     _msg: &Empty,
     version: &Version,
@@ -87,8 +88,8 @@ impl ProposalV0_6_0Beta1 {
     }
 }
 
-pub fn migrate_proposals(
-    deps: DepsMut,
+pub fn migrate_proposals<Q: CustomQuery>(
+    deps: DepsMut<Q>,
     _env: &Env,
     _msg: &Empty,
     version: &Version,

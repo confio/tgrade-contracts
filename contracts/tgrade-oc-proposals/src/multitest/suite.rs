@@ -4,7 +4,7 @@ use cosmwasm_std::{coin, Addr, Binary, Coin, Decimal, StdResult};
 use cw_multi_test::{AppResponse, Contract, ContractWrapper, Executor};
 use tg3::{Status, Vote, VoteInfo, VoteListResponse, VoteResponse, VoterResponse};
 use tg4::{Member, MemberResponse, Tg4ExecuteMsg, Tg4QueryMsg};
-use tg_bindings::{TgradeMsg, ValidatorDiff};
+use tg_bindings::{TgradeMsg, TgradeQuery, ValidatorDiff};
 use tg_bindings_test::TgradeApp;
 use tg_utils::{Duration, JailingDuration};
 use tgrade_valset::msg::UnvalidatedDistributionContracts;
@@ -25,7 +25,7 @@ pub fn get_proposal_id(response: &AppResponse) -> Result<u64, std::num::ParseInt
     response.custom_attrs(1)[2].value.parse()
 }
 
-fn contract_oc_proposals() -> Box<dyn Contract<TgradeMsg>> {
+fn contract_oc_proposals() -> Box<dyn Contract<TgradeMsg, TgradeQuery>> {
     let contract = ContractWrapper::new(
         crate::contract::execute,
         crate::contract::instantiate,
@@ -35,7 +35,7 @@ fn contract_oc_proposals() -> Box<dyn Contract<TgradeMsg>> {
     Box::new(contract)
 }
 
-fn contract_engagement() -> Box<dyn Contract<TgradeMsg>> {
+fn contract_engagement() -> Box<dyn Contract<TgradeMsg, TgradeQuery>> {
     let contract = ContractWrapper::new(
         tg4_engagement::contract::execute,
         tg4_engagement::contract::instantiate,
@@ -45,7 +45,7 @@ fn contract_engagement() -> Box<dyn Contract<TgradeMsg>> {
     Box::new(contract)
 }
 
-pub fn contract_valset() -> Box<dyn Contract<TgradeMsg>> {
+pub fn contract_valset() -> Box<dyn Contract<TgradeMsg, TgradeQuery>> {
     let contract = ContractWrapper::new(
         tgrade_valset::contract::execute,
         tgrade_valset::contract::instantiate,

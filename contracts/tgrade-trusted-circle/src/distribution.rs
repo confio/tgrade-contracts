@@ -1,10 +1,11 @@
-use crate::error::ContractError;
-use crate::i128::Int128;
-use cosmwasm_std::{coin, Addr, Coin, Deps, DepsMut, Env, StdResult, Uint128};
-use cw_storage_plus::{Item, Map};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
+use cosmwasm_std::{coin, Addr, Coin, CustomQuery, Deps, DepsMut, Env, StdResult, Uint128};
+use cw_storage_plus::{Item, Map};
+
+use crate::error::ContractError;
+use crate::i128::Int128;
 /// How much points is the worth of single token in token distribution.
 /// The scaling is performed to have better precision of fixed point division.
 /// This value is not actually the scaling itself, but how much bits value should be shifted
@@ -50,7 +51,7 @@ impl<'a> Distribution<'a> {
         }
     }
 
-    pub fn init(&self, deps: DepsMut, denom: impl ToString) -> StdResult<()> {
+    pub fn init<Q: CustomQuery>(&self, deps: DepsMut<Q>, denom: impl ToString) -> StdResult<()> {
         self.config.save(
             deps.storage,
             &DistributionConfig {
@@ -64,9 +65,9 @@ impl<'a> Distribution<'a> {
     }
 
     /// Returns total number of tokens distributed as rewards
-    pub fn distribute_rewards(
+    pub fn distribute_rewards<Q: CustomQuery>(
         &self,
-        deps: DepsMut,
+        deps: DepsMut<Q>,
         env: Env,
         total: u128,
     ) -> Result<Coin, ContractError> {
@@ -107,9 +108,9 @@ impl<'a> Distribution<'a> {
     }
 
     /// Returns Coin which should be send to receiver as a withdrawal
-    pub fn withdraw_rewards(
+    pub fn withdraw_rewards<Q: CustomQuery>(
         &self,
-        deps: DepsMut,
+        deps: DepsMut<Q>,
         owner: &Addr,
         points: u128,
     ) -> Result<Coin, ContractError> {
@@ -138,9 +139,9 @@ impl<'a> Distribution<'a> {
     }
 
     /// Returns how much rewards is available for withdrawal for owner
-    pub fn adjusted_withdrawable_rewards(
+    pub fn adjusted_withdrawable_rewards<Q: CustomQuery>(
         &self,
-        deps: Deps,
+        deps: Deps<Q>,
         owner: Addr,
         points: u128,
     ) -> StdResult<Coin> {
@@ -158,7 +159,7 @@ impl<'a> Distribution<'a> {
     }
 
     /// Returns how much rewards was already distributed
-    pub fn distributed_rewards(&self, deps: Deps) -> StdResult<Coin> {
+    pub fn distributed_rewards<Q: CustomQuery>(&self, deps: Deps<Q>) -> StdResult<Coin> {
         let distribution = self.config.load(deps.storage)?;
         Ok(coin(
             distribution.distributed_total.into(),
@@ -167,7 +168,11 @@ impl<'a> Distribution<'a> {
     }
 
     /// Returns how much rewards are pending for distribution
-    pub fn undistributed_rewards(&self, deps: Deps, env: Env) -> StdResult<Coin> {
+    pub fn undistributed_rewards<Q: CustomQuery>(
+        &self,
+        deps: Deps<Q>,
+        env: Env,
+    ) -> StdResult<Coin> {
         let distribution = self.config.load(deps.storage)?;
         let balance = deps
             .querier
@@ -181,7 +186,11 @@ impl<'a> Distribution<'a> {
     }
 
     /// Performs points correction basing on points changes
-    pub fn apply_points_correction(&self, deps: DepsMut, diff: &[(&Addr, i128)]) -> StdResult<()> {
+    pub fn apply_points_correction<Q: CustomQuery>(
+        &self,
+        deps: DepsMut<Q>,
+        diff: &[(&Addr, i128)],
+    ) -> StdResult<()> {
         let points_per_points = self.config.load(deps.storage)?.points_per_points.u128();
 
         for (addr, diff) in diff {

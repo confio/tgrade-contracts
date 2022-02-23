@@ -1,8 +1,8 @@
 #[cfg(not(feature = "library"))]
 use cosmwasm_std::entry_point;
 use cosmwasm_std::{
-    coin, to_binary, BankMsg, Binary, CosmosMsg, Decimal, Deps, DepsMut, Empty, Env, MessageInfo,
-    Order, StdResult,
+    coin, to_binary, BankMsg, Binary, CosmosMsg, CustomQuery, Decimal, Deps, DepsMut, Empty, Env,
+    MessageInfo, Order, StdResult,
 };
 use cw_storage_plus::Bound;
 
@@ -29,8 +29,8 @@ const CONTRACT_NAME: &str = "crates.io:tgrade_validator_voting_proposals";
 const CONTRACT_VERSION: &str = env!("CARGO_PKG_VERSION");
 
 #[cfg_attr(not(feature = "library"), entry_point)]
-pub fn instantiate(
-    deps: DepsMut,
+pub fn instantiate<Q: CustomQuery>(
+    deps: DepsMut<Q>,
     _env: Env,
     _info: MessageInfo,
     msg: InstantiateMsg,
@@ -50,8 +50,8 @@ pub fn instantiate(
 }
 
 #[cfg_attr(not(feature = "library"), entry_point)]
-pub fn execute(
-    deps: DepsMut,
+pub fn execute<Q: CustomQuery>(
+    deps: DepsMut<Q>,
     env: Env,
     info: MessageInfo,
     msg: ExecuteMsg,
@@ -66,11 +66,11 @@ pub fn execute(
         } => execute_propose(deps, env, info, title, description, proposal)
             .map_err(ContractError::from),
         Vote { proposal_id, vote } => {
-            execute_vote::<ArbiterProposal>(deps, env, info, proposal_id, vote)
+            execute_vote::<ArbiterProposal, Q>(deps, env, info, proposal_id, vote)
                 .map_err(ContractError::from)
         }
         Execute { proposal_id } => execute_execute(deps, env, info, proposal_id),
-        Close { proposal_id } => execute_close::<ArbiterProposal>(deps, env, info, proposal_id)
+        Close { proposal_id } => execute_close::<ArbiterProposal, Q>(deps, env, info, proposal_id)
             .map_err(ContractError::from),
         RegisterComplaint {
             title,
@@ -85,8 +85,8 @@ pub fn execute(
     }
 }
 
-pub fn execute_execute(
-    deps: DepsMut,
+pub fn execute_execute<Q: CustomQuery>(
+    deps: DepsMut<Q>,
     env: Env,
     info: MessageInfo,
     proposal_id: u64,
@@ -104,8 +104,8 @@ pub fn execute_execute(
         .add_attribute("sender", info.sender))
 }
 
-pub fn execute_register_complaint(
-    deps: DepsMut,
+pub fn execute_register_complaint<Q: CustomQuery>(
+    deps: DepsMut<Q>,
     env: Env,
     info: MessageInfo,
     title: String,
@@ -149,8 +149,8 @@ pub fn execute_register_complaint(
     Ok(resp)
 }
 
-pub fn execute_accept_complaint(
-    deps: DepsMut,
+pub fn execute_accept_complaint<Q: CustomQuery>(
+    deps: DepsMut<Q>,
     env: Env,
     info: MessageInfo,
     complaint_id: u64,
@@ -195,8 +195,8 @@ pub fn execute_accept_complaint(
     Ok(resp)
 }
 
-fn execute_withdraw_complaint(
-    deps: DepsMut,
+fn execute_withdraw_complaint<Q: CustomQuery>(
+    deps: DepsMut<Q>,
     env: Env,
     info: MessageInfo,
     complaint_id: u64,
@@ -272,7 +272,7 @@ fn align_limit(limit: Option<u32>) -> usize {
 }
 
 #[cfg_attr(not(feature = "library"), entry_point)]
-pub fn query(deps: Deps, env: Env, msg: QueryMsg) -> StdResult<Binary> {
+pub fn query<Q: CustomQuery>(deps: Deps<Q>, env: Env, msg: QueryMsg) -> StdResult<Binary> {
     use QueryMsg::*;
     // Just for easier distinguish between Proposal `Empty` and potential other `Empty`
     type EmptyProposal = Empty;
@@ -280,10 +280,10 @@ pub fn query(deps: Deps, env: Env, msg: QueryMsg) -> StdResult<Binary> {
     match msg {
         Rules {} => to_binary(&query_rules(deps)?),
         Proposal { proposal_id } => {
-            to_binary(&query_proposal::<EmptyProposal>(deps, env, proposal_id)?)
+            to_binary(&query_proposal::<EmptyProposal, Q>(deps, env, proposal_id)?)
         }
         Vote { proposal_id, voter } => to_binary(&query_vote(deps, proposal_id, voter)?),
-        ListProposals { start_after, limit } => to_binary(&list_proposals::<EmptyProposal>(
+        ListProposals { start_after, limit } => to_binary(&list_proposals::<EmptyProposal, Q>(
             deps,
             env,
             start_after,
@@ -292,7 +292,7 @@ pub fn query(deps: Deps, env: Env, msg: QueryMsg) -> StdResult<Binary> {
         ReverseProposals {
             start_before,
             limit,
-        } => to_binary(&reverse_proposals::<EmptyProposal>(
+        } => to_binary(&reverse_proposals::<EmptyProposal, Q>(
             deps,
             env,
             start_before,
@@ -331,18 +331,22 @@ pub fn query(deps: Deps, env: Env, msg: QueryMsg) -> StdResult<Binary> {
     }
 }
 
-pub fn query_complaint(deps: Deps, env: Env, complaint_id: u64) -> StdResult<Complaint> {
+pub fn query_complaint<Q: CustomQuery>(
+    deps: Deps<Q>,
+    env: Env,
+    complaint_id: u64,
+) -> StdResult<Complaint> {
     let complaint = COMPLAINTS.load(deps.storage, complaint_id)?;
     Ok(complaint.update_state(&env.block))
 }
 
-pub fn query_list_complaints(
-    deps: Deps,
+pub fn query_list_complaints<Q: CustomQuery>(
+    deps: Deps<Q>,
     env: Env,
     start_after: Option<u64>,
     limit: usize,
 ) -> StdResult<ListComplaintsResp> {
-    let start = start_after.map(Bound::exclusive_int);
+    let start = start_after.map(Bound::exclusive);
     COMPLAINTS
         .range(deps.storage, start, None, Order::Ascending)
         .take(limit)
@@ -352,14 +356,18 @@ pub fn query_list_complaints(
 }
 
 #[cfg_attr(not(feature = "library"), entry_point)]
-pub fn sudo(deps: DepsMut, _env: Env, msg: TgradeSudoMsg) -> Result<Response, ContractError> {
+pub fn sudo<Q: CustomQuery>(
+    _deps: DepsMut<Q>,
+    _env: Env,
+    msg: TgradeSudoMsg,
+) -> Result<Response, ContractError> {
     match msg {
-        TgradeSudoMsg::PrivilegeChange(change) => Ok(privilege_change(deps, change)),
+        TgradeSudoMsg::PrivilegeChange(change) => Ok(privilege_change(change)),
         _ => Err(ContractError::UnsupportedSudoType {}),
     }
 }
 
-fn privilege_change(_deps: DepsMut, change: PrivilegeChangeMsg) -> Response {
+fn privilege_change(change: PrivilegeChangeMsg) -> Response {
     match change {
         PrivilegeChangeMsg::Promoted {} => {
             let msgs = request_privileges(&[
@@ -373,7 +381,11 @@ fn privilege_change(_deps: DepsMut, change: PrivilegeChangeMsg) -> Response {
 }
 
 #[cfg_attr(not(feature = "library"), entry_point)]
-pub fn migrate(deps: DepsMut, _env: Env, _msg: Empty) -> Result<Response, ContractError> {
+pub fn migrate<Q: CustomQuery>(
+    deps: DepsMut<Q>,
+    _env: Env,
+    _msg: Empty,
+) -> Result<Response, ContractError> {
     ensure_from_older_version(deps.storage, CONTRACT_NAME, CONTRACT_VERSION)?;
     Ok(Response::new())
 }
