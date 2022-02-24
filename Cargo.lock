@@ -662,9 +662,9 @@ dependencies = [
 
 [[package]]
 name = "tg-test-utils"
-version = "0.7.0-alpha1"
+version = "0.7.0-alpha2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "e82f954bec5d8c087eac155b6be9895ed1ce9461a0f6db527bde4a719087339a"
+checksum = "b083cfa8785412f6dc567f4f6d2437d7cbfe1ba066c5ff17ecb6849a868b0f74"
 dependencies = [
  "cosmwasm-std",
  "tg-voting-contract",
@@ -828,9 +828,9 @@ dependencies = [
 
 [[package]]
 name = "tgrade-valset"
-version = "0.7.0-alpha1"
+version = "0.7.0-alpha2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "408725ae959dd7411bad7ce86c49c55ee48ece94f7b17c960eb1575339abde00"
+checksum = "5b31276fa49c4f7dbc8520741149a02ec1e04d67abbc6c357f7fd1c1531d10f4"
 dependencies = [
  "cosmwasm-std",
  "cw-controllers",
