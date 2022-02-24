@@ -1602,7 +1602,7 @@ pub(crate) fn list_votes_by_voter<Q: CustomQuery>(
 ) -> StdResult<VoteListResponse> {
     let limit = limit.unwrap_or(DEFAULT_LIMIT).min(MAX_LIMIT) as usize;
     let voter_addr = deps.api.addr_validate(&voter)?;
-    let start = start_after.map(|m| Bound::exclusive((m, voter_addr.clone())));
+    let start = start_after.map(|proposal_id| Bound::exclusive((proposal_id, voter_addr.clone())));
 
     let votes: StdResult<Vec<_>> = ballots()
         .ballots
@@ -1710,6 +1710,7 @@ pub fn migrate(
     let stored_version: Version = stored_version.version.parse().unwrap();
 
     // FIXME: Currently we don't need mechanism for migrating ballots, as testnets starts from scratch anyway
+    // migrate_ballots(deps.branch(), &env, &msg, &stored_version)?;
     migrate_proposals(deps.branch(), &env, &msg, &stored_version)?;
 
     Ok(Response::new())
