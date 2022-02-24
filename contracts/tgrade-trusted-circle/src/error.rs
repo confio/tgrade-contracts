@@ -3,6 +3,7 @@ use thiserror::Error;
 
 use crate::state::MemberStatus;
 use cw_utils::PaymentError;
+use tg_voting_contract::ContractError as VotingContractError;
 
 #[derive(Error, Debug, PartialEq)]
 pub enum ContractError {
@@ -109,6 +110,9 @@ pub enum ContractError {
 
     #[error("No members to distribute tokens to")]
     NoMembersToDistributeTo,
+
+    #[error("{0}")]
+    VotingContract(#[from] VotingContractError),
 }
 
 impl From<OverflowError> for ContractError {

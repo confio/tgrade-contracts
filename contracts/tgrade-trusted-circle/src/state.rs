@@ -598,35 +598,14 @@ fn votes_needed(points: u64, percentage: Decimal) -> u64 {
     ((applied.u128() + PRECISION_FACTOR - 1) / PRECISION_FACTOR) as u64
 }
 
-// we cast a ballot with our chosen vote and a given points
-// stored under the key that voted
-#[derive(Serialize, Deserialize, Clone, PartialEq, JsonSchema, Debug)]
-pub struct Ballot {
-    pub points: u64,
-    pub vote: Vote,
-}
-
 // unique items
 pub const PROPOSAL_COUNT: Item<u64> = Item::new("proposal_count");
 
-// multiple-item map
-pub const BALLOTS: Map<(u64, &Addr), Ballot> = Map::new("votes");
-pub const BALLOTS_BY_VOTER: Map<(&Addr, u64), Ballot> = Map::new("votes_by_voter");
 pub const PROPOSALS: Map<u64, Proposal> = Map::new("proposals");
 // This maps expiration timestamp (seconds) to Proposal primary key,
 // needed for bounded size queries in adjust_open_proposals_for_leaver
 // Just add in create_proposal
 pub const PROPOSAL_BY_EXPIRY: Map<u64, u64> = Map::new("proposals_by_expiry");
-
-pub fn save_ballot(
-    storage: &mut dyn Storage,
-    proposal_id: u64,
-    sender: &Addr,
-    ballot: &Ballot,
-) -> StdResult<()> {
-    BALLOTS.save(storage, (proposal_id, sender), ballot)?;
-    BALLOTS_BY_VOTER.save(storage, (sender, proposal_id), ballot)
-}
 
 pub fn create_proposal(store: &mut dyn Storage, proposal: &Proposal) -> StdResult<u64> {
     let expiry = match proposal.expires {
