@@ -13,9 +13,10 @@ use tg3::{Status, Vote};
 use tg4::{member_key, Member, MemberListResponse, MemberResponse, TotalPointsResponse};
 use tg_bindings::{TgradeMsg, TgradeQuery};
 use tg_utils::{ensure_from_older_version, members, TOTAL};
+use tg_voting_contract::ballots::ballots;
 
 use crate::error::ContractError;
-use crate::migration::{migrate_ballots, migrate_proposals};
+use crate::migration::migrate_proposals;
 use crate::msg::{
     Escrow, EscrowListResponse, EscrowResponse, ExecuteMsg, InstantiateMsg, ProposalListResponse,
     ProposalResponse, QueryMsg, RewardsResponse, RulesResponse, TrustedCircleResponse, VoteInfo,
@@ -23,10 +24,9 @@ use crate::msg::{
 };
 use crate::state::MemberStatus::NonVoting;
 use crate::state::{
-    batches, create_batch, create_proposal, save_ballot, Ballot, Batch, EscrowStatus, MemberStatus,
-    Proposal, ProposalContent, Punishment, TrustedCircle, TrustedCircleAdjustments, Votes,
-    VotingRules, BALLOTS, BALLOTS_BY_VOTER, DISTRIBUTION, ESCROWS, PROPOSALS, PROPOSAL_BY_EXPIRY,
-    TRUSTED_CIRCLE,
+    batches, create_batch, create_proposal, Batch, EscrowStatus, MemberStatus, Proposal,
+    ProposalContent, Punishment, TrustedCircle, TrustedCircleAdjustments, Votes, VotingRules,
+    DISTRIBUTION, ESCROWS, PROPOSALS, PROPOSAL_BY_EXPIRY, TRUSTED_CIRCLE,
 };
 
 // version info for migration info
@@ -429,11 +429,7 @@ pub fn execute_propose<Q: CustomQuery>(
     let id = create_proposal(deps.storage, &prop)?;
 
     // add the first yes vote from voter
-    let ballot = Ballot {
-        points: vote_power,
-        vote: Vote::Yes,
-    };
-    save_ballot(deps.storage, id, &info.sender, &ballot)?;
+    ballots().create_ballot(deps.storage, &info.sender, id, vote_power, Vote::Yes)?;
 
     let res = Response::new()
         .add_attribute("proposal_id", id.to_string())
@@ -562,18 +558,7 @@ pub fn execute_vote<Q: CustomQuery>(
         return Err(ContractError::InvalidStatus(escrow.status));
     }
 
-    if BALLOTS
-        .may_load(deps.storage, (proposal_id, &info.sender))?
-        .is_some()
-    {
-        return Err(ContractError::AlreadyVoted {});
-    }
-    // cast vote if no vote previously cast
-    let ballot = Ballot {
-        points: vote_power,
-        vote,
-    };
-    save_ballot(deps.storage, proposal_id, &info.sender, &ballot)?;
+    ballots().create_ballot(deps.storage, &info.sender, proposal_id, vote_power, vote)?;
 
     // update vote tally
     prop.votes.add_vote(vote, vote_power);
@@ -741,7 +726,11 @@ fn adjust_open_proposals_for_leaver<Q: CustomQuery>(
 
     // check which ones we have not voted on and update them
     for (_, prop_id) in open_prop_ids {
-        if BALLOTS.may_load(deps.storage, (prop_id, leaver))?.is_none() {
+        if ballots()
+            .ballots
+            .may_load(deps.storage, (prop_id, leaver))?
+            .is_none()
+        {
             let mut prop = PROPOSALS.load(deps.storage, prop_id)?;
             if prop.status == (Status::Open {}) {
                 prop.total_points -= VOTING_POINTS;
@@ -1564,7 +1553,9 @@ pub(crate) fn query_vote<Q: CustomQuery>(
     voter: String,
 ) -> StdResult<VoteResponse> {
     let voter_addr = deps.api.addr_validate(&voter)?;
-    let prop = BALLOTS.may_load(deps.storage, (proposal_id, &voter_addr))?;
+    let prop = ballots()
+        .ballots
+        .may_load(deps.storage, (proposal_id, &voter_addr))?;
     let vote = prop.map(|b| VoteInfo {
         proposal_id,
         voter,
@@ -1584,7 +1575,8 @@ pub(crate) fn list_votes_by_proposal<Q: CustomQuery>(
     let addr = maybe_addr(deps.api, start_after)?;
     let start = addr.as_ref().map(Bound::exclusive);
 
-    let votes: StdResult<Vec<_>> = BALLOTS
+    let votes: StdResult<Vec<_>> = ballots()
+        .ballots
         .prefix(proposal_id)
         .range(deps.storage, start, None, Order::Ascending)
         .take(limit)
@@ -1609,18 +1601,21 @@ pub(crate) fn list_votes_by_voter<Q: CustomQuery>(
     limit: Option<u32>,
 ) -> StdResult<VoteListResponse> {
     let limit = limit.unwrap_or(DEFAULT_LIMIT).min(MAX_LIMIT) as usize;
-    let start = start_after.map(Bound::exclusive);
     let voter_addr = deps.api.addr_validate(&voter)?;
+    let start = start_after.map(|proposal_id| Bound::exclusive((proposal_id, voter_addr.clone())));
 
-    let votes: StdResult<Vec<_>> = BALLOTS_BY_VOTER
-        .prefix(&voter_addr)
+    let votes: StdResult<Vec<_>> = ballots()
+        .ballots
+        .idx
+        .voter
+        .prefix(voter_addr)
         .range(deps.storage, start, None, Order::Ascending)
         .take(limit)
         .map(|item| {
-            let (proposal_id, ballot) = item?;
+            let ((proposal_id, _), ballot) = item?;
             Ok(VoteInfo {
                 proposal_id,
-                voter: voter.clone(),
+                voter: ballot.voter.into(),
                 vote: ballot.vote,
                 points: ballot.points,
             })
@@ -1714,7 +1709,8 @@ pub fn migrate(
     // Unwrapping as version check before would fail if stored version is invalid
     let stored_version: Version = stored_version.version.parse().unwrap();
 
-    migrate_ballots(deps.branch(), &env, &msg, &stored_version)?;
+    // FIXME: Currently we don't need mechanism for migrating ballots, as testnets starts from scratch anyway
+    // migrate_ballots(deps.branch(), &env, &msg, &stored_version)?;
     migrate_proposals(deps.branch(), &env, &msg, &stored_version)?;
 
     Ok(Response::new())
