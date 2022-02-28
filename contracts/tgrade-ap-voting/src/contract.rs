@@ -133,10 +133,7 @@ pub fn execute_render_decision(
             }
 
             Ok(Complaint {
-                state: ComplaintState::Closed {
-                    summary: summary,
-                    ipfs_link,
-                },
+                state: ComplaintState::Closed { summary, ipfs_link },
                 ..complaint
             })
         },
@@ -188,7 +185,7 @@ fn execute_propose_arbiters(
 
     let members = list_voters(deps.as_ref(), None, None)?.voters;
     for arbiter in &arbiters {
-        if members.iter().find(|m| m.addr == *arbiter).is_none() {
+        if !members.iter().any(|m| m.addr == *arbiter) {
             return Err(ContractError::InvalidProposedArbiter(arbiter.to_string()));
         }
     }
@@ -220,7 +217,7 @@ fn execute_propose_arbiters(
         code_id: config.multisig_code,
         msg: to_binary(&cw3_instantiate)?,
         funds: vec![],
-        label: label.clone(),
+        label,
     };
 
     let resp_id = (0..=u32::MAX)
