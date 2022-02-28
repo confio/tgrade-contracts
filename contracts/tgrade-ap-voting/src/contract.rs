@@ -1,18 +1,23 @@
 #[cfg(not(feature = "library"))]
 use cosmwasm_std::entry_point;
 use cosmwasm_std::{
-    coin, to_binary, BankMsg, Binary, CosmosMsg, Decimal, Deps, DepsMut, Empty, Env, MessageInfo,
-    Order, StdResult,
+    coin, to_binary, Addr, BankMsg, Binary, CosmosMsg, Decimal, Deps, DepsMut, Empty, Env,
+    MessageInfo, Order, Reply, StdResult, Uint128, WasmMsg,
 };
+use cw3_fixed_multisig::msg::{InstantiateMsg as Cw3InstantiateMsg, Voter};
 use cw_storage_plus::Bound;
 
-use cw2::set_contract_version;
-use cw_utils::must_pay;
+use cw2::{get_contract_version, set_contract_version};
+use cw_utils::{must_pay, parse_reply_instantiate_data, Duration, Threshold};
+use semver::Version;
 use tg_bindings::{request_privileges, Privilege, PrivilegeChangeMsg, TgradeMsg, TgradeSudoMsg};
 use tg_utils::ensure_from_older_version;
 
-use crate::msg::{ExecuteMsg, InstantiateMsg, ListComplaintsResp, QueryMsg};
-use crate::state::{ArbiterProposal, Complaint, ComplaintState, Config, COMPLAINTS, CONFIG};
+use crate::migration::migrate_config;
+use crate::msg::{ExecuteMsg, InstantiateMsg, ListComplaintsResp, MigrationMsg, QueryMsg};
+use crate::state::{
+    ArbiterProposal, Complaint, ComplaintState, Config, AWAITING_MULTISIG, COMPLAINTS, CONFIG,
+};
 use crate::ContractError;
 
 use tg_voting_contract::{
@@ -27,6 +32,9 @@ pub type SubMsg = cosmwasm_std::SubMsg<TgradeMsg>;
 // version info for migration info
 const CONTRACT_NAME: &str = "crates.io:tgrade_validator_voting_proposals";
 const CONTRACT_VERSION: &str = env!("CARGO_PKG_VERSION");
+
+const RESP_ID_MASK: u64 = (u32::MAX as u64) << 32;
+const AWAITING_MULTISIG_RESP_ID_FLAG: u64 = 1 << 32;
 
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn instantiate(
@@ -43,6 +51,7 @@ pub fn instantiate(
             dispute_cost: msg.dispute_cost,
             waiting_period: msg.waiting_period,
             next_complaint_id: 0,
+            multisig_code: msg.multisig_code,
         },
     )?;
 
@@ -84,7 +93,67 @@ pub fn execute(
             complaint_id,
             reason,
         } => execute_withdraw_complaint(deps, env, info, complaint_id, reason),
+        RenderDecision {
+            complaint_id,
+            summary,
+            ipfs_link,
+        } => execute_render_decision(deps, info, complaint_id, summary, ipfs_link),
     }
+}
+
+pub fn execute_render_decision(
+    deps: DepsMut,
+    info: MessageInfo,
+    complaint_id: u64,
+    summary: String,
+    ipfs_link: String,
+) -> Result<Response, ContractError> {
+    let config = CONFIG.load(deps.storage)?;
+
+    let members = list_voters(deps.as_ref(), None, None)?.voters;
+
+    let mut dispute = config.dispute_cost;
+    dispute.amount = Uint128::from(dispute.amount.u128() / members.len() as u128);
+
+    COMPLAINTS.update(
+        deps.storage,
+        complaint_id,
+        |complaint| -> Result<Complaint, ContractError> {
+            let complaint = complaint.ok_or(ContractError::ComplaintMissing(complaint_id))?;
+
+            match complaint.state {
+                ComplaintState::Processing { arbiters } if arbiters != info.sender => {
+                    return Err(ContractError::Unauthorized(format!(
+                        "Only {} can render decision for this complaint",
+                        arbiters
+                    )))
+                }
+                ComplaintState::Processing { .. } => (),
+                state => return Err(ContractError::ImproperState(state)),
+            }
+
+            Ok(Complaint {
+                state: ComplaintState::Closed {
+                    summary: summary,
+                    ipfs_link,
+                },
+                ..complaint
+            })
+        },
+    )?;
+
+    let mut resp = Response::new()
+        .add_attribute("action", "render_decision")
+        .add_attribute("complaint_id", complaint_id.to_string());
+
+    for member in members {
+        resp = resp.add_message(BankMsg::Send {
+            to_address: member.addr,
+            amount: vec![dispute.clone()],
+        })
+    }
+
+    Ok(resp)
 }
 
 pub fn execute_execute(
@@ -93,17 +162,76 @@ pub fn execute_execute(
     info: MessageInfo,
     proposal_id: u64,
 ) -> Result<Response, ContractError> {
-    use ArbiterProposal::Text;
+    use ArbiterProposal::*;
 
     let proposal = mark_executed::<ArbiterProposal>(deps.storage, env, proposal_id)?;
 
-    match proposal.proposal {
-        Text {} => execute_text(deps, proposal_id, proposal)?,
-    }
+    let resp = match proposal.proposal {
+        Text {} => {
+            execute_text(deps, proposal_id, proposal)?;
+            Response::new()
+        }
+        ProposeArbiters { case_id, arbiters } => execute_propose_arbiters(deps, case_id, arbiters)?,
+    };
 
-    Ok(Response::new()
+    Ok(resp
         .add_attribute("action", "execute")
         .add_attribute("sender", info.sender))
+}
+
+fn execute_propose_arbiters(
+    deps: DepsMut,
+    case_id: u64,
+    arbiters: Vec<Addr>,
+) -> Result<Response, ContractError> {
+    let config = CONFIG.load(deps.storage)?;
+
+    let members = list_voters(deps.as_ref(), None, None)?.voters;
+    for arbiter in &arbiters {
+        if members.iter().find(|m| m.addr == *arbiter).is_none() {
+            return Err(ContractError::InvalidProposedArbiter(arbiter.to_string()));
+        }
+    }
+
+    let pass_weight = (arbiters.len() / 2) + 1;
+    let cw3_instantiate = Cw3InstantiateMsg {
+        voters: arbiters
+            .into_iter()
+            .map(|arbiter| Voter {
+                addr: arbiter.to_string(),
+                weight: 1,
+            })
+            .collect(),
+        threshold: Threshold::AbsoluteCount {
+            weight: pass_weight as u64,
+        },
+        max_voting_period: Duration::Time(config.waiting_period.seconds()),
+    };
+
+    let complaint = COMPLAINTS.load(deps.storage, case_id)?;
+    if complaint.state != (ComplaintState::Accepted {}) {
+        return Err(ContractError::ImproperState(complaint.state));
+    }
+
+    let label = format!("[{}] {} AP", case_id, complaint.title);
+
+    let cw3_instantiate = WasmMsg::Instantiate {
+        admin: None,
+        code_id: config.multisig_code,
+        msg: to_binary(&cw3_instantiate)?,
+        funds: vec![],
+        label: label.clone(),
+    };
+
+    let resp_id = (0..=u32::MAX)
+        .map(|id| AWAITING_MULTISIG_RESP_ID_FLAG | (id as u64))
+        .find(|id| !AWAITING_MULTISIG.has(deps.storage, *id))
+        .ok_or(ContractError::NoMultisigAwaitingId)?;
+
+    AWAITING_MULTISIG.save(deps.storage, resp_id, &case_id)?;
+    let resp = Response::new().add_submessage(SubMsg::reply_on_success(cw3_instantiate, resp_id));
+
+    Ok(resp)
 }
 
 pub fn execute_register_complaint(
@@ -245,12 +373,7 @@ fn execute_withdraw_complaint(
                         amount: vec![config.dispute_cost],
                     }));
                 }
-                state @ ComplaintState::Withdrawn { .. } => {
-                    return Err(ContractError::ImproperState(state))
-                }
-                ComplaintState::Accepted {} => {
-                    return Err(ContractError::ImproperState(ComplaintState::Accepted {}))
-                }
+                state => return Err(ContractError::ImproperState(state)),
             }
 
             complaint.state = ComplaintState::Withdrawn { reason };
@@ -377,8 +500,52 @@ fn privilege_change(_deps: DepsMut, change: PrivilegeChangeMsg) -> Response {
 }
 
 #[cfg_attr(not(feature = "library"), entry_point)]
-pub fn migrate(deps: DepsMut, _env: Env, _msg: Empty) -> Result<Response, ContractError> {
+pub fn migrate(deps: DepsMut, _env: Env, msg: MigrationMsg) -> Result<Response, ContractError> {
     ensure_from_older_version(deps.storage, CONTRACT_NAME, CONTRACT_VERSION)?;
+
+    let stored = get_contract_version(deps.storage)?;
+    let storage_version: Version = stored.version.parse().unwrap();
+
+    migrate_config(deps, &storage_version, &msg)?;
+    Ok(Response::new())
+}
+
+#[cfg_attr(not(feature = "library"), entry_point)]
+pub fn reply(deps: DepsMut, env: Env, msg: Reply) -> Result<Response, ContractError> {
+    match msg.id & RESP_ID_MASK {
+        AWAITING_MULTISIG_RESP_ID_FLAG => multisig_instantiate_reply(deps, env, msg),
+        _ => Err(ContractError::UnrecognizedReply(msg.id)),
+    }
+}
+
+pub fn multisig_instantiate_reply(
+    deps: DepsMut,
+    _env: Env,
+    msg: Reply,
+) -> Result<Response, ContractError> {
+    let id = msg.id;
+    let res =
+        parse_reply_instantiate_data(msg).map_err(|err| ContractError::ReplyParseFailure {
+            id,
+            err: err.to_string(),
+        })?;
+    let addr = deps.api.addr_validate(&res.contract_address)?;
+
+    let complain_id = AWAITING_MULTISIG.load(deps.storage, id)?;
+    AWAITING_MULTISIG.remove(deps.storage, id);
+
+    COMPLAINTS.update(
+        deps.storage,
+        complain_id,
+        |complaint| -> Result<Complaint, ContractError> {
+            let complaint = complaint.ok_or(ContractError::ComplaintMissing(complain_id))?;
+            Ok(Complaint {
+                state: ComplaintState::Processing { arbiters: addr },
+                ..complaint
+            })
+        },
+    )?;
+
     Ok(Response::new())
 }
 
@@ -414,6 +581,7 @@ mod tests {
                 group_addr: group_addr.to_owned(),
                 dispute_cost: coin(100, "utgd"),
                 waiting_period: Duration::new(3600),
+                multisig_code: 0,
             },
         )
         .unwrap();
@@ -450,6 +618,7 @@ mod tests {
                 group_addr: group_addr.to_owned(),
                 dispute_cost,
                 waiting_period: Duration::new(3600),
+                multisig_code: 0,
             },
         )
         .unwrap();
@@ -503,6 +672,7 @@ mod tests {
                 group_addr: group_addr.to_owned(),
                 dispute_cost: dispute_cost.clone(),
                 waiting_period,
+                multisig_code: 0,
             },
         )
         .unwrap();
@@ -611,6 +781,7 @@ mod tests {
                 group_addr: group_addr.to_owned(),
                 dispute_cost: dispute_cost.clone(),
                 waiting_period,
+                multisig_code: 0,
             },
         )
         .unwrap();
@@ -686,6 +857,7 @@ mod tests {
                 group_addr: group_addr.to_owned(),
                 dispute_cost: dispute_cost.clone(),
                 waiting_period,
+                multisig_code: 0,
             },
         )
         .unwrap();
@@ -758,6 +930,7 @@ mod tests {
                 group_addr: group_addr.to_owned(),
                 dispute_cost: dispute_cost.clone(),
                 waiting_period,
+                multisig_code: 0,
             },
         )
         .unwrap();
