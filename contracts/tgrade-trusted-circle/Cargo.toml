@@ -1,6 +1,6 @@
 [package]
 name = "tgrade-trusted-circle"
-version = "0.6.2"
+version = "0.8.1"
 authors = ["Mauro Lacy <maurolacy@users.noreply.github.com>", "Ethan Frey <ethanfrey@users.noreply.github.com>"]
 edition = "2018"
 description = "Trusted Circle implementation based on TG4 for group membership"
@@ -19,26 +19,26 @@ backtraces = ["cosmwasm-std/backtraces"]
 library = []
 
 [dependencies]
-cw-utils = "0.12.1"
-cw2 = "0.12.1"
-cw-controllers = "0.12.1"
-cw-storage-plus = "0.12.1"
-tg3 = "0.7.0-alpha2"
-tg4 = "0.7.0-alpha2"
-tg-bindings = "0.7.0-alpha2"
-tg-utils = "0.7.0-alpha2"
-cosmwasm-std = "1.0.0-beta5"
+cw-utils = "0.13.1"
+cw2 = "0.13.1"
+cw-controllers = "0.13.1"
+cw-storage-plus = "0.13.1"
+tg3 = "0.8.1"
+tg4 = "0.8.1"
+tg-bindings = "0.8.1"
+tg-utils = "0.8.1"
+cosmwasm-std = "1.0.0-beta6"
 schemars = "0.8"
 serde = { version = "1.0.103", default-features = false, features = ["derive"] }
 semver = "1"
 thiserror = { version = "1.0.21" }
-tg-voting-contract = "0.7.0-alpha2"
+tg-voting-contract = "0.8.1"
 
 [dev-dependencies]
-cosmwasm-schema = { version = "1.0.0-beta5" }
-cw-multi-test = "0.12.1"
+cosmwasm-schema = { version = "1.0.0-beta6" }
+cw-multi-test = "0.13.1"
 anyhow = "1"
-tg-bindings-test = "0.7.0-alpha2"
+tg-bindings-test = "0.8.1"
 derivative = "2"
-tg4-engagement = "0.7.0-alpha2"
+tg4-engagement = "0.8.1"
 assert_matches = "1"

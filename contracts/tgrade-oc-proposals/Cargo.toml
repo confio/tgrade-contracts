@@ -1,6 +1,6 @@
 [package]
 name = "tgrade-oc-proposals"
-version = "0.6.2"
+version = "0.8.1"
 authors = ["Ethan Frey <ethanfrey@users.noreply.github.com>"]
 edition = "2018"
 description = "Implementing tgrade-oc-proposals"
@@ -14,23 +14,23 @@ backtraces = ["cosmwasm-std/backtraces"]
 library = []
 
 [dependencies]
-cw2 = "0.12.1"
-cosmwasm-std = "1.0.0-beta5"
+cw2 = "0.13.1"
+cosmwasm-std = "1.0.0-beta6"
 schemars = "0.8.1"
 serde = { version = "1", default-features = false, features = ["derive"] }
-tg3 = "0.7.0-alpha2"
-tg4 = "0.7.0-alpha2"
-tg4-engagement = { version = "0.7.0-alpha2", features = ["library"] }
-tg-bindings = "0.7.0-alpha2"
-tg-utils = "0.7.0-alpha2"
-tg-voting-contract = "0.7.0-alpha2"
+tg3 = "0.8.1"
+tg4 = "0.8.1"
+tg4-engagement = { version = "0.8.1", features = ["library"] }
+tg-bindings = "0.8.1"
+tg-utils = "0.8.1"
+tg-voting-contract = "0.8.1"
 thiserror = "1"
-cw-storage-plus = "0.12.1"
-tgrade-valset = { version = "0.7.0-alpha2", features = ["library"] }
+cw-storage-plus = "0.13.1"
+tgrade-valset = { version = "0.8.1", features = ["library"] }
 
 [dev-dependencies]
 anyhow = "1"
-cosmwasm-schema = "1.0.0-beta5"
-cw-multi-test = "0.12.1"
-tg-bindings-test = "0.7.0-alpha2"
-tg-test-utils = "0.7.0-alpha2"
+cosmwasm-schema = "1.0.0-beta6"
+cw-multi-test = "0.13.1"
+tg-bindings-test = "0.8.1"
+tg-test-utils = "0.8.1"
