@@ -2,7 +2,27 @@
 
 ## [Unreleased](https://github.com/confio/tgrade-contracts/tree/HEAD)
 
-[Full Changelog](https://github.com/confio/tgrade-contracts/compare/v0.6.2...HEAD)
+[Full Changelog](https://github.com/confio/tgrade-contracts/compare/v0.8.1...HEAD)
+
+## [v0.8.1](https://github.com/confio/tgrade-contracts/tree/v0.8.1) (2022-03-29)
+
+[Full Changelog](https://github.com/confio/tgrade-contracts/compare/v0.6.2...v0.8.1)
+
+**Breaking changes:**
+
+- Refactor BALLOTS and BALLOTS\_BY\_VOTER in trusted-circle [\#477](https://github.com/confio/tgrade-contracts/issues/477)
+
+**Closed issues:**
+
+- Give CircleCI access to osmosis-bindings [\#483](https://github.com/confio/tgrade-contracts/issues/483)
+- another birgit test [\#481](https://github.com/confio/tgrade-contracts/issues/481)
+- Update to cw-plus 0.12.1 [\#468](https://github.com/confio/tgrade-contracts/issues/468)
+- AP: create basic voting contract [\#415](https://github.com/confio/tgrade-contracts/issues/415)
+
+**Merged pull requests:**
+
+- OC Proposals: replace ballots implementation; set poe contract's version to alpha2 [\#480](https://github.com/confio/tgrade-contracts/pull/480) ([ueco-jb](https://github.com/ueco-jb))
+- Update to cw-plus 0.12.1 [\#479](https://github.com/confio/tgrade-contracts/pull/479) ([maurolacy](https://github.com/maurolacy))
 
 ## [v0.6.2](https://github.com/confio/tgrade-contracts/tree/v0.6.2) (2022-02-17)
 
