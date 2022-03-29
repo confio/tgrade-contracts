@@ -14,8 +14,8 @@ backtraces = ["cosmwasm-std/backtraces"]
 library = []
 
 [dependencies]
-cw2 = "0.12.1"
-cosmwasm-std = "1.0.0-beta5"
+cw2 = "0.13.1"
+cosmwasm-std = "1.0.0-beta6"
 schemars = "0.8.1"
 serde = { version = "1", default-features = false, features = ["derive"] }
 tg3 = "0.7.0-alpha2"
@@ -25,12 +25,12 @@ tg-bindings = "0.7.0-alpha2"
 tg-utils = "0.7.0-alpha2"
 tg-voting-contract = "0.7.0-alpha2"
 thiserror = "1"
-cw-storage-plus = "0.12.1"
+cw-storage-plus = "0.13.1"
 tgrade-valset = { version = "0.7.0-alpha2", features = ["library"] }
 
 [dev-dependencies]
 anyhow = "1"
-cosmwasm-schema = "1.0.0-beta5"
-cw-multi-test = "0.12.1"
+cosmwasm-schema = "1.0.0-beta6"
+cw-multi-test = "0.13.1"
 tg-bindings-test = "0.7.0-alpha2"
 tg-test-utils = "0.7.0-alpha2"
