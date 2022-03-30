@@ -1,4 +1,5 @@
 use anyhow::Result as AnyResult;
+
 use cosmwasm_std::{coins, Addr, CosmosMsg, Decimal, Uint128};
 use cw_multi_test::{AppResponse, Contract, ContractWrapper, CosmosRouter, Executor};
 use derivative::Derivative;
@@ -6,8 +7,11 @@ use tg4::Member;
 use tg_bindings::{TgradeMsg, TgradeQuery};
 use tg_bindings_test::TgradeApp;
 
-use crate::msg::{ExecuteMsg, InstantiateMsg};
-use crate::state::ProposalContent;
+use crate::{
+    msg::{ExecuteMsg, InstantiateMsg},
+    state::ProposalContent,
+    tests::TRUSTED_CIRCLE_DENOM,
+};
 
 pub fn contract_trusted_circle() -> Box<dyn Contract<TgradeMsg, TgradeQuery>> {
     Box::new(ContractWrapper::new(
@@ -152,6 +156,7 @@ impl SuiteBuilder {
                 owner.clone(),
                 &InstantiateMsg {
                     name: "Trusted Circle".to_owned(),
+                    denom: TRUSTED_CIRCLE_DENOM.to_owned(),
                     escrow_amount: Uint128::new(1_000_000),
                     voting_period: 1,
                     quorum: Decimal::percent(50),

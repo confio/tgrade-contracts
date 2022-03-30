@@ -1,12 +1,16 @@
-use super::parse_prop_id;
-use super::suite::contract_trusted_circle;
-use crate::msg::{ExecuteMsg, InstantiateMsg, QueryMsg};
-use crate::state::ProposalContent;
 use anyhow::Result as AnyResult;
+
 use cosmwasm_std::{coins, Addr, Decimal, Uint128};
 use cw_multi_test::Executor;
 use tg4::MemberListResponse;
 use tg_bindings_test::TgradeApp;
+
+use super::{parse_prop_id, suite::contract_trusted_circle};
+use crate::{
+    msg::{ExecuteMsg, InstantiateMsg, QueryMsg},
+    state::ProposalContent,
+    tests::TRUSTED_CIRCLE_DENOM,
+};
 
 // This test doesn't use the generic test suite to ensure flow is well-tuned to the real live
 // genesis instantiation use case. If there would be more similar tests it is possible to create
@@ -43,6 +47,7 @@ fn genesis_oc() {
             member1.clone(),
             &InstantiateMsg {
                 name: "OC Trusted Cricle".to_owned(),
+                denom: TRUSTED_CIRCLE_DENOM.to_owned(),
                 escrow_amount: Uint128::new(escrow_amount),
                 voting_period: 1,
                 quorum: Decimal::percent(50),

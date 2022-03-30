@@ -11,6 +11,8 @@ use tg3::{Status, Vote};
 pub struct InstantiateMsg {
     /// TRUSTED_CIRCLE Name
     pub name: String,
+    /// Trusted Circle's denom
+    pub denom: String,
     /// The required escrow amount, in the default denom (utgd)
     pub escrow_amount: Uint128,
     /// Voting period in days
@@ -152,6 +154,8 @@ pub type EscrowResponse = Option<EscrowStatus>;
 pub struct TrustedCircleResponse {
     /// TRUSTED_CIRCLE Name
     pub name: String,
+    /// Trusted Circle's denom
+    pub denom: String,
     /// The required escrow amount, in the default denom (utgd)
     pub escrow_amount: Uint128,
     /// The pending escrow amount, if any

@@ -19,6 +19,7 @@ const ONE_TGD: u128 = 1_000_000; // One million µTGD
 #[derive(Serialize, Deserialize, Clone, PartialEq, Debug)]
 pub struct TrustedCircle {
     pub name: String,
+    pub denom: String,
     pub escrow_amount: Uint128,
     pub escrow_pending: Option<PendingEscrow>,
     pub rules: VotingRules,

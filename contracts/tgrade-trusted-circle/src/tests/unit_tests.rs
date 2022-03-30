@@ -139,7 +139,8 @@ fn instantiation_enough_funds() {
 
     // ensure trusted_circle query works
     let expected = TrustedCircleResponse {
-        name: TRUSTED_CIRCLE_NAME.to_string(),
+        name: TRUSTED_CIRCLE_NAME.to_owned(),
+        denom: TRUSTED_CIRCLE_DENOM.to_owned(),
         escrow_amount: Uint128::new(ESCROW_FUNDS),
         escrow_pending: None,
         rules: VotingRules {
@@ -1177,7 +1178,8 @@ fn leaving_voter_cannot_vote_anymore() {
     let info = mock_info(INIT_ADMIN, &escrow_funds());
     let mut deps = mock_deps_tgrade();
     let msg = InstantiateMsg {
-        name: "Leaving votes".to_string(),
+        name: "Leaving votes".to_owned(),
+        denom: TRUSTED_CIRCLE_DENOM.to_owned(),
         escrow_amount: Uint128::new(ESCROW_FUNDS),
         voting_period: 7,
         quorum: Decimal::percent(50),
@@ -1353,7 +1355,7 @@ fn propose_punish_members_distribution() {
         batch1,
     )
     .unwrap();
-    let info = mock_info(VOTING1, &coins(ESCROW_FUNDS + 1, DENOM));
+    let info = mock_info(VOTING1, &coins(ESCROW_FUNDS + 1, TRUSTED_CIRCLE_DENOM));
     execute_deposit_escrow(deps.as_mut(), later(&start, delay1 + 1), info).unwrap();
 
     // Initial points are proper
@@ -1481,7 +1483,7 @@ fn propose_punish_members_distribution_zero_slash() {
         batch1,
     )
     .unwrap();
-    let info = mock_info(VOTING1, &coins(ESCROW_FUNDS + 1, DENOM));
+    let info = mock_info(VOTING1, &coins(ESCROW_FUNDS + 1, TRUSTED_CIRCLE_DENOM));
     execute_deposit_escrow(deps.as_mut(), later(&start, delay1 + 1), info).unwrap();
 
     // Make a punish proposal

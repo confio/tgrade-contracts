@@ -92,6 +92,7 @@ fn setup_bdd(mut deps: DepsMut<TgradeQuery>) {
     let start = mock_env();
     let msg = InstantiateMsg {
         name: BDD_NAME.to_string(),
+        denom: TRUSTED_CIRCLE_DENOM.to_owned(),
         escrow_amount: Uint128::new(ESCROW_FUNDS),
         voting_period: 14,
         quorum: Decimal::percent(40),
@@ -102,7 +103,7 @@ fn setup_bdd(mut deps: DepsMut<TgradeQuery>) {
         edit_trusted_circle_disabled: false,
         reward_denom: "usdc".to_owned(),
     };
-    let info = mock_info(VOTING, &coins(VOTING_ESCROW, DENOM));
+    let info = mock_info(VOTING, &coins(VOTING_ESCROW, TRUSTED_CIRCLE_DENOM));
     instantiate(deps.branch(), start.clone(), info, msg).unwrap();
 
     // add pending in first batch
@@ -127,21 +128,21 @@ fn setup_bdd(mut deps: DepsMut<TgradeQuery>) {
     execute(
         deps.branch(),
         later(&start, PENDING_STARTS + 200),
-        mock_info(PENDING_PAID, &coins(PAID_ESCROW, DENOM)),
+        mock_info(PENDING_PAID, &coins(PAID_ESCROW, TRUSTED_CIRCLE_DENOM)),
         ExecuteMsg::DepositEscrow {},
     )
     .unwrap();
     execute(
         deps.branch(),
         later(&start, PENDING_STARTS + 400),
-        mock_info(PENDING_SOME, &coins(SOME_ESCROW, DENOM)),
+        mock_info(PENDING_SOME, &coins(SOME_ESCROW, TRUSTED_CIRCLE_DENOM)),
         ExecuteMsg::DepositEscrow {},
     )
     .unwrap();
     execute(
         deps.branch(),
         later(&start, PENDING_STARTS + 600),
-        mock_info(LEAVING, &coins(LEAVING_ESCROW, DENOM)),
+        mock_info(LEAVING, &coins(LEAVING_ESCROW, TRUSTED_CIRCLE_DENOM)),
         ExecuteMsg::DepositEscrow {},
     )
     .unwrap();
@@ -172,7 +173,7 @@ fn deposit(deps: DepsMut<TgradeQuery>, addr: &str) -> Result<Response, ContractE
     execute(
         deps,
         now(),
-        mock_info(addr, &coins(5000, DENOM)),
+        mock_info(addr, &coins(5000, TRUSTED_CIRCLE_DENOM)),
         ExecuteMsg::DepositEscrow {},
     )
 }
@@ -311,7 +312,7 @@ fn assert_payment(messages: Vec<SubMsg>, to_addr: &str, amount: u128) {
         &messages[0],
         &SubMsg::new(BankMsg::Send {
             to_address: to_addr.to_string(),
-            amount: coins(amount, DENOM)
+            amount: coins(amount, TRUSTED_CIRCLE_DENOM)
         })
     );
 }
@@ -710,7 +711,7 @@ fn edit_trusted_circle_increase_escrow_voting_demoted_after_grace_period() {
     execute(
         deps.as_mut(),
         later(&mock_env(), 86401),
-        mock_info(VOTING, &coins(ESCROW_FUNDS, DENOM)),
+        mock_info(VOTING, &coins(ESCROW_FUNDS, TRUSTED_CIRCLE_DENOM)),
         ExecuteMsg::DepositEscrow {},
     )
     .unwrap();
@@ -886,7 +887,7 @@ fn punish_member_slashing() {
     execute(
         deps.as_mut(),
         later(&mock_env(), 86400),
-        mock_info(VOTING, &coins(VOTING_ESCROW, DENOM)),
+        mock_info(VOTING, &coins(VOTING_ESCROW, TRUSTED_CIRCLE_DENOM)),
         ExecuteMsg::DepositEscrow {},
     )
     .unwrap();
