@@ -1,12 +1,16 @@
-use super::parse_prop_id;
-use super::suite::contract_trusted_circle;
-use crate::msg::{ExecuteMsg, InstantiateMsg, QueryMsg};
-use crate::state::ProposalContent;
 use anyhow::Result as AnyResult;
+
 use cosmwasm_std::{coins, Addr, Decimal, Uint128};
 use cw_multi_test::Executor;
 use tg4::MemberListResponse;
 use tg_bindings_test::TgradeApp;
+
+use super::{parse_prop_id, suite::contract_trusted_circle};
+use crate::{
+    msg::{ExecuteMsg, InstantiateMsg, QueryMsg},
+    state::ProposalContent,
+    tests::TRUSTED_CIRCLE_DENOM,
+};
 
 // This test doesn't use the generic test suite to ensure flow is well-tuned to the real live
 // genesis instantiation use case. If there would be more similar tests it is possible to create
@@ -16,7 +20,6 @@ fn genesis_oc() {
     let genesis_members = ["member1", "member2", "member3", "member4", "member5"];
     let member1 = Addr::unchecked(genesis_members[0]);
     let escrow_amount = 1_000_000;
-    let denom = "utgd";
 
     let mut app = TgradeApp::new_genesis(genesis_members[0]);
 
@@ -27,7 +30,7 @@ fn genesis_oc() {
                 .init_balance(
                     storage,
                     &Addr::unchecked(*member),
-                    coins(escrow_amount, denom),
+                    coins(escrow_amount, TRUSTED_CIRCLE_DENOM),
                 )
                 .unwrap();
         }
@@ -43,6 +46,7 @@ fn genesis_oc() {
             member1.clone(),
             &InstantiateMsg {
                 name: "OC Trusted Cricle".to_owned(),
+                denom: TRUSTED_CIRCLE_DENOM.to_owned(),
                 escrow_amount: Uint128::new(escrow_amount),
                 voting_period: 1,
                 quorum: Decimal::percent(50),
@@ -51,9 +55,9 @@ fn genesis_oc() {
                 initial_members: vec![genesis_members[0].to_owned()],
                 deny_list: None,
                 edit_trusted_circle_disabled: false,
-                reward_denom: "utgd".to_owned(),
+                reward_denom: TRUSTED_CIRCLE_DENOM.to_owned(),
             },
-            &coins(escrow_amount, denom),
+            &coins(escrow_amount, TRUSTED_CIRCLE_DENOM),
             "oc-trusted-circle",
             None,
         )
@@ -94,7 +98,7 @@ fn genesis_oc() {
             Addr::unchecked(*member),
             contract.clone(),
             &ExecuteMsg::DepositEscrow {},
-            &coins(escrow_amount, denom),
+            &coins(escrow_amount, TRUSTED_CIRCLE_DENOM),
         )
         .unwrap();
     }

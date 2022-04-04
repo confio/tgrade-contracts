@@ -30,8 +30,8 @@ use tg_bindings::TgradeQuery;
 const INIT_ADMIN: &str = "juan";
 
 const TRUSTED_CIRCLE_NAME: &str = "test_trusted_circle";
+pub const TRUSTED_CIRCLE_DENOM: &str = "utgd";
 const ESCROW_FUNDS: u128 = 2_000_000;
-const DENOM: &str = "utgd";
 const VOTING_PERIOD: u32 = 14; // [days]
 
 const VOTING1: &str = "miles";
@@ -61,7 +61,7 @@ where
 }
 
 fn escrow_funds() -> Vec<Coin> {
-    coins(ESCROW_FUNDS, DENOM)
+    coins(ESCROW_FUNDS, TRUSTED_CIRCLE_DENOM)
 }
 
 fn later(env: &Env, seconds: u64) -> Env {
@@ -78,7 +78,8 @@ fn do_instantiate(
     edit_trusted_circle_disabled: bool,
 ) -> Result<Response, ContractError> {
     let msg = InstantiateMsg {
-        name: TRUSTED_CIRCLE_NAME.to_string(),
+        name: TRUSTED_CIRCLE_NAME.to_owned(),
+        denom: TRUSTED_CIRCLE_DENOM.to_owned(),
         escrow_amount: Uint128::new(ESCROW_FUNDS),
         voting_period: 14,
         quorum: Decimal::percent(40),

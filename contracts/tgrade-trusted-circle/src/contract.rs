@@ -33,7 +33,6 @@ use crate::state::{
 const CONTRACT_NAME: &str = "crates.io:tgrade-trusted_circle";
 const CONTRACT_VERSION: &str = env!("CARGO_PKG_VERSION");
 
-pub const TRUSTED_CIRCLE_DENOM: &str = "utgd";
 pub const VOTING_POINTS: u64 = 1;
 
 pub type Response = cosmwasm_std::Response<TgradeMsg>;
@@ -52,6 +51,7 @@ pub fn instantiate(
 
     let trusted_circle = TrustedCircle {
         name: msg.name.clone(),
+        denom: msg.denom.clone(),
         escrow_amount: msg.escrow_amount,
         escrow_pending: None,
         rules: VotingRules {
@@ -70,7 +70,7 @@ pub fn instantiate(
 
     // Store sender as initial member, and define its points / state
     // based on init_funds
-    let amount = cw_utils::must_pay(&info, TRUSTED_CIRCLE_DENOM)?;
+    let amount = cw_utils::must_pay(&info, &msg.denom)?;
     if amount < trusted_circle.get_escrow() {
         return Err(ContractError::InsufficientFunds(amount));
     }
@@ -148,8 +148,10 @@ pub fn execute_deposit_escrow<Q: CustomQuery>(
         .may_load(deps.storage, &info.sender)?
         .ok_or(ContractError::NotAMember {})?;
 
+    let trusted_circle = TRUSTED_CIRCLE.load(deps.storage)?;
+
     // update the amount
-    let amount = cw_utils::must_pay(&info, TRUSTED_CIRCLE_DENOM)?;
+    let amount = cw_utils::must_pay(&info, &trusted_circle.denom)?;
     escrow.paid += amount;
 
     let mut res = Response::new()
@@ -160,7 +162,7 @@ pub fn execute_deposit_escrow<Q: CustomQuery>(
     // check to see if we update the pending status
     match escrow.status {
         MemberStatus::Pending { proposal_id: batch } => {
-            let required_escrow = TRUSTED_CIRCLE.load(deps.storage)?.get_escrow();
+            let required_escrow = trusted_circle.get_escrow();
             if escrow.paid >= required_escrow {
                 // If we paid enough, we can move into Paid, Pending Voter
                 escrow.status = MemberStatus::PendingPaid { proposal_id: batch };
@@ -320,10 +322,12 @@ pub fn execute_return_escrow<Q: CustomQuery>(
         .may_load(deps.storage, &info.sender)?
         .ok_or(ContractError::NotAMember {})?;
 
+    let trusted_circle = TRUSTED_CIRCLE.load(deps.storage)?;
+
     let refund = match escrow.status {
         // voters can deduct as long as they maintain the required escrow
         MemberStatus::Voting {} => {
-            let min = TRUSTED_CIRCLE.load(deps.storage)?.get_escrow();
+            let min = trusted_circle.get_escrow();
             escrow.paid.checked_sub(min)?
         }
         // leaving voters can claim as long as claim_at has passed
@@ -363,7 +367,7 @@ pub fn execute_return_escrow<Q: CustomQuery>(
     if !refund.is_zero() {
         res = res.add_message(BankMsg::Send {
             to_address: info.sender.into(),
-            amount: vec![coin(refund.u128(), TRUSTED_CIRCLE_DENOM)],
+            amount: vec![coin(refund.u128(), trusted_circle.denom)],
         });
     }
     Ok(res)
@@ -1149,6 +1153,9 @@ pub fn proposal_punish_members<Q: CustomQuery>(
             ));
         }
 
+        let trusted_circle = TRUSTED_CIRCLE.load(deps.storage)?;
+        let trusted_circle_denom = trusted_circle.clone().denom;
+
         // Distribution amount
         let escrow_slashed = (escrow_status.paid * slashing_percentage).u128();
         // Remaining escrow amount
@@ -1166,7 +1173,7 @@ pub fn proposal_punish_members<Q: CustomQuery>(
                         // Generate Bank message with distribution payment
                         res = res.add_message(BankMsg::Send {
                             to_address: distr_addr.clone(),
-                            amount: vec![coin(escrow_each, TRUSTED_CIRCLE_DENOM)],
+                            amount: vec![coin(escrow_each, trusted_circle_denom.clone())],
                         });
                     }
                     // Keep remainder escrow in member account
@@ -1174,7 +1181,7 @@ pub fn proposal_punish_members<Q: CustomQuery>(
                 }
                 Punishment::BurnEscrow { .. } => {
                     res = res.add_message(BankMsg::Burn {
-                        amount: vec![coin(escrow_slashed, TRUSTED_CIRCLE_DENOM)],
+                        amount: vec![coin(escrow_slashed, trusted_circle_denom)],
                     });
                 }
             }
@@ -1182,7 +1189,7 @@ pub fn proposal_punish_members<Q: CustomQuery>(
 
         // Adjust remaining escrow / status
         escrow_status.paid = escrow_remaining.into();
-        let required_escrow = TRUSTED_CIRCLE.load(deps.storage)?.get_escrow();
+        let required_escrow = trusted_circle.get_escrow();
         if kick_out {
             let attrs =
                 trigger_long_leave(deps.branch(), env.clone(), addr, escrow_status)?.attributes;
@@ -1343,6 +1350,7 @@ pub(crate) fn query_trusted_circle<Q: CustomQuery>(
 ) -> StdResult<TrustedCircleResponse> {
     let TrustedCircle {
         name,
+        denom,
         escrow_amount,
         escrow_pending,
         rules,
@@ -1351,6 +1359,7 @@ pub(crate) fn query_trusted_circle<Q: CustomQuery>(
     } = TRUSTED_CIRCLE.load(deps.storage)?;
     Ok(TrustedCircleResponse {
         name,
+        denom,
         escrow_amount,
         escrow_pending,
         rules,

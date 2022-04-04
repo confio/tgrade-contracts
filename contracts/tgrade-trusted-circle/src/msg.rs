@@ -6,11 +6,19 @@ use cosmwasm_std::{Addr, Coin, Decimal, Uint128};
 use cw_utils::Expiration;
 use tg3::{Status, Vote};
 
+// "Hardcoded" for bussiness reasons
+fn default_denom() -> String {
+    "utgd".to_owned()
+}
+
 #[derive(Serialize, Deserialize, Clone, PartialEq, JsonSchema, Debug)]
 #[serde(rename_all = "snake_case")]
 pub struct InstantiateMsg {
     /// TRUSTED_CIRCLE Name
     pub name: String,
+    /// Trusted Circle's denom
+    #[serde(default = "default_denom")]
+    pub denom: String,
     /// The required escrow amount, in the default denom (utgd)
     pub escrow_amount: Uint128,
     /// Voting period in days
@@ -152,6 +160,8 @@ pub type EscrowResponse = Option<EscrowStatus>;
 pub struct TrustedCircleResponse {
     /// TRUSTED_CIRCLE Name
     pub name: String,
+    /// Trusted Circle's denom
+    pub denom: String,
     /// The required escrow amount, in the default denom (utgd)
     pub escrow_amount: Uint128,
     /// The pending escrow amount, if any
