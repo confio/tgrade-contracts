@@ -1,5 +1,3 @@
-use assert_matches::assert_matches;
-
 use super::suite::SuiteBuilder;
 use crate::error::ContractError;
 
@@ -13,7 +11,9 @@ fn cannot_propose_adding_denied_non_voting_member() {
         .propose_modify_non_voting(&owner, "Add denied", "", &[denied], &[])
         .unwrap_err();
 
-    assert_matches!(err.downcast().unwrap(), ContractError::DeniedAddress { addr, .. } if addr == denied);
+    assert!(
+        matches!(err.downcast().unwrap(), ContractError::DeniedAddress { addr, .. } if addr == denied)
+    );
 }
 
 #[test]
@@ -26,7 +26,9 @@ fn cannot_propose_adding_denied_voting_member() {
         .propose_add_voting(&owner, "Add denied", "", &[denied])
         .unwrap_err();
 
-    assert_matches!(err.downcast().unwrap(), ContractError::DeniedAddress { addr, .. } if addr == denied);
+    assert!(
+        matches!(err.downcast().unwrap(), ContractError::DeniedAddress { addr, .. } if addr == denied)
+    );
 }
 
 #[test]

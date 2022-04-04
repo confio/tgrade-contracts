@@ -20,7 +20,6 @@ fn genesis_oc() {
     let genesis_members = ["member1", "member2", "member3", "member4", "member5"];
     let member1 = Addr::unchecked(genesis_members[0]);
     let escrow_amount = 1_000_000;
-    let denom = "utgd";
 
     let mut app = TgradeApp::new_genesis(genesis_members[0]);
 
@@ -31,7 +30,7 @@ fn genesis_oc() {
                 .init_balance(
                     storage,
                     &Addr::unchecked(*member),
-                    coins(escrow_amount, denom),
+                    coins(escrow_amount, TRUSTED_CIRCLE_DENOM),
                 )
                 .unwrap();
         }
@@ -56,9 +55,9 @@ fn genesis_oc() {
                 initial_members: vec![genesis_members[0].to_owned()],
                 deny_list: None,
                 edit_trusted_circle_disabled: false,
-                reward_denom: "utgd".to_owned(),
+                reward_denom: TRUSTED_CIRCLE_DENOM.to_owned(),
             },
-            &coins(escrow_amount, denom),
+            &coins(escrow_amount, TRUSTED_CIRCLE_DENOM),
             "oc-trusted-circle",
             None,
         )
@@ -99,7 +98,7 @@ fn genesis_oc() {
             Addr::unchecked(*member),
             contract.clone(),
             &ExecuteMsg::DepositEscrow {},
-            &coins(escrow_amount, denom),
+            &coins(escrow_amount, TRUSTED_CIRCLE_DENOM),
         )
         .unwrap();
     }

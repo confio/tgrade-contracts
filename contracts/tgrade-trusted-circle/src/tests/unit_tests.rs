@@ -9,7 +9,7 @@ use cosmwasm_std::{
 };
 use cw_storage_plus::Item;
 
-use crate::msg::RulesResponse;
+use crate::msg::{InstantiateMsg, RulesResponse};
 use crate::state::{EscrowStatus, Punishment};
 use crate::tests::bdd_tests::{
     propose_add_voting_members_and_execute, PROPOSAL_ID_1, PROPOSAL_ID_2,
@@ -2113,6 +2113,41 @@ fn voting_rules_query() {
             quorum: Decimal::percent(40),
             threshold: Decimal::percent(60),
             allow_end_early: true,
+        }
+    );
+}
+
+#[test]
+fn instantiate_with_default_denom() {
+    let json = r#"
+        {
+            "name": "trusted_circle",
+            "escrow_amount": "300",
+            "voting_period": 30,
+            "quorum": "0.5",
+            "threshold": "0.6",
+            "allow_end_early": false,
+            "initial_members": [],
+            "edit_trusted_circle_disabled": false,
+            "reward_denom": "osmo"
+        }
+    "#;
+
+    let msg: InstantiateMsg = serde_json::from_str(json).unwrap();
+    assert_eq!(
+        msg,
+        InstantiateMsg {
+            name: "trusted_circle".to_owned(),
+            denom: "utgd".to_owned(),
+            escrow_amount: Uint128::new(300),
+            voting_period: 30,
+            quorum: Decimal::percent(50),
+            threshold: Decimal::percent(60),
+            allow_end_early: false,
+            initial_members: vec![],
+            deny_list: None,
+            edit_trusted_circle_disabled: false,
+            reward_denom: "osmo".to_owned(),
         }
     );
 }

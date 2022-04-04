@@ -9,12 +9,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "94a45b455c14666b85fc40a019e8ab9eb75e3a124e05494f5397122bc9eb06e0"
 
 [[package]]
-name = "assert_matches"
-version = "1.5.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "9b34d609dfbaf33d6889b2b7106d3ca345eacad44200913df5ba02bfd31d2ba9"
-
-[[package]]
 name = "base64"
 version = "0.13.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -812,7 +806,6 @@ name = "tgrade-trusted-circle"
 version = "0.8.1"
 dependencies = [
  "anyhow",
- "assert_matches",
  "cosmwasm-schema",
  "cosmwasm-std",
  "cw-controllers",
@@ -824,6 +817,7 @@ dependencies = [
  "schemars",
  "semver",
  "serde",
+ "serde_json",
  "tg-bindings",
  "tg-bindings-test",
  "tg-utils",
