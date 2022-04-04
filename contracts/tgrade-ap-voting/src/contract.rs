@@ -10,13 +10,15 @@ use cw_storage_plus::Bound;
 use cw2::{get_contract_version, set_contract_version};
 use cw_utils::{must_pay, parse_reply_instantiate_data, Duration, Threshold};
 use semver::Version;
-use tg_bindings::{request_privileges, Privilege, PrivilegeChangeMsg, TgradeMsg, TgradeSudoMsg};
+use tg_bindings::{
+    request_privileges, Privilege, PrivilegeChangeMsg, TgradeMsg, TgradeQuery, TgradeSudoMsg,
+};
 use tg_utils::ensure_from_older_version;
 
 use crate::migration::migrate_config;
 use crate::msg::{ExecuteMsg, InstantiateMsg, ListComplaintsResp, MigrationMsg, QueryMsg};
 use crate::state::{
-    ArbiterProposal, Complaint, ComplaintState, Config, AWAITING_MULTISIG, COMPLAINTS, CONFIG,
+    ArbiterProposal, Complaint, ComplaintState, Config, COMPLAINTS, COMPLAINT_AWAITING, CONFIG,
 };
 use crate::ContractError;
 
@@ -33,12 +35,11 @@ pub type SubMsg = cosmwasm_std::SubMsg<TgradeMsg>;
 const CONTRACT_NAME: &str = "crates.io:tgrade_validator_voting_proposals";
 const CONTRACT_VERSION: &str = env!("CARGO_PKG_VERSION");
 
-const RESP_ID_MASK: u64 = (u32::MAX as u64) << 32;
-const AWAITING_MULTISIG_RESP_ID_FLAG: u64 = 1 << 32;
+const AWAITING_MULTISIG_RESP: u64 = 1;
 
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn instantiate(
-    deps: DepsMut,
+    deps: DepsMut<TgradeQuery>,
     _env: Env,
     _info: MessageInfo,
     msg: InstantiateMsg,
@@ -60,7 +61,7 @@ pub fn instantiate(
 
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn execute(
-    deps: DepsMut,
+    deps: DepsMut<TgradeQuery>,
     env: Env,
     info: MessageInfo,
     msg: ExecuteMsg,
@@ -75,12 +76,12 @@ pub fn execute(
         } => execute_propose(deps, env, info, title, description, proposal)
             .map_err(ContractError::from),
         Vote { proposal_id, vote } => {
-            execute_vote::<ArbiterProposal, Empty>(deps, env, info, proposal_id, vote)
+            execute_vote::<ArbiterProposal, TgradeQuery>(deps, env, info, proposal_id, vote)
                 .map_err(ContractError::from)
         }
         Execute { proposal_id } => execute_execute(deps, env, info, proposal_id),
         Close { proposal_id } => {
-            execute_close::<ArbiterProposal, Empty>(deps, env, info, proposal_id)
+            execute_close::<ArbiterProposal, TgradeQuery>(deps, env, info, proposal_id)
                 .map_err(ContractError::from)
         }
         RegisterComplaint {
@@ -102,7 +103,7 @@ pub fn execute(
 }
 
 pub fn execute_render_decision(
-    deps: DepsMut,
+    deps: DepsMut<TgradeQuery>,
     info: MessageInfo,
     complaint_id: u64,
     summary: String,
@@ -154,7 +155,7 @@ pub fn execute_render_decision(
 }
 
 pub fn execute_execute(
-    deps: DepsMut,
+    deps: DepsMut<TgradeQuery>,
     env: Env,
     info: MessageInfo,
     proposal_id: u64,
@@ -177,7 +178,7 @@ pub fn execute_execute(
 }
 
 fn execute_propose_arbiters(
-    deps: DepsMut,
+    deps: DepsMut<TgradeQuery>,
     case_id: u64,
     arbiters: Vec<Addr>,
 ) -> Result<Response, ContractError> {
@@ -210,7 +211,7 @@ fn execute_propose_arbiters(
         return Err(ContractError::ImproperState(complaint.state));
     }
 
-    let label = format!("[{}] {} AP", case_id, complaint.title);
+    let label = format!("{} AP", case_id);
 
     let cw3_instantiate = WasmMsg::Instantiate {
         admin: None,
@@ -220,19 +221,17 @@ fn execute_propose_arbiters(
         label,
     };
 
-    let resp_id = (0..=u32::MAX)
-        .map(|id| AWAITING_MULTISIG_RESP_ID_FLAG | (id as u64))
-        .find(|id| !AWAITING_MULTISIG.has(deps.storage, *id))
-        .ok_or(ContractError::NoMultisigAwaitingId)?;
-
-    AWAITING_MULTISIG.save(deps.storage, resp_id, &case_id)?;
-    let resp = Response::new().add_submessage(SubMsg::reply_on_success(cw3_instantiate, resp_id));
+    COMPLAINT_AWAITING.save(deps.storage, &case_id)?;
+    let resp = Response::new().add_submessage(SubMsg::reply_on_success(
+        cw3_instantiate,
+        AWAITING_MULTISIG_RESP,
+    ));
 
     Ok(resp)
 }
 
 pub fn execute_register_complaint(
-    deps: DepsMut,
+    deps: DepsMut<TgradeQuery>,
     env: Env,
     info: MessageInfo,
     title: String,
@@ -277,7 +276,7 @@ pub fn execute_register_complaint(
 }
 
 pub fn execute_accept_complaint(
-    deps: DepsMut,
+    deps: DepsMut<TgradeQuery>,
     env: Env,
     info: MessageInfo,
     complaint_id: u64,
@@ -323,7 +322,7 @@ pub fn execute_accept_complaint(
 }
 
 fn execute_withdraw_complaint(
-    deps: DepsMut,
+    deps: DepsMut<TgradeQuery>,
     env: Env,
     info: MessageInfo,
     complaint_id: u64,
@@ -394,29 +393,31 @@ fn align_limit(limit: Option<u32>) -> usize {
 }
 
 #[cfg_attr(not(feature = "library"), entry_point)]
-pub fn query(deps: Deps, env: Env, msg: QueryMsg) -> StdResult<Binary> {
+pub fn query(deps: Deps<TgradeQuery>, env: Env, msg: QueryMsg) -> StdResult<Binary> {
     use QueryMsg::*;
     // Just for easier distinguish between Proposal `Empty` and potential other `Empty`
     type EmptyProposal = Empty;
 
     match msg {
         Rules {} => to_binary(&query_rules(deps)?),
-        Proposal { proposal_id } => to_binary(&query_proposal::<EmptyProposal, Empty>(
+        Proposal { proposal_id } => to_binary(&query_proposal::<EmptyProposal, TgradeQuery>(
             deps,
             env,
             proposal_id,
         )?),
         Vote { proposal_id, voter } => to_binary(&query_vote(deps, proposal_id, voter)?),
-        ListProposals { start_after, limit } => to_binary(&list_proposals::<EmptyProposal, Empty>(
-            deps,
-            env,
-            start_after,
-            align_limit(limit),
-        )?),
+        ListProposals { start_after, limit } => {
+            to_binary(&list_proposals::<EmptyProposal, TgradeQuery>(
+                deps,
+                env,
+                start_after,
+                align_limit(limit),
+            )?)
+        }
         ReverseProposals {
             start_before,
             limit,
-        } => to_binary(&reverse_proposals::<EmptyProposal, Empty>(
+        } => to_binary(&reverse_proposals::<EmptyProposal, TgradeQuery>(
             deps,
             env,
             start_before,
@@ -455,13 +456,17 @@ pub fn query(deps: Deps, env: Env, msg: QueryMsg) -> StdResult<Binary> {
     }
 }
 
-pub fn query_complaint(deps: Deps, env: Env, complaint_id: u64) -> StdResult<Complaint> {
+pub fn query_complaint(
+    deps: Deps<TgradeQuery>,
+    env: Env,
+    complaint_id: u64,
+) -> StdResult<Complaint> {
     let complaint = COMPLAINTS.load(deps.storage, complaint_id)?;
     Ok(complaint.update_state(&env.block))
 }
 
 pub fn query_list_complaints(
-    deps: Deps,
+    deps: Deps<TgradeQuery>,
     env: Env,
     start_after: Option<u64>,
     limit: usize,
@@ -476,14 +481,18 @@ pub fn query_list_complaints(
 }
 
 #[cfg_attr(not(feature = "library"), entry_point)]
-pub fn sudo(deps: DepsMut, _env: Env, msg: TgradeSudoMsg) -> Result<Response, ContractError> {
+pub fn sudo(
+    deps: DepsMut<TgradeQuery>,
+    _env: Env,
+    msg: TgradeSudoMsg,
+) -> Result<Response, ContractError> {
     match msg {
         TgradeSudoMsg::PrivilegeChange(change) => Ok(privilege_change(deps, change)),
         _ => Err(ContractError::UnsupportedSudoType {}),
     }
 }
 
-fn privilege_change(_deps: DepsMut, change: PrivilegeChangeMsg) -> Response {
+fn privilege_change(_deps: DepsMut<TgradeQuery>, change: PrivilegeChangeMsg) -> Response {
     match change {
         PrivilegeChangeMsg::Promoted {} => {
             let msgs = request_privileges(&[
@@ -497,7 +506,11 @@ fn privilege_change(_deps: DepsMut, change: PrivilegeChangeMsg) -> Response {
 }
 
 #[cfg_attr(not(feature = "library"), entry_point)]
-pub fn migrate(deps: DepsMut, _env: Env, msg: MigrationMsg) -> Result<Response, ContractError> {
+pub fn migrate(
+    deps: DepsMut<TgradeQuery>,
+    _env: Env,
+    msg: MigrationMsg,
+) -> Result<Response, ContractError> {
     ensure_from_older_version(deps.storage, CONTRACT_NAME, CONTRACT_VERSION)?;
 
     let stored = get_contract_version(deps.storage)?;
@@ -508,15 +521,15 @@ pub fn migrate(deps: DepsMut, _env: Env, msg: MigrationMsg) -> Result<Response, 
 }
 
 #[cfg_attr(not(feature = "library"), entry_point)]
-pub fn reply(deps: DepsMut, env: Env, msg: Reply) -> Result<Response, ContractError> {
-    match msg.id & RESP_ID_MASK {
-        AWAITING_MULTISIG_RESP_ID_FLAG => multisig_instantiate_reply(deps, env, msg),
+pub fn reply(deps: DepsMut<TgradeQuery>, env: Env, msg: Reply) -> Result<Response, ContractError> {
+    match msg.id {
+        AWAITING_MULTISIG_RESP => multisig_instantiate_reply(deps, env, msg),
         _ => Err(ContractError::UnrecognizedReply(msg.id)),
     }
 }
 
 pub fn multisig_instantiate_reply(
-    deps: DepsMut,
+    deps: DepsMut<TgradeQuery>,
     _env: Env,
     msg: Reply,
 ) -> Result<Response, ContractError> {
@@ -528,8 +541,7 @@ pub fn multisig_instantiate_reply(
         })?;
     let addr = deps.api.addr_validate(&res.contract_address)?;
 
-    let complain_id = AWAITING_MULTISIG.load(deps.storage, id)?;
-    AWAITING_MULTISIG.remove(deps.storage, id);
+    let complain_id = COMPLAINT_AWAITING.load(deps.storage)?;
 
     COMPLAINTS.update(
         deps.storage,

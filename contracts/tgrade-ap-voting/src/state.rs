@@ -55,7 +55,9 @@ impl Complaint {
 
 pub const CONFIG: Item<Config> = Item::new("ap_config");
 pub const COMPLAINTS: Map<u64, Complaint> = Map::new("complaints");
-pub const AWAITING_MULTISIG: Map<u64, u64> = Map::new("awaiting_multisig");
+
+// This is an id of a complaint which handling is in progress (for reply handling)
+pub const COMPLAINT_AWAITING: Item<u64> = Item::new("complaint_awaiting");
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 #[serde(rename_all = "snake_case")]

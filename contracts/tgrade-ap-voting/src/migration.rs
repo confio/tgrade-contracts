@@ -2,6 +2,7 @@ use cosmwasm_std::{Coin, DepsMut};
 use cw_storage_plus::Item;
 use semver::Version;
 use serde::{Deserialize, Serialize};
+use tg_bindings::TgradeQuery;
 use tg_utils::Duration;
 
 use crate::error::ContractError;
@@ -16,7 +17,7 @@ struct ConfigV0_6_2 {
 }
 
 pub fn migrate_config(
-    deps: DepsMut,
+    deps: DepsMut<TgradeQuery>,
     version: &Version,
     msg: &MigrationMsg,
 ) -> Result<(), ContractError> {
