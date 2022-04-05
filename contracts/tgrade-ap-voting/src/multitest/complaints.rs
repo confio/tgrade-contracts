@@ -6,7 +6,7 @@ use crate::multitest::suite::SuiteBuilder;
 use crate::state::{Complaint, ComplaintState};
 use assert_matches::assert_matches;
 
-const DENOM: &'static str = "utgd";
+const DENOM: &str = "utgd";
 
 #[test]
 fn registering_complaint() {

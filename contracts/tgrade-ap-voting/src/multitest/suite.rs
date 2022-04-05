@@ -159,10 +159,6 @@ pub struct Suite {
 }
 
 impl Suite {
-    pub fn new() -> Self {
-        SuiteBuilder::new().build()
-    }
-
     pub fn register_complaint(
         &mut self,
         executor: &str,
@@ -179,7 +175,7 @@ impl Suite {
                 description: description.to_owned(),
                 defendant: defendant.to_owned(),
             },
-            &funds_send,
+            funds_send,
         )
     }
 
