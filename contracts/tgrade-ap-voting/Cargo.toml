@@ -15,6 +15,7 @@ library = []
 
 [dependencies]
 cw2 = "0.13.1"
+cw3 = "0.13.1"
 cw3-fixed-multisig = "0.13.1"
 cosmwasm-std = "1.0.0-beta5"
 schemars = "0.8.1"
@@ -37,3 +38,5 @@ tg-test-utils = "0.8.1"
 tg4 = "0.8.1"
 tg4-engagement = "0.8.1"
 tgrade-oc-proposals = { path = "../tgrade-oc-proposals", version = "0.8.1" }
+anyhow = "1"
+assert_matches = "1.5"

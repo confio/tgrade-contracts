@@ -8,6 +8,7 @@ use cw3_fixed_multisig::msg::{InstantiateMsg as Cw3InstantiateMsg, Voter};
 use cw_storage_plus::Bound;
 
 use cw2::{get_contract_version, set_contract_version};
+use cw3::VoterListResponse;
 use cw_utils::{must_pay, parse_reply_instantiate_data, Duration, Threshold};
 use semver::Version;
 use tg_bindings::{
@@ -102,6 +103,33 @@ pub fn execute(
     }
 }
 
+fn query_multisig_voters(
+    deps: Deps<TgradeQuery>,
+    addr: &Addr,
+) -> Result<Vec<String>, ContractError> {
+    let mut voters = vec![];
+
+    loop {
+        dbg!("HERE");
+        let resp: VoterListResponse = deps.querier.query_wasm_smart(
+            addr.clone(),
+            &cw3_fixed_multisig::msg::QueryMsg::ListVoters {
+                start_after: voters.last().cloned(),
+                limit: None,
+            },
+        )?;
+        dbg!("HERE");
+
+        if resp.voters.is_empty() {
+            break;
+        }
+
+        voters.extend(resp.voters.into_iter().map(|vd| vd.addr));
+    }
+
+    Ok(voters)
+}
+
 pub fn execute_render_decision(
     deps: DepsMut<TgradeQuery>,
     info: MessageInfo,
@@ -110,11 +138,6 @@ pub fn execute_render_decision(
     ipfs_link: String,
 ) -> Result<Response, ContractError> {
     let config = CONFIG.load(deps.storage)?;
-
-    let members = list_voters(deps.as_ref(), None, None)?.voters;
-
-    let mut dispute = config.dispute_cost;
-    dispute.amount = Uint128::from(dispute.amount.u128() / members.len() as u128);
 
     COMPLAINTS.update(
         deps.storage,
@@ -140,13 +163,18 @@ pub fn execute_render_decision(
         },
     )?;
 
+    let members = query_multisig_voters(deps.as_ref(), &info.sender)?;
+
+    let mut dispute = config.dispute_cost;
+    dispute.amount = Uint128::from(dispute.amount.u128() / members.len() as u128);
+
     let mut resp = Response::new()
         .add_attribute("action", "render_decision")
         .add_attribute("complaint_id", complaint_id.to_string());
 
     for member in members {
         resp = resp.add_message(BankMsg::Send {
-            to_address: member.addr,
+            to_address: member,
             amount: vec![dispute.clone()],
         })
     }
@@ -162,14 +190,16 @@ pub fn execute_execute(
 ) -> Result<Response, ContractError> {
     use ArbiterProposal::*;
 
-    let proposal = mark_executed::<ArbiterProposal>(deps.storage, env, proposal_id)?;
+    let proposal = mark_executed::<ArbiterProposal>(deps.storage, env.clone(), proposal_id)?;
 
     let resp = match proposal.proposal {
         Text {} => {
             execute_text(deps, proposal_id, proposal)?;
             Response::new()
         }
-        ProposeArbiters { case_id, arbiters } => execute_propose_arbiters(deps, case_id, arbiters)?,
+        ProposeArbiters { case_id, arbiters } => {
+            execute_propose_arbiters(deps, env, case_id, arbiters)?
+        }
     };
 
     Ok(resp
@@ -179,6 +209,7 @@ pub fn execute_execute(
 
 fn execute_propose_arbiters(
     deps: DepsMut<TgradeQuery>,
+    env: Env,
     case_id: u64,
     arbiters: Vec<Addr>,
 ) -> Result<Response, ContractError> {
@@ -207,7 +238,7 @@ fn execute_propose_arbiters(
     };
 
     let complaint = COMPLAINTS.load(deps.storage, case_id)?;
-    if complaint.state != (ComplaintState::Accepted {}) {
+    if complaint.current_state(&env.block) != (ComplaintState::Accepted {}) {
         return Err(ContractError::ImproperState(complaint.state));
     }
 
@@ -560,8 +591,9 @@ pub fn multisig_instantiate_reply(
 
 #[cfg(test)]
 mod tests {
-    use cosmwasm_std::testing::{mock_dependencies, mock_env};
+    use cosmwasm_std::testing::mock_env;
     use cosmwasm_std::{coin, from_slice, Addr, Decimal};
+    use tg_bindings_test::mock_deps_tgrade;
     use tg_utils::Duration;
     use tg_voting_contract::state::VotingRules;
 
@@ -569,7 +601,7 @@ mod tests {
 
     #[test]
     fn query_group_contract() {
-        let mut deps = mock_dependencies();
+        let mut deps = mock_deps_tgrade();
         let env = mock_env();
         let rules = VotingRules {
             voting_period: 1,
@@ -606,7 +638,7 @@ mod tests {
         let defendant = Addr::unchecked("defendant");
         let dispute_cost = coin(100, "utgd");
 
-        let mut deps = mock_dependencies();
+        let mut deps = mock_deps_tgrade();
         let env = mock_env();
         let rules = VotingRules {
             voting_period: 1,
@@ -660,7 +692,7 @@ mod tests {
         let dispute_cost = coin(100, "utgd");
         let waiting_period = Duration::new(3600);
 
-        let mut deps = mock_dependencies();
+        let mut deps = mock_deps_tgrade();
         let env = mock_env();
         let rules = VotingRules {
             voting_period: 1,
@@ -769,7 +801,7 @@ mod tests {
         let dispute_cost = coin(100, "utgd");
         let waiting_period = Duration::new(3600);
 
-        let mut deps = mock_dependencies();
+        let mut deps = mock_deps_tgrade();
         let mut env = mock_env();
         let rules = VotingRules {
             voting_period: 1,
@@ -845,7 +877,7 @@ mod tests {
         let dispute_cost = coin(100, "utgd");
         let waiting_period = Duration::new(3600);
 
-        let mut deps = mock_dependencies();
+        let mut deps = mock_deps_tgrade();
         let mut env = mock_env();
         let rules = VotingRules {
             voting_period: 1,
@@ -918,7 +950,7 @@ mod tests {
         let dispute_cost = coin(100, "utgd");
         let waiting_period = Duration::new(3600);
 
-        let mut deps = mock_dependencies();
+        let mut deps = mock_deps_tgrade();
         let mut env = mock_env();
         let rules = VotingRules {
             voting_period: 1,

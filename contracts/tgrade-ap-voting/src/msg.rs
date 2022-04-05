@@ -1,13 +1,13 @@
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
-use cosmwasm_std::{Coin, Empty};
+use cosmwasm_std::Coin;
 use tg3::Vote;
 
 use tg_utils::Duration;
 use tg_voting_contract::state::VotingRules;
 
-use crate::state::Complaint;
+use crate::state::{ArbiterProposal, Complaint};
 
 #[derive(Serialize, Deserialize, Clone, PartialEq, JsonSchema, Debug)]
 pub struct InstantiateMsg {
@@ -29,7 +29,7 @@ pub enum ExecuteMsg {
     Propose {
         title: String,
         description: String,
-        proposal: Empty,
+        proposal: ArbiterProposal,
     },
     Vote {
         proposal_id: u64,
