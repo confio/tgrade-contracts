@@ -373,7 +373,7 @@ fn render_decision() {
     let plaintiff = "plaintiff";
     let defendant = "defendant";
 
-    let members = ["member", "arbiter1", "arbiter2"];
+    let members = ["member", "arbiter1", "arbiter2", "arbiter3", "arbiter4"];
     let arbiters = &members[1..];
 
     let mut suite = SuiteBuilder::new()
@@ -382,6 +382,8 @@ fn render_decision() {
         .with_member(members[0], 1)
         .with_member(members[1], 1)
         .with_member(members[2], 1)
+        .with_member(members[3], 1)
+        .with_member(members[4], 1)
         .with_funds(plaintiff, coins(100, DENOM))
         .with_funds(defendant, coins(100, DENOM))
         .build();
@@ -407,6 +409,7 @@ fn render_decision() {
         .unwrap();
 
     suite.vote(members[1], proposal_id, Vote::Yes).unwrap();
+    suite.vote(members[2], proposal_id, Vote::Yes).unwrap();
     suite.execute_proposal(members[0], proposal_id).unwrap();
 
     let arbiters = match suite.query_complaint(complaint_id).unwrap().state {
@@ -433,4 +436,9 @@ fn render_decision() {
             }
         }
     );
+
+    assert_eq!(50, suite.token_balance(members[1], DENOM).unwrap());
+    assert_eq!(50, suite.token_balance(members[2], DENOM).unwrap());
+    assert_eq!(50, suite.token_balance(members[3], DENOM).unwrap());
+    assert_eq!(50, suite.token_balance(members[4], DENOM).unwrap());
 }

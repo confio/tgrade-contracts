@@ -166,7 +166,7 @@ pub fn execute_render_decision(
     let members = query_multisig_voters(deps.as_ref(), &info.sender)?;
 
     let mut dispute = config.dispute_cost;
-    dispute.amount = Uint128::from(dispute.amount.u128() / members.len() as u128);
+    dispute.amount = Uint128::from(2 * dispute.amount.u128() / members.len() as u128);
 
     let mut resp = Response::new()
         .add_attribute("action", "render_decision")
