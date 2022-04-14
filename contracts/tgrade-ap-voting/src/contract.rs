@@ -110,7 +110,6 @@ fn query_multisig_voters(
     let mut voters = vec![];
 
     loop {
-        dbg!("HERE");
         let resp: VoterListResponse = deps.querier.query_wasm_smart(
             addr.clone(),
             &cw3_fixed_multisig::msg::QueryMsg::ListVoters {
@@ -118,7 +117,6 @@ fn query_multisig_voters(
                 limit: None,
             },
         )?;
-        dbg!("HERE");
 
         if resp.voters.is_empty() {
             break;
@@ -213,6 +211,11 @@ fn execute_propose_arbiters(
     case_id: u64,
     arbiters: Vec<Addr>,
 ) -> Result<Response, ContractError> {
+    let complaint = COMPLAINTS.load(deps.storage, case_id)?;
+    if complaint.current_state(&env.block) != (ComplaintState::Accepted {}) {
+        return Err(ContractError::ImproperState(complaint.state));
+    }
+
     let config = CONFIG.load(deps.storage)?;
 
     let members = list_voters(deps.as_ref(), None, None)?.voters;
@@ -236,11 +239,6 @@ fn execute_propose_arbiters(
         },
         max_voting_period: Duration::Time(config.waiting_period.seconds()),
     };
-
-    let complaint = COMPLAINTS.load(deps.storage, case_id)?;
-    if complaint.current_state(&env.block) != (ComplaintState::Accepted {}) {
-        return Err(ContractError::ImproperState(complaint.state));
-    }
 
     let label = format!("{} AP", case_id);
 
@@ -572,13 +570,13 @@ pub fn multisig_instantiate_reply(
         })?;
     let addr = deps.api.addr_validate(&res.contract_address)?;
 
-    let complain_id = COMPLAINT_AWAITING.load(deps.storage)?;
+    let complaint_id = COMPLAINT_AWAITING.load(deps.storage)?;
 
     COMPLAINTS.update(
         deps.storage,
-        complain_id,
+        complaint_id,
         |complaint| -> Result<Complaint, ContractError> {
-            let complaint = complaint.ok_or(ContractError::ComplaintMissing(complain_id))?;
+            let complaint = complaint.ok_or(ContractError::ComplaintMissing(complaint_id))?;
             Ok(Complaint {
                 state: ComplaintState::Processing { arbiters: addr },
                 ..complaint
