@@ -202,6 +202,7 @@ pub fn execute_execute(
 
     Ok(resp
         .add_attribute("action", "execute")
+        .add_attribute("proposal_id", proposal_id.to_string())
         .add_attribute("sender", info.sender))
 }
 
