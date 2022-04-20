@@ -8,6 +8,7 @@ use cosmwasm_std::{
     QuerierResult, QueryRequest, StdError, SubMsg, SystemError, SystemResult, WasmQuery,
 };
 use cw_storage_plus::Item;
+use tg4::MemberInfo;
 
 use crate::msg::{InstantiateMsg, RulesResponse};
 use crate::state::{EscrowStatus, Punishment};
@@ -1122,9 +1123,9 @@ fn raw_queries_work() {
     let total: u64 = from_slice(&total_raw).unwrap();
     assert_eq!(1, total);
 
-    // get member votes from raw key
+    // get member info / points from raw key
     let member0_raw = deps.storage.get(&member_key(INIT_ADMIN)).unwrap();
-    let member0: u64 = from_slice(&member0_raw).unwrap();
+    let member0: u64 = from_slice::<MemberInfo>(&member0_raw).unwrap().points;
     assert_eq!(1, member0);
 
     // and execute misses
