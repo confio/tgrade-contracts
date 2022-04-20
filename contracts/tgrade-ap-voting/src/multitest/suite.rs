@@ -142,6 +142,7 @@ impl SuiteBuilder {
         self.group_members.push(Member {
             addr: addr.to_string(),
             points,
+            start_height: None,
         });
 
         self

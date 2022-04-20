@@ -18,6 +18,7 @@ pub fn member<T: Into<String>>(addr: T, points: u64) -> Member {
     Member {
         addr: addr.into(),
         points,
+        start_height: None,
     }
 }
 
@@ -88,6 +89,7 @@ impl SuiteBuilder {
         self.group_members.push(Member {
             addr: addr.to_owned(),
             points,
+            start_height: None,
         });
         self
     }
@@ -96,6 +98,7 @@ impl SuiteBuilder {
         self.engagement_members.push(Member {
             addr: addr.to_owned(),
             points,
+            start_height: None,
         });
         self
     }

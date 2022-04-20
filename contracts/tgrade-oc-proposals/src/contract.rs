@@ -274,6 +274,7 @@ mod tests {
         Member {
             addr: addr.into(),
             points,
+            start_height: None,
         }
     }
 
