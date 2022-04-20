@@ -1,18 +1,26 @@
 #[cfg(not(feature = "library"))]
 use cosmwasm_std::entry_point;
 use cosmwasm_std::{
-    coin, to_binary, BankMsg, Binary, CosmosMsg, Decimal, Deps, DepsMut, Empty, Env, MessageInfo,
-    Order, StdResult,
+    coin, to_binary, Addr, BankMsg, Binary, CosmosMsg, Decimal, Deps, DepsMut, Empty, Env,
+    MessageInfo, Order, Reply, StdResult, Uint128, WasmMsg,
 };
+use cw3_fixed_multisig::msg::{InstantiateMsg as Cw3InstantiateMsg, Voter};
 use cw_storage_plus::Bound;
 
-use cw2::set_contract_version;
-use cw_utils::must_pay;
-use tg_bindings::{request_privileges, Privilege, PrivilegeChangeMsg, TgradeMsg, TgradeSudoMsg};
+use cw2::{get_contract_version, set_contract_version};
+use cw3::VoterListResponse;
+use cw_utils::{must_pay, parse_reply_instantiate_data, Duration, Threshold};
+use semver::Version;
+use tg_bindings::{
+    request_privileges, Privilege, PrivilegeChangeMsg, TgradeMsg, TgradeQuery, TgradeSudoMsg,
+};
 use tg_utils::ensure_from_older_version;
 
-use crate::msg::{ExecuteMsg, InstantiateMsg, ListComplaintsResp, QueryMsg};
-use crate::state::{ArbiterProposal, Complaint, ComplaintState, Config, COMPLAINTS, CONFIG};
+use crate::migration::migrate_config;
+use crate::msg::{ExecuteMsg, InstantiateMsg, ListComplaintsResp, MigrationMsg, QueryMsg};
+use crate::state::{
+    ArbiterProposal, Complaint, ComplaintState, Config, COMPLAINTS, COMPLAINT_AWAITING, CONFIG,
+};
 use crate::ContractError;
 
 use tg_voting_contract::{
@@ -28,9 +36,11 @@ pub type SubMsg = cosmwasm_std::SubMsg<TgradeMsg>;
 const CONTRACT_NAME: &str = "crates.io:tgrade_validator_voting_proposals";
 const CONTRACT_VERSION: &str = env!("CARGO_PKG_VERSION");
 
+const AWAITING_MULTISIG_RESP: u64 = 1;
+
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn instantiate(
-    deps: DepsMut,
+    deps: DepsMut<TgradeQuery>,
     _env: Env,
     _info: MessageInfo,
     msg: InstantiateMsg,
@@ -43,6 +53,7 @@ pub fn instantiate(
             dispute_cost: msg.dispute_cost,
             waiting_period: msg.waiting_period,
             next_complaint_id: 0,
+            multisig_code: msg.multisig_code,
         },
     )?;
 
@@ -51,7 +62,7 @@ pub fn instantiate(
 
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn execute(
-    deps: DepsMut,
+    deps: DepsMut<TgradeQuery>,
     env: Env,
     info: MessageInfo,
     msg: ExecuteMsg,
@@ -66,12 +77,12 @@ pub fn execute(
         } => execute_propose(deps, env, info, title, description, proposal)
             .map_err(ContractError::from),
         Vote { proposal_id, vote } => {
-            execute_vote::<ArbiterProposal, Empty>(deps, env, info, proposal_id, vote)
+            execute_vote::<ArbiterProposal, TgradeQuery>(deps, env, info, proposal_id, vote)
                 .map_err(ContractError::from)
         }
         Execute { proposal_id } => execute_execute(deps, env, info, proposal_id),
         Close { proposal_id } => {
-            execute_close::<ArbiterProposal, Empty>(deps, env, info, proposal_id)
+            execute_close::<ArbiterProposal, TgradeQuery>(deps, env, info, proposal_id)
                 .map_err(ContractError::from)
         }
         RegisterComplaint {
@@ -84,30 +95,173 @@ pub fn execute(
             complaint_id,
             reason,
         } => execute_withdraw_complaint(deps, env, info, complaint_id, reason),
+        RenderDecision {
+            complaint_id,
+            summary,
+            ipfs_link,
+        } => execute_render_decision(deps, info, complaint_id, summary, ipfs_link),
     }
 }
 
+fn query_multisig_voters(
+    deps: Deps<TgradeQuery>,
+    addr: &Addr,
+) -> Result<Vec<String>, ContractError> {
+    let mut voters = vec![];
+
+    loop {
+        let resp: VoterListResponse = deps.querier.query_wasm_smart(
+            addr.clone(),
+            &cw3_fixed_multisig::msg::QueryMsg::ListVoters {
+                start_after: voters.last().cloned(),
+                limit: None,
+            },
+        )?;
+
+        if resp.voters.is_empty() {
+            break;
+        }
+
+        voters.extend(resp.voters.into_iter().map(|vd| vd.addr));
+    }
+
+    Ok(voters)
+}
+
+pub fn execute_render_decision(
+    deps: DepsMut<TgradeQuery>,
+    info: MessageInfo,
+    complaint_id: u64,
+    summary: String,
+    ipfs_link: String,
+) -> Result<Response, ContractError> {
+    let config = CONFIG.load(deps.storage)?;
+
+    COMPLAINTS.update(
+        deps.storage,
+        complaint_id,
+        |complaint| -> Result<Complaint, ContractError> {
+            let complaint = complaint.ok_or(ContractError::ComplaintMissing(complaint_id))?;
+
+            match complaint.state {
+                ComplaintState::Processing { arbiters } if arbiters != info.sender => {
+                    return Err(ContractError::Unauthorized(format!(
+                        "Only {} can render decision for this complaint",
+                        arbiters
+                    )))
+                }
+                ComplaintState::Processing { .. } => (),
+                state => return Err(ContractError::ImproperState(state)),
+            }
+
+            Ok(Complaint {
+                state: ComplaintState::Closed { summary, ipfs_link },
+                ..complaint
+            })
+        },
+    )?;
+
+    let members = query_multisig_voters(deps.as_ref(), &info.sender)?;
+
+    let mut dispute = config.dispute_cost;
+    dispute.amount = Uint128::from(2 * dispute.amount.u128() / members.len() as u128);
+
+    let mut resp = Response::new()
+        .add_attribute("action", "render_decision")
+        .add_attribute("complaint_id", complaint_id.to_string());
+
+    for member in members {
+        resp = resp.add_message(BankMsg::Send {
+            to_address: member,
+            amount: vec![dispute.clone()],
+        })
+    }
+
+    Ok(resp)
+}
+
 pub fn execute_execute(
-    deps: DepsMut,
+    deps: DepsMut<TgradeQuery>,
     env: Env,
     info: MessageInfo,
     proposal_id: u64,
 ) -> Result<Response, ContractError> {
-    use ArbiterProposal::Text;
+    use ArbiterProposal::*;
 
-    let proposal = mark_executed::<ArbiterProposal>(deps.storage, env, proposal_id)?;
+    let proposal = mark_executed::<ArbiterProposal>(deps.storage, env.clone(), proposal_id)?;
 
-    match proposal.proposal {
-        Text {} => execute_text(deps, proposal_id, proposal)?,
-    }
+    let resp = match proposal.proposal {
+        Text {} => {
+            execute_text(deps, proposal_id, proposal)?;
+            Response::new()
+        }
+        ProposeArbiters { case_id, arbiters } => {
+            execute_propose_arbiters(deps, env, case_id, arbiters)?
+        }
+    };
 
-    Ok(Response::new()
+    Ok(resp
         .add_attribute("action", "execute")
+        .add_attribute("proposal_id", proposal_id.to_string())
         .add_attribute("sender", info.sender))
 }
 
+fn execute_propose_arbiters(
+    deps: DepsMut<TgradeQuery>,
+    env: Env,
+    case_id: u64,
+    arbiters: Vec<Addr>,
+) -> Result<Response, ContractError> {
+    let complaint = COMPLAINTS.load(deps.storage, case_id)?;
+    if complaint.current_state(&env.block) != (ComplaintState::Accepted {}) {
+        return Err(ContractError::ImproperState(complaint.state));
+    }
+
+    let config = CONFIG.load(deps.storage)?;
+
+    let members = list_voters(deps.as_ref(), None, None)?.voters;
+    for arbiter in &arbiters {
+        if !members.iter().any(|m| m.addr == *arbiter) {
+            return Err(ContractError::InvalidProposedArbiter(arbiter.to_string()));
+        }
+    }
+
+    let pass_weight = (arbiters.len() / 2) + 1;
+    let cw3_instantiate = Cw3InstantiateMsg {
+        voters: arbiters
+            .into_iter()
+            .map(|arbiter| Voter {
+                addr: arbiter.to_string(),
+                weight: 1,
+            })
+            .collect(),
+        threshold: Threshold::AbsoluteCount {
+            weight: pass_weight as u64,
+        },
+        max_voting_period: Duration::Time(config.waiting_period.seconds()),
+    };
+
+    let label = format!("{} AP", case_id);
+
+    let cw3_instantiate = WasmMsg::Instantiate {
+        admin: None,
+        code_id: config.multisig_code,
+        msg: to_binary(&cw3_instantiate)?,
+        funds: vec![],
+        label,
+    };
+
+    COMPLAINT_AWAITING.save(deps.storage, &case_id)?;
+    let resp = Response::new().add_submessage(SubMsg::reply_on_success(
+        cw3_instantiate,
+        AWAITING_MULTISIG_RESP,
+    ));
+
+    Ok(resp)
+}
+
 pub fn execute_register_complaint(
-    deps: DepsMut,
+    deps: DepsMut<TgradeQuery>,
     env: Env,
     info: MessageInfo,
     title: String,
@@ -152,7 +306,7 @@ pub fn execute_register_complaint(
 }
 
 pub fn execute_accept_complaint(
-    deps: DepsMut,
+    deps: DepsMut<TgradeQuery>,
     env: Env,
     info: MessageInfo,
     complaint_id: u64,
@@ -198,7 +352,7 @@ pub fn execute_accept_complaint(
 }
 
 fn execute_withdraw_complaint(
-    deps: DepsMut,
+    deps: DepsMut<TgradeQuery>,
     env: Env,
     info: MessageInfo,
     complaint_id: u64,
@@ -245,12 +399,7 @@ fn execute_withdraw_complaint(
                         amount: vec![config.dispute_cost],
                     }));
                 }
-                state @ ComplaintState::Withdrawn { .. } => {
-                    return Err(ContractError::ImproperState(state))
-                }
-                ComplaintState::Accepted {} => {
-                    return Err(ContractError::ImproperState(ComplaintState::Accepted {}))
-                }
+                state => return Err(ContractError::ImproperState(state)),
             }
 
             complaint.state = ComplaintState::Withdrawn { reason };
@@ -274,29 +423,31 @@ fn align_limit(limit: Option<u32>) -> usize {
 }
 
 #[cfg_attr(not(feature = "library"), entry_point)]
-pub fn query(deps: Deps, env: Env, msg: QueryMsg) -> StdResult<Binary> {
+pub fn query(deps: Deps<TgradeQuery>, env: Env, msg: QueryMsg) -> StdResult<Binary> {
     use QueryMsg::*;
     // Just for easier distinguish between Proposal `Empty` and potential other `Empty`
     type EmptyProposal = Empty;
 
     match msg {
         Rules {} => to_binary(&query_rules(deps)?),
-        Proposal { proposal_id } => to_binary(&query_proposal::<EmptyProposal, Empty>(
+        Proposal { proposal_id } => to_binary(&query_proposal::<EmptyProposal, TgradeQuery>(
             deps,
             env,
             proposal_id,
         )?),
         Vote { proposal_id, voter } => to_binary(&query_vote(deps, proposal_id, voter)?),
-        ListProposals { start_after, limit } => to_binary(&list_proposals::<EmptyProposal, Empty>(
-            deps,
-            env,
-            start_after,
-            align_limit(limit),
-        )?),
+        ListProposals { start_after, limit } => {
+            to_binary(&list_proposals::<EmptyProposal, TgradeQuery>(
+                deps,
+                env,
+                start_after,
+                align_limit(limit),
+            )?)
+        }
         ReverseProposals {
             start_before,
             limit,
-        } => to_binary(&reverse_proposals::<EmptyProposal, Empty>(
+        } => to_binary(&reverse_proposals::<EmptyProposal, TgradeQuery>(
             deps,
             env,
             start_before,
@@ -335,13 +486,17 @@ pub fn query(deps: Deps, env: Env, msg: QueryMsg) -> StdResult<Binary> {
     }
 }
 
-pub fn query_complaint(deps: Deps, env: Env, complaint_id: u64) -> StdResult<Complaint> {
+pub fn query_complaint(
+    deps: Deps<TgradeQuery>,
+    env: Env,
+    complaint_id: u64,
+) -> StdResult<Complaint> {
     let complaint = COMPLAINTS.load(deps.storage, complaint_id)?;
     Ok(complaint.update_state(&env.block))
 }
 
 pub fn query_list_complaints(
-    deps: Deps,
+    deps: Deps<TgradeQuery>,
     env: Env,
     start_after: Option<u64>,
     limit: usize,
@@ -356,14 +511,18 @@ pub fn query_list_complaints(
 }
 
 #[cfg_attr(not(feature = "library"), entry_point)]
-pub fn sudo(deps: DepsMut, _env: Env, msg: TgradeSudoMsg) -> Result<Response, ContractError> {
+pub fn sudo(
+    deps: DepsMut<TgradeQuery>,
+    _env: Env,
+    msg: TgradeSudoMsg,
+) -> Result<Response, ContractError> {
     match msg {
         TgradeSudoMsg::PrivilegeChange(change) => Ok(privilege_change(deps, change)),
         _ => Err(ContractError::UnsupportedSudoType {}),
     }
 }
 
-fn privilege_change(_deps: DepsMut, change: PrivilegeChangeMsg) -> Response {
+fn privilege_change(_deps: DepsMut<TgradeQuery>, change: PrivilegeChangeMsg) -> Response {
     match change {
         PrivilegeChangeMsg::Promoted {} => {
             let msgs = request_privileges(&[
@@ -377,15 +536,63 @@ fn privilege_change(_deps: DepsMut, change: PrivilegeChangeMsg) -> Response {
 }
 
 #[cfg_attr(not(feature = "library"), entry_point)]
-pub fn migrate(deps: DepsMut, _env: Env, _msg: Empty) -> Result<Response, ContractError> {
+pub fn migrate(
+    deps: DepsMut<TgradeQuery>,
+    _env: Env,
+    msg: MigrationMsg,
+) -> Result<Response, ContractError> {
     ensure_from_older_version(deps.storage, CONTRACT_NAME, CONTRACT_VERSION)?;
+
+    let stored = get_contract_version(deps.storage)?;
+    let storage_version: Version = stored.version.parse().unwrap();
+
+    migrate_config(deps, &storage_version, &msg)?;
+    Ok(Response::new())
+}
+
+#[cfg_attr(not(feature = "library"), entry_point)]
+pub fn reply(deps: DepsMut<TgradeQuery>, env: Env, msg: Reply) -> Result<Response, ContractError> {
+    match msg.id {
+        AWAITING_MULTISIG_RESP => multisig_instantiate_reply(deps, env, msg),
+        _ => Err(ContractError::UnrecognizedReply(msg.id)),
+    }
+}
+
+pub fn multisig_instantiate_reply(
+    deps: DepsMut<TgradeQuery>,
+    _env: Env,
+    msg: Reply,
+) -> Result<Response, ContractError> {
+    let id = msg.id;
+    let res =
+        parse_reply_instantiate_data(msg).map_err(|err| ContractError::ReplyParseFailure {
+            id,
+            err: err.to_string(),
+        })?;
+    let addr = deps.api.addr_validate(&res.contract_address)?;
+
+    let complaint_id = COMPLAINT_AWAITING.load(deps.storage)?;
+
+    COMPLAINTS.update(
+        deps.storage,
+        complaint_id,
+        |complaint| -> Result<Complaint, ContractError> {
+            let complaint = complaint.ok_or(ContractError::ComplaintMissing(complaint_id))?;
+            Ok(Complaint {
+                state: ComplaintState::Processing { arbiters: addr },
+                ..complaint
+            })
+        },
+    )?;
+
     Ok(Response::new())
 }
 
 #[cfg(test)]
 mod tests {
-    use cosmwasm_std::testing::{mock_dependencies, mock_env};
+    use cosmwasm_std::testing::mock_env;
     use cosmwasm_std::{coin, from_slice, Addr, Decimal};
+    use tg_bindings_test::mock_deps_tgrade;
     use tg_utils::Duration;
     use tg_voting_contract::state::VotingRules;
 
@@ -393,7 +600,7 @@ mod tests {
 
     #[test]
     fn query_group_contract() {
-        let mut deps = mock_dependencies();
+        let mut deps = mock_deps_tgrade();
         let env = mock_env();
         let rules = VotingRules {
             voting_period: 1,
@@ -414,6 +621,7 @@ mod tests {
                 group_addr: group_addr.to_owned(),
                 dispute_cost: coin(100, "utgd"),
                 waiting_period: Duration::new(3600),
+                multisig_code: 0,
             },
         )
         .unwrap();
@@ -429,7 +637,7 @@ mod tests {
         let defendant = Addr::unchecked("defendant");
         let dispute_cost = coin(100, "utgd");
 
-        let mut deps = mock_dependencies();
+        let mut deps = mock_deps_tgrade();
         let env = mock_env();
         let rules = VotingRules {
             voting_period: 1,
@@ -450,6 +658,7 @@ mod tests {
                 group_addr: group_addr.to_owned(),
                 dispute_cost,
                 waiting_period: Duration::new(3600),
+                multisig_code: 0,
             },
         )
         .unwrap();
@@ -482,7 +691,7 @@ mod tests {
         let dispute_cost = coin(100, "utgd");
         let waiting_period = Duration::new(3600);
 
-        let mut deps = mock_dependencies();
+        let mut deps = mock_deps_tgrade();
         let env = mock_env();
         let rules = VotingRules {
             voting_period: 1,
@@ -503,6 +712,7 @@ mod tests {
                 group_addr: group_addr.to_owned(),
                 dispute_cost: dispute_cost.clone(),
                 waiting_period,
+                multisig_code: 0,
             },
         )
         .unwrap();
@@ -590,7 +800,7 @@ mod tests {
         let dispute_cost = coin(100, "utgd");
         let waiting_period = Duration::new(3600);
 
-        let mut deps = mock_dependencies();
+        let mut deps = mock_deps_tgrade();
         let mut env = mock_env();
         let rules = VotingRules {
             voting_period: 1,
@@ -611,6 +821,7 @@ mod tests {
                 group_addr: group_addr.to_owned(),
                 dispute_cost: dispute_cost.clone(),
                 waiting_period,
+                multisig_code: 0,
             },
         )
         .unwrap();
@@ -665,7 +876,7 @@ mod tests {
         let dispute_cost = coin(100, "utgd");
         let waiting_period = Duration::new(3600);
 
-        let mut deps = mock_dependencies();
+        let mut deps = mock_deps_tgrade();
         let mut env = mock_env();
         let rules = VotingRules {
             voting_period: 1,
@@ -686,6 +897,7 @@ mod tests {
                 group_addr: group_addr.to_owned(),
                 dispute_cost: dispute_cost.clone(),
                 waiting_period,
+                multisig_code: 0,
             },
         )
         .unwrap();
@@ -737,7 +949,7 @@ mod tests {
         let dispute_cost = coin(100, "utgd");
         let waiting_period = Duration::new(3600);
 
-        let mut deps = mock_dependencies();
+        let mut deps = mock_deps_tgrade();
         let mut env = mock_env();
         let rules = VotingRules {
             voting_period: 1,
@@ -758,6 +970,7 @@ mod tests {
                 group_addr: group_addr.to_owned(),
                 dispute_cost: dispute_cost.clone(),
                 waiting_period,
+                multisig_code: 0,
             },
         )
         .unwrap();

@@ -37,6 +37,18 @@ pub enum ContractError {
 
     #[error("This operation is not valid for this complaint state ({0:?})")]
     ImproperState(ComplaintState),
+
+    #[error("No available multisig awaiting id")]
+    NoMultisigAwaitingId,
+
+    #[error("Unrecognized reply id: {0}")]
+    UnrecognizedReply(u64),
+
+    #[error("Reply [{id}] parse failure: {err}")]
+    ReplyParseFailure { id: u64, err: String },
+
+    #[error("Proposed arbiter not a voting member: {0}")]
+    InvalidProposedArbiter(String),
 }
 
 impl From<tg_voting_contract::ContractError> for ContractError {

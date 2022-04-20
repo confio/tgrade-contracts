@@ -15,7 +15,9 @@ library = []
 
 [dependencies]
 cw2 = "0.13.1"
-cosmwasm-std = "1.0.0-beta6"
+cw3 = "0.13.1"
+cw3-fixed-multisig = "0.13.1"
+cosmwasm-std = "1.0.0-beta5"
 schemars = "0.8.1"
 serde = { version = "1", default-features = false, features = ["derive"] }
 tg-bindings = "0.8.1"
@@ -25,6 +27,7 @@ tg3 = "0.8.1"
 cw-utils = "0.13.1"
 cw-storage-plus = "0.13.1"
 thiserror = "1"
+semver = "1"
 
 [dev-dependencies]
 cosmwasm-schema = "1.0.0-beta6"
@@ -35,3 +38,5 @@ tg-test-utils = "0.8.1"
 tg4 = "0.8.1"
 tg4-engagement = "0.8.1"
 tgrade-oc-proposals = { path = "../tgrade-oc-proposals", version = "0.8.1" }
+anyhow = "1"
+assert_matches = "1.5"

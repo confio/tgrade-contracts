@@ -9,6 +9,7 @@ pub struct Config {
     pub dispute_cost: Coin,
     pub waiting_period: Duration,
     pub next_complaint_id: u64,
+    pub multisig_code: u64,
 }
 
 #[derive(Serialize, Deserialize, Clone, PartialEq, JsonSchema, Debug)]
@@ -19,6 +20,8 @@ pub enum ComplaintState {
     Withdrawn { reason: String },
     Aborted {},
     Accepted {},
+    Processing { arbiters: Addr },
+    Closed { summary: String, ipfs_link: String },
 }
 
 #[derive(Serialize, Deserialize, Clone, PartialEq, JsonSchema, Debug)]
@@ -53,9 +56,14 @@ impl Complaint {
 pub const CONFIG: Item<Config> = Item::new("ap_config");
 pub const COMPLAINTS: Map<u64, Complaint> = Map::new("complaints");
 
+// This is an id of a complaint which handling is in progress (for reply handling)
+pub const COMPLAINT_AWAITING: Item<u64> = Item::new("complaint_awaiting");
+
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 #[serde(rename_all = "snake_case")]
 pub enum ArbiterProposal {
     /// An open text proposal with no actual logic executed when it passes
     Text {},
+    /// Proposes arbiters for existing complaint
+    ProposeArbiters { case_id: u64, arbiters: Vec<Addr> },
 }

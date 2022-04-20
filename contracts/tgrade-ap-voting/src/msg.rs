@@ -1,13 +1,13 @@
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
-use cosmwasm_std::{Coin, Empty};
+use cosmwasm_std::Coin;
 use tg3::Vote;
 
 use tg_utils::Duration;
 use tg_voting_contract::state::VotingRules;
 
-use crate::state::Complaint;
+use crate::state::{ArbiterProposal, Complaint};
 
 #[derive(Serialize, Deserialize, Clone, PartialEq, JsonSchema, Debug)]
 pub struct InstantiateMsg {
@@ -18,6 +18,8 @@ pub struct InstantiateMsg {
     pub dispute_cost: Coin,
     /// Waiting period for this contract
     pub waiting_period: Duration,
+    /// Cw3 fixed multisig contract code
+    pub multisig_code: u64,
 }
 
 // TODO: add some T variants? Maybe good enough as fixed Empty for now
@@ -27,7 +29,7 @@ pub enum ExecuteMsg {
     Propose {
         title: String,
         description: String,
-        proposal: Empty,
+        proposal: ArbiterProposal,
     },
     Vote {
         proposal_id: u64,
@@ -50,6 +52,11 @@ pub enum ExecuteMsg {
     WithdrawComplaint {
         complaint_id: u64,
         reason: String,
+    },
+    RenderDecision {
+        complaint_id: u64,
+        summary: String,
+        ipfs_link: String,
     },
 }
 
@@ -107,4 +114,11 @@ pub enum QueryMsg {
 #[serde(rename_all = "snake_case")]
 pub struct ListComplaintsResp {
     pub complaints: Vec<Complaint>,
+}
+
+#[derive(Serialize, Deserialize, Clone, PartialEq, JsonSchema, Debug)]
+#[serde(rename_all = "snake_case")]
+pub struct MigrationMsg {
+    /// Cw3 fixed multisig contract code
+    pub multisig_code: u64,
 }
