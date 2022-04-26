@@ -10,7 +10,9 @@ use cw_storage_plus::Bound;
 use cw_utils::{maybe_addr, Expiration};
 use semver::Version;
 use tg3::{Status, Vote};
-use tg4::{member_key, Member, MemberListResponse, MemberResponse, TotalPointsResponse};
+use tg4::{
+    member_key, Member, MemberInfo, MemberListResponse, MemberResponse, TotalPointsResponse,
+};
 use tg_bindings::{TgradeMsg, TgradeQuery};
 use tg_utils::{ensure_from_older_version, members, TOTAL};
 use tg_voting_contract::ballots::ballots;
@@ -85,7 +87,12 @@ pub fn instantiate(
     };
     ESCROWS.save(deps.storage, &info.sender, &escrow)?;
 
-    members().save(deps.storage, &info.sender, &VOTING_POINTS, env.block.height)?;
+    members().save(
+        deps.storage,
+        &info.sender,
+        &MemberInfo::new(VOTING_POINTS),
+        env.block.height,
+    )?;
     TOTAL.save(deps.storage, &VOTING_POINTS)?;
     let promote_ev = Event::new(PROMOTE_TYPE).add_attribute(MEMBER_KEY, info.sender);
 
@@ -306,7 +313,12 @@ fn convert_to_voter_if_paid<Q: CustomQuery>(
     DISTRIBUTION.apply_points_correction(deps.branch(), &[(to_promote, VOTING_POINTS as i128)])?;
 
     // update voting points
-    members().save(deps.storage, to_promote, &VOTING_POINTS, height)?;
+    members().save(
+        deps.storage,
+        to_promote,
+        &MemberInfo::new(VOTING_POINTS),
+        height,
+    )?;
 
     Ok(true)
 }
@@ -402,7 +414,8 @@ pub fn execute_propose<Q: CustomQuery>(
     // only voting members  can create a proposal
     let vote_power = members()
         .may_load(deps.storage, &info.sender)?
-        .unwrap_or_default();
+        .unwrap_or_default()
+        .points;
     if vote_power == 0 {
         return Err(ContractError::Unauthorized(
             "Member doesn't have a voting power".to_owned(),
@@ -549,7 +562,8 @@ pub fn execute_vote<Q: CustomQuery>(
     // use a snapshot of "start of proposal"
     let vote_power = members()
         .may_load_at_height(deps.storage, &info.sender, prop.start_height)?
-        .unwrap_or_default();
+        .unwrap_or_default()
+        .points;
     if vote_power == 0 {
         return Err(ContractError::Unauthorized(
             "Member doesn't have a voting power".to_owned(),
@@ -691,7 +705,7 @@ fn trigger_long_leave<Q: CustomQuery>(
 ) -> Result<Response, ContractError> {
     // if we are voting member, reduce vote to 0 (otherwise, it is already 0)
     if escrow.status == (MemberStatus::Voting {}) {
-        members().save(deps.storage, &leaver, &0, env.block.height)?;
+        members().save(deps.storage, &leaver, &MemberInfo::new(0), env.block.height)?;
         TOTAL.update::<_, StdError>(deps.storage, |old| {
             old.checked_sub(VOTING_POINTS)
                 .ok_or_else(|| StdError::generic_err("Total underflow"))
@@ -830,7 +844,7 @@ fn pending_escrow_demote_promote_members<Q: CustomQuery>(
             escrow_status.status = MemberStatus::Pending { proposal_id };
             ESCROWS.save(deps.storage, &addr, &escrow_status)?;
             // Remove voting points
-            members().save(deps.storage, &addr, &0, height)?;
+            members().save(deps.storage, &addr, &MemberInfo::new(0), height)?;
             // And adjust TOTAL
             TOTAL.update::<_, StdError>(deps.storage, |old| {
                 old.checked_sub(VOTING_POINTS)
@@ -1003,7 +1017,7 @@ pub fn proposal_add_voting_members<Q: CustomQuery>(
             None => true,
         };
         if create {
-            members().save(deps.storage, &add, &0, height)?;
+            members().save(deps.storage, &add, &MemberInfo::new(0), height)?;
             // Create member entry in escrow (with no funds)
             ESCROWS.save(deps.storage, &add, &escrow)?;
         }
@@ -1094,7 +1108,7 @@ pub fn add_remove_non_voting_members<Q: CustomQuery>(
         // If the member already exists, the update for that member is ignored
         if old.is_none() {
             // update member value
-            members().save(deps.storage, &add_addr, &0, height)?;
+            members().save(deps.storage, &add_addr, &MemberInfo::new(0), height)?;
             // set status
             ESCROWS.save(deps.storage, &add_addr, &EscrowStatus::non_voting())?;
         }
@@ -1197,7 +1211,7 @@ pub fn proposal_punish_members<Q: CustomQuery>(
         } else if escrow_status.paid < required_escrow {
             // If it's a voting member, reduce vote to 0 (otherwise, it is already 0)
             if escrow_status.status == (MemberStatus::Voting {}) {
-                members().save(deps.storage, &addr, &0, env.block.height)?;
+                members().save(deps.storage, &addr, &MemberInfo::new(0), env.block.height)?;
                 TOTAL.update::<_, StdError>(deps.storage, |old| {
                     old.checked_sub(VOTING_POINTS)
                         .ok_or_else(|| StdError::generic_err("Total underflow"))
@@ -1374,11 +1388,11 @@ pub(crate) fn query_member<Q: CustomQuery>(
     height: Option<u64>,
 ) -> StdResult<MemberResponse> {
     let addr = deps.api.addr_validate(&addr)?;
-    let points = match height {
+    let member_info = match height {
         Some(h) => members().may_load_at_height(deps.storage, &addr, h),
         None => members().may_load(deps.storage, &addr),
     }?;
-    Ok(MemberResponse { points })
+    Ok(member_info.into())
 }
 
 pub(crate) fn query_escrow<Q: CustomQuery>(
@@ -1406,10 +1420,11 @@ pub(crate) fn list_members<Q: CustomQuery>(
         .range(deps.storage, start, None, Order::Ascending)
         .take(limit)
         .map(|item| {
-            let (addr, points) = item?;
+            let (addr, member_info) = item?;
             Ok(Member {
                 addr: addr.into(),
-                points,
+                points: member_info.points,
+                start_height: member_info.start_height,
             })
         })
         .collect();
@@ -1434,10 +1449,11 @@ pub(crate) fn list_voting_members<Q: CustomQuery>(
         .range(deps.storage, start, None, Order::Ascending)
         .take(limit)
         .map(|item| {
-            let (addr, points) = item?;
+            let (addr, member_info) = item?;
             Ok(Member {
                 addr: addr.into(),
-                points,
+                points: member_info.points,
+                start_height: member_info.start_height,
             })
         })
         .collect();
@@ -1460,10 +1476,11 @@ pub(crate) fn list_non_voting_members<Q: CustomQuery>(
         .range(deps.storage, start, None, Order::Ascending)
         .take(limit)
         .map(|item| {
-            let (addr, points) = item?;
+            let (addr, member_info) = item?;
             Ok(Member {
                 addr: addr.into(),
-                points,
+                points: member_info.points,
+                start_height: member_info.start_height,
             })
         })
         .collect();

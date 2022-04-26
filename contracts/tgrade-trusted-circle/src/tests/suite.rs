@@ -104,6 +104,7 @@ impl SuiteBuilder {
         self.deny_list.push(Member {
             addr: addr.to_owned(),
             points: 1,
+            start_height: None,
         });
         self
     }

@@ -274,6 +274,7 @@ mod tests {
         Member {
             addr: addr.into(),
             points,
+            start_height: None,
         }
     }
 
@@ -414,9 +415,12 @@ mod tests {
             membership: group.to_string(),
             min_points: 1,
             validator_group_code_id: engagement_id,
+            verify_validators: true,
             scaling: None,
             double_sign_slash_ratio: Decimal::percent(50),
+            offline_jail_duration: Duration::new(86400),
         };
+
         let res = app.instantiate_contract(
             valset_id,
             Addr::unchecked(OWNER),
