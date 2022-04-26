@@ -1388,11 +1388,11 @@ pub(crate) fn query_member<Q: CustomQuery>(
     height: Option<u64>,
 ) -> StdResult<MemberResponse> {
     let addr = deps.api.addr_validate(&addr)?;
-    let mi = match height {
+    let member_info = match height {
         Some(h) => members().may_load_at_height(deps.storage, &addr, h),
         None => members().may_load(deps.storage, &addr),
     }?;
-    Ok(mi.into())
+    Ok(member_info.into())
 }
 
 pub(crate) fn query_escrow<Q: CustomQuery>(
@@ -1420,11 +1420,11 @@ pub(crate) fn list_members<Q: CustomQuery>(
         .range(deps.storage, start, None, Order::Ascending)
         .take(limit)
         .map(|item| {
-            let (addr, mi) = item?;
+            let (addr, member_info) = item?;
             Ok(Member {
                 addr: addr.into(),
-                points: mi.points,
-                start_height: mi.start_height,
+                points: member_info.points,
+                start_height: member_info.start_height,
             })
         })
         .collect();
@@ -1449,11 +1449,11 @@ pub(crate) fn list_voting_members<Q: CustomQuery>(
         .range(deps.storage, start, None, Order::Ascending)
         .take(limit)
         .map(|item| {
-            let (addr, mi) = item?;
+            let (addr, member_info) = item?;
             Ok(Member {
                 addr: addr.into(),
-                points: mi.points,
-                start_height: mi.start_height,
+                points: member_info.points,
+                start_height: member_info.start_height,
             })
         })
         .collect();
@@ -1476,11 +1476,11 @@ pub(crate) fn list_non_voting_members<Q: CustomQuery>(
         .range(deps.storage, start, None, Order::Ascending)
         .take(limit)
         .map(|item| {
-            let (addr, mi) = item?;
+            let (addr, member_info) = item?;
             Ok(Member {
                 addr: addr.into(),
-                points: mi.points,
-                start_height: mi.start_height,
+                points: member_info.points,
+                start_height: member_info.start_height,
             })
         })
         .collect();
