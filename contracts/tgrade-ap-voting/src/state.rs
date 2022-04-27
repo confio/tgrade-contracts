@@ -61,7 +61,7 @@ pub const COMPLAINT_AWAITING: Item<u64> = Item::new("complaint_awaiting");
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 #[serde(rename_all = "snake_case")]
-pub enum ArbiterProposal {
+pub enum ArbiterPoolProposal {
     /// An open text proposal with no actual logic executed when it passes
     Text {},
     /// Proposes arbiters for existing complaint
