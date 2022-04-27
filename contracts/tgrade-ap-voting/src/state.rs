@@ -9,7 +9,7 @@ pub struct Config {
     pub dispute_cost: Coin,
     pub waiting_period: Duration,
     pub next_complaint_id: u64,
-    pub multisig_code: u64,
+    pub multisig_code_id: u64,
 }
 
 #[derive(Serialize, Deserialize, Clone, PartialEq, JsonSchema, Debug)]

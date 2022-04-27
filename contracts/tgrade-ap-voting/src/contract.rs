@@ -53,7 +53,7 @@ pub fn instantiate(
             dispute_cost: msg.dispute_cost,
             waiting_period: msg.waiting_period,
             next_complaint_id: 0,
-            multisig_code: msg.multisig_code,
+            multisig_code_id: msg.multisig_code_id,
         },
     )?;
 
@@ -245,7 +245,7 @@ fn execute_propose_arbiters(
 
     let cw3_instantiate = WasmMsg::Instantiate {
         admin: None,
-        code_id: config.multisig_code,
+        code_id: config.multisig_code_id,
         msg: to_binary(&cw3_instantiate)?,
         funds: vec![],
         label,
@@ -621,7 +621,7 @@ mod tests {
                 group_addr: group_addr.to_owned(),
                 dispute_cost: coin(100, "utgd"),
                 waiting_period: Duration::new(3600),
-                multisig_code: 0,
+                multisig_code_id: 0,
             },
         )
         .unwrap();
@@ -658,7 +658,7 @@ mod tests {
                 group_addr: group_addr.to_owned(),
                 dispute_cost,
                 waiting_period: Duration::new(3600),
-                multisig_code: 0,
+                multisig_code_id: 0,
             },
         )
         .unwrap();
@@ -712,7 +712,7 @@ mod tests {
                 group_addr: group_addr.to_owned(),
                 dispute_cost: dispute_cost.clone(),
                 waiting_period,
-                multisig_code: 0,
+                multisig_code_id: 0,
             },
         )
         .unwrap();
@@ -821,7 +821,7 @@ mod tests {
                 group_addr: group_addr.to_owned(),
                 dispute_cost: dispute_cost.clone(),
                 waiting_period,
-                multisig_code: 0,
+                multisig_code_id: 0,
             },
         )
         .unwrap();
@@ -897,7 +897,7 @@ mod tests {
                 group_addr: group_addr.to_owned(),
                 dispute_cost: dispute_cost.clone(),
                 waiting_period,
-                multisig_code: 0,
+                multisig_code_id: 0,
             },
         )
         .unwrap();
@@ -970,7 +970,7 @@ mod tests {
                 group_addr: group_addr.to_owned(),
                 dispute_cost: dispute_cost.clone(),
                 waiting_period,
-                multisig_code: 0,
+                multisig_code_id: 0,
             },
         )
         .unwrap();

@@ -105,7 +105,7 @@ impl SuiteBuilder {
                     group_addr: engagement_contract.to_string(),
                     dispute_cost: self.dispute_cost,
                     waiting_period: self.waiting_period,
-                    multisig_code: multisig_id,
+                    multisig_code_id: multisig_id,
                 },
                 &[],
                 "ap_voting",

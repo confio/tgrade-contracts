@@ -19,7 +19,7 @@ pub struct InstantiateMsg {
     /// Waiting period in seconds for this contract
     pub waiting_period: Duration,
     /// Cw3 fixed multisig contract code
-    pub multisig_code: u64,
+    pub multisig_code_id: u64,
 }
 
 // TODO: add some T variants? Maybe good enough as fixed Empty for now
