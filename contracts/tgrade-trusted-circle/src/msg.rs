@@ -6,7 +6,7 @@ use cosmwasm_std::{Addr, Coin, Decimal, Uint128};
 use cw_utils::Expiration;
 use tg3::{Status, Vote};
 
-// "Hardcoded" for bussiness reasons
+// "Hardcoded" for business reasons
 fn default_denom() -> String {
     "utgd".to_owned()
 }
@@ -14,12 +14,12 @@ fn default_denom() -> String {
 #[derive(Serialize, Deserialize, Clone, PartialEq, JsonSchema, Debug)]
 #[serde(rename_all = "snake_case")]
 pub struct InstantiateMsg {
-    /// TRUSTED_CIRCLE Name
+    /// Trusted circle name
     pub name: String,
-    /// Trusted Circle's denom
+    /// Trusted circle denom
     #[serde(default = "default_denom")]
     pub denom: String,
-    /// The required escrow amount, in the default denom (utgd)
+    /// The required escrow amount, in the `denom` denom
     pub escrow_amount: Uint128,
     /// Voting period in days
     pub voting_period: u32,
@@ -32,9 +32,9 @@ pub struct InstantiateMsg {
     pub allow_end_early: bool,
     /// List of non-voting members to be added to the TRUSTED_CIRCLE upon creation
     pub initial_members: Vec<String>,
-    /// cw4 contract with list of addresses denied to be part of TrustedCircle
+    /// cw4 contract with list of addresses denied being part of the trusted circle
     pub deny_list: Option<String>,
-    /// If true, no further adjustments may happen.
+    /// If true, no further adjustments may happen
     pub edit_trusted_circle_disabled: bool,
     /// Distributed reward denom
     pub reward_denom: String,
@@ -149,7 +149,7 @@ pub enum QueryMsg {
     /// `RewardsResponse`.
     DistributedRewards {},
     /// Return how much rewards were send to this contract since last
-    /// `ExecuteMsg::DistribtueRewards`, and wait for distribution.
+    /// `ExecuteMsg::DistributeRewards`, and wait for distribution.
     /// Returns `RewardsResponse`.
     UndistributedRewards {},
 }
