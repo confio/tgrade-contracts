@@ -7,7 +7,7 @@ use tg3::Vote;
 use tg_utils::Duration;
 use tg_voting_contract::state::VotingRules;
 
-use crate::state::{ArbiterProposal, Complaint};
+use crate::state::{ArbiterPoolProposal, Complaint};
 
 #[derive(Serialize, Deserialize, Clone, PartialEq, JsonSchema, Debug)]
 pub struct InstantiateMsg {
@@ -16,10 +16,10 @@ pub struct InstantiateMsg {
     pub group_addr: String,
     /// Dispute cost on this contract
     pub dispute_cost: Coin,
-    /// Waiting period for this contract
+    /// Waiting period in seconds for this contract
     pub waiting_period: Duration,
     /// Cw3 fixed multisig contract code
-    pub multisig_code: u64,
+    pub multisig_code_id: u64,
 }
 
 // TODO: add some T variants? Maybe good enough as fixed Empty for now
@@ -29,7 +29,7 @@ pub enum ExecuteMsg {
     Propose {
         title: String,
         description: String,
-        proposal: ArbiterProposal,
+        proposal: ArbiterPoolProposal,
     },
     Vote {
         proposal_id: u64,

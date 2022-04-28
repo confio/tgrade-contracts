@@ -19,7 +19,7 @@ use tg_utils::ensure_from_older_version;
 use crate::migration::migrate_config;
 use crate::msg::{ExecuteMsg, InstantiateMsg, ListComplaintsResp, MigrationMsg, QueryMsg};
 use crate::state::{
-    ArbiterProposal, Complaint, ComplaintState, Config, COMPLAINTS, COMPLAINT_AWAITING, CONFIG,
+    ArbiterPoolProposal, Complaint, ComplaintState, Config, COMPLAINTS, COMPLAINT_AWAITING, CONFIG,
 };
 use crate::ContractError;
 
@@ -53,7 +53,7 @@ pub fn instantiate(
             dispute_cost: msg.dispute_cost,
             waiting_period: msg.waiting_period,
             next_complaint_id: 0,
-            multisig_code: msg.multisig_code,
+            multisig_code_id: msg.multisig_code_id,
         },
     )?;
 
@@ -77,12 +77,12 @@ pub fn execute(
         } => execute_propose(deps, env, info, title, description, proposal)
             .map_err(ContractError::from),
         Vote { proposal_id, vote } => {
-            execute_vote::<ArbiterProposal, TgradeQuery>(deps, env, info, proposal_id, vote)
+            execute_vote::<ArbiterPoolProposal, TgradeQuery>(deps, env, info, proposal_id, vote)
                 .map_err(ContractError::from)
         }
         Execute { proposal_id } => execute_execute(deps, env, info, proposal_id),
         Close { proposal_id } => {
-            execute_close::<ArbiterProposal, TgradeQuery>(deps, env, info, proposal_id)
+            execute_close::<ArbiterPoolProposal, TgradeQuery>(deps, env, info, proposal_id)
                 .map_err(ContractError::from)
         }
         RegisterComplaint {
@@ -186,9 +186,9 @@ pub fn execute_execute(
     info: MessageInfo,
     proposal_id: u64,
 ) -> Result<Response, ContractError> {
-    use ArbiterProposal::*;
+    use ArbiterPoolProposal::*;
 
-    let proposal = mark_executed::<ArbiterProposal>(deps.storage, env.clone(), proposal_id)?;
+    let proposal = mark_executed::<ArbiterPoolProposal>(deps.storage, env.clone(), proposal_id)?;
 
     let resp = match proposal.proposal {
         Text {} => {
@@ -245,7 +245,7 @@ fn execute_propose_arbiters(
 
     let cw3_instantiate = WasmMsg::Instantiate {
         admin: None,
-        code_id: config.multisig_code,
+        code_id: config.multisig_code_id,
         msg: to_binary(&cw3_instantiate)?,
         funds: vec![],
         label,
@@ -621,7 +621,7 @@ mod tests {
                 group_addr: group_addr.to_owned(),
                 dispute_cost: coin(100, "utgd"),
                 waiting_period: Duration::new(3600),
-                multisig_code: 0,
+                multisig_code_id: 0,
             },
         )
         .unwrap();
@@ -658,7 +658,7 @@ mod tests {
                 group_addr: group_addr.to_owned(),
                 dispute_cost,
                 waiting_period: Duration::new(3600),
-                multisig_code: 0,
+                multisig_code_id: 0,
             },
         )
         .unwrap();
@@ -712,7 +712,7 @@ mod tests {
                 group_addr: group_addr.to_owned(),
                 dispute_cost: dispute_cost.clone(),
                 waiting_period,
-                multisig_code: 0,
+                multisig_code_id: 0,
             },
         )
         .unwrap();
@@ -821,7 +821,7 @@ mod tests {
                 group_addr: group_addr.to_owned(),
                 dispute_cost: dispute_cost.clone(),
                 waiting_period,
-                multisig_code: 0,
+                multisig_code_id: 0,
             },
         )
         .unwrap();
@@ -897,7 +897,7 @@ mod tests {
                 group_addr: group_addr.to_owned(),
                 dispute_cost: dispute_cost.clone(),
                 waiting_period,
-                multisig_code: 0,
+                multisig_code_id: 0,
             },
         )
         .unwrap();
@@ -970,7 +970,7 @@ mod tests {
                 group_addr: group_addr.to_owned(),
                 dispute_cost: dispute_cost.clone(),
                 waiting_period,
-                multisig_code: 0,
+                multisig_code_id: 0,
             },
         )
         .unwrap();

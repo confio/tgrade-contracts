@@ -11,7 +11,7 @@ use tg_utils::Duration;
 use tg_voting_contract::state::VotingRules;
 
 use crate::msg::{ExecuteMsg, QueryMsg};
-use crate::state::{ArbiterProposal, Complaint};
+use crate::state::{ArbiterPoolProposal, Complaint};
 
 pub fn contract_engagement() -> Box<dyn Contract<TgradeMsg, TgradeQuery>> {
     let contract = ContractWrapper::new(
@@ -105,7 +105,7 @@ impl SuiteBuilder {
                     group_addr: engagement_contract.to_string(),
                     dispute_cost: self.dispute_cost,
                     waiting_period: self.waiting_period,
-                    multisig_code: multisig_id,
+                    multisig_code_id: multisig_id,
                 },
                 &[],
                 "ap_voting",
@@ -242,7 +242,7 @@ impl Suite {
         executor: &str,
         title: &str,
         description: &str,
-        proposal: ArbiterProposal,
+        proposal: ArbiterPoolProposal,
     ) -> AnyResult<AppResponse> {
         self.app.execute_contract(
             Addr::unchecked(executor),
@@ -262,7 +262,7 @@ impl Suite {
         executor: &str,
         title: &str,
         description: &str,
-        proposal: ArbiterProposal,
+        proposal: ArbiterPoolProposal,
     ) -> AnyResult<u64> {
         let resp = self.propose(executor, title, description, proposal)?;
 
@@ -290,7 +290,7 @@ impl Suite {
         arbiters: &[&str],
     ) -> AnyResult<u64> {
         let arbiters = arbiters.iter().map(|addr| Addr::unchecked(*addr)).collect();
-        let proposal = ArbiterProposal::ProposeArbiters { case_id, arbiters };
+        let proposal = ArbiterPoolProposal::ProposeArbiters { case_id, arbiters };
 
         self.propose_smart(executor, title, description, proposal)
     }

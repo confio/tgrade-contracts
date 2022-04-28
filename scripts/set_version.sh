@@ -8,6 +8,7 @@ function print_usage() {
 }
 
 if [ "$#" -ne 1 ] || [ "$1" = "-h" ] || [ "$1" = "--help" ]
+then
     print_usage
     exit 1
 fi

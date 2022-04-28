@@ -2,7 +2,27 @@
 
 ## [Unreleased](https://github.com/confio/tgrade-contracts/tree/HEAD)
 
-[Full Changelog](https://github.com/confio/tgrade-contracts/compare/v0.8.1...HEAD)
+[Full Changelog](https://github.com/confio/tgrade-contracts/compare/v0.9.0...HEAD)
+
+## [v0.9.0](https://github.com/confio/tgrade-contracts/tree/v0.9.0) (2022-04-26)
+
+[Full Changelog](https://github.com/confio/tgrade-contracts/compare/v0.8.1...v0.9.0)
+
+**Breaking changes:**
+
+- TC: do not use hard coded denom [\#485](https://github.com/confio/tgrade-contracts/issues/485)
+- TC: Add new parameter to InstantiateMsg that describes used denom [\#486](https://github.com/confio/tgrade-contracts/pull/486) ([ueco-jb](https://github.com/ueco-jb))
+
+**Closed issues:**
+
+- Release 0.9.0 [\#488](https://github.com/confio/tgrade-contracts/issues/488)
+- AP: Pass Judgement [\#417](https://github.com/confio/tgrade-contracts/issues/417)
+
+**Merged pull requests:**
+
+- Update to poe-contracts v0.9.0 [\#489](https://github.com/confio/tgrade-contracts/pull/489) ([maurolacy](https://github.com/maurolacy))
+- Update to latest cw-plus [\#487](https://github.com/confio/tgrade-contracts/pull/487) ([maurolacy](https://github.com/maurolacy))
+- tgrade-ap-voting: passing judgement [\#482](https://github.com/confio/tgrade-contracts/pull/482) ([hashedone](https://github.com/hashedone))
 
 ## [v0.8.1](https://github.com/confio/tgrade-contracts/tree/v0.8.1) (2022-03-29)
 

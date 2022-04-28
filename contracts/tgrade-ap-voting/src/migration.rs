@@ -29,7 +29,7 @@ pub fn migrate_config(
             dispute_cost: config.dispute_cost,
             waiting_period: config.waiting_period,
             next_complaint_id: config.next_complaint_id,
-            multisig_code: msg.multisig_code,
+            multisig_code_id: msg.multisig_code,
         }
     } else {
         // It is already properly migrated
