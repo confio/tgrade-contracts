@@ -25,6 +25,16 @@ pub enum Period {
     Yearly,
 }
 
+impl Period {
+    pub fn seconds(&self) -> u64 {
+        match self {
+            Period::Daily => 86400,
+            Period::Monthly => 86400 * 30,
+            Period::Yearly => 86400 * 30 * 365,
+        }
+    }
+}
+
 #[allow(clippy::large_enum_variant)]
 #[derive(Serialize, Deserialize, Clone, PartialEq, JsonSchema, Debug)]
 #[serde(rename_all = "snake_case")]

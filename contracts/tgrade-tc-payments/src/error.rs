@@ -9,6 +9,9 @@ pub enum ContractError {
     #[error("Contract {0} doesn't fulfill the tg4 interface")]
     NotTg4(String),
 
+    #[error("Unrecognized sudo message")]
+    UnknownSudoMsg {},
+
     #[error("Unauthorized: {0}")]
     Unauthorized(String),
 }
