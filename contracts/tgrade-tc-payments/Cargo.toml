@@ -2,7 +2,7 @@
 name = "tgrade-tc-payments"
 version = "0.9.0"
 authors = ["Mauro Lacy <maurolacy@users.noreply.github.com>"]
-edition = "2018"
+edition = "2021"
 description = "Oversight Community / Arbiter Pool payments contract"
 repository = "https://github.com/confio/tgrade-contracts"
 homepage = "https://tgrade.finance"
@@ -19,24 +19,12 @@ backtraces = ["cosmwasm-std/backtraces"]
 library = []
 
 [dependencies]
-cw-utils = "0.13.2"
 cw2 = "0.13.2"
 cw-controllers = "0.13.2"
 cw-storage-plus = "0.13.2"
-tg3 = "0.9.0"
-tg4 = "0.9.0"
-tg-bindings = "0.9.0"
-tg-utils = "0.9.0"
 cosmwasm-std = "1.0.0-beta8"
 schemars = "0.8"
 serde = { version = "1.0.103", default-features = false, features = ["derive"] }
-semver = "1"
 thiserror = "1.0.21"
-
-[dev-dependencies]
-anyhow = "1"
-cosmwasm-schema = "1.0.0-beta8"
-cw-multi-test = "0.13.2"
-derivative = "2"
-serde_json = "1.0.79"
-tg-bindings-test = "0.9.0"
+tg-bindings = "0.9.0"
+tg4 = "0.9.0"
