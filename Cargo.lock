@@ -841,6 +841,21 @@ dependencies = [
 ]
 
 [[package]]
+name = "tgrade-tc-payments"
+version = "0.9.0"
+dependencies = [
+ "cosmwasm-std",
+ "cw-controllers",
+ "cw-storage-plus",
+ "cw2",
+ "schemars",
+ "serde",
+ "tg-bindings",
+ "tg4",
+ "thiserror",
+]
+
+[[package]]
 name = "tgrade-trusted-circle"
 version = "0.9.0"
 dependencies = [
