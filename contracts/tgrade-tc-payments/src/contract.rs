@@ -100,6 +100,8 @@ fn end_block<Q: CustomQuery>(deps: DepsMut<Q>, env: Env) -> Result<Response, Con
 
     // Create pay messages (Bank::Send)
 
+    // Save payment
+
     let evt = Event::new("tc_payments")
         .add_attribute("time", env.block.time.to_string())
         .add_attribute("amount", config.payment_amount.to_string());
