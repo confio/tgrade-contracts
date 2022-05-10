@@ -4,7 +4,7 @@
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
-use cosmwasm_std::{CustomQuery, Deps, Order, StdResult, Storage, Timestamp};
+use cosmwasm_std::{BlockInfo, CustomQuery, Deps, Order, StdResult, Storage, Timestamp};
 use cw_storage_plus::{Bound, Index, IndexList, IndexedMap, UniqueIndex};
 
 // settings for pagination
@@ -68,11 +68,11 @@ impl<'a> Payments<'a> {
         storage: &mut dyn Storage,
         num_members: u32,
         amount: u128,
-        payment_time: u64,
-        payment_height: u64,
+        payment_block: &BlockInfo,
     ) -> StdResult<()> {
-        // Add a payment for book keeping.
-        // Fails if payment already exists
+        let payment_time = payment_block.time.seconds();
+        let payment_height = payment_block.height;
+        // Add a payment for book keeping. Fails if payment already exists
         self.payments.save(
             storage,
             payment_time,
@@ -82,9 +82,7 @@ impl<'a> Payments<'a> {
                 payment_time,
                 payment_height,
             },
-        )?;
-
-        Ok(())
+        )
     }
 
     /// Returns the most recent payment (if any)
@@ -106,10 +104,10 @@ impl<'a> Payments<'a> {
         &self,
         deps: Deps<Q>,
         limit: Option<u32>,
-        start_after: Option<Timestamp>,
+        start_after: Option<u64>,
     ) -> StdResult<Vec<Payment>> {
         let limit = limit.unwrap_or(DEFAULT_LIMIT).min(MAX_LIMIT) as usize;
-        let start = start_after.map(|s| Bound::exclusive(s.seconds()));
+        let start = start_after.map(Bound::exclusive);
 
         self.payments
             .range(deps.storage, start, None, Order::Ascending)

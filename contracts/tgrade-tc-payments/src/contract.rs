@@ -1,7 +1,8 @@
 #[cfg(not(feature = "library"))]
 use cosmwasm_std::entry_point;
-use cosmwasm_std::{CustomQuery, Deps, DepsMut, Env, Event, MessageInfo};
+use cosmwasm_std::{coins, BankMsg, CustomQuery, Deps, DepsMut, Env, Event, MessageInfo};
 use cw2::set_contract_version;
+use std::cmp::min;
 use tg4::Tg4Contract;
 use tg_bindings::{
     request_privileges, Privilege, PrivilegeChangeMsg, TgradeMsg, TgradeQuery, TgradeSudoMsg,
@@ -93,19 +94,62 @@ fn end_block<Q: CustomQuery>(deps: DepsMut<Q>, env: Env) -> Result<Response, Con
 
     // Pay members
     // Get all members from oc
+    let mut oc_members = vec![];
+    let mut batch = config.oc_addr.list_members(&deps.querier, None, None)?;
+
+    while !batch.is_empty() {
+        let last = Some(batch.last().unwrap().addr.clone());
+
+        oc_members.extend_from_slice(&batch);
+
+        // and get the next page
+        batch = config.oc_addr.list_members(&deps.querier, last, None)?;
+    }
 
     // Get all members from ap
+    let mut ap_members = vec![];
+    let mut batch = config.ap_addr.list_members(&deps.querier, None, None)?;
 
-    // Divide balance across all members
+    while !batch.is_empty() {
+        let last = Some(batch.last().unwrap().addr.clone());
 
-    // Create pay messages (Bank::Send)
+        ap_members.extend_from_slice(&batch);
 
-    // Save payment
+        // and get the next page
+        batch = config.oc_addr.list_members(&deps.querier, last, None)?;
+    }
+
+    // Get balance
+    let total_funds = deps
+        .querier
+        .query_balance(env.contract.address, config.denom.clone())?
+        .amount
+        .u128();
+    // Divide the minimum balance among all members
+    let num_members = (oc_members.len() + ap_members.len()) as u32;
+    let member_pay = min(config.payment_amount, total_funds / num_members as u128);
+
+    // Register payment
+    payments().create_payment(deps.storage, num_members, member_pay, &env.block)?;
+
+    // Create pay messages for members
+    let mut msgs = vec![];
+    let amount = coins(member_pay, config.denom.clone());
+    for member in [oc_members, ap_members].concat() {
+        let pay_msg = BankMsg::Send {
+            to_address: member.addr,
+            amount: amount.clone(),
+        };
+        msgs.push(pay_msg)
+    }
 
     let evt = Event::new("tc_payments")
         .add_attribute("time", env.block.time.to_string())
-        .add_attribute("amount", config.payment_amount.to_string());
-    let resp = resp.add_event(evt);
+        .add_attribute("height", env.block.height.to_string())
+        .add_attribute("num_members", num_members.to_string())
+        .add_attribute("member_pay", member_pay.to_string())
+        .add_attribute("denom", config.denom);
+    let resp = resp.add_messages(msgs).add_event(evt);
 
     Ok(resp)
 }
