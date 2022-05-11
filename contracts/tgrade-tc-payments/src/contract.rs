@@ -2,7 +2,6 @@
 use cosmwasm_std::entry_point;
 use cosmwasm_std::{coins, BankMsg, CustomQuery, Deps, DepsMut, Env, Event, MessageInfo};
 use cw2::set_contract_version;
-use std::cmp::min;
 use tg4::Tg4Contract;
 use tg_bindings::{
     request_privileges, Privilege, PrivilegeChangeMsg, TgradeMsg, TgradeQuery, TgradeSudoMsg,
@@ -129,20 +128,26 @@ fn end_block<Q: CustomQuery>(deps: DepsMut<Q>, env: Env) -> Result<Response, Con
         .u128();
     // Divide the minimum balance among all members
     let num_members = (oc_members.len() + ap_members.len()) as u32;
-    let member_pay = min(config.payment_amount, total_funds / num_members as u128);
+    let mut member_pay = total_funds / num_members as u128;
+    // Don't pay oc + ap members if there are not enough funds (prioritize engagement point holders)
+    if member_pay < config.payment_amount {
+        member_pay = 0;
+    }
 
     // Register payment
     payments().create_payment(deps.storage, num_members, member_pay, &env.block)?;
 
-    // Create pay messages for members
+    // If enough funds, create pay messages for members
     let mut msgs = vec![];
-    let member_amount = coins(member_pay, config.denom.clone());
-    for member in [oc_members, ap_members].concat() {
-        let pay_msg = BankMsg::Send {
-            to_address: member.addr,
-            amount: member_amount.clone(),
-        };
-        msgs.push(pay_msg)
+    if member_pay > 0 {
+        let member_amount = coins(member_pay, config.denom.clone());
+        for member in [oc_members, ap_members].concat() {
+            let pay_msg = BankMsg::Send {
+                to_address: member.addr,
+                amount: member_amount.clone(),
+            };
+            msgs.push(pay_msg)
+        }
     }
 
     // Send the rest of the funds to the engagement contract for distribution
