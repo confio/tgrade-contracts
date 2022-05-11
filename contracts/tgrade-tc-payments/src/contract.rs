@@ -39,10 +39,12 @@ pub fn instantiate(
 
     let oc_addr = verify_tg4_input(deps.as_ref(), &msg.oc_addr)?;
     let ap_addr = verify_tg4_input(deps.as_ref(), &msg.ap_addr)?;
+    let engagement_addr = deps.api.addr_validate(&msg.engagement_addr)?;
 
     let tc_payments = PaymentsConfig {
         oc_addr,
         ap_addr,
+        engagement_addr,
         denom: msg.denom,
         payment_amount: msg.payment_amount,
         payment_period: msg.payment_period,
@@ -92,7 +94,7 @@ fn end_block<Q: CustomQuery>(deps: DepsMut<Q>, env: Env) -> Result<Response, Con
         return Ok(resp);
     }
 
-    // Pay members
+    // Pay oc + ap members
     // Get all members from oc
     let mut oc_members = vec![];
     let mut batch = config.oc_addr.list_members(&deps.querier, None, None)?;
@@ -134,20 +136,30 @@ fn end_block<Q: CustomQuery>(deps: DepsMut<Q>, env: Env) -> Result<Response, Con
 
     // Create pay messages for members
     let mut msgs = vec![];
-    let amount = coins(member_pay, config.denom.clone());
+    let member_amount = coins(member_pay, config.denom.clone());
     for member in [oc_members, ap_members].concat() {
         let pay_msg = BankMsg::Send {
             to_address: member.addr,
-            amount: amount.clone(),
+            amount: member_amount.clone(),
         };
         msgs.push(pay_msg)
     }
+
+    // Send the rest of the funds to the engagement contract for distribution
+    let engagement_rewards = total_funds - member_pay * num_members as u128;
+    let engagement_amount = coins(engagement_rewards, config.denom.clone());
+    let engagement_rewards_msg = BankMsg::Send {
+        to_address: config.engagement_addr.to_string(),
+        amount: engagement_amount,
+    };
+    msgs.push(engagement_rewards_msg);
 
     let evt = Event::new("tc_payments")
         .add_attribute("time", env.block.time.to_string())
         .add_attribute("height", env.block.height.to_string())
         .add_attribute("num_members", num_members.to_string())
         .add_attribute("member_pay", member_pay.to_string())
+        .add_attribute("engagement_rewards", engagement_rewards.to_string())
         .add_attribute("denom", config.denom);
     let resp = resp.add_messages(msgs).add_event(evt);
 

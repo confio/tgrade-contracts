@@ -1,7 +1,7 @@
 use chrono::{Datelike, NaiveDateTime, Timelike};
 use serde::{Deserialize, Serialize};
 
-use cosmwasm_std::Timestamp;
+use cosmwasm_std::{Addr, Timestamp};
 
 use cw_controllers::Admin;
 use cw_storage_plus::Item;
@@ -17,6 +17,8 @@ pub struct PaymentsConfig {
     pub oc_addr: Tg4Contract,
     /// Arbiter pool contract address
     pub ap_addr: Tg4Contract,
+    /// Engagement contract address
+    pub engagement_addr: Addr,
     /// Payments denom
     pub denom: String,
     /// The required payment amount, in the payments denom

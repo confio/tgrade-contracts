@@ -10,6 +10,9 @@ pub struct InstantiateMsg {
     pub oc_addr: String,
     /// Arbiter pool contract address
     pub ap_addr: String,
+    /// Engagement contract address.
+    /// To send the remaining funds after payment
+    pub engagement_addr: String,
     /// The required payment amount, in the payments denom
     pub denom: String,
     /// The required payment amount, in the TC denom
