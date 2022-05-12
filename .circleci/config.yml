@@ -111,7 +111,7 @@ jobs:
   contract_tgrade_tc_payments:
     docker:
       - image: rust:1.58.1
-    working_directory: ~/project/contracts/tgrade-tc_payments
+    working_directory: ~/project/contracts/tgrade-tc-payments
     steps:
       - checkout:
           path: ~/project
