@@ -886,12 +886,18 @@ dependencies = [
  "cosmwasm-schema",
  "cosmwasm-std",
  "cw-controllers",
+ "cw-multi-test",
  "cw-storage-plus",
  "cw2",
  "schemars",
  "serde",
  "tg-bindings",
+ "tg-utils",
+ "tg-voting-contract",
  "tg4",
+ "tg4-engagement",
+ "tgrade-ap-voting",
+ "tgrade-trusted-circle",
  "thiserror",
 ]
 
