@@ -1,6 +1,9 @@
 #[cfg(not(feature = "library"))]
 use cosmwasm_std::entry_point;
-use cosmwasm_std::{coins, BankMsg, CustomQuery, Deps, DepsMut, Env, Event, MessageInfo};
+use cosmwasm_std::{
+    coins, to_binary, BankMsg, Binary, CustomQuery, Deps, DepsMut, Env, Event, MessageInfo,
+    StdResult,
+};
 use cw2::set_contract_version;
 use tg4::Tg4Contract;
 use tg_bindings::{
@@ -8,7 +11,7 @@ use tg_bindings::{
 };
 
 use crate::error::ContractError;
-use crate::msg::InstantiateMsg;
+use crate::msg::{ExecuteMsg, InstantiateMsg, QueryMsg};
 use crate::state::{payments, PaymentsConfig, ADMIN, CONFIG};
 
 // version info for migration info
@@ -53,6 +56,16 @@ pub fn instantiate(
 
     let contract_data_ev = Event::new(METADATA).add_attribute("contract_kind", CONTRACT_NAME);
     Ok(Response::default().add_event(contract_data_ev))
+}
+
+#[cfg_attr(not(feature = "library"), entry_point)]
+pub fn execute(
+    _deps: DepsMut<TgradeQuery>,
+    _env: Env,
+    _info: MessageInfo,
+    _msg: ExecuteMsg,
+) -> Result<Response, ContractError> {
+    Ok(Response::default())
 }
 
 #[cfg_attr(not(feature = "library"), entry_point)]
@@ -130,7 +143,7 @@ fn end_block<Q: CustomQuery>(deps: DepsMut<Q>, env: Env) -> Result<Response, Con
     let num_members = (oc_members.len() + ap_members.len()) as u32;
     let mut member_pay = total_funds / num_members as u128;
     // Don't pay oc + ap members if there are not enough funds (prioritize engagement point holders)
-    if member_pay < config.payment_amount {
+    if member_pay < config.payment_amount.u128() {
         member_pay = 0;
     }
 
@@ -180,4 +193,191 @@ fn verify_tg4_input<Q: CustomQuery>(
         return Err(ContractError::NotTg4(addr.into()));
     };
     Ok(contract)
+}
+
+#[cfg_attr(not(feature = "library"), entry_point)]
+pub fn query(_deps: Deps<TgradeQuery>, _env: Env, _msg: QueryMsg) -> StdResult<Binary> {
+    to_binary(&())
+}
+
+#[cfg(test)]
+mod tests {
+    // use super::*;
+    use crate::msg::Period;
+    use cosmwasm_std::{coins, Addr, Decimal, Uint128};
+    use cw_multi_test::{next_block, AppBuilder, BasicApp, Contract, ContractWrapper, Executor};
+    use tg4::Member;
+    use tg_bindings::{TgradeMsg, TgradeQuery};
+    // use tg_utils::Duration;
+    // use tg_voting_contract::state::VotingRules;
+    // use tgrade_trusted_circle::state::VotingRules as TcVotingRules;
+
+    const TC_DENOM: &str = "utgd";
+    const OWNER: &str = "owner";
+    const OC_MEMBER1: &str = "voter0001";
+    const OC_MEMBER2: &str = "voter0002";
+    const AP_MEMBER1: &str = "voter0003";
+
+    fn member<T: Into<String>>(addr: T, points: u64) -> Member {
+        Member {
+            addr: addr.into(),
+            points,
+            start_height: None,
+        }
+    }
+
+    pub fn contract_payments() -> Box<dyn Contract<TgradeMsg, TgradeQuery>> {
+        let contract = ContractWrapper::new(
+            crate::contract::execute,
+            crate::contract::instantiate,
+            crate::contract::query,
+        )
+        .with_sudo(crate::contract::sudo);
+        Box::new(contract)
+    }
+
+    pub fn contract_tc() -> Box<dyn Contract<TgradeMsg, TgradeQuery>> {
+        let contract = ContractWrapper::new(
+            tgrade_trusted_circle::contract::execute,
+            tgrade_trusted_circle::contract::instantiate,
+            tgrade_trusted_circle::contract::query,
+        );
+        Box::new(contract)
+    }
+
+    pub fn contract_engagement() -> Box<dyn Contract<TgradeMsg, TgradeQuery>> {
+        let contract = ContractWrapper::new(
+            tg4_engagement::contract::execute,
+            tg4_engagement::contract::instantiate,
+            tg4_engagement::contract::query,
+        );
+        Box::new(contract)
+    }
+
+    // uploads code and returns address of TC contract
+    fn instantiate_tc(app: &mut BasicApp<TgradeMsg, TgradeQuery>, members: Vec<Member>) -> Addr {
+        let admin = Some(OWNER.into());
+        let group_id = app.store_code(contract_tc());
+        let msg = tgrade_trusted_circle::msg::InstantiateMsg {
+            name: "TestCircle".to_string(),
+            denom: TC_DENOM.to_owned(),
+            escrow_amount: Uint128::new(1_000_000),
+            voting_period: 14,
+            quorum: Decimal::percent(51),
+            threshold: Decimal::percent(50),
+            allow_end_early: true,
+            initial_members: members.iter().map(|m| m.addr.clone()).collect(),
+            deny_list: None,
+            edit_trusted_circle_disabled: true,
+            reward_denom: "utgd".to_string(),
+        };
+        app.instantiate_contract(
+            group_id,
+            Addr::unchecked(OWNER),
+            &msg,
+            &coins(1_000_000, TC_DENOM),
+            "tc",
+            admin,
+        )
+        .unwrap()
+    }
+
+    // uploads code and returns address of engagement contract
+    fn instantiate_group(app: &mut BasicApp<TgradeMsg, TgradeQuery>, members: Vec<Member>) -> Addr {
+        let admin = Some(OWNER.into());
+        let group_id = app.store_code(contract_engagement());
+        let msg = tg4_engagement::msg::InstantiateMsg {
+            admin: admin.clone(),
+            members,
+            preauths_hooks: 1,
+            preauths_slashing: 1,
+            halflife: None,
+            denom: TC_DENOM.to_owned(),
+        };
+        app.instantiate_contract(group_id, Addr::unchecked(OWNER), &msg, &[], "group", admin)
+            .unwrap()
+    }
+
+    fn instantiate_payments(
+        app: &mut BasicApp<TgradeMsg, TgradeQuery>,
+        oc_addr: &Addr,
+        ap_addr: &Addr,
+        engagement_addr: &Addr,
+    ) -> Addr {
+        let payments_id = app.store_code(contract_payments());
+        let msg = crate::msg::InstantiateMsg {
+            admin: None,
+            oc_addr: oc_addr.to_string(),
+            ap_addr: ap_addr.to_string(),
+            engagement_addr: engagement_addr.to_string(),
+            denom: "utgd".to_string(),
+            payment_amount: Uint128::new(100_000_000),
+            payment_period: Period::Monthly,
+        };
+        app.instantiate_contract(
+            payments_id,
+            Addr::unchecked(OWNER),
+            &msg,
+            &[],
+            "payments",
+            None,
+        )
+        .unwrap()
+    }
+
+    /// this will set up all 3 contracts contracts, instantiating the group with
+    /// all the constant members, setting the oc and ap contract with a set of members
+    /// and connecting them all to the payments contract.
+    ///
+    /// Returns (payments address, oc address, ap address, group address).
+    fn setup_test_case(app: &mut BasicApp<TgradeMsg, TgradeQuery>) -> (Addr, Addr, Addr, Addr) {
+        // 1. Instantiate group contract with members (and OWNER as admin)
+        let members = vec![
+            member(OWNER, 0),
+            member(OC_MEMBER1, 100),
+            member(OC_MEMBER2, 200),
+            member(AP_MEMBER1, 300),
+        ];
+        let group_addr = instantiate_group(app, members);
+        app.update_block(next_block);
+
+        // 2. Instantiate tc contract
+        let members = vec![
+            member(OWNER, 0),
+            member(OC_MEMBER1, 100),
+            member(OC_MEMBER2, 200),
+        ];
+        let tc_addr = instantiate_tc(app, members);
+        app.update_block(next_block);
+
+        // 3. Instantiate payments contract. Uses TC address for both OC and AP groups
+        let payments_addr = instantiate_payments(app, &tc_addr, &tc_addr, &group_addr);
+        app.update_block(next_block);
+
+        (payments_addr, tc_addr.clone(), tc_addr, group_addr)
+    }
+
+    #[test]
+    fn basic_init() {
+        let stakers = vec![
+            member(OWNER, 1_000_000_000),
+            member(OC_MEMBER1, 10000), // 10000 stake, 100 points -> 1000 mixed
+            member(AP_MEMBER1, 7500),  // 7500 stake, 300 points -> 1500 mixed
+        ];
+
+        let mut app = AppBuilder::new_custom().build(|router, _, storage| {
+            for staker in &stakers {
+                router
+                    .bank
+                    .init_balance(
+                        storage,
+                        &Addr::unchecked(&staker.addr),
+                        coins(staker.points as u128, TC_DENOM),
+                    )
+                    .unwrap();
+            }
+        });
+
+        let (_payments_addr, _, _, _) = setup_test_case(&mut app);
+    }
 }

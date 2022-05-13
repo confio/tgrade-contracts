@@ -1,7 +1,7 @@
 use chrono::{Datelike, NaiveDateTime, Timelike};
 use serde::{Deserialize, Serialize};
 
-use cosmwasm_std::{Addr, Timestamp};
+use cosmwasm_std::{Addr, Timestamp, Uint128};
 
 use cw_controllers::Admin;
 use cw_storage_plus::Item;
@@ -22,7 +22,7 @@ pub struct PaymentsConfig {
     /// Payments denom
     pub denom: String,
     /// The required payment amount, in the payments denom
-    pub payment_amount: u128,
+    pub payment_amount: Uint128,
     /// Payment period
     pub payment_period: Period,
 }
