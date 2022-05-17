@@ -139,6 +139,12 @@ fn end_block<Q: CustomQuery>(deps: DepsMut<Q>, env: Env) -> Result<Response, Con
         .query_balance(env.contract.address, config.denom.clone())?
         .amount
         .u128();
+
+    if total_funds == 0 {
+        // Nothing to distribute
+        return Ok(resp);
+    }
+
     // Divide the minimum balance among all members
     let num_members = (oc_members.len() + ap_members.len()) as u32;
     let mut member_pay = total_funds / num_members as u128;
