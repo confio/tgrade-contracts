@@ -145,16 +145,16 @@ fn end_block<Q: CustomQuery>(deps: DepsMut<Q>, env: Env) -> Result<Response, Con
         return Ok(resp);
     }
 
-    // Divide the minimum balance among all members
-    let num_members = (oc_members.len() + ap_members.len()) as u32;
-    let mut member_pay = total_funds / num_members as u128;
+    // Check if there are enough funds to pay all members
+    let mut member_pay = config.payment_amount.u128();
+    let num_members = (oc_members.len() + ap_members.len()) as u128;
     // Don't pay oc + ap members if there are not enough funds (prioritize engagement point holders)
-    if member_pay < config.payment_amount.u128() {
+    if total_funds / num_members < member_pay {
         member_pay = 0;
     }
 
-    // Register payment
-    payments().create_payment(deps.storage, num_members, member_pay, &env.block)?;
+    // Register payment in state
+    payments().create_payment(deps.storage, num_members as _, member_pay, &env.block)?;
 
     // If enough funds, create pay messages for members
     let mut msgs = vec![];
@@ -211,7 +211,7 @@ mod tests {
     use chrono::{Datelike, NaiveDate, NaiveDateTime, Timelike};
     // use super::*;
     use crate::msg::Period;
-    use cosmwasm_std::{coins, Addr, Decimal, Empty, Timestamp, Uint128};
+    use cosmwasm_std::{coins, Addr, Empty, Timestamp, Uint128};
     use cw_multi_test::{next_block, Contract, ContractWrapper, Executor};
     use tg4::Member;
     use tg_bindings::{TgradeMsg, TgradeQuery, TgradeSudoMsg};
@@ -222,6 +222,9 @@ mod tests {
     const OC_MEMBER1: &str = "voter0001";
     const OC_MEMBER2: &str = "voter0002";
     const AP_MEMBER1: &str = "voter0003";
+
+    // Per-member tc-payments payment amount
+    const PAYMENT_AMOUNT: u128 = 100_000_000;
 
     fn member<T: Into<String>>(addr: T, points: u64) -> Member {
         Member {
@@ -241,15 +244,6 @@ mod tests {
         Box::new(contract)
     }
 
-    pub fn contract_tc() -> Box<dyn Contract<TgradeMsg, TgradeQuery>> {
-        let contract = ContractWrapper::new(
-            tgrade_trusted_circle::contract::execute,
-            tgrade_trusted_circle::contract::instantiate,
-            tgrade_trusted_circle::contract::query,
-        );
-        Box::new(contract)
-    }
-
     pub fn contract_engagement() -> Box<dyn Contract<TgradeMsg, TgradeQuery>> {
         let contract = ContractWrapper::new(
             tg4_engagement::contract::execute,
@@ -259,35 +253,7 @@ mod tests {
         Box::new(contract)
     }
 
-    // uploads code and returns address of TC contract
-    fn instantiate_tc(app: &mut TgradeApp, members: Vec<Member>) -> Addr {
-        let admin = Some(OWNER.into());
-        let group_id = app.store_code(contract_tc());
-        let msg = tgrade_trusted_circle::msg::InstantiateMsg {
-            name: "TestCircle".to_string(),
-            denom: TC_DENOM.to_owned(),
-            escrow_amount: Uint128::new(1_000_000),
-            voting_period: 14,
-            quorum: Decimal::percent(51),
-            threshold: Decimal::percent(50),
-            allow_end_early: true,
-            initial_members: members.iter().map(|m| m.addr.clone()).collect(),
-            deny_list: None,
-            edit_trusted_circle_disabled: true,
-            reward_denom: "utgd".to_string(),
-        };
-        app.instantiate_contract(
-            group_id,
-            Addr::unchecked(OWNER),
-            &msg,
-            &coins(1_000_000, TC_DENOM),
-            "tc",
-            admin,
-        )
-        .unwrap()
-    }
-
-    // uploads code and returns address of engagement contract
+    // Uploads code and returns address of group (tg4) contract
     fn instantiate_group(app: &mut TgradeApp, members: Vec<Member>) -> Addr {
         let admin = Some(OWNER.into());
         let group_id = app.store_code(contract_engagement());
@@ -316,7 +282,7 @@ mod tests {
             ap_addr: ap_addr.to_string(),
             engagement_addr: engagement_addr.to_string(),
             denom: "utgd".to_string(),
-            payment_amount: Uint128::new(100_000_000),
+            payment_amount: Uint128::new(PAYMENT_AMOUNT),
             payment_period: Period::Monthly,
         };
         app.instantiate_contract(
@@ -334,32 +300,33 @@ mod tests {
     /// all the constant members, setting the oc and ap contract with a set of members
     /// and connecting them all to the payments contract.
     ///
-    /// Returns (payments address, oc address, ap address, group address).
-    fn setup_test_case(app: &mut TgradeApp) -> (Addr, Addr, Addr, Addr) {
-        // 1. Instantiate group contract with members (and OWNER as admin)
-        let members = vec![
-            member(OWNER, 0),
-            member(OC_MEMBER1, 100),
-            member(OC_MEMBER2, 200),
-            member(AP_MEMBER1, 300),
-        ];
-        let group_addr = instantiate_group(app, members);
+    /// Returns (payments address, oc address, ap address, group address, number of oc + ap members).
+    fn setup_test_case(app: &mut TgradeApp) -> (Addr, Addr, Addr, Addr, usize) {
+        // 1. Instantiate "oc" contract (Just a tg4 compatible contract)
+        let oc_members = vec![member(OC_MEMBER1, 100), member(OC_MEMBER2, 200)];
+        let oc_addr = instantiate_group(app, oc_members.clone());
         app.update_block(next_block);
 
-        // 2. Instantiate tc contract
-        let members = vec![
-            member(OWNER, 0),
-            member(OC_MEMBER1, 100),
-            member(OC_MEMBER2, 200),
-        ];
-        let tc_addr = instantiate_tc(app, members);
+        // 2. Instantiate "ap" contract (Just a tg4 compatible contract)
+        let ap_members = vec![member(AP_MEMBER1, 300)];
+        let ap_addr = instantiate_group(app, ap_members.clone());
         app.update_block(next_block);
 
-        // 3. Instantiate payments contract. Uses TC address for both OC and AP groups
-        let payments_addr = instantiate_payments(app, &tc_addr, &tc_addr, &group_addr);
+        // 3. Instantiate group contract (no members, just for test)
+        let group_addr = instantiate_group(app, vec![]);
         app.update_block(next_block);
 
-        (payments_addr, tc_addr.clone(), tc_addr, group_addr)
+        // 4. Instantiate payments contract.
+        let payments_addr = instantiate_payments(app, &oc_addr, &ap_addr, &group_addr);
+        app.update_block(next_block);
+
+        (
+            payments_addr,
+            oc_addr,
+            ap_addr,
+            group_addr,
+            oc_members.len() + ap_members.len(),
+        )
     }
 
     #[test]
@@ -384,7 +351,132 @@ mod tests {
             }
         });
 
-        let (_payments_addr, _, _, _) = setup_test_case(&mut app);
+        let (_payments_addr, _, _, _, _) = setup_test_case(&mut app);
+    }
+
+    #[test]
+    fn payments_happy_path() {
+        let stakers = vec![
+            member(OWNER, 1_000_000_000),
+            member(OC_MEMBER1, 10000), // 10000 stake, 100 points -> 1000 mixed
+            member(AP_MEMBER1, 7500),  // 7500 stake, 300 points -> 1500 mixed
+        ];
+
+        let mut app = TgradeApp::new(OWNER);
+        app.init_modules(|router, _, storage| {
+            for staker in &stakers {
+                router
+                    .bank
+                    .init_balance(
+                        storage,
+                        &Addr::unchecked(&staker.addr),
+                        coins(staker.points as u128, TC_DENOM),
+                    )
+                    .unwrap();
+            }
+        });
+
+        let (payments_addr, _oc_addr, _ap_addr, engagement_addr, num_members) =
+            setup_test_case(&mut app);
+
+        // Payments contract is well funded (enough money for all members, plus same amount for engagement contract)
+        app.send_tokens(
+            Addr::unchecked(OWNER),
+            payments_addr.clone(),
+            &coins(PAYMENT_AMOUNT * (num_members as u128 + 1), TC_DENOM),
+        )
+        .unwrap();
+
+        // EndBlock call is in right time range (beginning of month, less than an hour after midnight)
+        let block = app.block_info();
+        let dt = NaiveDateTime::from_timestamp(block.time.seconds() as _, 0);
+        // Advance to beginning of next month
+        let month = dt.month() + 1 % 12;
+        let year = dt.year() + (month == 1) as i32;
+        let day = 1;
+        let hour = 0;
+        let minute = 5;
+        // Set block info
+        let mut new_block = block;
+        let new_ts = Timestamp::from_seconds(
+            NaiveDate::from_ymd(year, month, day)
+                .and_hms(hour, minute, 0)
+                .timestamp() as _,
+        );
+        new_block.time = new_ts;
+        new_block.height += 5000;
+        app.set_block(new_block.clone());
+
+        // Confirm the block time is right
+        let block = app.block_info();
+        let dt = NaiveDateTime::from_timestamp(block.time.seconds() as _, 0);
+        assert_eq!(dt.day(), 1);
+        assert_eq!(dt.hour(), 0);
+
+        // Do payment through sudo end blocker
+        let sudo_msg = TgradeSudoMsg::<Empty>::EndBlock {};
+        let res = app.wasm_sudo(payments_addr.clone(), &sudo_msg).unwrap();
+
+        assert_eq!(res.events.len(), 6);
+        let mut i = 0;
+        assert_eq!(res.events[i].ty, "sudo");
+        i += 1;
+        assert_eq!(res.events[i].ty, "wasm-tc_payments");
+        // Check tc-payments attributes
+        assert_eq!(res.events[i].attributes.len(), 7);
+        // Check keys
+        assert_eq!(res.events[i].attributes[0].key, "_contract_addr");
+        assert_eq!(res.events[i].attributes[1].key, "time");
+        assert_eq!(res.events[i].attributes[2].key, "height");
+        assert_eq!(res.events[i].attributes[3].key, "num_members");
+        assert_eq!(res.events[i].attributes[4].key, "member_pay");
+        assert_eq!(res.events[i].attributes[5].key, "engagement_rewards");
+        assert_eq!(res.events[i].attributes[6].key, "denom");
+        // Check values
+        assert_eq!(
+            res.events[i].attributes[1].value,
+            new_block.time.to_string()
+        );
+        assert_eq!(
+            res.events[i].attributes[2].value,
+            new_block.height.to_string()
+        );
+        assert_eq!(res.events[i].attributes[3].value, "3"); // Three oc + ap members
+        assert_eq!(
+            res.events[i].attributes[4].value,
+            PAYMENT_AMOUNT.to_string()
+        );
+        assert_eq!(
+            res.events[i].attributes[5].value,
+            PAYMENT_AMOUNT.to_string()
+        );
+        assert_eq!(res.events[i].attributes[6].value, TC_DENOM);
+
+        // And check transfer messages
+        i += 1;
+        let amount = [&PAYMENT_AMOUNT.to_string(), TC_DENOM].concat();
+        for &m in &[OC_MEMBER1, OC_MEMBER2, AP_MEMBER1, engagement_addr.as_str()] {
+            assert_eq!(res.events[i].ty, "transfer", "transfer {}", i);
+            // Check keys
+            assert_eq!(
+                res.events[i].attributes[0].key, "recipient",
+                "recipient {}",
+                i
+            );
+            assert_eq!(res.events[i].attributes[1].key, "sender", "sender {}", i);
+            assert_eq!(res.events[i].attributes[2].key, "amount", "amount {}", i);
+            // Check values
+            assert_eq!(res.events[i].attributes[0].value, m, "member {}", i);
+            assert_eq!(
+                res.events[i].attributes[1].value,
+                payments_addr.as_str(),
+                "member {}",
+                i
+            );
+            assert_eq!(res.events[i].attributes[2].value, amount, "amount {}", i);
+
+            i += 1;
+        }
     }
 
     #[test]
@@ -409,7 +501,8 @@ mod tests {
             }
         });
 
-        let (payments_addr, _oc_addr, _ap_addr, _engagement_addr) = setup_test_case(&mut app);
+        let (payments_addr, _oc_addr, _ap_addr, _engagement_addr, _num_members) =
+            setup_test_case(&mut app);
 
         // Try to do a payment through sudo end blocker
         let sudo_msg = TgradeSudoMsg::<Empty>::EndBlock {};
