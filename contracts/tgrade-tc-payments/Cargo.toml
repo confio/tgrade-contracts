@@ -35,6 +35,7 @@ tg4 = "0.9.0"
 cw-multi-test = "0.13.2"
 tg4-engagement = "0.9.0"
 tg-voting-contract = "0.9.0"
+tg-bindings-test = "0.9.0"
 tg-utils = "0.9.0"
 tgrade-trusted-circle = { version = "0.9.0", path = "../tgrade-trusted-circle" }
 tgrade-ap-voting = { version = "0.9.0", path = "../tgrade-ap-voting" }

@@ -202,15 +202,14 @@ pub fn query(_deps: Deps<TgradeQuery>, _env: Env, _msg: QueryMsg) -> StdResult<B
 
 #[cfg(test)]
 mod tests {
+    use chrono::{Datelike, NaiveDate, NaiveDateTime, Timelike};
     // use super::*;
     use crate::msg::Period;
-    use cosmwasm_std::{coins, Addr, Decimal, Uint128};
-    use cw_multi_test::{next_block, AppBuilder, BasicApp, Contract, ContractWrapper, Executor};
+    use cosmwasm_std::{coins, Addr, Decimal, Empty, Timestamp, Uint128};
+    use cw_multi_test::{next_block, Contract, ContractWrapper, Executor};
     use tg4::Member;
-    use tg_bindings::{TgradeMsg, TgradeQuery};
-    // use tg_utils::Duration;
-    // use tg_voting_contract::state::VotingRules;
-    // use tgrade_trusted_circle::state::VotingRules as TcVotingRules;
+    use tg_bindings::{TgradeMsg, TgradeQuery, TgradeSudoMsg};
+    use tg_bindings_test::TgradeApp;
 
     const TC_DENOM: &str = "utgd";
     const OWNER: &str = "owner";
@@ -255,7 +254,7 @@ mod tests {
     }
 
     // uploads code and returns address of TC contract
-    fn instantiate_tc(app: &mut BasicApp<TgradeMsg, TgradeQuery>, members: Vec<Member>) -> Addr {
+    fn instantiate_tc(app: &mut TgradeApp, members: Vec<Member>) -> Addr {
         let admin = Some(OWNER.into());
         let group_id = app.store_code(contract_tc());
         let msg = tgrade_trusted_circle::msg::InstantiateMsg {
@@ -283,7 +282,7 @@ mod tests {
     }
 
     // uploads code and returns address of engagement contract
-    fn instantiate_group(app: &mut BasicApp<TgradeMsg, TgradeQuery>, members: Vec<Member>) -> Addr {
+    fn instantiate_group(app: &mut TgradeApp, members: Vec<Member>) -> Addr {
         let admin = Some(OWNER.into());
         let group_id = app.store_code(contract_engagement());
         let msg = tg4_engagement::msg::InstantiateMsg {
@@ -299,7 +298,7 @@ mod tests {
     }
 
     fn instantiate_payments(
-        app: &mut BasicApp<TgradeMsg, TgradeQuery>,
+        app: &mut TgradeApp,
         oc_addr: &Addr,
         ap_addr: &Addr,
         engagement_addr: &Addr,
@@ -330,7 +329,7 @@ mod tests {
     /// and connecting them all to the payments contract.
     ///
     /// Returns (payments address, oc address, ap address, group address).
-    fn setup_test_case(app: &mut BasicApp<TgradeMsg, TgradeQuery>) -> (Addr, Addr, Addr, Addr) {
+    fn setup_test_case(app: &mut TgradeApp) -> (Addr, Addr, Addr, Addr) {
         // 1. Instantiate group contract with members (and OWNER as admin)
         let members = vec![
             member(OWNER, 0),
@@ -365,7 +364,8 @@ mod tests {
             member(AP_MEMBER1, 7500),  // 7500 stake, 300 points -> 1500 mixed
         ];
 
-        let mut app = AppBuilder::new_custom().build(|router, _, storage| {
+        let mut app = TgradeApp::new(OWNER);
+        app.init_modules(|router, _, storage| {
             for staker in &stakers {
                 router
                     .bank
@@ -379,5 +379,72 @@ mod tests {
         });
 
         let (_payments_addr, _, _, _) = setup_test_case(&mut app);
+    }
+
+    #[test]
+    fn payment_works() {
+        let stakers = vec![
+            member(OWNER, 1_000_000_000),
+            member(OC_MEMBER1, 10000), // 10000 stake, 100 points -> 1000 mixed
+            member(AP_MEMBER1, 7500),  // 7500 stake, 300 points -> 1500 mixed
+        ];
+
+        let mut app = TgradeApp::new(OWNER);
+        app.init_modules(|router, _, storage| {
+            for staker in &stakers {
+                router
+                    .bank
+                    .init_balance(
+                        storage,
+                        &Addr::unchecked(&staker.addr),
+                        coins(staker.points as u128, TC_DENOM),
+                    )
+                    .unwrap();
+            }
+        });
+
+        let (payments_addr, _oc_addr, _ap_addr, _engagement_addr) = setup_test_case(&mut app);
+
+        // Try to do a payment through sudo end blocker
+        let sudo_msg = TgradeSudoMsg::<Empty>::EndBlock {};
+
+        // 1. Out of range (not first day of month, not after midnight)
+        // Confirm not right time
+        let block = app.block_info();
+        let dt = NaiveDateTime::from_timestamp(block.time.seconds() as _, 0);
+        assert_ne!(dt.day(), 1);
+        assert_ne!(dt.hour(), 0);
+
+        // Try to pay
+        let _res = app.wasm_sudo(payments_addr.clone(), &sudo_msg).unwrap();
+        // TODO: Confirm nothing happened (balances unchanged)
+
+        // 2. In range (first day of next month, less than an hour after midnight)
+        // Advance to beginning of next month
+        let month = dt.month() + 1 % 12;
+        let year = dt.year() + (month == 1) as i32;
+        let day = 1;
+        let hour = 0;
+        let minute = 5;
+
+        // Set block info
+        let mut new_block = block;
+        let new_ts = Timestamp::from_seconds(
+            NaiveDate::from_ymd(year, month, day)
+                .and_hms(hour, minute, 0)
+                .timestamp() as _,
+        );
+        new_block.time = new_ts;
+        new_block.height += 5000;
+        app.set_block(new_block);
+
+        // Confirm the block time is right
+        let block = app.block_info();
+        let dt = NaiveDateTime::from_timestamp(block.time.seconds() as _, 0);
+        assert_eq!(dt.day(), 1);
+        assert_eq!(dt.hour(), 0);
+
+        let _res = app.wasm_sudo(payments_addr, &sudo_msg).unwrap();
+        // TODO: Confirm balances are properly updated
     }
 }
