@@ -47,5 +47,5 @@ pub const CONFIG: Item<PaymentsConfig> = Item::new("config");
 
 /// Builds a payments map
 pub fn payments() -> Payments<'static> {
-    Payments::new("payments", "payments__time")
+    Payments::new()
 }

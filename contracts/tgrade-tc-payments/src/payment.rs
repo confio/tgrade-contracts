@@ -5,7 +5,9 @@ use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
 use cosmwasm_std::{BlockInfo, CustomQuery, Deps, Order, StdResult, Storage, Timestamp, Uint128};
-use cw_storage_plus::{Bound, Index, IndexList, IndexedMap, UniqueIndex};
+use cw_storage_plus::{Bound, Map};
+
+const PAYMENTS: Map<u64, Payment> = Map::new("payments");
 
 // settings for pagination
 const MAX_LIMIT: u32 = 100;
@@ -23,18 +25,6 @@ pub struct Payment {
     pub payment_height: u64,
 }
 
-struct PaymentIndexes<'a> {
-    // Last type param defines the pk deserialization type
-    pub time: UniqueIndex<'a, u64, Payment, u64>,
-}
-
-impl<'a> IndexList<Payment> for PaymentIndexes<'a> {
-    fn get_indexes(&'_ self) -> Box<dyn Iterator<Item = &'_ dyn Index<Payment>> + '_> {
-        let v: Vec<&dyn Index<Payment>> = vec![&self.time];
-        Box::new(v.into_iter())
-    }
-}
-
 impl Payment {
     pub fn new(num_members: u32, amount: u128, pay_time: Timestamp, pay_height: u64) -> Self {
         Payment {
@@ -49,17 +39,12 @@ impl Payment {
 pub struct Payments<'a> {
     /// Payments are indexed by `time`. There can be only one payment per time, so a `UniqueIndex`
     /// is used.
-    payments: IndexedMap<'a, u64, Payment, PaymentIndexes<'a>>,
+    payments: Map<'a, u64, Payment>,
 }
 
 impl<'a> Payments<'a> {
-    pub fn new(storage_key: &'a str, time_subkey: &'a str) -> Self {
-        let indexes = PaymentIndexes {
-            time: UniqueIndex::new(|payment| payment.payment_time, time_subkey),
-        };
-        let payments = IndexedMap::new(storage_key, indexes);
-
-        Self { payments }
+    pub fn new() -> Self {
+        Self { payments: PAYMENTS }
     }
 
     /// This creates a payment.
@@ -89,8 +74,6 @@ impl<'a> Payments<'a> {
     pub fn last(&self, storage: &mut dyn Storage) -> StdResult<Option<u64>> {
         let last_payment: Vec<_> = self
             .payments
-            .idx
-            .time
             .keys(storage, None, None, Order::Descending)
             .take(1)
             .collect::<StdResult<_>>()?;
