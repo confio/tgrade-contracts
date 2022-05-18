@@ -106,6 +106,21 @@ fn end_block<Q: CustomQuery>(deps: DepsMut<Q>, env: Env) -> Result<Response, Con
         return Ok(resp);
     }
 
+    // Get balance
+    let total_funds = deps
+        .querier
+        .query_balance(env.contract.address, config.denom.clone())?
+        .amount
+        .u128();
+
+    if total_funds == 0 {
+        // Register empty payment in state (to avoid checking / doing the same work again), until next payment period
+        payments().create_payment(deps.storage, 0, 0, &env.block)?;
+
+        // Nothing to distribute
+        return Ok(resp);
+    }
+
     // Pay oc + ap members
     // Get all members from oc
     let mut oc_members = vec![];
@@ -133,21 +148,6 @@ fn end_block<Q: CustomQuery>(deps: DepsMut<Q>, env: Env) -> Result<Response, Con
         batch = config.oc_addr.list_members(&deps.querier, last, None)?;
     }
     let num_members = (oc_members.len() + ap_members.len()) as u128;
-
-    // Get balance
-    let total_funds = deps
-        .querier
-        .query_balance(env.contract.address, config.denom.clone())?
-        .amount
-        .u128();
-
-    if total_funds == 0 {
-        // Register empty payment in state (to avoid checking / doing the same work again)
-        payments().create_payment(deps.storage, num_members as _, 0, &env.block)?;
-
-        // Nothing to distribute
-        return Ok(resp);
-    }
 
     // Check if there are enough funds to pay all members
     let mut member_pay = config.payment_amount.u128();
