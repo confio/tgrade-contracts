@@ -4,7 +4,9 @@
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
-use cosmwasm_std::{BlockInfo, CustomQuery, Deps, Order, StdResult, Storage, Timestamp, Uint128};
+use cosmwasm_std::{
+    BlockInfo, CustomQuery, Deps, Order, StdError, StdResult, Storage, Timestamp, Uint128,
+};
 use cw_storage_plus::{Bound, Map};
 
 const PAYMENTS: Map<u64, Payment> = Map::new("payments");
@@ -36,6 +38,12 @@ impl Payment {
     }
 }
 
+impl<'a> Default for Payments<'a> {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 pub struct Payments<'a> {
     /// Payments are indexed by `time`. There can be only one payment per time, so a `UniqueIndex`
     /// is used.
@@ -54,20 +62,25 @@ impl<'a> Payments<'a> {
         num_members: u32,
         amount: u128,
         payment_block: &BlockInfo,
-    ) -> StdResult<()> {
+    ) -> StdResult<Payment> {
         let payment_time = payment_block.time.seconds();
         let payment_height = payment_block.height;
         // Add a payment for book keeping. Fails if payment already exists
-        self.payments.save(
-            storage,
-            payment_time,
-            &Payment {
-                num_members,
-                amount: Uint128::new(amount),
-                payment_time,
-                payment_height,
-            },
-        )
+        self.payments.update(storage, payment_time, |old| {
+            if old.is_some() {
+                Err(StdError::generic_err(format!(
+                    "Payment already exists: {}",
+                    payment_time
+                )))
+            } else {
+                Ok(Payment {
+                    num_members,
+                    amount: Uint128::new(amount),
+                    payment_time,
+                    payment_height,
+                })
+            }
+        })
     }
 
     /// Returns the most recent payment (if any)
