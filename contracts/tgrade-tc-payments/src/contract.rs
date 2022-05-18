@@ -501,7 +501,7 @@ mod tests {
             }
         });
 
-        let (payments_addr, _oc_addr, _ap_addr, _engagement_addr, _num_members) =
+        let (payments_addr, _oc_addr, _ap_addr, engagement_addr, _num_members) =
             setup_test_case(&mut app);
 
         // Try to do a payment through sudo end blocker
@@ -515,10 +515,12 @@ mod tests {
         assert_ne!(dt.hour(), 0);
 
         // Try to pay
-        let _res = app.wasm_sudo(payments_addr.clone(), &sudo_msg).unwrap();
-        // TODO: Confirm nothing happened (balances unchanged)
+        let res = app.wasm_sudo(payments_addr.clone(), &sudo_msg).unwrap();
+        // Confirm nothing happened (no events except for sudo log)
+        assert_eq!(res.events.len(), 1);
+        assert_eq!(res.events[0].ty, "sudo");
 
-        // 2. In range (first day of next month, less than an hour after midnight)
+        // 2. In range (first day of next month, less than an hour after midnight). But no funds
         // Advance to beginning of next month
         let month = dt.month() + 1 % 12;
         let year = dt.year() + (month == 1) as i32;
@@ -527,15 +529,15 @@ mod tests {
         let minute = 5;
 
         // Set block info
-        let mut new_block = block;
+        let mut on_time_block = block;
         let new_ts = Timestamp::from_seconds(
             NaiveDate::from_ymd(year, month, day)
                 .and_hms(hour, minute, 0)
                 .timestamp() as _,
         );
-        new_block.time = new_ts;
-        new_block.height += 5000;
-        app.set_block(new_block);
+        on_time_block.time = new_ts;
+        on_time_block.height += 5000;
+        app.set_block(on_time_block.clone());
 
         // Confirm the block time is right
         let block = app.block_info();
@@ -543,7 +545,72 @@ mod tests {
         assert_eq!(dt.day(), 1);
         assert_eq!(dt.hour(), 0);
 
-        let _res = app.wasm_sudo(payments_addr, &sudo_msg).unwrap();
-        // TODO: Confirm balances are properly updated
+        // Try to make payments
+        let res = app.wasm_sudo(payments_addr.clone(), &sudo_msg).unwrap();
+        // Confirm nothing happened (no events except for sudo log)
+        assert_eq!(res.events.len(), 1);
+        assert_eq!(res.events[0].ty, "sudo");
+
+        // Add some funds (but not enough to pay all TC + OC members)
+        app.send_tokens(
+            Addr::unchecked(OWNER),
+            payments_addr.clone(),
+            &coins(PAYMENT_AMOUNT, TC_DENOM),
+        )
+        .unwrap();
+
+        // Try to make payments
+        let res = app.wasm_sudo(payments_addr.clone(), &sudo_msg).unwrap();
+
+        println!("res: {:#?}", res);
+        // Check events (sudo log event, payment summary event, and transfer message)
+        assert_eq!(res.events.len(), 3);
+        let mut i = 0;
+        assert_eq!(res.events[i].ty, "sudo");
+        // Check there's a payment summary message
+        i += 1;
+        assert_eq!(res.events[i].ty, "wasm-tc_payments");
+        // Check tc-payments attributes
+        assert_eq!(res.events[i].attributes.len(), 7);
+        // Check keys
+        assert_eq!(res.events[i].attributes[0].key, "_contract_addr");
+        assert_eq!(res.events[i].attributes[1].key, "time");
+        assert_eq!(res.events[i].attributes[2].key, "height");
+        assert_eq!(res.events[i].attributes[3].key, "num_members");
+        assert_eq!(res.events[i].attributes[4].key, "member_pay");
+        assert_eq!(res.events[i].attributes[5].key, "engagement_rewards");
+        assert_eq!(res.events[i].attributes[6].key, "denom");
+        // Check values
+        assert_eq!(
+            res.events[i].attributes[1].value,
+            on_time_block.time.to_string()
+        );
+        assert_eq!(
+            res.events[i].attributes[2].value,
+            on_time_block.height.to_string()
+        );
+        assert_eq!(res.events[i].attributes[3].value, "3"); // Three oc + ap members
+        assert_eq!(
+            res.events[i].attributes[4].value,
+            "0", // But no pay (not enough funds)
+        );
+        assert_eq!(
+            res.events[i].attributes[5].value,
+            PAYMENT_AMOUNT.to_string() // engagement group rewards amount
+        );
+        assert_eq!(res.events[i].attributes[6].value, TC_DENOM);
+
+        // Check there's one transfer message (to engagement contract)
+        i += 1;
+        let amount = [&PAYMENT_AMOUNT.to_string(), TC_DENOM].concat();
+        assert_eq!(res.events[i].ty, "transfer");
+        // Check keys
+        assert_eq!(res.events[i].attributes[0].key, "recipient");
+        assert_eq!(res.events[i].attributes[1].key, "sender");
+        assert_eq!(res.events[i].attributes[2].key, "amount");
+        // Check values
+        assert_eq!(res.events[i].attributes[0].value, engagement_addr.as_str());
+        assert_eq!(res.events[i].attributes[1].value, payments_addr.as_str(),);
+        assert_eq!(res.events[i].attributes[2].value, amount);
     }
 }
