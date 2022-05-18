@@ -605,6 +605,17 @@ mod tests {
         app.advance_blocks(10);
 
         // Try to make payments
+        let res = app.wasm_sudo(payments_addr.clone(), &sudo_msg).unwrap();
+
+        // Check events (sudo log event only)
+        assert_eq!(res.events.len(), 1);
+        assert_eq!(res.events[0].ty, "sudo");
+
+        // Advance to more than one hour after midnight
+        app.advance_seconds(3600);
+        app.advance_blocks(100);
+
+        // Try to make payments
         let res = app.wasm_sudo(payments_addr, &sudo_msg).unwrap();
 
         // Check events (sudo log event only)
