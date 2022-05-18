@@ -331,46 +331,26 @@ mod tests {
 
     #[test]
     fn basic_init() {
-        let stakers = vec![
-            member(OWNER, 1_000_000_000),
-            member(OC_MEMBER1, 10000), // 10000 stake, 100 points -> 1000 mixed
-            member(AP_MEMBER1, 7500),  // 7500 stake, 300 points -> 1500 mixed
-        ];
-
         let mut app = TgradeApp::new(OWNER);
-        app.init_modules(|router, _, storage| {
-            for staker in &stakers {
-                router
-                    .bank
-                    .init_balance(
-                        storage,
-                        &Addr::unchecked(&staker.addr),
-                        coins(staker.points as u128, TC_DENOM),
-                    )
-                    .unwrap();
-            }
-        });
 
-        let (_payments_addr, _, _, _, _) = setup_test_case(&mut app);
+        let (_payments_addr, _oc_addr, _ap_addr, _group_addr, total_members) =
+            setup_test_case(&mut app);
+        assert_eq!(total_members, 3);
     }
 
     #[test]
     fn payments_happy_path() {
-        let stakers = vec![
-            member(OWNER, 1_000_000_000),
-            member(OC_MEMBER1, 10000), // 10000 stake, 100 points -> 1000 mixed
-            member(AP_MEMBER1, 7500),  // 7500 stake, 300 points -> 1500 mixed
-        ];
+        let funded = vec![member(OWNER, 1_000_000_000)];
 
         let mut app = TgradeApp::new(OWNER);
         app.init_modules(|router, _, storage| {
-            for staker in &stakers {
+            for funds in &funded {
                 router
                     .bank
                     .init_balance(
                         storage,
-                        &Addr::unchecked(&staker.addr),
-                        coins(staker.points as u128, TC_DENOM),
+                        &Addr::unchecked(&funds.addr),
+                        coins(funds.points as u128, TC_DENOM),
                     )
                     .unwrap();
             }
@@ -380,6 +360,7 @@ mod tests {
             setup_test_case(&mut app);
 
         // Payments contract is well funded (enough money for all members, plus same amount for engagement contract)
+        // Just sends fund from OWNER for simplicity.
         app.send_tokens(
             Addr::unchecked(OWNER),
             payments_addr.clone(),
@@ -397,15 +378,15 @@ mod tests {
         let hour = 0;
         let minute = 5;
         // Set block info
-        let mut new_block = block;
+        let mut on_time_block = block;
         let new_ts = Timestamp::from_seconds(
             NaiveDate::from_ymd(year, month, day)
                 .and_hms(hour, minute, 0)
                 .timestamp() as _,
         );
-        new_block.time = new_ts;
-        new_block.height += 5000;
-        app.set_block(new_block.clone());
+        on_time_block.time = new_ts;
+        on_time_block.height += 5000;
+        app.set_block(on_time_block.clone());
 
         // Confirm the block time is right
         let block = app.block_info();
@@ -413,7 +394,7 @@ mod tests {
         assert_eq!(dt.day(), 1);
         assert_eq!(dt.hour(), 0);
 
-        // Do payment through sudo end blocker
+        // Attempt payments through sudo end blocker
         let sudo_msg = TgradeSudoMsg::<Empty>::EndBlock {};
         let res = app.wasm_sudo(payments_addr.clone(), &sudo_msg).unwrap();
 
@@ -435,13 +416,13 @@ mod tests {
         // Check values
         assert_eq!(
             res.events[i].attributes[1].value,
-            new_block.time.to_string()
+            on_time_block.time.to_string()
         );
         assert_eq!(
             res.events[i].attributes[2].value,
-            new_block.height.to_string()
+            on_time_block.height.to_string()
         );
-        assert_eq!(res.events[i].attributes[3].value, "3"); // Three oc + ap members
+        assert_eq!(res.events[i].attributes[3].value, num_members.to_string());
         assert_eq!(
             res.events[i].attributes[4].value,
             PAYMENT_AMOUNT.to_string()
@@ -481,31 +462,24 @@ mod tests {
 
     #[test]
     fn payment_works() {
-        let stakers = vec![
-            member(OWNER, 1_000_000_000),
-            member(OC_MEMBER1, 10000), // 10000 stake, 100 points -> 1000 mixed
-            member(AP_MEMBER1, 7500),  // 7500 stake, 300 points -> 1500 mixed
-        ];
+        let funded = vec![member(OWNER, 1_000_000_000)];
 
         let mut app = TgradeApp::new(OWNER);
         app.init_modules(|router, _, storage| {
-            for staker in &stakers {
+            for funds in &funded {
                 router
                     .bank
                     .init_balance(
                         storage,
-                        &Addr::unchecked(&staker.addr),
-                        coins(staker.points as u128, TC_DENOM),
+                        &Addr::unchecked(&funds.addr),
+                        coins(funds.points as u128, TC_DENOM),
                     )
                     .unwrap();
             }
         });
 
-        let (payments_addr, _oc_addr, _ap_addr, engagement_addr, _num_members) =
+        let (payments_addr, _oc_addr, _ap_addr, engagement_addr, num_members) =
             setup_test_case(&mut app);
-
-        // Try to do a payment through sudo end blocker
-        let sudo_msg = TgradeSudoMsg::<Empty>::EndBlock {};
 
         // 1. Out of range (not first day of month, not after midnight)
         // Confirm not right time
@@ -515,6 +489,7 @@ mod tests {
         assert_ne!(dt.hour(), 0);
 
         // Try to pay
+        let sudo_msg = TgradeSudoMsg::<Empty>::EndBlock {};
         let res = app.wasm_sudo(payments_addr.clone(), &sudo_msg).unwrap();
         // Confirm nothing happened (no events except for sudo log)
         assert_eq!(res.events.len(), 1);
@@ -547,7 +522,7 @@ mod tests {
 
         // Try to make payments
         let res = app.wasm_sudo(payments_addr.clone(), &sudo_msg).unwrap();
-        // Confirm nothing happened (no events except for sudo log)
+        // Confirm nothing happened (no events except for sudo log) (no funds)
         assert_eq!(res.events.len(), 1);
         assert_eq!(res.events[0].ty, "sudo");
 
@@ -562,7 +537,6 @@ mod tests {
         // Try to make payments
         let res = app.wasm_sudo(payments_addr.clone(), &sudo_msg).unwrap();
 
-        println!("res: {:#?}", res);
         // Check events (sudo log event, payment summary event, and transfer message)
         assert_eq!(res.events.len(), 3);
         let mut i = 0;
@@ -589,14 +563,14 @@ mod tests {
             res.events[i].attributes[2].value,
             on_time_block.height.to_string()
         );
-        assert_eq!(res.events[i].attributes[3].value, "3"); // Three oc + ap members
+        assert_eq!(res.events[i].attributes[3].value, num_members.to_string());
         assert_eq!(
             res.events[i].attributes[4].value,
-            "0", // But no pay (not enough funds)
+            "0", // But no pay for members (not enough funds)
         );
         assert_eq!(
             res.events[i].attributes[5].value,
-            PAYMENT_AMOUNT.to_string() // engagement group rewards amount
+            PAYMENT_AMOUNT.to_string() // Engagement group rewards amount
         );
         assert_eq!(res.events[i].attributes[6].value, TC_DENOM);
 
