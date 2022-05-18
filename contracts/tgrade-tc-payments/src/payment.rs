@@ -4,7 +4,7 @@
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
-use cosmwasm_std::{BlockInfo, CustomQuery, Deps, Order, StdResult, Storage, Timestamp};
+use cosmwasm_std::{BlockInfo, CustomQuery, Deps, Order, StdResult, Storage, Timestamp, Uint128};
 use cw_storage_plus::{Bound, Index, IndexList, IndexedMap, UniqueIndex};
 
 // settings for pagination
@@ -16,7 +16,7 @@ pub struct Payment {
     /// Number of members paid
     pub num_members: u32,
     /// Amount of tokens paid (per member)
-    pub amount: u128,
+    pub amount: Uint128,
     /// Time of the payment (timestamp since epoch, in seconds)
     pub payment_time: u64,
     /// Height of the chain at the moment of creation of this payment
@@ -39,7 +39,7 @@ impl Payment {
     pub fn new(num_members: u32, amount: u128, pay_time: Timestamp, pay_height: u64) -> Self {
         Payment {
             num_members,
-            amount,
+            amount: Uint128::new(amount),
             payment_time: pay_time.seconds(),
             payment_height: pay_height,
         }
@@ -78,7 +78,7 @@ impl<'a> Payments<'a> {
             payment_time,
             &Payment {
                 num_members,
-                amount,
+                amount: Uint128::new(amount),
                 payment_time,
                 payment_height,
             },
