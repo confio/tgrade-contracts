@@ -354,6 +354,11 @@ mod tests {
         next_month_block
     }
 
+    fn is_month_beginning(block: &BlockInfo) -> bool {
+        let dt = NaiveDateTime::from_timestamp(block.time.seconds() as _, 0);
+        dt.day() == 1 && dt.hour() == 0
+    }
+
     #[test]
     fn basic_init() {
         let mut app = TgradeApp::new(OWNER);
@@ -399,9 +404,7 @@ mod tests {
 
         // Confirm the block time is right
         let block = app.block_info();
-        let dt = NaiveDateTime::from_timestamp(block.time.seconds() as _, 0);
-        assert_eq!(dt.day(), 1);
-        assert_eq!(dt.hour(), 0);
+        assert!(is_month_beginning(&block));
 
         // Attempt payments through sudo end blocker
         let sudo_msg = TgradeSudoMsg::<Empty>::EndBlock {};
@@ -487,9 +490,7 @@ mod tests {
         // 1. Out of range (not first day of month, not after midnight)
         // Confirm not right time
         let block = app.block_info();
-        let dt = NaiveDateTime::from_timestamp(block.time.seconds() as _, 0);
-        assert_ne!(dt.day(), 1);
-        assert_ne!(dt.hour(), 0);
+        assert!(!is_month_beginning(&block));
 
         // Try to pay
         let sudo_msg = TgradeSudoMsg::<Empty>::EndBlock {};
@@ -505,9 +506,7 @@ mod tests {
 
         // Confirm the block time is right
         let block = app.block_info();
-        let dt = NaiveDateTime::from_timestamp(block.time.seconds() as _, 0);
-        assert_eq!(dt.day(), 1);
-        assert_eq!(dt.hour(), 0);
+        assert!(is_month_beginning(&block));
 
         // Try to make payments
         let res = app.wasm_sudo(payments_addr.clone(), &sudo_msg).unwrap();
@@ -527,6 +526,10 @@ mod tests {
         app.advance_seconds(10);
         app.advance_blocks(1);
 
+        // Confirm the block time is still right
+        let block = app.block_info();
+        assert!(is_month_beginning(&block));
+
         // Try to make payments
         let res = app.wasm_sudo(payments_addr.clone(), &sudo_msg).unwrap();
 
@@ -540,9 +543,7 @@ mod tests {
 
         // Confirm the block time is right
         let block = app.block_info();
-        let dt = NaiveDateTime::from_timestamp(block.time.seconds() as _, 0);
-        assert_eq!(dt.day(), 1);
-        assert_eq!(dt.hour(), 0);
+        assert!(is_month_beginning(&block));
 
         // Try to make payments
         let res = app.wasm_sudo(payments_addr.clone(), &sudo_msg).unwrap();
@@ -603,6 +604,8 @@ mod tests {
         // Still in payment range
         app.advance_seconds(60);
         app.advance_blocks(10);
+        let block = app.block_info();
+        assert!(is_month_beginning(&block));
 
         // Try to make payments
         let res = app.wasm_sudo(payments_addr.clone(), &sudo_msg).unwrap();
@@ -614,6 +617,9 @@ mod tests {
         // Advance to more than one hour after midnight
         app.advance_seconds(3600);
         app.advance_blocks(100);
+        // Assert not in payment range anymore
+        let block = app.block_info();
+        assert!(!is_month_beginning(&block));
 
         // Try to make payments
         let res = app.wasm_sudo(payments_addr, &sudo_msg).unwrap();
