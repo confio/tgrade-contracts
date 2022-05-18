@@ -96,7 +96,6 @@ fn end_block<Q: CustomQuery>(deps: DepsMut<Q>, env: Env) -> Result<Response, Con
     }
 
     // Already paid?
-
     // Get last payment
     let last_payment = payments().last(deps.storage)?;
 
@@ -133,6 +132,7 @@ fn end_block<Q: CustomQuery>(deps: DepsMut<Q>, env: Env) -> Result<Response, Con
         // and get the next page
         batch = config.oc_addr.list_members(&deps.querier, last, None)?;
     }
+    let num_members = (oc_members.len() + ap_members.len()) as u128;
 
     // Get balance
     let total_funds = deps
@@ -142,13 +142,15 @@ fn end_block<Q: CustomQuery>(deps: DepsMut<Q>, env: Env) -> Result<Response, Con
         .u128();
 
     if total_funds == 0 {
+        // Register empty payment in state (to avoid checking / doing the same work again)
+        payments().create_payment(deps.storage, num_members as _, 0, &env.block)?;
+
         // Nothing to distribute
         return Ok(resp);
     }
 
     // Check if there are enough funds to pay all members
     let mut member_pay = config.payment_amount.u128();
-    let num_members = (oc_members.len() + ap_members.len()) as u128;
     // Don't pay oc + ap members if there are not enough funds (prioritize engagement point holders)
     if total_funds / num_members < member_pay {
         member_pay = 0;
@@ -212,7 +214,7 @@ mod tests {
     use chrono::{Datelike, NaiveDate, NaiveDateTime, Timelike};
     // use super::*;
     use crate::msg::Period;
-    use cosmwasm_std::{coins, Addr, Empty, Timestamp, Uint128};
+    use cosmwasm_std::{coins, Addr, BlockInfo, Empty, Timestamp, Uint128};
     use cw_multi_test::{next_block, Contract, ContractWrapper, Executor};
     use tg4::Member;
     use tg_bindings::{TgradeMsg, TgradeQuery, TgradeSudoMsg};
@@ -330,6 +332,28 @@ mod tests {
         )
     }
 
+    fn begin_next_month(block: BlockInfo) -> BlockInfo {
+        // Advance to beginning of next month
+        let dt = NaiveDateTime::from_timestamp(block.time.seconds() as _, 0);
+        let month = dt.month() + 1 % 12;
+        let year = dt.year() + (month == 1) as i32;
+        let day = 1;
+        let hour = 0;
+        let minute = 5;
+
+        // Set block info
+        let mut next_month_block = block;
+        let new_ts = Timestamp::from_seconds(
+            NaiveDate::from_ymd(year, month, day)
+                .and_hms(hour, minute, 0)
+                .timestamp() as _,
+        );
+        next_month_block.time = new_ts;
+        next_month_block.height += 5000;
+
+        next_month_block
+    }
+
     #[test]
     fn basic_init() {
         let mut app = TgradeApp::new(OWNER);
@@ -371,23 +395,7 @@ mod tests {
 
         // EndBlock call is in right time range (beginning of month, less than an hour after midnight)
         let block = app.block_info();
-        let dt = NaiveDateTime::from_timestamp(block.time.seconds() as _, 0);
-        // Advance to beginning of next month
-        let month = dt.month() + 1 % 12;
-        let year = dt.year() + (month == 1) as i32;
-        let day = 1;
-        let hour = 0;
-        let minute = 5;
-        // Set block info
-        let mut on_time_block = block;
-        let new_ts = Timestamp::from_seconds(
-            NaiveDate::from_ymd(year, month, day)
-                .and_hms(hour, minute, 0)
-                .timestamp() as _,
-        );
-        on_time_block.time = new_ts;
-        on_time_block.height += 5000;
-        app.set_block(on_time_block.clone());
+        app.set_block(begin_next_month(block));
 
         // Confirm the block time is right
         let block = app.block_info();
@@ -415,14 +423,8 @@ mod tests {
         assert_eq!(res.events[i].attributes[5].key, "engagement_rewards");
         assert_eq!(res.events[i].attributes[6].key, "denom");
         // Check values
-        assert_eq!(
-            res.events[i].attributes[1].value,
-            on_time_block.time.to_string()
-        );
-        assert_eq!(
-            res.events[i].attributes[2].value,
-            on_time_block.height.to_string()
-        );
+        assert_eq!(res.events[i].attributes[1].value, block.time.to_string());
+        assert_eq!(res.events[i].attributes[2].value, block.height.to_string());
         assert_eq!(res.events[i].attributes[3].value, num_members.to_string());
         assert_eq!(
             res.events[i].attributes[4].value,
@@ -498,22 +500,8 @@ mod tests {
 
         // 2. In range (first day of next month, less than an hour after midnight). But no funds.
         // Advance to beginning of next month
-        let month = dt.month() + 1 % 12;
-        let year = dt.year() + (month == 1) as i32;
-        let day = 1;
-        let hour = 0;
-        let minute = 5;
-
-        // Set block info
-        let mut on_time_block = block;
-        let new_ts = Timestamp::from_seconds(
-            NaiveDate::from_ymd(year, month, day)
-                .and_hms(hour, minute, 0)
-                .timestamp() as _,
-        );
-        on_time_block.time = new_ts;
-        on_time_block.height += 5000;
-        app.set_block(on_time_block.clone());
+        let block = app.block_info();
+        app.set_block(begin_next_month(block));
 
         // Confirm the block time is right
         let block = app.block_info();
@@ -535,58 +523,70 @@ mod tests {
         )
         .unwrap();
 
+        // Advance a small step
+        app.advance_seconds(10);
+        app.advance_blocks(1);
+
         // Try to make payments
         let res = app.wasm_sudo(payments_addr.clone(), &sudo_msg).unwrap();
 
-        // Check events (sudo log event, payment summary event, and transfer message)
-        assert_eq!(res.events.len(), 3);
-        let mut i = 0;
-        assert_eq!(res.events[i].ty, "sudo");
+        // Check events (payment fails because empty payment was already registered)
+        assert_eq!(res.events.len(), 1);
+        assert_eq!(res.events[0].ty, "sudo");
+
+        // Need to advance to the next month, to try and pay again
+        let block = app.block_info();
+        app.set_block(begin_next_month(block));
+
+        // Confirm the block time is right
+        let block = app.block_info();
+        let dt = NaiveDateTime::from_timestamp(block.time.seconds() as _, 0);
+        assert_eq!(dt.day(), 1);
+        assert_eq!(dt.hour(), 0);
+
+        // Try to make payments
+        let res = app.wasm_sudo(payments_addr.clone(), &sudo_msg).unwrap();
+
         // Check there's a payment summary message
-        i += 1;
-        assert_eq!(res.events[i].ty, "wasm-tc_payments");
+        assert_eq!(res.events.len(), 3);
+        assert_eq!(res.events[0].ty, "sudo");
+
+        assert_eq!(res.events[1].ty, "wasm-tc_payments");
         // Check tc-payments attributes
-        assert_eq!(res.events[i].attributes.len(), 7);
+        assert_eq!(res.events[1].attributes.len(), 7);
         // Check keys
-        assert_eq!(res.events[i].attributes[0].key, "_contract_addr");
-        assert_eq!(res.events[i].attributes[1].key, "time");
-        assert_eq!(res.events[i].attributes[2].key, "height");
-        assert_eq!(res.events[i].attributes[3].key, "num_members");
-        assert_eq!(res.events[i].attributes[4].key, "member_pay");
-        assert_eq!(res.events[i].attributes[5].key, "engagement_rewards");
-        assert_eq!(res.events[i].attributes[6].key, "denom");
+        assert_eq!(res.events[1].attributes[0].key, "_contract_addr");
+        assert_eq!(res.events[1].attributes[1].key, "time");
+        assert_eq!(res.events[1].attributes[2].key, "height");
+        assert_eq!(res.events[1].attributes[3].key, "num_members");
+        assert_eq!(res.events[1].attributes[4].key, "member_pay");
+        assert_eq!(res.events[1].attributes[5].key, "engagement_rewards");
+        assert_eq!(res.events[1].attributes[6].key, "denom");
         // Check values
+        assert_eq!(res.events[1].attributes[1].value, block.time.to_string());
+        assert_eq!(res.events[1].attributes[2].value, block.height.to_string());
+        assert_eq!(res.events[1].attributes[3].value, num_members.to_string());
         assert_eq!(
-            res.events[i].attributes[1].value,
-            on_time_block.time.to_string()
-        );
-        assert_eq!(
-            res.events[i].attributes[2].value,
-            on_time_block.height.to_string()
-        );
-        assert_eq!(res.events[i].attributes[3].value, num_members.to_string());
-        assert_eq!(
-            res.events[i].attributes[4].value,
+            res.events[1].attributes[4].value,
             "0", // But no pay for members (not enough funds)
         );
         assert_eq!(
-            res.events[i].attributes[5].value,
+            res.events[1].attributes[5].value,
             PAYMENT_AMOUNT.to_string() // Engagement group rewards amount
         );
-        assert_eq!(res.events[i].attributes[6].value, TC_DENOM);
+        assert_eq!(res.events[1].attributes[6].value, TC_DENOM);
 
         // Check there's one transfer message (to engagement contract)
-        i += 1;
         let amount = [&PAYMENT_AMOUNT.to_string(), TC_DENOM].concat();
-        assert_eq!(res.events[i].ty, "transfer");
+        assert_eq!(res.events[2].ty, "transfer");
         // Check keys
-        assert_eq!(res.events[i].attributes[0].key, "recipient");
-        assert_eq!(res.events[i].attributes[1].key, "sender");
-        assert_eq!(res.events[i].attributes[2].key, "amount");
+        assert_eq!(res.events[2].attributes[0].key, "recipient");
+        assert_eq!(res.events[2].attributes[1].key, "sender");
+        assert_eq!(res.events[2].attributes[2].key, "amount");
         // Check values
-        assert_eq!(res.events[i].attributes[0].value, engagement_addr.as_str());
-        assert_eq!(res.events[i].attributes[1].value, payments_addr.as_str(),);
-        assert_eq!(res.events[i].attributes[2].value, amount);
+        assert_eq!(res.events[2].attributes[0].value, engagement_addr.as_str());
+        assert_eq!(res.events[2].attributes[1].value, payments_addr.as_str(),);
+        assert_eq!(res.events[2].attributes[2].value, amount);
 
         // 4. Fully funded contract, but pay again fails (already paid)
         // Enough money for all members, plus some amount for engagement contract.
