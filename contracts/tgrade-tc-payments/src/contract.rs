@@ -96,6 +96,7 @@ fn end_block<Q: CustomQuery>(deps: DepsMut<Q>, env: Env) -> Result<Response, Con
     }
 
     // Already paid?
+
     // Get last payment
     let last_payment = payments().last(deps.storage)?;
 
@@ -360,7 +361,7 @@ mod tests {
             setup_test_case(&mut app);
 
         // Payments contract is well funded (enough money for all members, plus same amount for engagement contract)
-        // Just sends fund from OWNER for simplicity.
+        // Just sends funds from OWNER for simplicity.
         app.send_tokens(
             Addr::unchecked(OWNER),
             payments_addr.clone(),
@@ -495,7 +496,7 @@ mod tests {
         assert_eq!(res.events.len(), 1);
         assert_eq!(res.events[0].ty, "sudo");
 
-        // 2. In range (first day of next month, less than an hour after midnight). But no funds
+        // 2. In range (first day of next month, less than an hour after midnight). But no funds.
         // Advance to beginning of next month
         let month = dt.month() + 1 % 12;
         let year = dt.year() + (month == 1) as i32;
@@ -526,7 +527,7 @@ mod tests {
         assert_eq!(res.events.len(), 1);
         assert_eq!(res.events[0].ty, "sudo");
 
-        // Add some funds (but not enough to pay all TC + OC members)
+        // 3. Partially funded. Has some funds, but not enough to pay all TC + OC members.
         app.send_tokens(
             Addr::unchecked(OWNER),
             payments_addr.clone(),
@@ -586,5 +587,28 @@ mod tests {
         assert_eq!(res.events[i].attributes[0].value, engagement_addr.as_str());
         assert_eq!(res.events[i].attributes[1].value, payments_addr.as_str(),);
         assert_eq!(res.events[i].attributes[2].value, amount);
+
+        // 4. Fully funded contract, but pay again fails (already paid)
+        // Enough money for all members, plus some amount for engagement contract.
+        // (Just sends funds from OWNER for simplicity)
+        app.send_tokens(
+            Addr::unchecked(OWNER),
+            payments_addr.clone(),
+            &coins(
+                PAYMENT_AMOUNT * (num_members as u128) + PAYMENT_AMOUNT / 2,
+                TC_DENOM,
+            ),
+        )
+        .unwrap();
+        // Still in payment range
+        app.advance_seconds(60);
+        app.advance_blocks(10);
+
+        // Try to make payments
+        let res = app.wasm_sudo(payments_addr, &sudo_msg).unwrap();
+
+        // Check events (sudo log event only)
+        assert_eq!(res.events.len(), 1);
+        assert_eq!(res.events[0].ty, "sudo");
     }
 }
