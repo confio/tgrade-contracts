@@ -152,7 +152,7 @@ fn end_block<Q: CustomQuery>(deps: DepsMut<Q>, env: Env) -> Result<Response, Con
     // Check if there are enough funds to pay all members
     let mut member_pay = config.payment_amount.u128();
     // Don't pay oc + ap members if there are not enough funds (prioritize engagement point holders)
-    if total_funds / num_members < member_pay {
+    if num_members == 0 || total_funds / num_members < member_pay {
         member_pay = 0;
     }
 
