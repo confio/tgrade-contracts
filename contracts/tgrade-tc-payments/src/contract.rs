@@ -842,7 +842,7 @@ mod tests {
             payments_addr.clone(),
             &coins(PAYMENT_AMOUNT * (num_members as u128 + 1), TC_DENOM),
         )
-            .unwrap();
+        .unwrap();
 
         // EndBlock call is in right time range (beginning of month, less than an hour after midnight)
         let block = app.block_info();
