@@ -648,4 +648,247 @@ mod tests {
         assert_eq!(res.events.len(), 1);
         assert_eq!(res.events[0].ty, "sudo");
     }
+
+    #[test]
+    fn payments_empty_oc_members() {
+        let funded = vec![member(OWNER, 1_000_000_000)];
+
+        let mut app = TgradeApp::new(OWNER);
+        app.init_modules(|router, _, storage| {
+            for funds in &funded {
+                router
+                    .bank
+                    .init_balance(
+                        storage,
+                        &Addr::unchecked(&funds.addr),
+                        coins(funds.points as u128, TC_DENOM),
+                    )
+                    .unwrap();
+            }
+        });
+
+        let num_oc_members = 0;
+        let num_ap_members = 5;
+        let (payments_addr, _oc_addr, _ap_addr, engagement_addr) =
+            setup_test_case(&mut app, num_oc_members, num_ap_members);
+        let num_members = num_oc_members + num_ap_members;
+
+        // Payments contract is well funded (enough money for all members, plus same amount for engagement contract)
+        // Just sends funds from OWNER for simplicity.
+        app.send_tokens(
+            Addr::unchecked(OWNER),
+            payments_addr.clone(),
+            &coins(PAYMENT_AMOUNT * (num_members as u128 + 1), TC_DENOM),
+        )
+        .unwrap();
+
+        // EndBlock call is in right time range (beginning of month, less than an hour after midnight)
+        let block = app.block_info();
+        app.set_block(begin_next_month(block));
+
+        // Confirm the block time is right
+        let block = app.block_info();
+        assert!(is_month_beginning(&block));
+
+        // Attempt payments through sudo end blocker
+        let sudo_msg = TgradeSudoMsg::<Empty>::EndBlock {};
+        let res = app.wasm_sudo(payments_addr.clone(), &sudo_msg).unwrap();
+
+        assert_eq!(res.events.len(), 2 + num_members as usize + 1);
+        // Check transfer messages
+        let amount = [&PAYMENT_AMOUNT.to_string(), TC_DENOM].concat();
+
+        let mut all_members: Vec<String> = oc_members(num_oc_members)
+            .iter()
+            .map(|m| m.addr.clone())
+            .collect();
+        all_members.extend(ap_members(num_ap_members).iter().map(|m| m.addr.clone()));
+        all_members.push(engagement_addr.to_string());
+
+        let mut i = 2;
+        for m in &all_members {
+            assert_eq!(res.events[i].ty, "transfer", "transfer {}", i);
+            // Check keys
+            assert_eq!(
+                res.events[i].attributes[0].key, "recipient",
+                "recipient {}",
+                i
+            );
+            assert_eq!(res.events[i].attributes[1].key, "sender", "sender {}", i);
+            assert_eq!(res.events[i].attributes[2].key, "amount", "amount {}", i);
+            // Check values
+            assert_eq!(&res.events[i].attributes[0].value, m, "member {}", i);
+            assert_eq!(
+                res.events[i].attributes[1].value,
+                payments_addr.as_str(),
+                "member {}",
+                i
+            );
+            assert_eq!(res.events[i].attributes[2].value, amount, "amount {}", i);
+
+            i += 1;
+        }
+    }
+
+    #[test]
+    fn payments_empty_ap_members() {
+        let funded = vec![member(OWNER, 10_000_000_000)];
+
+        let mut app = TgradeApp::new(OWNER);
+        app.init_modules(|router, _, storage| {
+            for funds in &funded {
+                router
+                    .bank
+                    .init_balance(
+                        storage,
+                        &Addr::unchecked(&funds.addr),
+                        coins(funds.points as u128, TC_DENOM),
+                    )
+                    .unwrap();
+            }
+        });
+
+        let num_oc_members = 83;
+        let num_ap_members = 0;
+        let (payments_addr, _oc_addr, _ap_addr, engagement_addr) =
+            setup_test_case(&mut app, num_oc_members, num_ap_members);
+        let num_members = num_oc_members + num_ap_members;
+
+        // Payments contract is well funded (enough money for all members, plus same amount for engagement contract)
+        // Just sends funds from OWNER for simplicity.
+        app.send_tokens(
+            Addr::unchecked(OWNER),
+            payments_addr.clone(),
+            &coins(PAYMENT_AMOUNT * (num_members as u128 + 1), TC_DENOM),
+        )
+        .unwrap();
+
+        // EndBlock call is in right time range (beginning of month, less than an hour after midnight)
+        let block = app.block_info();
+        app.set_block(begin_next_month(block));
+
+        // Confirm the block time is right
+        let block = app.block_info();
+        assert!(is_month_beginning(&block));
+
+        // Attempt payments through sudo end blocker
+        let sudo_msg = TgradeSudoMsg::<Empty>::EndBlock {};
+        let res = app.wasm_sudo(payments_addr.clone(), &sudo_msg).unwrap();
+
+        assert_eq!(res.events.len(), 2 + num_members as usize + 1);
+        // Check transfer messages
+        let amount = [&PAYMENT_AMOUNT.to_string(), TC_DENOM].concat();
+
+        let mut all_members: Vec<String> = oc_members(num_oc_members)
+            .iter()
+            .map(|m| m.addr.clone())
+            .collect();
+        all_members.extend(ap_members(num_ap_members).iter().map(|m| m.addr.clone()));
+        all_members.push(engagement_addr.to_string());
+
+        let mut i = 2;
+        for m in &all_members {
+            assert_eq!(res.events[i].ty, "transfer", "transfer {}", i);
+            // Check keys
+            assert_eq!(
+                res.events[i].attributes[0].key, "recipient",
+                "recipient {}",
+                i
+            );
+            assert_eq!(res.events[i].attributes[1].key, "sender", "sender {}", i);
+            assert_eq!(res.events[i].attributes[2].key, "amount", "amount {}", i);
+            // Check values
+            assert_eq!(&res.events[i].attributes[0].value, m, "member {}", i);
+            assert_eq!(
+                res.events[i].attributes[1].value,
+                payments_addr.as_str(),
+                "member {}",
+                i
+            );
+            assert_eq!(res.events[i].attributes[2].value, amount, "amount {}", i);
+
+            i += 1;
+        }
+    }
+
+    #[test]
+    fn payments_empty_oc_ap_members() {
+        let funded = vec![member(OWNER, 100_000_000)];
+
+        let mut app = TgradeApp::new(OWNER);
+        app.init_modules(|router, _, storage| {
+            for funds in &funded {
+                router
+                    .bank
+                    .init_balance(
+                        storage,
+                        &Addr::unchecked(&funds.addr),
+                        coins(funds.points as u128, TC_DENOM),
+                    )
+                    .unwrap();
+            }
+        });
+
+        let num_oc_members = 0;
+        let num_ap_members = 0;
+        let (payments_addr, _oc_addr, _ap_addr, engagement_addr) =
+            setup_test_case(&mut app, num_oc_members, num_ap_members);
+        let num_members = num_oc_members + num_ap_members;
+
+        // Payments contract is well funded (enough money for all members, plus same amount for engagement contract)
+        // Just sends funds from OWNER for simplicity.
+        app.send_tokens(
+            Addr::unchecked(OWNER),
+            payments_addr.clone(),
+            &coins(PAYMENT_AMOUNT * (num_members as u128 + 1), TC_DENOM),
+        )
+            .unwrap();
+
+        // EndBlock call is in right time range (beginning of month, less than an hour after midnight)
+        let block = app.block_info();
+        app.set_block(begin_next_month(block));
+
+        // Confirm the block time is right
+        let block = app.block_info();
+        assert!(is_month_beginning(&block));
+
+        // Attempt payments through sudo end blocker
+        let sudo_msg = TgradeSudoMsg::<Empty>::EndBlock {};
+        let res = app.wasm_sudo(payments_addr.clone(), &sudo_msg).unwrap();
+
+        assert_eq!(res.events.len(), 2 + num_members as usize + 1);
+        // Check transfer messages
+        let amount = [&PAYMENT_AMOUNT.to_string(), TC_DENOM].concat();
+
+        let mut all_members: Vec<String> = oc_members(num_oc_members)
+            .iter()
+            .map(|m| m.addr.clone())
+            .collect();
+        all_members.extend(ap_members(num_ap_members).iter().map(|m| m.addr.clone()));
+        all_members.push(engagement_addr.to_string());
+
+        let mut i = 2;
+        for m in &all_members {
+            assert_eq!(res.events[i].ty, "transfer", "transfer {}", i);
+            // Check keys
+            assert_eq!(
+                res.events[i].attributes[0].key, "recipient",
+                "recipient {}",
+                i
+            );
+            assert_eq!(res.events[i].attributes[1].key, "sender", "sender {}", i);
+            assert_eq!(res.events[i].attributes[2].key, "amount", "amount {}", i);
+            // Check values
+            assert_eq!(&res.events[i].attributes[0].value, m, "member {}", i);
+            assert_eq!(
+                res.events[i].attributes[1].value,
+                payments_addr.as_str(),
+                "member {}",
+                i
+            );
+            assert_eq!(res.events[i].attributes[2].value, amount, "amount {}", i);
+
+            i += 1;
+        }
+    }
 }
