@@ -205,8 +205,12 @@ fn verify_tg4_input<Q: CustomQuery>(
 }
 
 #[cfg_attr(not(feature = "library"), entry_point)]
-pub fn query(_deps: Deps<TgradeQuery>, _env: Env, _msg: QueryMsg) -> StdResult<Binary> {
-    to_binary(&())
+pub fn query(deps: Deps<TgradeQuery>, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
+    use QueryMsg::*;
+
+    match msg {
+        Configuration {} => to_binary(&CONFIG.load(deps.storage)?),
+    }
 }
 
 #[cfg(test)]
