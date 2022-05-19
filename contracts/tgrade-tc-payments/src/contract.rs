@@ -222,9 +222,6 @@ mod tests {
 
     const TC_DENOM: &str = "utgd";
     const OWNER: &str = "owner";
-    const OC_MEMBER1: &str = "voter0001";
-    const OC_MEMBER2: &str = "voter0002";
-    const AP_MEMBER1: &str = "voter0003";
 
     // Per-member tc-payments payment amount
     const PAYMENT_AMOUNT: u128 = 100_000_000;
@@ -299,20 +296,38 @@ mod tests {
         .unwrap()
     }
 
+    fn oc_members(num_oc_members: u64) -> Vec<Member> {
+        let mut members = vec![];
+        for i in 1u64..=num_oc_members {
+            members.push(member(format!("oc_member{:04}", i), 1000u64 * i));
+        }
+        members
+    }
+
+    fn ap_members(num_ap_members: u64) -> Vec<Member> {
+        let mut members = vec![];
+        for i in 1u64..=num_ap_members {
+            members.push(member(format!("ap_member{:04}", i), 100u64 * i));
+        }
+        members
+    }
+
     /// this will set up all 3 contracts contracts, instantiating the group with
     /// all the constant members, setting the oc and ap contract with a set of members
     /// and connecting them all to the payments contract.
     ///
     /// Returns (payments address, oc address, ap address, group address, number of oc + ap members).
-    fn setup_test_case(app: &mut TgradeApp) -> (Addr, Addr, Addr, Addr, usize) {
+    fn setup_test_case(
+        app: &mut TgradeApp,
+        num_oc_members: u64,
+        num_ap_members: u64,
+    ) -> (Addr, Addr, Addr, Addr) {
         // 1. Instantiate "oc" contract (Just a tg4 compatible contract)
-        let oc_members = vec![member(OC_MEMBER1, 100), member(OC_MEMBER2, 200)];
-        let oc_addr = instantiate_group(app, oc_members.clone());
+        let oc_addr = instantiate_group(app, oc_members(num_oc_members));
         app.update_block(next_block);
 
         // 2. Instantiate "ap" contract (Just a tg4 compatible contract)
-        let ap_members = vec![member(AP_MEMBER1, 300)];
-        let ap_addr = instantiate_group(app, ap_members.clone());
+        let ap_addr = instantiate_group(app, ap_members(num_ap_members));
         app.update_block(next_block);
 
         // 3. Instantiate group contract (no members, just for test)
@@ -323,13 +338,7 @@ mod tests {
         let payments_addr = instantiate_payments(app, &oc_addr, &ap_addr, &group_addr);
         app.update_block(next_block);
 
-        (
-            payments_addr,
-            oc_addr,
-            ap_addr,
-            group_addr,
-            oc_members.len() + ap_members.len(),
-        )
+        (payments_addr, oc_addr, ap_addr, group_addr)
     }
 
     fn begin_next_month(block: BlockInfo) -> BlockInfo {
@@ -363,9 +372,7 @@ mod tests {
     fn basic_init() {
         let mut app = TgradeApp::new(OWNER);
 
-        let (_payments_addr, _oc_addr, _ap_addr, _group_addr, total_members) =
-            setup_test_case(&mut app);
-        assert_eq!(total_members, 3);
+        let (_payments_addr, _oc_addr, _ap_addr, _group_addr) = setup_test_case(&mut app, 2, 1);
     }
 
     #[test]
@@ -386,8 +393,11 @@ mod tests {
             }
         });
 
-        let (payments_addr, _oc_addr, _ap_addr, engagement_addr, num_members) =
-            setup_test_case(&mut app);
+        let num_oc_members = 2;
+        let num_ap_members = 1;
+        let (payments_addr, _oc_addr, _ap_addr, engagement_addr) =
+            setup_test_case(&mut app, num_oc_members, num_ap_members);
+        let num_members = num_oc_members + num_ap_members;
 
         // Payments contract is well funded (enough money for all members, plus same amount for engagement contract)
         // Just sends funds from OWNER for simplicity.
@@ -440,9 +450,17 @@ mod tests {
         assert_eq!(res.events[i].attributes[6].value, TC_DENOM);
 
         // And check transfer messages
-        i += 1;
         let amount = [&PAYMENT_AMOUNT.to_string(), TC_DENOM].concat();
-        for &m in &[OC_MEMBER1, OC_MEMBER2, AP_MEMBER1, engagement_addr.as_str()] {
+
+        let mut all_members: Vec<String> = oc_members(num_oc_members)
+            .iter()
+            .map(|m| m.addr.clone())
+            .collect();
+        all_members.extend(ap_members(num_ap_members).iter().map(|m| m.addr.clone()));
+        all_members.push(engagement_addr.to_string());
+
+        i += 1;
+        for m in &all_members {
             assert_eq!(res.events[i].ty, "transfer", "transfer {}", i);
             // Check keys
             assert_eq!(
@@ -453,7 +471,7 @@ mod tests {
             assert_eq!(res.events[i].attributes[1].key, "sender", "sender {}", i);
             assert_eq!(res.events[i].attributes[2].key, "amount", "amount {}", i);
             // Check values
-            assert_eq!(res.events[i].attributes[0].value, m, "member {}", i);
+            assert_eq!(&res.events[i].attributes[0].value, m, "member {}", i);
             assert_eq!(
                 res.events[i].attributes[1].value,
                 payments_addr.as_str(),
@@ -484,8 +502,10 @@ mod tests {
             }
         });
 
-        let (payments_addr, _oc_addr, _ap_addr, engagement_addr, num_members) =
-            setup_test_case(&mut app);
+        let num_oc_members = 2;
+        let num_ap_members = 1;
+        let (payments_addr, _oc_addr, _ap_addr, engagement_addr) = setup_test_case(&mut app, 2, 1);
+        let num_members = num_oc_members + num_ap_members;
 
         // 1. Out of range (not first day of month, not after midnight)
         // Confirm not right time
