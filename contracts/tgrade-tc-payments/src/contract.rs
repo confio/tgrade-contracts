@@ -1,18 +1,20 @@
 #[cfg(not(feature = "library"))]
 use cosmwasm_std::entry_point;
 use cosmwasm_std::{
-    coins, to_binary, BankMsg, Binary, CustomQuery, Deps, DepsMut, Env, Event, MessageInfo,
+    coins, to_binary, BankMsg, Binary, CustomQuery, Deps, DepsMut, Env, Event, MessageInfo, Order,
     StdResult,
 };
 use cw2::set_contract_version;
+use cw_storage_plus::Bound;
 use tg4::Tg4Contract;
 use tg_bindings::{
     request_privileges, Privilege, PrivilegeChangeMsg, TgradeMsg, TgradeQuery, TgradeSudoMsg,
 };
 
 use crate::error::ContractError;
-use crate::msg::{ExecuteMsg, InstantiateMsg, QueryMsg};
-use crate::state::{payments, PaymentsConfig, ADMIN, CONFIG};
+use crate::msg::{ExecuteMsg, InstantiateMsg, PaymentListResponse, QueryMsg};
+use crate::payment::{DEFAULT_LIMIT, MAX_LIMIT};
+use crate::state::{payments, PaymentsConfig, ADMIN, CONFIG, PAYMENTS};
 
 // version info for migration info
 const CONTRACT_NAME: &str = "crates.io:tgrade-tc-payments";
@@ -210,7 +212,28 @@ pub fn query(deps: Deps<TgradeQuery>, _env: Env, msg: QueryMsg) -> StdResult<Bin
 
     match msg {
         Configuration {} => to_binary(&CONFIG.load(deps.storage)?),
+        ListPayments { start_after, limit } => to_binary(&list_payments(deps, start_after, limit)?),
     }
+}
+
+fn list_payments<Q: CustomQuery>(
+    deps: Deps<Q>,
+    start_after: Option<u64>,
+    limit: Option<u32>,
+) -> StdResult<PaymentListResponse> {
+    let limit = limit.unwrap_or(DEFAULT_LIMIT).min(MAX_LIMIT) as usize;
+    let start = start_after.map(Bound::exclusive);
+
+    let payments = PAYMENTS
+        .range(deps.storage, start, None, Order::Ascending)
+        .take(limit)
+        .map(|item| {
+            let (_time, payment) = item?;
+            Ok(payment)
+        })
+        .collect::<StdResult<_>>()?;
+
+    Ok(PaymentListResponse { payments })
 }
 
 #[cfg(test)]

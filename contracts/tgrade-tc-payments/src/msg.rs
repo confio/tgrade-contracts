@@ -1,3 +1,4 @@
+use crate::payment::Payment;
 use cosmwasm_std::Uint128;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
@@ -49,4 +50,14 @@ pub enum ExecuteMsg {}
 pub enum QueryMsg {
     /// Returns configuration
     Configuration {},
+    /// Returns PaymentListResponse
+    ListPayments {
+        start_after: Option<u64>,
+        limit: Option<u32>,
+    },
+}
+
+#[derive(Serialize, Deserialize, Clone, PartialEq, JsonSchema, Debug)]
+pub struct PaymentListResponse {
+    pub payments: Vec<Payment>,
 }

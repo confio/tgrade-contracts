@@ -11,19 +11,19 @@ use cw_storage_plus::{Bound, Map};
 use crate::state::PAYMENTS;
 
 // settings for pagination
-const MAX_LIMIT: u32 = 100;
-const DEFAULT_LIMIT: u32 = 30;
+pub(crate) const MAX_LIMIT: u32 = 100;
+pub(crate) const DEFAULT_LIMIT: u32 = 30;
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct Payment {
-    /// Number of members paid
-    pub num_members: u32,
-    /// Amount of tokens paid (per member)
-    pub amount: Uint128,
     /// Time of the payment (timestamp since epoch, in seconds)
     pub payment_time: u64,
     /// Height of the chain at the moment of creation of this payment
     pub payment_height: u64,
+    /// Number of members paid
+    pub num_members: u32,
+    /// Amount of tokens paid (per member)
+    pub amount: Uint128,
 }
 
 impl Payment {
