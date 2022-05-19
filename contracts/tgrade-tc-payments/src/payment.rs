@@ -1,15 +1,14 @@
-// Adapted from poe-contracts: https://github.com/CosmWasm/poe-contracts/tree/main/contracts/tg4-stake/src/claim.rs
-// Original file distributed on Apache license.
-
+// Adapted from poe-contracts: https://github.com/confio/poe-contracts/tree/main/contracts/tg4-stake/src/claim.rs
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
 use cosmwasm_std::{
     BlockInfo, CustomQuery, Deps, Order, StdError, StdResult, Storage, Timestamp, Uint128,
 };
+
 use cw_storage_plus::{Bound, Map};
 
-const PAYMENTS: Map<u64, Payment> = Map::new("payments");
+use crate::state::PAYMENTS;
 
 // settings for pagination
 const MAX_LIMIT: u32 = 100;

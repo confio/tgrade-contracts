@@ -4,12 +4,12 @@ use serde::{Deserialize, Serialize};
 use cosmwasm_std::{Addr, Timestamp, Uint128};
 
 use cw_controllers::Admin;
-use cw_storage_plus::Item;
+use cw_storage_plus::{Item, Map};
 
 use tg4::Tg4Contract;
 
 use crate::msg::Period;
-use crate::payment::Payments;
+use crate::payment::{Payment, Payments};
 
 #[derive(Serialize, Deserialize, Clone, PartialEq, Debug)]
 pub struct PaymentsConfig {
@@ -44,6 +44,8 @@ impl PaymentsConfig {
 pub const ADMIN: Admin = Admin::new("admin");
 
 pub const CONFIG: Item<PaymentsConfig> = Item::new("config");
+
+pub const PAYMENTS: Map<u64, Payment> = Map::new("payments");
 
 /// Builds a payments map
 pub fn payments() -> Payments<'static> {
