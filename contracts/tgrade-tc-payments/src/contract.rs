@@ -145,7 +145,7 @@ fn end_block<Q: CustomQuery>(deps: DepsMut<Q>, env: Env) -> Result<Response, Con
         ap_members.extend_from_slice(&batch);
 
         // and get the next page
-        batch = config.oc_addr.list_members(&deps.querier, last, None)?;
+        batch = config.ap_addr.list_members(&deps.querier, last, None)?;
     }
     let num_members = (oc_members.len() + ap_members.len()) as u128;
 
