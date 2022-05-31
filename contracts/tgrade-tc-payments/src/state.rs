@@ -32,7 +32,7 @@ impl PaymentsConfig {
     /// Checks if the payment should be applied based on the payment period.
     /// Must be called at least once per hour, or once per day at midnight UTC.
     /// If not, loss of payment will happen.
-    pub fn should_apply(&self, t: Timestamp) -> bool {
+    pub fn should_apply(&self, t: &Timestamp) -> bool {
         let dt = NaiveDateTime::from_timestamp(t.seconds() as i64, 0);
         match self.payment_period {
             Period::Daily => dt.hour() == 0,
@@ -40,6 +40,10 @@ impl PaymentsConfig {
             Period::Yearly => dt.month() == 1 && dt.day() == 1 && dt.hour() == 0,
         }
     }
+}
+
+pub(crate) fn hour_after_midnight(t: &Timestamp) -> bool {
+    NaiveDateTime::from_timestamp(t.seconds() as i64, 0).hour() == 0
 }
 
 pub const ADMIN: Admin = Admin::new("admin");

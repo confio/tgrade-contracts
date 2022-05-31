@@ -14,7 +14,7 @@ use tg_bindings::{
 use crate::error::ContractError;
 use crate::msg::{ExecuteMsg, InstantiateMsg, PaymentListResponse, QueryMsg};
 use crate::payment::{DEFAULT_LIMIT, MAX_LIMIT};
-use crate::state::{payments, PaymentsConfig, ADMIN, CONFIG, PAYMENTS};
+use crate::state::{hour_after_midnight, payments, PaymentsConfig, ADMIN, CONFIG, PAYMENTS};
 
 // version info for migration info
 const CONTRACT_NAME: &str = "crates.io:tgrade-tc-payments";
@@ -90,10 +90,14 @@ fn privilege_promote<Q: CustomQuery>(_deps: DepsMut<Q>) -> Result<Response, Cont
 
 fn end_block<Q: CustomQuery>(deps: DepsMut<Q>, env: Env) -> Result<Response, ContractError> {
     let resp = Response::new();
-    let config = CONFIG.load(deps.storage)?;
+    // If not at beginning of day, do nothing
+    if !hour_after_midnight(&env.block.time) {
+        return Ok(resp);
+    }
 
+    let config = CONFIG.load(deps.storage)?;
     // If not at beginning of period, do nothing
-    if !config.should_apply(env.block.time) {
+    if !config.should_apply(&env.block.time) {
         return Ok(resp);
     }
 
