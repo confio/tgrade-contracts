@@ -1,4 +1,5 @@
 use chrono::{Datelike, NaiveDateTime, Timelike};
+use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
 use cosmwasm_std::{Addr, Timestamp, Uint128};
@@ -11,7 +12,7 @@ use tg4::Tg4Contract;
 use crate::msg::Period;
 use crate::payment::{Payment, Payments};
 
-#[derive(Serialize, Deserialize, Clone, PartialEq, Debug)]
+#[derive(Serialize, Deserialize, Clone, PartialEq, Debug, JsonSchema)]
 pub struct PaymentsConfig {
     /// Trusted Circle / OC contract address
     pub oc_addr: Tg4Contract,
