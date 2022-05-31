@@ -6,7 +6,7 @@ use serde::{Deserialize, Serialize};
 #[derive(Serialize, Deserialize, Clone, PartialEq, JsonSchema, Debug)]
 #[serde(rename_all = "snake_case")]
 pub struct InstantiateMsg {
-    /// Admin (if set) can change the payment amount and period
+    /// Admin (if set) can change the payment amount and period (TODO)
     pub admin: Option<String>,
     /// Trusted Circle / OC contract address
     pub oc_addr: String,
@@ -15,11 +15,11 @@ pub struct InstantiateMsg {
     /// Engagement contract address.
     /// To send the remaining funds after payment
     pub engagement_addr: String,
-    /// The required payment amount, in the payments denom
+    /// The payments denom
     pub denom: String,
-    /// The required payment amount, in the TC denom
+    /// The required payment amount, in the `denom`
     pub payment_amount: Uint128,
-    /// Payment period
+    /// Payment period (daily / monthly / yearly)
     pub payment_period: Period,
 }
 
