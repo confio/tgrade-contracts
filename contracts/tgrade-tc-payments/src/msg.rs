@@ -36,7 +36,7 @@ impl Period {
         match self {
             Period::Daily => 86400,
             Period::Monthly => 86400 * 30,
-            Period::Yearly => 86400 * 30 * 365,
+            Period::Yearly => 86400 * 365,
         }
     }
 }
