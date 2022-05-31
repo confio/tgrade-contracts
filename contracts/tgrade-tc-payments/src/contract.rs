@@ -175,7 +175,7 @@ fn end_block<Q: CustomQuery>(deps: DepsMut<Q>, env: Env) -> Result<Response, Con
     }
 
     // Send the rest of the funds to the engagement contract for distribution
-    let engagement_rewards = total_funds - member_pay * num_members as u128;
+    let engagement_rewards = total_funds - member_pay * num_members;
     let engagement_amount = coins(engagement_rewards, config.denom.clone());
     let engagement_rewards_msg = BankMsg::Send {
         to_address: config.engagement_addr.to_string(),
