@@ -238,9 +238,8 @@ fn list_payments<Q: CustomQuery>(
 
 #[cfg(test)]
 mod tests {
-    use chrono::{Datelike, NaiveDate, NaiveDateTime, Timelike};
-    // use super::*;
     use crate::msg::Period;
+    use chrono::{Datelike, NaiveDate, NaiveDateTime, Timelike};
     use cosmwasm_std::{coins, Addr, BlockInfo, Empty, Timestamp, Uint128};
     use cw_multi_test::{next_block, Contract, ContractWrapper, Executor};
     use tg4::Member;
@@ -343,7 +342,7 @@ mod tests {
     /// all the constant members, setting the oc and ap contract with a set of members
     /// and connecting them all to the payments contract.
     ///
-    /// Returns (payments address, oc address, ap address, group address, number of oc + ap members).
+    /// Returns (payments address, oc address, ap address, group address).
     fn setup_test_case(
         app: &mut TgradeApp,
         num_oc_members: u64,
