@@ -14,4 +14,8 @@ pub enum ContractError {
 
     #[error("Unauthorized: {0}")]
     Unauthorized(String),
+
+    /// TODO: Remove after we finished implementing everything
+    #[error("Unimplemented")]
+    Unimplemented {},
 }

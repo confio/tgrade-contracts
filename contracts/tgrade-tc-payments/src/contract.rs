@@ -67,7 +67,7 @@ pub fn execute(
     _info: MessageInfo,
     _msg: ExecuteMsg,
 ) -> Result<Response, ContractError> {
-    Ok(Response::default())
+    Err(ContractError::Unimplemented {})
 }
 
 #[cfg_attr(not(feature = "library"), entry_point)]
