@@ -107,7 +107,7 @@ fn end_block<Q: CustomQuery>(deps: DepsMut<Q>, env: Env) -> Result<Response, Con
 
     let period = config.payment_period.seconds();
     // Pay if current time > last_payment + period (in secs)
-    if last_payment.is_some() && last_payment.unwrap() + period > env.block.time.seconds() {
+    if last_payment.is_some() && last_payment.unwrap() + period - 3600 > env.block.time.seconds() {
         // Already paid
         return Ok(resp);
     }
