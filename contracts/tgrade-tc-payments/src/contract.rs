@@ -131,8 +131,9 @@ fn end_block<Q: CustomQuery>(deps: DepsMut<Q>, env: Env) -> Result<Response, Con
 
     // Pay oc + ap members
     // Get all members from oc
+    let limit = Some(100);
     let mut oc_members = vec![];
-    let mut batch = config.oc_addr.list_members(&deps.querier, None, None)?;
+    let mut batch = config.oc_addr.list_members(&deps.querier, None, limit)?;
 
     while !batch.is_empty() {
         let last = Some(batch.last().unwrap().addr.clone());
@@ -140,12 +141,12 @@ fn end_block<Q: CustomQuery>(deps: DepsMut<Q>, env: Env) -> Result<Response, Con
         oc_members.extend_from_slice(&batch);
 
         // and get the next page
-        batch = config.oc_addr.list_members(&deps.querier, last, None)?;
+        batch = config.oc_addr.list_members(&deps.querier, last, limit)?;
     }
 
     // Get all members from ap
     let mut ap_members = vec![];
-    let mut batch = config.ap_addr.list_members(&deps.querier, None, None)?;
+    let mut batch = config.ap_addr.list_members(&deps.querier, None, limit)?;
 
     while !batch.is_empty() {
         let last = Some(batch.last().unwrap().addr.clone());
@@ -153,7 +154,7 @@ fn end_block<Q: CustomQuery>(deps: DepsMut<Q>, env: Env) -> Result<Response, Con
         ap_members.extend_from_slice(&batch);
 
         // and get the next page
-        batch = config.ap_addr.list_members(&deps.querier, last, None)?;
+        batch = config.ap_addr.list_members(&deps.querier, last, limit)?;
     }
     let num_members = (oc_members.len() + ap_members.len()) as u128;
 
