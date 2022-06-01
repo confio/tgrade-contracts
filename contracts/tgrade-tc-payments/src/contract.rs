@@ -106,10 +106,12 @@ fn end_block<Q: CustomQuery>(deps: DepsMut<Q>, env: Env) -> Result<Response, Con
     let last_payment = payments().last(deps.storage)?;
 
     let period = config.payment_period.seconds();
-    // Pay if current time > last_payment + period (in secs)
-    if last_payment.is_some() && last_payment.unwrap() + period - 3600 > env.block.time.seconds() {
-        // Already paid
-        return Ok(resp);
+    // Pay if current time > last_payment + period - 1 hour (to avoid secular payment time drift)
+    if let Some(lp) = &last_payment {
+        if env.block.time.seconds() < lp + period - 3600 {
+            // Already paid
+            return Ok(resp);
+        }
     }
 
     // Get balance
