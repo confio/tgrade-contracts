@@ -250,7 +250,7 @@ mod tests {
     use crate::msg::Period;
     use chrono::{Datelike, NaiveDate, NaiveDateTime, Timelike};
     use cosmwasm_std::{coins, Addr, Attribute, BlockInfo, Empty, Timestamp, Uint128};
-    use cw_multi_test::{next_block, Contract, ContractWrapper, Executor};
+    use cw_multi_test::{next_block, AppResponse, Contract, ContractWrapper, Executor};
     use tg4::Member;
     use tg_bindings::{TgradeMsg, TgradeQuery, TgradeSudoMsg};
     use tg_bindings_test::TgradeApp;
@@ -403,6 +403,28 @@ mod tests {
         dt.day() == 1 && dt.hour() == 0
     }
 
+    fn event_types(res: &AppResponse) -> Vec<String> {
+        res.events.iter().map(|e| e.ty.clone()).collect()
+    }
+
+    fn tc_payments_attributes(res: &AppResponse) -> Vec<Attribute> {
+        res.events
+            .iter()
+            .filter(|e| e.ty == "wasm-tc_payments")
+            .map(|e| e.attributes.clone())
+            .flatten()
+            .collect()
+    }
+
+    fn transfer_attributes(res: &AppResponse) -> Vec<Attribute> {
+        res.events
+            .iter()
+            .filter(|e| e.ty == "transfer")
+            .map(|e| e.attributes.clone())
+            .flatten()
+            .collect()
+    }
+
     #[test]
     fn basic_init() {
         let mut app = TgradeApp::new(OWNER);
@@ -457,7 +479,7 @@ mod tests {
 
         assert_eq!(res.events.len(), 6);
 
-        let got_event_types: Vec<_> = res.events.iter().map(|e| e.ty.clone()).collect();
+        let got_event_types = event_types(&res);
 
         let expected_event_types = vec![
             "sudo",
@@ -472,13 +494,7 @@ mod tests {
         assert_eq!(got_event_types, expected_event_types);
 
         // Check tc-payments attributes
-        let got_tc_payments_attributes: Vec<_> = res
-            .events
-            .iter()
-            .filter(|e| e.ty == "wasm-tc_payments")
-            .map(|e| e.attributes.clone())
-            .flatten()
-            .collect();
+        let got_tc_payments_attributes = tc_payments_attributes(&res);
 
         let expected_tc_payments_attributes = vec![
             Attribute {
@@ -515,13 +531,7 @@ mod tests {
         assert_eq!(got_tc_payments_attributes, expected_tc_payments_attributes);
 
         // Check transfer attributes
-        let got_transfer_attributes: Vec<_> = res
-            .events
-            .iter()
-            .filter(|e| e.ty == "transfer")
-            .map(|e| e.attributes.clone())
-            .flatten()
-            .collect();
+        let got_transfer_attributes = transfer_attributes(&res);
 
         let payment_amount = [&PAYMENT_AMOUNT.to_string(), TC_DENOM].concat();
         let expected_transfer_attributes = vec![
@@ -667,42 +677,64 @@ mod tests {
         assert_eq!(res.events.len(), 3);
         assert_eq!(res.events[0].ty, "sudo");
 
-        assert_eq!(res.events[1].ty, "wasm-tc_payments");
         // Check tc-payments attributes
-        assert_eq!(res.events[1].attributes.len(), 7);
-        // Check keys
-        assert_eq!(res.events[1].attributes[0].key, "_contract_addr");
-        assert_eq!(res.events[1].attributes[1].key, "time");
-        assert_eq!(res.events[1].attributes[2].key, "height");
-        assert_eq!(res.events[1].attributes[3].key, "num_members");
-        assert_eq!(res.events[1].attributes[4].key, "member_pay");
-        assert_eq!(res.events[1].attributes[5].key, "engagement_rewards");
-        assert_eq!(res.events[1].attributes[6].key, "denom");
-        // Check values
-        assert_eq!(res.events[1].attributes[1].value, block.time.to_string());
-        assert_eq!(res.events[1].attributes[2].value, block.height.to_string());
-        assert_eq!(res.events[1].attributes[3].value, num_members.to_string());
-        assert_eq!(
-            res.events[1].attributes[4].value,
-            "0", // But no pay for members (not enough funds)
-        );
-        assert_eq!(
-            res.events[1].attributes[5].value,
-            PAYMENT_AMOUNT.to_string() // Engagement group rewards amount
-        );
-        assert_eq!(res.events[1].attributes[6].value, TC_DENOM);
+        let got_tc_payments_attributes = tc_payments_attributes(&res);
+
+        let expected_tc_payments_attributes = vec![
+            Attribute {
+                key: "_contract_addr".to_string(),
+                value: "contract3".to_string(),
+            },
+            Attribute {
+                key: "time".to_string(),
+                value: block.time.to_string(),
+            },
+            Attribute {
+                key: "height".to_string(),
+                value: block.height.to_string(),
+            },
+            Attribute {
+                key: "num_members".to_string(),
+                value: num_members.to_string(),
+            },
+            Attribute {
+                key: "member_pay".to_string(),
+                value: "0".to_string(), // No pay for members (not enough funds)
+            },
+            Attribute {
+                key: "engagement_rewards".to_string(),
+                value: PAYMENT_AMOUNT.to_string(),
+            },
+            Attribute {
+                key: "denom".to_string(),
+                value: TC_DENOM.to_string(),
+            },
+        ];
+
+        // TODO: Sorted comparison
+        assert_eq!(got_tc_payments_attributes, expected_tc_payments_attributes);
 
         // Check there's one transfer message (to engagement contract)
-        let amount = [&PAYMENT_AMOUNT.to_string(), TC_DENOM].concat();
-        assert_eq!(res.events[2].ty, "transfer");
-        // Check keys
-        assert_eq!(res.events[2].attributes[0].key, "recipient");
-        assert_eq!(res.events[2].attributes[1].key, "sender");
-        assert_eq!(res.events[2].attributes[2].key, "amount");
-        // Check values
-        assert_eq!(res.events[2].attributes[0].value, engagement_addr.as_str());
-        assert_eq!(res.events[2].attributes[1].value, payments_addr.as_str(),);
-        assert_eq!(res.events[2].attributes[2].value, amount);
+        let got_transfer_attributes = transfer_attributes(&res);
+
+        let payment_amount = [&PAYMENT_AMOUNT.to_string(), TC_DENOM].concat();
+        let expected_transfer_attributes = vec![
+            Attribute {
+                key: "recipient".to_string(),
+                value: engagement_addr.to_string(),
+            },
+            Attribute {
+                key: "sender".to_string(),
+                value: "contract3".to_string(),
+            },
+            Attribute {
+                key: "amount".to_string(),
+                value: payment_amount,
+            },
+        ];
+
+        // TODO: Sorted comparison
+        assert_eq!(got_transfer_attributes, expected_transfer_attributes);
 
         // 4. Fully funded contract, but pay again fails (already paid)
         // Enough money for all members, plus some amount for engagement contract.
