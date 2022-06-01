@@ -795,7 +795,7 @@ mod tests {
         });
 
         let num_oc_members = 0;
-        let num_ap_members = 5;
+        let num_ap_members = 1;
         let (payments_addr, _oc_addr, _ap_addr, engagement_addr) =
             setup_test_case(&mut app, num_oc_members, num_ap_members);
         let num_members = num_oc_members + num_ap_members;
@@ -819,42 +819,44 @@ mod tests {
 
         // Attempt payments through sudo end blocker
         let sudo_msg = TgradeSudoMsg::<Empty>::EndBlock {};
-        let res = app.wasm_sudo(payments_addr.clone(), &sudo_msg).unwrap();
+        let res = app.wasm_sudo(payments_addr, &sudo_msg).unwrap();
 
         assert_eq!(res.events.len(), 2 + num_members as usize + 1);
+
         // Check transfer messages
-        let amount = [&PAYMENT_AMOUNT.to_string(), TC_DENOM].concat();
+        let got_transfer_attributes = transfer_attributes(&res);
+        println!("transfer: {:#?}", got_transfer_attributes);
 
-        let mut all_members: Vec<String> = oc_members(num_oc_members)
-            .iter()
-            .map(|m| m.addr.clone())
-            .collect();
-        all_members.extend(ap_members(num_ap_members).iter().map(|m| m.addr.clone()));
-        all_members.push(engagement_addr.to_string());
+        let payment_amount = [&PAYMENT_AMOUNT.to_string(), TC_DENOM].concat();
+        let expected_transfer_attributes = vec![
+            Attribute {
+                key: "recipient".to_string(),
+                value: "ap_member0001".to_string(),
+            },
+            Attribute {
+                key: "sender".to_string(),
+                value: "contract3".to_string(),
+            },
+            Attribute {
+                key: "amount".to_string(),
+                value: payment_amount.clone(),
+            },
+            Attribute {
+                key: "recipient".to_string(),
+                value: engagement_addr.to_string(),
+            },
+            Attribute {
+                key: "sender".to_string(),
+                value: "contract3".to_string(),
+            },
+            Attribute {
+                key: "amount".to_string(),
+                value: payment_amount,
+            },
+        ];
 
-        let mut i = 2;
-        for m in &all_members {
-            assert_eq!(res.events[i].ty, "transfer", "transfer {}", i);
-            // Check keys
-            assert_eq!(
-                res.events[i].attributes[0].key, "recipient",
-                "recipient {}",
-                i
-            );
-            assert_eq!(res.events[i].attributes[1].key, "sender", "sender {}", i);
-            assert_eq!(res.events[i].attributes[2].key, "amount", "amount {}", i);
-            // Check values
-            assert_eq!(&res.events[i].attributes[0].value, m, "member {}", i);
-            assert_eq!(
-                res.events[i].attributes[1].value,
-                payments_addr.as_str(),
-                "member {}",
-                i
-            );
-            assert_eq!(res.events[i].attributes[2].value, amount, "amount {}", i);
-
-            i += 1;
-        }
+        // TODO: Sorted comparison
+        assert_eq!(got_transfer_attributes, expected_transfer_attributes);
     }
 
     #[test]
@@ -875,7 +877,7 @@ mod tests {
             }
         });
 
-        let num_oc_members = 83;
+        let num_oc_members = 2;
         let num_ap_members = 0;
         let (payments_addr, _oc_addr, _ap_addr, engagement_addr) =
             setup_test_case(&mut app, num_oc_members, num_ap_members);
@@ -900,42 +902,54 @@ mod tests {
 
         // Attempt payments through sudo end blocker
         let sudo_msg = TgradeSudoMsg::<Empty>::EndBlock {};
-        let res = app.wasm_sudo(payments_addr.clone(), &sudo_msg).unwrap();
+        let res = app.wasm_sudo(payments_addr, &sudo_msg).unwrap();
 
         assert_eq!(res.events.len(), 2 + num_members as usize + 1);
         // Check transfer messages
-        let amount = [&PAYMENT_AMOUNT.to_string(), TC_DENOM].concat();
+        let got_transfer_attributes = transfer_attributes(&res);
 
-        let mut all_members: Vec<String> = oc_members(num_oc_members)
-            .iter()
-            .map(|m| m.addr.clone())
-            .collect();
-        all_members.extend(ap_members(num_ap_members).iter().map(|m| m.addr.clone()));
-        all_members.push(engagement_addr.to_string());
+        let payment_amount = [&PAYMENT_AMOUNT.to_string(), TC_DENOM].concat();
+        let expected_transfer_attributes = vec![
+            Attribute {
+                key: "recipient".to_string(),
+                value: "oc_member0001".to_string(),
+            },
+            Attribute {
+                key: "sender".to_string(),
+                value: "contract3".to_string(),
+            },
+            Attribute {
+                key: "amount".to_string(),
+                value: payment_amount.clone(),
+            },
+            Attribute {
+                key: "recipient".to_string(),
+                value: "oc_member0002".to_string(),
+            },
+            Attribute {
+                key: "sender".to_string(),
+                value: "contract3".to_string(),
+            },
+            Attribute {
+                key: "amount".to_string(),
+                value: payment_amount.clone(),
+            },
+            Attribute {
+                key: "recipient".to_string(),
+                value: engagement_addr.to_string(),
+            },
+            Attribute {
+                key: "sender".to_string(),
+                value: "contract3".to_string(),
+            },
+            Attribute {
+                key: "amount".to_string(),
+                value: payment_amount,
+            },
+        ];
 
-        let mut i = 2;
-        for m in &all_members {
-            assert_eq!(res.events[i].ty, "transfer", "transfer {}", i);
-            // Check keys
-            assert_eq!(
-                res.events[i].attributes[0].key, "recipient",
-                "recipient {}",
-                i
-            );
-            assert_eq!(res.events[i].attributes[1].key, "sender", "sender {}", i);
-            assert_eq!(res.events[i].attributes[2].key, "amount", "amount {}", i);
-            // Check values
-            assert_eq!(&res.events[i].attributes[0].value, m, "member {}", i);
-            assert_eq!(
-                res.events[i].attributes[1].value,
-                payments_addr.as_str(),
-                "member {}",
-                i
-            );
-            assert_eq!(res.events[i].attributes[2].value, amount, "amount {}", i);
-
-            i += 1;
-        }
+        // TODO: Sorted comparison
+        assert_eq!(got_transfer_attributes, expected_transfer_attributes);
     }
 
     #[test]
@@ -981,41 +995,30 @@ mod tests {
 
         // Attempt payments through sudo end blocker
         let sudo_msg = TgradeSudoMsg::<Empty>::EndBlock {};
-        let res = app.wasm_sudo(payments_addr.clone(), &sudo_msg).unwrap();
+        let res = app.wasm_sudo(payments_addr, &sudo_msg).unwrap();
 
         assert_eq!(res.events.len(), 2 + num_members as usize + 1);
+
         // Check transfer messages
-        let amount = [&PAYMENT_AMOUNT.to_string(), TC_DENOM].concat();
+        let got_transfer_attributes = transfer_attributes(&res);
 
-        let mut all_members: Vec<String> = oc_members(num_oc_members)
-            .iter()
-            .map(|m| m.addr.clone())
-            .collect();
-        all_members.extend(ap_members(num_ap_members).iter().map(|m| m.addr.clone()));
-        all_members.push(engagement_addr.to_string());
+        let payment_amount = [&PAYMENT_AMOUNT.to_string(), TC_DENOM].concat();
+        let expected_transfer_attributes = vec![
+            Attribute {
+                key: "recipient".to_string(),
+                value: engagement_addr.to_string(),
+            },
+            Attribute {
+                key: "sender".to_string(),
+                value: "contract3".to_string(),
+            },
+            Attribute {
+                key: "amount".to_string(),
+                value: payment_amount,
+            },
+        ];
 
-        let mut i = 2;
-        for m in &all_members {
-            assert_eq!(res.events[i].ty, "transfer", "transfer {}", i);
-            // Check keys
-            assert_eq!(
-                res.events[i].attributes[0].key, "recipient",
-                "recipient {}",
-                i
-            );
-            assert_eq!(res.events[i].attributes[1].key, "sender", "sender {}", i);
-            assert_eq!(res.events[i].attributes[2].key, "amount", "amount {}", i);
-            // Check values
-            assert_eq!(&res.events[i].attributes[0].value, m, "member {}", i);
-            assert_eq!(
-                res.events[i].attributes[1].value,
-                payments_addr.as_str(),
-                "member {}",
-                i
-            );
-            assert_eq!(res.events[i].attributes[2].value, amount, "amount {}", i);
-
-            i += 1;
-        }
+        // TODO: Sorted comparison
+        assert_eq!(got_transfer_attributes, expected_transfer_attributes);
     }
 }
