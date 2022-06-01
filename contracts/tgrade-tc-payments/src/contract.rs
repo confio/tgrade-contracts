@@ -313,7 +313,7 @@ mod tests {
             engagement_addr: engagement_addr.to_string(),
             denom: "utgd".to_string(),
             payment_amount: Uint128::new(PAYMENT_AMOUNT),
-            payment_period: Period::Monthly,
+            payment_period: Period::Monthly {},
         };
         app.instantiate_contract(
             payments_id,

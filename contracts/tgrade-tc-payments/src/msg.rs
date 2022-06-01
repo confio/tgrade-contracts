@@ -26,17 +26,17 @@ pub struct InstantiateMsg {
 #[derive(Serialize, Deserialize, Clone, PartialEq, JsonSchema, Debug)]
 #[serde(rename_all = "snake_case")]
 pub enum Period {
-    Daily,
-    Monthly,
-    Yearly,
+    Daily {},
+    Monthly {},
+    Yearly {},
 }
 
 impl Period {
     pub fn seconds(&self) -> u64 {
         match self {
-            Period::Daily => 86400,
-            Period::Monthly => 86400 * 28,
-            Period::Yearly => 86400 * 365,
+            Period::Daily {} => 86400,
+            Period::Monthly {} => 86400 * 28,
+            Period::Yearly {} => 86400 * 365,
         }
     }
 }

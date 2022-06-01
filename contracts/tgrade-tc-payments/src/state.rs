@@ -35,9 +35,9 @@ impl PaymentsConfig {
     pub fn should_apply(&self, t: &Timestamp) -> bool {
         let dt = NaiveDateTime::from_timestamp(t.seconds() as i64, 0);
         match self.payment_period {
-            Period::Daily => dt.hour() == 0,
-            Period::Monthly => dt.day() == 1 && dt.hour() == 0,
-            Period::Yearly => dt.month() == 1 && dt.day() == 1 && dt.hour() == 0,
+            Period::Daily {} => dt.hour() == 0,
+            Period::Monthly {} => dt.day() == 1 && dt.hour() == 0,
+            Period::Yearly {} => dt.month() == 1 && dt.day() == 1 && dt.hour() == 0,
         }
     }
 }
