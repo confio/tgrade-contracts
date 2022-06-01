@@ -6,6 +6,7 @@ workflows:
       - contract_tgrade_trusted_circle
       - contract_tgrade_oc_proposals
       - contract_tgrade_ap_voting
+      - contract_tgrade_tc_payments
   build:
     jobs:
       - lint
@@ -106,6 +107,33 @@ jobs:
             - /usr/local/cargo/registry
             - target
           key: cargocache-tgrade-ap-voting-rust:1.58.1-{{ checksum "~/project/Cargo.lock" }}
+
+  contract_tgrade_tc_payments:
+    docker:
+      - image: rust:1.58.1
+    working_directory: ~/project/contracts/tgrade-tc-payments
+    steps:
+      - checkout:
+          path: ~/project
+      - run:
+          name: Version information
+          command: rustc --version; cargo --version; rustup --version
+      - restore_cache:
+          keys:
+            - cargocache-tgrade-tc-payments-rust:1.58.1-{{ checksum "~/project/Cargo.lock" }}
+      - run:
+          name: Unit Tests
+          environment:
+            RUST_BACKTRACE: 1
+          command: cargo unit-test --locked
+      - run:
+          name: Build and run schema generator
+          command: cargo schema --locked
+      - save_cache:
+          paths:
+            - /usr/local/cargo/registry
+            - target
+          key: cargocache-tgrade-tc-payments-rust:1.58.1-{{ checksum "~/project/Cargo.lock" }}
 
   lint:
     docker:

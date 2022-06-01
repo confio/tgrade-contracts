@@ -13,3 +13,7 @@ incremental = false
 [profile.release.package.tgrade-ap-voting]
 codegen-units = 1
 incremental = false
+
+[profile.release.package.tgrade-tc-payments]
+codegen-units = 1
+incremental = false

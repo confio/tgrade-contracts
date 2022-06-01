@@ -6,7 +6,7 @@ based on [CW3](https://github.com/CosmWasm/cosmwasm-plus/tree/master/packages/cw
 
 ## Instantiation
 
-The first step to create an validator-voting-proposals contract is to instantiate
+The first step to create a validator-voting-proposals contract is to instantiate
 a tg4 contract with the desired member set.
 
 We intend to use this contract with a trusted-circle serving as the backing tg4 group.
@@ -33,7 +33,7 @@ the proposal expiration date, the status is set to "Passed".
 Once a proposal is "Passed", anyone may submit an "Execute" message. This will
 trigger the proposal to send all stored messages from the proposal and update
 it's state to "Executed", so it cannot run again. (Note if the execution fails
-for any reason - out of gas, insufficient funds, etc - the state update will
+for any reason - out of gas, insufficient funds, etc. - the state update will
 be reverted, and it will remain "Passed", so you can try again).
 
 Once a proposal has expired without passing, anyone can submit a "Close"

@@ -1,0 +1,41 @@
+[package]
+name = "tgrade-tc-payments"
+version = "0.9.0"
+authors = ["Mauro Lacy <maurolacy@users.noreply.github.com>"]
+edition = "2021"
+description = "Oversight Community / Arbiter Pool payments contract"
+repository = "https://github.com/confio/tgrade-contracts"
+homepage = "https://tgrade.finance"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[lib]
+crate-type = ["cdylib", "rlib"]
+
+[features]
+# for more explicit tests, cargo test --features=backtraces
+backtraces = ["cosmwasm-std/backtraces"]
+# use library feature to disable all instantiate/execute/query exports
+library = []
+
+[dependencies]
+cw2 = "0.13.2"
+cw-controllers = "0.13.2"
+cw-storage-plus = "0.13.2"
+chrono = "0.4.19"
+cosmwasm-schema = "1.0.0-beta8"
+cosmwasm-std = "1.0.0-beta8"
+schemars = "0.8"
+serde = { version = "1.0.103", default-features = false, features = ["derive"] }
+thiserror = "1.0.21"
+tg-bindings = "0.9.0"
+tg4 = "0.9.0"
+
+[dev-dependencies]
+cw-multi-test = "0.13.2"
+tg4-engagement = "0.9.0"
+tg-voting-contract = "0.9.0"
+tg-bindings-test = "0.9.0"
+tg-utils = "0.9.0"
+tgrade-trusted-circle = { version = "0.9.0", path = "../tgrade-trusted-circle" }
+tgrade-ap-voting = { version = "0.9.0", path = "../tgrade-ap-voting" }
