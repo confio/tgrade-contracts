@@ -251,6 +251,7 @@ mod tests {
     use chrono::{Datelike, NaiveDate, NaiveDateTime, Timelike};
     use cosmwasm_std::{coins, Addr, Attribute, BlockInfo, Empty, Timestamp, Uint128};
     use cw_multi_test::{next_block, AppResponse, Contract, ContractWrapper, Executor};
+    use std::fmt::Debug;
     use tg4::Member;
     use tg_bindings::{TgradeMsg, TgradeQuery, TgradeSudoMsg};
     use tg_bindings_test::TgradeApp;
@@ -425,6 +426,25 @@ mod tests {
             .collect()
     }
 
+    #[track_caller]
+    fn assert_sorted_eq<F, T>(left: Vec<T>, right: Vec<T>, cmp: &F)
+    where
+        T: Debug + PartialEq,
+        F: Fn(&T, &T) -> std::cmp::Ordering,
+    {
+        let mut l = left;
+        l.sort_by(cmp);
+
+        let mut r = right;
+        r.sort_by(cmp);
+
+        assert_eq!(l, r);
+    }
+
+    fn cmp_attr_by_key(left: &Attribute, right: &Attribute) -> std::cmp::Ordering {
+        left.key.cmp(&right.key)
+    }
+
     #[test]
     fn basic_init() {
         let mut app = TgradeApp::new(OWNER);
@@ -481,17 +501,16 @@ mod tests {
 
         let got_event_types = event_types(&res);
 
-        let expected_event_types = vec![
-            "sudo",
-            "wasm-tc_payments",
-            "transfer",
-            "transfer",
-            "transfer",
-            "transfer",
+        let expected_event_types: Vec<String> = vec![
+            "sudo".into(),
+            "wasm-tc_payments".into(),
+            "transfer".into(),
+            "transfer".into(),
+            "transfer".into(),
+            "transfer".into(),
         ];
 
-        // TODO: Sorted comparison
-        assert_eq!(got_event_types, expected_event_types);
+        assert_sorted_eq(got_event_types, expected_event_types, &|l, r| l.cmp(r));
 
         // Check tc-payments attributes
         let got_tc_payments_attributes = tc_payments_attributes(&res);
@@ -527,8 +546,11 @@ mod tests {
             },
         ];
 
-        // TODO: Sorted comparison
-        assert_eq!(got_tc_payments_attributes, expected_tc_payments_attributes);
+        assert_sorted_eq(
+            got_tc_payments_attributes,
+            expected_tc_payments_attributes,
+            &cmp_attr_by_key,
+        );
 
         // Check transfer attributes
         let got_transfer_attributes = transfer_attributes(&res);
@@ -585,8 +607,11 @@ mod tests {
             },
         ];
 
-        // TODO: Sorted comparison
-        assert_eq!(got_transfer_attributes, expected_transfer_attributes);
+        assert_sorted_eq(
+            got_transfer_attributes,
+            expected_transfer_attributes,
+            &cmp_attr_by_key,
+        );
     }
 
     #[test]
@@ -711,8 +736,11 @@ mod tests {
             },
         ];
 
-        // TODO: Sorted comparison
-        assert_eq!(got_tc_payments_attributes, expected_tc_payments_attributes);
+        assert_sorted_eq(
+            got_tc_payments_attributes,
+            expected_tc_payments_attributes,
+            &cmp_attr_by_key,
+        );
 
         // Check there's one transfer message (to engagement contract)
         let got_transfer_attributes = transfer_attributes(&res);
@@ -733,8 +761,11 @@ mod tests {
             },
         ];
 
-        // TODO: Sorted comparison
-        assert_eq!(got_transfer_attributes, expected_transfer_attributes);
+        assert_sorted_eq(
+            got_transfer_attributes,
+            expected_transfer_attributes,
+            &cmp_attr_by_key,
+        );
 
         // 4. Fully funded contract, but pay again fails (already paid)
         // Enough money for all members, plus some amount for engagement contract.
@@ -855,8 +886,11 @@ mod tests {
             },
         ];
 
-        // TODO: Sorted comparison
-        assert_eq!(got_transfer_attributes, expected_transfer_attributes);
+        assert_sorted_eq(
+            got_transfer_attributes,
+            expected_transfer_attributes,
+            &cmp_attr_by_key,
+        );
     }
 
     #[test]
@@ -948,8 +982,11 @@ mod tests {
             },
         ];
 
-        // TODO: Sorted comparison
-        assert_eq!(got_transfer_attributes, expected_transfer_attributes);
+        assert_sorted_eq(
+            got_transfer_attributes,
+            expected_transfer_attributes,
+            &cmp_attr_by_key,
+        );
     }
 
     #[test]
@@ -1018,7 +1055,10 @@ mod tests {
             },
         ];
 
-        // TODO: Sorted comparison
-        assert_eq!(got_transfer_attributes, expected_transfer_attributes);
+        assert_sorted_eq(
+            got_transfer_attributes,
+            expected_transfer_attributes,
+            &cmp_attr_by_key,
+        );
     }
 }
