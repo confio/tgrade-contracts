@@ -169,17 +169,19 @@ fn end_block<Q: CustomQuery>(deps: DepsMut<Q>, env: Env) -> Result<Response, Con
     payments().create_payment(deps.storage, num_members as _, member_pay, &env.block)?;
 
     // If enough funds, create pay messages for members
-    let mut msgs = vec![];
-    if member_pay > 0 {
+    let mut msgs = if member_pay > 0 {
         let member_amount = coins(member_pay, config.denom.clone());
-        for member in [oc_members, ap_members].concat() {
-            let pay_msg = BankMsg::Send {
-                to_address: member.addr,
+        [oc_members, ap_members]
+            .concat()
+            .iter()
+            .map(|m| BankMsg::Send {
+                to_address: m.addr.clone(),
                 amount: member_amount.clone(),
-            };
-            msgs.push(pay_msg)
-        }
-    }
+            })
+            .collect::<Vec<_>>()
+    } else {
+        vec![]
+    };
 
     // Send the rest of the funds to the engagement contract for distribution
     let engagement_rewards = total_funds - member_pay * num_members;
