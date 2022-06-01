@@ -249,7 +249,7 @@ fn list_payments<Q: CustomQuery>(
 mod tests {
     use crate::msg::Period;
     use chrono::{Datelike, NaiveDate, NaiveDateTime, Timelike};
-    use cosmwasm_std::{coins, Addr, BlockInfo, Empty, Timestamp, Uint128};
+    use cosmwasm_std::{coins, Addr, Attribute, BlockInfo, Empty, Timestamp, Uint128};
     use cw_multi_test::{next_block, Contract, ContractWrapper, Executor};
     use tg4::Member;
     use tg_bindings::{TgradeMsg, TgradeQuery, TgradeSudoMsg};
@@ -453,70 +453,130 @@ mod tests {
 
         // Attempt payments through sudo end blocker
         let sudo_msg = TgradeSudoMsg::<Empty>::EndBlock {};
-        let res = app.wasm_sudo(payments_addr.clone(), &sudo_msg).unwrap();
+        let res = app.wasm_sudo(payments_addr, &sudo_msg).unwrap();
 
         assert_eq!(res.events.len(), 6);
-        let mut i = 0;
-        assert_eq!(res.events[i].ty, "sudo");
-        i += 1;
-        assert_eq!(res.events[i].ty, "wasm-tc_payments");
+
+        let got_event_types: Vec<_> = res.events.iter().map(|e| e.ty.clone()).collect();
+
+        let expected_event_types = vec![
+            "sudo",
+            "wasm-tc_payments",
+            "transfer",
+            "transfer",
+            "transfer",
+            "transfer",
+        ];
+
+        // TODO: Sorted comparison
+        assert_eq!(got_event_types, expected_event_types);
+
         // Check tc-payments attributes
-        assert_eq!(res.events[i].attributes.len(), 7);
-        // Check keys
-        assert_eq!(res.events[i].attributes[0].key, "_contract_addr");
-        assert_eq!(res.events[i].attributes[1].key, "time");
-        assert_eq!(res.events[i].attributes[2].key, "height");
-        assert_eq!(res.events[i].attributes[3].key, "num_members");
-        assert_eq!(res.events[i].attributes[4].key, "member_pay");
-        assert_eq!(res.events[i].attributes[5].key, "engagement_rewards");
-        assert_eq!(res.events[i].attributes[6].key, "denom");
-        // Check values
-        assert_eq!(res.events[i].attributes[1].value, block.time.to_string());
-        assert_eq!(res.events[i].attributes[2].value, block.height.to_string());
-        assert_eq!(res.events[i].attributes[3].value, num_members.to_string());
-        assert_eq!(
-            res.events[i].attributes[4].value,
-            PAYMENT_AMOUNT.to_string()
-        );
-        assert_eq!(
-            res.events[i].attributes[5].value,
-            PAYMENT_AMOUNT.to_string()
-        );
-        assert_eq!(res.events[i].attributes[6].value, TC_DENOM);
-
-        // And check transfer messages
-        let amount = [&PAYMENT_AMOUNT.to_string(), TC_DENOM].concat();
-
-        let mut all_members: Vec<String> = oc_members(num_oc_members)
+        let got_tc_payments_attributes: Vec<_> = res
+            .events
             .iter()
-            .map(|m| m.addr.clone())
+            .filter(|e| e.ty == "wasm-tc_payments")
+            .map(|e| e.attributes.clone())
+            .flatten()
             .collect();
-        all_members.extend(ap_members(num_ap_members).iter().map(|m| m.addr.clone()));
-        all_members.push(engagement_addr.to_string());
 
-        i += 1;
-        for m in &all_members {
-            assert_eq!(res.events[i].ty, "transfer", "transfer {}", i);
-            // Check keys
-            assert_eq!(
-                res.events[i].attributes[0].key, "recipient",
-                "recipient {}",
-                i
-            );
-            assert_eq!(res.events[i].attributes[1].key, "sender", "sender {}", i);
-            assert_eq!(res.events[i].attributes[2].key, "amount", "amount {}", i);
-            // Check values
-            assert_eq!(&res.events[i].attributes[0].value, m, "member {}", i);
-            assert_eq!(
-                res.events[i].attributes[1].value,
-                payments_addr.as_str(),
-                "member {}",
-                i
-            );
-            assert_eq!(res.events[i].attributes[2].value, amount, "amount {}", i);
+        let expected_tc_payments_attributes = vec![
+            Attribute {
+                key: "_contract_addr".to_string(),
+                value: "contract3".to_string(),
+            },
+            Attribute {
+                key: "time".to_string(),
+                value: block.time.to_string(),
+            },
+            Attribute {
+                key: "height".to_string(),
+                value: block.height.to_string(),
+            },
+            Attribute {
+                key: "num_members".to_string(),
+                value: num_members.to_string(),
+            },
+            Attribute {
+                key: "member_pay".to_string(),
+                value: PAYMENT_AMOUNT.to_string(),
+            },
+            Attribute {
+                key: "engagement_rewards".to_string(),
+                value: PAYMENT_AMOUNT.to_string(),
+            },
+            Attribute {
+                key: "denom".to_string(),
+                value: TC_DENOM.to_string(),
+            },
+        ];
 
-            i += 1;
-        }
+        // TODO: Sorted comparison
+        assert_eq!(got_tc_payments_attributes, expected_tc_payments_attributes);
+
+        // Check transfer attributes
+        let got_transfer_attributes: Vec<_> = res
+            .events
+            .iter()
+            .filter(|e| e.ty == "transfer")
+            .map(|e| e.attributes.clone())
+            .flatten()
+            .collect();
+
+        let payment_amount = [&PAYMENT_AMOUNT.to_string(), TC_DENOM].concat();
+        let expected_transfer_attributes = vec![
+            Attribute {
+                key: "recipient".to_string(),
+                value: "oc_member0001".to_string(),
+            },
+            Attribute {
+                key: "sender".to_string(),
+                value: "contract3".to_string(),
+            },
+            Attribute {
+                key: "amount".to_string(),
+                value: payment_amount.clone(),
+            },
+            Attribute {
+                key: "recipient".to_string(),
+                value: "oc_member0002".to_string(),
+            },
+            Attribute {
+                key: "sender".to_string(),
+                value: "contract3".to_string(),
+            },
+            Attribute {
+                key: "amount".to_string(),
+                value: payment_amount.clone(),
+            },
+            Attribute {
+                key: "recipient".to_string(),
+                value: "ap_member0001".to_string(),
+            },
+            Attribute {
+                key: "sender".to_string(),
+                value: "contract3".to_string(),
+            },
+            Attribute {
+                key: "amount".to_string(),
+                value: payment_amount.clone(),
+            },
+            Attribute {
+                key: "recipient".to_string(),
+                value: engagement_addr.to_string(),
+            },
+            Attribute {
+                key: "sender".to_string(),
+                value: "contract3".to_string(),
+            },
+            Attribute {
+                key: "amount".to_string(),
+                value: payment_amount,
+            },
+        ];
+
+        // TODO: Sorted comparison
+        assert_eq!(got_transfer_attributes, expected_transfer_attributes);
     }
 
     #[test]
