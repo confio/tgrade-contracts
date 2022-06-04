@@ -19,15 +19,15 @@ backtraces = ["cosmwasm-std/backtraces"]
 library = []
 
 [dependencies]
-cw-utils = "0.13.2"
-cw2 = "0.13.2"
-cw-controllers = "0.13.2"
-cw-storage-plus = "0.13.2"
+cw-utils = "0.13.4"
+cw2 = "0.13.4"
+cw-controllers = "0.13.4"
+cw-storage-plus = "0.13.4"
 tg3 = "0.9.0"
 tg4 = "0.9.0"
 tg-bindings = "0.9.0"
 tg-utils = "0.9.0"
-cosmwasm-std = "1.0.0-beta8"
+cosmwasm-std = "1.0.0"
 schemars = "0.8"
 serde = { version = "1.0.103", default-features = false, features = ["derive"] }
 semver = "1"
@@ -36,8 +36,8 @@ tg-voting-contract = "0.9.0"
 
 [dev-dependencies]
 anyhow = "1"
-cosmwasm-schema = "1.0.0-beta8"
-cw-multi-test = "0.13.2"
+cosmwasm-schema = "1.0.0"
+cw-multi-test = "0.13.4"
 derivative = "2"
 serde_json = "1.0.79"
 tg-bindings-test = "0.9.0"
