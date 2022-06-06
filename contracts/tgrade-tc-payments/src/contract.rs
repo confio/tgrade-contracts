@@ -62,12 +62,49 @@ pub fn instantiate(
 
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn execute(
-    _deps: DepsMut<TgradeQuery>,
-    _env: Env,
-    _info: MessageInfo,
-    _msg: ExecuteMsg,
+    deps: DepsMut<TgradeQuery>,
+    env: Env,
+    info: MessageInfo,
+    msg: ExecuteMsg,
 ) -> Result<Response, ContractError> {
-    Err(ContractError::Unimplemented {})
+    match msg {
+        ExecuteMsg::DistributeRewards { sender } => {
+            execute_distribute_rewards(deps, env, info, sender)
+        }
+    }
+}
+
+pub fn execute_distribute_rewards<Q: CustomQuery>(
+    deps: DepsMut<Q>,
+    _env: Env,
+    info: MessageInfo,
+    sender: Option<String>,
+) -> Result<Response, ContractError> {
+    let sender = sender
+        .map(|sender| deps.api.addr_validate(&sender))
+        .transpose()?
+        .unwrap_or(info.sender);
+
+    let denom = CONFIG.load(deps.storage)?.denom;
+
+    let amount: u128 = info
+        .funds
+        .iter()
+        .filter(|c| c.denom == denom)
+        .map(|c| c.amount.u128())
+        .sum();
+
+    if amount == 0 {
+        return Ok(Response::new());
+    }
+
+    let resp = Response::new()
+        .add_attribute("action", "distribute_rewards")
+        .add_attribute("sender", sender.as_str())
+        .add_attribute("denom", &denom)
+        .add_attribute("amount", &amount.to_string());
+
+    Ok(resp)
 }
 
 #[cfg_attr(not(feature = "library"), entry_point)]
