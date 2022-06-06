@@ -2,7 +2,19 @@
 
 ## [Unreleased](https://github.com/confio/tgrade-contracts/tree/HEAD)
 
-[Full Changelog](https://github.com/confio/tgrade-contracts/compare/v0.9.0...HEAD)
+[Full Changelog](https://github.com/confio/tgrade-contracts/compare/v0.10.0...HEAD)
+
+## [v0.10.0](https://github.com/confio/tgrade-contracts/tree/v0.10.0) (2022-06-06)
+
+[Full Changelog](https://github.com/confio/tgrade-contracts/compare/v0.9.0...v0.10.0)
+
+**Closed issues:**
+
+- Oversight Community & Arbiter Pool member Renumeration [\#491](https://github.com/confio/tgrade-contracts/issues/491)
+
+**Merged pull requests:**
+
+- OC + AP payments contract [\#495](https://github.com/confio/tgrade-contracts/pull/495) ([maurolacy](https://github.com/maurolacy))
 
 ## [v0.9.0](https://github.com/confio/tgrade-contracts/tree/v0.9.0) (2022-04-26)
 
