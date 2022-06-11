@@ -2,7 +2,19 @@
 
 ## [Unreleased](https://github.com/confio/tgrade-contracts/tree/HEAD)
 
-[Full Changelog](https://github.com/confio/tgrade-contracts/compare/v0.10.0...HEAD)
+[Full Changelog](https://github.com/confio/tgrade-contracts/compare/v0.11.0...HEAD)
+
+## [v0.11.0](https://github.com/confio/tgrade-contracts/tree/v0.11.0) (2022-06-11)
+
+[Full Changelog](https://github.com/confio/tgrade-contracts/compare/v0.10.0...v0.11.0)
+
+**Closed issues:**
+
+- \[tgrade-tc-payments\] Use hooks to register for group changes [\#499](https://github.com/confio/tgrade-contracts/issues/499)
+
+**Merged pull requests:**
+
+- Update to poe contracts 0.11 [\#502](https://github.com/confio/tgrade-contracts/pull/502) ([maurolacy](https://github.com/maurolacy))
 
 ## [v0.10.0](https://github.com/confio/tgrade-contracts/tree/v0.10.0) (2022-06-06)
 
