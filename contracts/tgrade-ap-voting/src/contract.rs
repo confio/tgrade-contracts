@@ -1,8 +1,8 @@
 #[cfg(not(feature = "library"))]
 use cosmwasm_std::entry_point;
 use cosmwasm_std::{
-    coin, to_binary, Addr, BankMsg, Binary, CosmosMsg, Decimal, Deps, DepsMut, Empty, Env,
-    MessageInfo, Order, Reply, StdResult, Uint128, WasmMsg,
+    coin, to_binary, Addr, BankMsg, Binary, CosmosMsg, Decimal, Deps, DepsMut, Env, MessageInfo,
+    Order, Reply, StdResult, Uint128, WasmMsg,
 };
 use cw3_fixed_multisig::msg::{InstantiateMsg as Cw3InstantiateMsg, Voter};
 use cw_storage_plus::Bound;
@@ -74,8 +74,15 @@ pub fn execute(
             title,
             description,
             proposal,
-        } => execute_propose(deps, env, info, title, description, proposal)
-            .map_err(ContractError::from),
+        } => execute_propose::<ArbiterPoolProposal, TgradeQuery>(
+            deps,
+            env,
+            info,
+            title,
+            description,
+            proposal,
+        )
+        .map_err(ContractError::from),
         Vote { proposal_id, vote } => {
             execute_vote::<ArbiterPoolProposal, TgradeQuery>(deps, env, info, proposal_id, vote)
                 .map_err(ContractError::from)
@@ -425,19 +432,17 @@ fn align_limit(limit: Option<u32>) -> usize {
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn query(deps: Deps<TgradeQuery>, env: Env, msg: QueryMsg) -> StdResult<Binary> {
     use QueryMsg::*;
-    // Just for easier distinguish between Proposal `Empty` and potential other `Empty`
-    type EmptyProposal = Empty;
 
     match msg {
         Rules {} => to_binary(&query_rules(deps)?),
-        Proposal { proposal_id } => to_binary(&query_proposal::<EmptyProposal, TgradeQuery>(
+        Proposal { proposal_id } => to_binary(&query_proposal::<ArbiterPoolProposal, TgradeQuery>(
             deps,
             env,
             proposal_id,
         )?),
         Vote { proposal_id, voter } => to_binary(&query_vote(deps, proposal_id, voter)?),
         ListProposals { start_after, limit } => {
-            to_binary(&list_proposals::<EmptyProposal, TgradeQuery>(
+            to_binary(&list_proposals::<ArbiterPoolProposal, TgradeQuery>(
                 deps,
                 env,
                 start_after,
@@ -447,7 +452,7 @@ pub fn query(deps: Deps<TgradeQuery>, env: Env, msg: QueryMsg) -> StdResult<Bina
         ReverseProposals {
             start_before,
             limit,
-        } => to_binary(&reverse_proposals::<EmptyProposal, TgradeQuery>(
+        } => to_binary(&reverse_proposals::<ArbiterPoolProposal, TgradeQuery>(
             deps,
             env,
             start_before,

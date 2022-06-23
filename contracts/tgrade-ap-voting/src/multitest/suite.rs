@@ -13,6 +13,8 @@ use tg_voting_contract::state::VotingRules;
 use crate::msg::{ExecuteMsg, QueryMsg};
 use crate::state::{ArbiterPoolProposal, Complaint};
 
+type ProposalListResponse = tg_voting_contract::state::ProposalListResponse<ArbiterPoolProposal>;
+
 pub fn contract_engagement() -> Box<dyn Contract<TgradeMsg, TgradeQuery>> {
     let contract = ContractWrapper::new(
         tg4_engagement::contract::execute,
@@ -44,8 +46,9 @@ pub fn contract_ap_voting() -> Box<dyn Contract<TgradeMsg, TgradeQuery>> {
     Box::new(contract)
 }
 
+#[derive(Clone)]
 pub struct SuiteBuilder {
-    voting_rules: VotingRules,
+    pub voting_rules: VotingRules,
     dispute_cost: Coin,
     waiting_period: Duration,
     group_members: Vec<Member>,
@@ -350,5 +353,31 @@ impl Suite {
             .query_balance(&Addr::unchecked(owner), denom)?
             .amount;
         Ok(amount.into())
+    }
+
+    pub fn list_proposals(&self) -> AnyResult<ProposalListResponse> {
+        let list_query = QueryMsg::ListProposals {
+            start_after: None,
+            limit: None,
+        };
+        let res: ProposalListResponse = self
+            .app
+            .wrap()
+            .query_wasm_smart(&self.contract, &list_query)
+            .unwrap();
+        Ok(res)
+    }
+
+    pub fn list_proposals_reverse(&self) -> AnyResult<ProposalListResponse> {
+        let reverse_query = QueryMsg::ReverseProposals {
+            start_before: None,
+            limit: Some(1),
+        };
+        let res: ProposalListResponse = self
+            .app
+            .wrap()
+            .query_wasm_smart(&self.contract, &reverse_query)
+            .unwrap();
+        Ok(res)
     }
 }
