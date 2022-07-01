@@ -2,7 +2,7 @@ use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
 use crate::ContractError;
-use cosmwasm_std::{Api, Decimal};
+use cosmwasm_std::{Addr, Api, Decimal};
 use cw_storage_plus::Item;
 use tg4::Tg4Contract;
 use tg_utils::{Duration, JailingDuration};
@@ -11,16 +11,16 @@ use tg_utils::{Duration, JailingDuration};
 #[serde(rename_all = "snake_case")]
 pub enum OversightProposal {
     GrantEngagement {
-        member: String,
+        member: Addr,
         points: u64,
     },
     Punish {
-        member: String,
+        member: Addr,
         portion: Decimal,
         jailing_duration: Option<JailingDuration>,
     },
     Unjail {
-        member: String,
+        member: Addr,
     },
     UpdateConfig {
         min_points: Option<u64>,
@@ -34,7 +34,7 @@ impl OversightProposal {
     pub fn validate(&self, api: &dyn Api) -> Result<(), ContractError> {
         match self {
             OversightProposal::GrantEngagement { member, points } => {
-                api.addr_validate(member)?;
+                api.addr_validate(member.as_ref())?;
                 if *points == 0u64 {
                     return Err(ContractError::InvalidPoints(0));
                 }
@@ -44,7 +44,7 @@ impl OversightProposal {
                 portion,
                 jailing_duration,
             } => {
-                api.addr_validate(member)?;
+                api.addr_validate(member.as_ref())?;
                 if portion.is_zero() || portion > &Decimal::one() {
                     return Err(ContractError::InvalidPortion(*portion));
                 }
@@ -60,7 +60,7 @@ impl OversightProposal {
                 }
             }
             OversightProposal::Unjail { member } => {
-                api.addr_validate(member)?;
+                api.addr_validate(member.as_ref())?;
             }
             OversightProposal::UpdateConfig {
                 min_points,

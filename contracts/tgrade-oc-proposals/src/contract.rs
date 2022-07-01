@@ -563,7 +563,7 @@ mod tests {
 
     fn engagement_proposal_info() -> (OversightProposal, String, String) {
         let proposal = OversightProposal::GrantEngagement {
-            member: VOTER1.into(),
+            member: Addr::unchecked(VOTER1),
             points: 10,
         };
         let title = "Grant engagement point to somebody".to_string();
