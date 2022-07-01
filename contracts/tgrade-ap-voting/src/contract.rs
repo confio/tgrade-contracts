@@ -233,16 +233,6 @@ fn execute_propose_arbiters(
         return Err(ContractError::ImproperState(complaint.state));
     }
 
-    let group_addr = tg_voting_contract::state::CONFIG
-        .load(deps.storage)?
-        .group_contract;
-
-    for arbiter in &arbiters {
-        if group_addr.is_member(&deps.querier, arbiter)?.is_none() {
-            return Err(ContractError::InvalidProposedArbiter(arbiter.to_string()));
-        }
-    }
-
     let config = CONFIG.load(deps.storage)?;
 
     let pass_weight = (arbiters.len() / 2) + 1;
