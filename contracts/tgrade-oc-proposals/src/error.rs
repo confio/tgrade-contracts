@@ -1,4 +1,4 @@
-use cosmwasm_std::StdError;
+use cosmwasm_std::{Decimal, StdError};
 use thiserror::Error;
 
 #[derive(Error, Debug, PartialEq)]
@@ -17,6 +17,18 @@ pub enum ContractError {
 
     #[error("Proposal must have passed and not yet been executed")]
     WrongExecuteStatus {},
+
+    #[error("Invalid points: {0}")]
+    InvalidPoints(u64),
+
+    #[error("Invalid portion: {0}")]
+    InvalidPortion(Decimal),
+
+    #[error("Invalid duration: {0}")]
+    InvalidDuration(u64),
+
+    #[error("Invalid max validators: {0}")]
+    InvalidMaxValidators(u64),
 }
 
 impl From<tg_voting_contract::ContractError> for ContractError {

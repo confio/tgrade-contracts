@@ -354,7 +354,7 @@ impl Suite {
             "proposal title",
             "proposal description",
             OversightProposal::GrantEngagement {
-                member: Addr::unchecked(target),
+                member: target.into(),
                 points,
             },
         )
@@ -372,7 +372,7 @@ impl Suite {
             "proposal title",
             "proposal description",
             OversightProposal::Punish {
-                member: Addr::unchecked(target),
+                member: target.into(),
                 portion,
                 jailing_duration: jailing_duration.into(),
             },
@@ -385,7 +385,7 @@ impl Suite {
             "proposal title",
             "proposal description",
             OversightProposal::Unjail {
-                member: Addr::unchecked(target),
+                member: target.into(),
             },
         )
     }

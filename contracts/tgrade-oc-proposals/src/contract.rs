@@ -67,15 +67,18 @@ pub fn execute(
             title,
             description,
             proposal,
-        } => execute_propose::<OversightProposal, TgradeQuery>(
-            deps,
-            env,
-            info,
-            title,
-            description,
-            proposal,
-        )
-        .map_err(ContractError::from),
+        } => {
+            proposal.validate(deps.api)?;
+            execute_propose::<OversightProposal, TgradeQuery>(
+                deps,
+                env,
+                info,
+                title,
+                description,
+                proposal,
+            )
+            .map_err(ContractError::from)
+        }
         Vote { proposal_id, vote } => {
             execute_vote::<OversightProposal, TgradeQuery>(deps, env, info, proposal_id, vote)
                 .map_err(ContractError::from)
@@ -554,7 +557,7 @@ mod tests {
 
     fn engagement_proposal_info() -> (OversightProposal, String, String) {
         let proposal = OversightProposal::GrantEngagement {
-            member: Addr::unchecked(VOTER1),
+            member: VOTER1.into(),
             points: 10,
         };
         let title = "Grant engagement point to somebody".to_string();
