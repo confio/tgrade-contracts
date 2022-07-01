@@ -233,14 +233,17 @@ fn execute_propose_arbiters(
         return Err(ContractError::ImproperState(complaint.state));
     }
 
-    let config = CONFIG.load(deps.storage)?;
+    let group_addr = tg_voting_contract::state::CONFIG
+        .load(deps.storage)?
+        .group_contract;
 
-    let members = list_voters(deps.as_ref(), None, None)?.voters;
     for arbiter in &arbiters {
-        if !members.iter().any(|m| m.addr == *arbiter) {
+        if group_addr.is_member(&deps.querier, arbiter)?.is_none() {
             return Err(ContractError::InvalidProposedArbiter(arbiter.to_string()));
         }
     }
+
+    let config = CONFIG.load(deps.storage)?;
 
     let pass_weight = (arbiters.len() / 2) + 1;
     let cw3_instantiate = Cw3InstantiateMsg {
