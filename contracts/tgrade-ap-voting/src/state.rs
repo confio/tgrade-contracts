@@ -85,7 +85,16 @@ impl ArbiterPoolProposal {
                     .map(|a| deps.api.addr_validate(a.as_ref()))
                     .collect::<StdResult<Vec<_>>>()?;
 
-                // TODO: Arbiters must be members of the AP contract
+                // Arbiters must be members of the AP contract
+                let group_addr = tg_voting_contract::state::CONFIG
+                    .load(deps.storage)?
+                    .group_contract;
+
+                for arbiter in arbiters.iter() {
+                    if group_addr.is_member(&deps.querier, arbiter)?.is_none() {
+                        return Err(ContractError::InvalidProposedArbiter(arbiter.to_string()));
+                    }
+                }
             }
             ArbiterPoolProposal::Text {} => {}
         }
