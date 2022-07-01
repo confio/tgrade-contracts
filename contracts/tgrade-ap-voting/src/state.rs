@@ -1,7 +1,9 @@
-use cosmwasm_std::{Addr, BlockInfo, Coin};
+use crate::ContractError;
+use cosmwasm_std::{Addr, BlockInfo, Coin, Deps, StdResult};
 use cw_storage_plus::{Item, Map};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
+use tg_bindings::TgradeQuery;
 use tg_utils::{Duration, Expiration};
 
 #[derive(Serialize, Deserialize)]
@@ -66,4 +68,27 @@ pub enum ArbiterPoolProposal {
     Text {},
     /// Proposes arbiters for existing complaint
     ProposeArbiters { case_id: u64, arbiters: Vec<Addr> },
+}
+
+impl ArbiterPoolProposal {
+    pub fn validate(&self, deps: Deps<TgradeQuery>) -> Result<(), ContractError> {
+        match self {
+            ArbiterPoolProposal::ProposeArbiters { case_id, arbiters } => {
+                // Validate complaint id
+                let _complaint = COMPLAINTS.load(deps.storage, *case_id)?;
+
+                // TODO: Validate complaint state
+
+                // Validate arbiters
+                arbiters
+                    .iter()
+                    .map(|a| deps.api.addr_validate(a.as_ref()))
+                    .collect::<StdResult<Vec<_>>>()?;
+
+                // TODO: Arbiters must be members of the AP contract
+            }
+            ArbiterPoolProposal::Text {} => {}
+        }
+        Ok(())
+    }
 }

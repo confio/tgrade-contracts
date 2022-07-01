@@ -49,6 +49,12 @@ pub enum ContractError {
 
     #[error("Proposed arbiter not a voting member: {0}")]
     InvalidProposedArbiter(String),
+
+    #[error("Empty proposal title")]
+    EmptyTitle {},
+
+    #[error("Empty proposal description")]
+    EmptyDescription {},
 }
 
 impl From<tg_voting_contract::ContractError> for ContractError {

@@ -74,15 +74,24 @@ pub fn execute(
             title,
             description,
             proposal,
-        } => execute_propose::<ArbiterPoolProposal, TgradeQuery>(
-            deps,
-            env,
-            info,
-            title,
-            description,
-            proposal,
-        )
-        .map_err(ContractError::from),
+        } => {
+            if title.is_empty() {
+                return Err(ContractError::EmptyTitle {});
+            }
+            if description.is_empty() {
+                return Err(ContractError::EmptyDescription {});
+            }
+            proposal.validate(deps.as_ref())?;
+            execute_propose::<ArbiterPoolProposal, TgradeQuery>(
+                deps,
+                env,
+                info,
+                title,
+                description,
+                proposal,
+            )
+            .map_err(ContractError::from)
+        }
         Vote { proposal_id, vote } => {
             execute_vote::<ArbiterPoolProposal, TgradeQuery>(deps, env, info, proposal_id, vote)
                 .map_err(ContractError::from)
