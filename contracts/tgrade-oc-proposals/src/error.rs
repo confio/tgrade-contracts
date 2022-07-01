@@ -18,6 +18,12 @@ pub enum ContractError {
     #[error("Proposal must have passed and not yet been executed")]
     WrongExecuteStatus {},
 
+    #[error("Empty proposal title")]
+    EmptyTitle {},
+
+    #[error("Empty proposal description")]
+    EmptyDescription {},
+
     #[error("Invalid points: {0}")]
     InvalidPoints(u64),
 

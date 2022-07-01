@@ -68,6 +68,12 @@ pub fn execute(
             description,
             proposal,
         } => {
+            if title.is_empty() {
+                return Err(ContractError::EmptyTitle {});
+            }
+            if description.is_empty() {
+                return Err(ContractError::EmptyDescription {});
+            }
             proposal.validate(deps.api)?;
             execute_propose::<OversightProposal, TgradeQuery>(
                 deps,
