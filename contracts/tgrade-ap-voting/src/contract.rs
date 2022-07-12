@@ -75,7 +75,7 @@ pub fn execute(
             description,
             proposal,
         } => {
-            proposal.validate(deps.as_ref(), &info.sender, &title, &description)?;
+            proposal.validate(deps.as_ref(), &env, &info.sender, &title, &description)?;
             execute_propose::<ArbiterPoolProposal, TgradeQuery>(
                 deps,
                 env,

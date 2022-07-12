@@ -1,6 +1,6 @@
 use crate::state::ComplaintState::Accepted;
 use crate::ContractError;
-use cosmwasm_std::{Addr, BlockInfo, Coin, Deps, StdResult};
+use cosmwasm_std::{Addr, BlockInfo, Coin, Deps, Env, StdResult};
 use cw_storage_plus::{Item, Map};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
@@ -90,6 +90,7 @@ impl ArbiterPoolProposal {
     pub fn validate(
         &self,
         deps: Deps<TgradeQuery>,
+        env: &Env,
         sender: &Addr,
         title: &str,
         description: &str,
@@ -106,7 +107,7 @@ impl ArbiterPoolProposal {
                 let complaint = COMPLAINTS.load(deps.storage, *case_id)?;
 
                 // Validate complaint state
-                if complaint.state != (Accepted {}) {
+                if complaint.current_state(&env.block) != (Accepted {}) {
                     return Err(ContractError::InvalidComplaintState(
                         complaint.state.to_string(),
                     ));
