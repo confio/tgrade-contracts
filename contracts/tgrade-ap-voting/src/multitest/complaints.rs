@@ -344,7 +344,21 @@ pub fn proposing_arbiters() {
         .accept_complaint(defendant, complaint_id, &coins(100, DENOM))
         .unwrap();
 
+    // Check complaint state is correct
+    let complaint = suite.query_complaint(complaint_id).unwrap();
+    assert!(matches!(complaint.state, ComplaintState::Waiting { .. }));
+
+    // Attempting to propose arbiters before the cooling off period fails
+    let res =
+        suite.propose_arbiters_smart(members[0], "title", "description", complaint_id, arbiters);
+    assert!(res.is_err());
+
+    // Cooling off period
     suite.app.advance_seconds(100);
+
+    // Check complaint state is correct
+    let complaint = suite.query_complaint(complaint_id).unwrap();
+    assert_eq!(complaint.state, ComplaintState::Accepted {});
 
     let proposal_id = suite
         .propose_arbiters_smart(members[0], "title", "description", complaint_id, arbiters)
