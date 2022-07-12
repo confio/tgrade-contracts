@@ -81,7 +81,7 @@ pub fn execute(
             if description.is_empty() {
                 return Err(ContractError::EmptyDescription {});
             }
-            proposal.validate(deps.as_ref())?;
+            proposal.validate(deps.as_ref(), &info.sender)?;
             execute_propose::<ArbiterPoolProposal, TgradeQuery>(
                 deps,
                 env,

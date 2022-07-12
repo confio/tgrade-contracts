@@ -1,8 +1,10 @@
+use crate::state::ComplaintState::Accepted;
 use crate::ContractError;
 use cosmwasm_std::{Addr, BlockInfo, Coin, Deps, StdResult};
 use cw_storage_plus::{Item, Map};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
+use std::fmt;
 use tg_bindings::TgradeQuery;
 use tg_utils::{Duration, Expiration};
 
@@ -24,6 +26,20 @@ pub enum ComplaintState {
     Accepted {},
     Processing { arbiters: Addr },
     Closed { summary: String, ipfs_link: String },
+}
+
+impl fmt::Display for ComplaintState {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            ComplaintState::Initiated { .. } => write!(f, "Initiated"),
+            ComplaintState::Waiting { .. } => write!(f, "Waiting"),
+            ComplaintState::Withdrawn { .. } => write!(f, "Withdrawn"),
+            ComplaintState::Aborted { .. } => write!(f, "Aborted"),
+            ComplaintState::Accepted { .. } => write!(f, "Accepted"),
+            ComplaintState::Processing { .. } => write!(f, "Processing"),
+            ComplaintState::Closed { .. } => write!(f, "Closed"),
+        }
+    }
 }
 
 #[derive(Serialize, Deserialize, Clone, PartialEq, JsonSchema, Debug)]
@@ -71,13 +87,27 @@ pub enum ArbiterPoolProposal {
 }
 
 impl ArbiterPoolProposal {
-    pub fn validate(&self, deps: Deps<TgradeQuery>) -> Result<(), ContractError> {
+    pub fn validate(&self, deps: Deps<TgradeQuery>, sender: &Addr) -> Result<(), ContractError> {
         match self {
             ArbiterPoolProposal::ProposeArbiters { case_id, arbiters } => {
                 // Validate complaint id
-                let _complaint = COMPLAINTS.load(deps.storage, *case_id)?;
+                let complaint = COMPLAINTS.load(deps.storage, *case_id)?;
 
-                // TODO: Validate complaint state
+                // Validate complaint state
+                if complaint.state != (Accepted {}) {
+                    return Err(ContractError::InvalidComplaintState(
+                        complaint.state.to_string(),
+                    ));
+                }
+
+                // Validate sender is in the AP
+                let group_addr = tg_voting_contract::state::CONFIG
+                    .load(deps.storage)?
+                    .group_contract;
+
+                if group_addr.is_member(&deps.querier, sender)?.is_none() {
+                    return Err(ContractError::InvalidProposer(sender.to_string()));
+                }
 
                 // Validate arbiters
                 arbiters
@@ -86,10 +116,6 @@ impl ArbiterPoolProposal {
                     .collect::<StdResult<Vec<_>>>()?;
 
                 // Arbiters must be members of the AP contract
-                let group_addr = tg_voting_contract::state::CONFIG
-                    .load(deps.storage)?
-                    .group_contract;
-
                 for arbiter in arbiters.iter() {
                     if group_addr.is_member(&deps.querier, arbiter)?.is_none() {
                         return Err(ContractError::InvalidProposedArbiter(arbiter.to_string()));
