@@ -87,7 +87,19 @@ pub enum ArbiterPoolProposal {
 }
 
 impl ArbiterPoolProposal {
-    pub fn validate(&self, deps: Deps<TgradeQuery>, sender: &Addr) -> Result<(), ContractError> {
+    pub fn validate(
+        &self,
+        deps: Deps<TgradeQuery>,
+        sender: &Addr,
+        title: &str,
+        description: &str,
+    ) -> Result<(), ContractError> {
+        if title.is_empty() {
+            return Err(ContractError::EmptyTitle {});
+        }
+        if description.is_empty() {
+            return Err(ContractError::EmptyDescription {});
+        }
         match self {
             ArbiterPoolProposal::ProposeArbiters { case_id, arbiters } => {
                 // Validate complaint id
