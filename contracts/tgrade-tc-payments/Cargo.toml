@@ -27,15 +27,15 @@ cw-controllers = "0.13.4"
 cw-storage-plus = "0.13.4"
 schemars = "0.8"
 serde = { version = "1.0.103", default-features = false, features = ["derive"] }
-tg-bindings = "0.11.0"
-tg4 = "0.11.0"
+tg-bindings = "0.12.0"
+tg4 = "0.12.0"
 thiserror = "1.0.21"
 
 [dev-dependencies]
 cw-multi-test = "0.13.4"
-tg4-engagement = "0.11.0"
-tg-voting-contract = "0.11.0"
-tg-bindings-test = "0.11.0"
-tg-utils = "0.11.0"
+tg4-engagement = "0.12.0"
+tg-voting-contract = "0.12.0"
+tg-bindings-test = "0.12.0"
+tg-utils = "0.12.0"
 tgrade-trusted-circle = { version = "0.11.0", path = "../tgrade-trusted-circle" }
 tgrade-ap-voting = { version = "0.11.0", path = "../tgrade-ap-voting" }
