@@ -47,8 +47,20 @@ pub enum ContractError {
     #[error("Reply [{id}] parse failure: {err}")]
     ReplyParseFailure { id: u64, err: String },
 
-    #[error("Proposed arbiter not a voting member: {0}")]
+    #[error("Proposer is not an AP voting member: {0}")]
+    InvalidProposer(String),
+
+    #[error("Proposed arbiter not an AP voting member: {0}")]
     InvalidProposedArbiter(String),
+
+    #[error("Complaint is not in the 'Accepted' state: '{0}'")]
+    InvalidComplaintState(String),
+
+    #[error("Empty proposal title")]
+    EmptyTitle {},
+
+    #[error("Empty proposal description")]
+    EmptyDescription {},
 }
 
 impl From<tg_voting_contract::ContractError> for ContractError {

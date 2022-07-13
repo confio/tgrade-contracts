@@ -74,15 +74,18 @@ pub fn execute(
             title,
             description,
             proposal,
-        } => execute_propose::<ArbiterPoolProposal, TgradeQuery>(
-            deps,
-            env,
-            info,
-            title,
-            description,
-            proposal,
-        )
-        .map_err(ContractError::from),
+        } => {
+            proposal.validate(deps.as_ref(), &env, &info.sender, &title, &description)?;
+            execute_propose::<ArbiterPoolProposal, TgradeQuery>(
+                deps,
+                env,
+                info,
+                title,
+                description,
+                proposal,
+            )
+            .map_err(ContractError::from)
+        }
         Vote { proposal_id, vote } => {
             execute_vote::<ArbiterPoolProposal, TgradeQuery>(deps, env, info, proposal_id, vote)
                 .map_err(ContractError::from)
@@ -225,13 +228,6 @@ fn execute_propose_arbiters(
     }
 
     let config = CONFIG.load(deps.storage)?;
-
-    let members = list_voters(deps.as_ref(), None, None)?.voters;
-    for arbiter in &arbiters {
-        if !members.iter().any(|m| m.addr == *arbiter) {
-            return Err(ContractError::InvalidProposedArbiter(arbiter.to_string()));
-        }
-    }
 
     let pass_weight = (arbiters.len() / 2) + 1;
     let cw3_instantiate = Cw3InstantiateMsg {
