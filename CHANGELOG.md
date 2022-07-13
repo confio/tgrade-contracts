@@ -2,7 +2,30 @@
 
 ## [Unreleased](https://github.com/confio/tgrade-contracts/tree/HEAD)
 
-[Full Changelog](https://github.com/confio/tgrade-contracts/compare/v0.11.0...HEAD)
+[Full Changelog](https://github.com/confio/tgrade-contracts/compare/v0.12.0...HEAD)
+
+## [v0.12.0](https://github.com/confio/tgrade-contracts/tree/v0.12.0) (2022-07-13)
+
+[Full Changelog](https://github.com/confio/tgrade-contracts/compare/v0.11.0...v0.12.0)
+
+**Breaking changes:**
+
+- Fix AP proposal queries [\#506](https://github.com/confio/tgrade-contracts/pull/506) ([maurolacy](https://github.com/maurolacy))
+
+**Fixed bugs:**
+
+- Fix arbiter pool proposal queries [\#505](https://github.com/confio/tgrade-contracts/issues/505)
+
+**Closed issues:**
+
+- \[tgrade-ap-voting\] Add proposal validation during creation [\#510](https://github.com/confio/tgrade-contracts/issues/510)
+- Execute proposal creating error message [\#507](https://github.com/confio/tgrade-contracts/issues/507)
+- Implement missing governance proposals [\#504](https://github.com/confio/tgrade-contracts/issues/504)
+
+**Merged pull requests:**
+
+- Add AP voting proposal validation during proposal creation [\#511](https://github.com/confio/tgrade-contracts/pull/511) ([maurolacy](https://github.com/maurolacy))
+- Add proposal validation during proposal creation [\#509](https://github.com/confio/tgrade-contracts/pull/509) ([maurolacy](https://github.com/maurolacy))
 
 ## [v0.11.0](https://github.com/confio/tgrade-contracts/tree/v0.11.0) (2022-06-11)
 
