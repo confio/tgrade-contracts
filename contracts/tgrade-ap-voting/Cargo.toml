@@ -1,6 +1,6 @@
 [package]
 name = "tgrade-ap-voting"
-version = "0.11.0"
+version = "0.12.0"
 authors = ["Bartłomiej Kuras <bart.k@confio.gmbh>"]
 edition = "2018"
 description = "Implementing tgrade-ap-voting"
@@ -24,10 +24,10 @@ schemars = "0.8.1"
 semver = "1"
 serde = { version = "1", default-features = false, features = ["derive"] }
 thiserror = "1"
-tg-bindings = "0.11.0"
-tg-voting-contract = "0.11.0"
-tg-utils = "0.11.0"
-tg3 = "0.11.0"
+tg-bindings = "0.12.0"
+tg-voting-contract = "0.12.0"
+tg-utils = "0.12.0"
+tg3 = "0.12.0"
 
 [dev-dependencies]
 anyhow = "1"
@@ -35,8 +35,8 @@ assert_matches = "1.5"
 cosmwasm-schema = "1.0.0"
 cw-multi-test = "0.13.4"
 cw-storage-plus = "0.13.4"
-tg-bindings-test = "0.11.0"
-tg-test-utils = "0.11.0"
-tg4 = "0.11.0"
-tg4-engagement = "0.11.0"
-tgrade-oc-proposals = { path = "../tgrade-oc-proposals", version = "0.11.0" }
+tg-bindings-test = "0.12.0"
+tg-test-utils = "0.12.0"
+tg4 = "0.12.0"
+tg4-engagement = "0.12.0"
+tgrade-oc-proposals = { path = "../tgrade-oc-proposals", version = "0.12.0" }
