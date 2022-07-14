@@ -4,7 +4,7 @@
 
 [Full Changelog](https://github.com/confio/tgrade-contracts/compare/v0.12.0...HEAD)
 
-## [v0.12.0](https://github.com/confio/tgrade-contracts/tree/v0.12.0) (2022-07-13)
+## [v0.12.0](https://github.com/confio/tgrade-contracts/tree/v0.12.0) (2022-07-14)
 
 [Full Changelog](https://github.com/confio/tgrade-contracts/compare/v0.11.0...v0.12.0)
 
