@@ -31,8 +31,13 @@ pub fn migrate_config(
             next_complaint_id: config.next_complaint_id,
             multisig_code_id: msg.multisig_code,
         }
+    } else if *version < "0.13.0".parse::<Version>().unwrap() && msg.multisig_code > 0 {
+        // tgrade-1.0.0 does not set multisig_code_id during bootstrap
+        let mut config = CONFIG.load(deps.storage)?;
+        config.multisig_code_id = msg.multisig_code;
+        config
     } else {
-        // It is already properly migrated
+        // It is already properly migrated / no multisig code id set
         return Ok(());
     };
 
