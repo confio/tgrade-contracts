@@ -1,0 +1,11 @@
+- Unit test migration code
+- Test migration upgrade
+  - Store cw3-fixed-multisig on chain
+  - Get code id
+  - Use it in migration
+
+- Release 0.12.1
+- Create proposal on mainnet
+  Store fixed-multisig
+  - Get code id
+  - Use it in migration proposal
