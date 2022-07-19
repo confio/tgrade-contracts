@@ -121,4 +121,6 @@ pub struct ListComplaintsResp {
 pub struct MigrationMsg {
     /// Cw3 fixed multisig contract code
     pub multisig_code: u64,
+    /// Waiting period in seconds for this contract
+    pub waiting_period: Duration,
 }
