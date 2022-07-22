@@ -1729,11 +1729,12 @@ pub fn migrate(
     env: Env,
     msg: Empty,
 ) -> Result<Response, ContractError> {
-    ensure_from_older_version(deps.storage, CONTRACT_NAME, CONTRACT_VERSION)?;
-
+    // FIXME: After https://github.com/confio/poe-contracts/pull/164, use the returned original version
     let stored_version = get_contract_version(deps.storage)?;
     // Unwrapping as version check before would fail if stored version is invalid
     let stored_version: Version = stored_version.version.parse().unwrap();
+
+    ensure_from_older_version(deps.storage, CONTRACT_NAME, CONTRACT_VERSION)?;
 
     // FIXME: Currently we don't need mechanism for migrating ballots, as testnets starts from scratch anyway
     // migrate_ballots(deps.branch(), &env, &msg, &stored_version)?;

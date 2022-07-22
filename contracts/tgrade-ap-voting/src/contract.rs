@@ -158,7 +158,7 @@ pub fn execute_render_decision(
                     return Err(ContractError::Unauthorized(format!(
                         "Only {} can render decision for this complaint",
                         arbiters
-                    )))
+                    )));
                 }
                 ComplaintState::Processing { .. } => (),
                 state => return Err(ContractError::ImproperState(state)),
@@ -542,10 +542,11 @@ pub fn migrate(
     _env: Env,
     msg: MigrationMsg,
 ) -> Result<Response, ContractError> {
-    ensure_from_older_version(deps.storage, CONTRACT_NAME, CONTRACT_VERSION)?;
-
+    // FIXME: After https://github.com/confio/poe-contracts/pull/164, use the returned original version
     let stored = get_contract_version(deps.storage)?;
     let storage_version: Version = stored.version.parse().unwrap();
+
+    ensure_from_older_version(deps.storage, CONTRACT_NAME, CONTRACT_VERSION)?;
 
     migrate_config(deps, &storage_version, &msg)?;
     Ok(Response::new())
