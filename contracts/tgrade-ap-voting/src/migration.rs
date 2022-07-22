@@ -21,7 +21,7 @@ pub fn migrate_config(
     version: &Version,
     msg: &MigrationMsg,
 ) -> Result<(), ContractError> {
-    let config = if *version < "0.6.3".parse::<Version>().unwrap() {
+    let mut config = if *version < "0.6.3".parse::<Version>().unwrap() {
         let old_storage: Item<ConfigV0_6_2> = Item::new("ap_config");
         let config = old_storage.load(deps.storage)?;
 
@@ -31,21 +31,18 @@ pub fn migrate_config(
             next_complaint_id: config.next_complaint_id,
             multisig_code_id: msg.multisig_code,
         }
-    } else if *version < "0.13.0".parse::<Version>().unwrap() {
-        let mut config = CONFIG.load(deps.storage)?;
-        if msg.multisig_code > 0 {
-            // tgrade-1.0.0 does not set multisig_code_id during bootstrap
-            config.multisig_code_id = msg.multisig_code;
-        }
-        if msg.waiting_period.seconds() > 0 {
-            // tgrade-1.0.0 does not set waiting_period during bootstrap
-            config.waiting_period = msg.waiting_period;
-        }
-        config
     } else {
-        // It is already properly migrated / no multisig code id set
-        return Ok(());
+        CONFIG.load(deps.storage)?
     };
+
+    // tgrade-1.0.0 does not set multisig_code_id and waiting_period during bootstrap
+    if msg.multisig_code > 0 {
+        config.multisig_code_id = msg.multisig_code;
+    }
+    if msg.waiting_period.seconds() > 0 {
+        // tgrade-1.0.0 does not set waiting_period during bootstrap
+        config.waiting_period = msg.waiting_period;
+    }
 
     CONFIG.save(deps.storage, &config).map_err(Into::into)
 }
