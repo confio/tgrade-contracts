@@ -5,10 +5,9 @@ use cosmwasm_std::{
     DepsMut, Empty, Env, Event, MessageInfo, Order, QuerierWrapper, QueryRequest, StdError,
     StdResult, SystemError, SystemResult, Uint128, WasmQuery,
 };
-use cw2::{get_contract_version, set_contract_version};
+use cw2::set_contract_version;
 use cw_storage_plus::Bound;
 use cw_utils::{maybe_addr, Expiration};
-use semver::Version;
 use tg3::{Status, Vote};
 use tg4::{
     member_key, Member, MemberInfo, MemberListResponse, MemberResponse, TotalPointsResponse,
@@ -1729,12 +1728,7 @@ pub fn migrate(
     env: Env,
     msg: Empty,
 ) -> Result<Response, ContractError> {
-    // FIXME: After https://github.com/confio/poe-contracts/pull/164, use the returned original version
-    let stored_version = get_contract_version(deps.storage)?;
-    // Unwrapping as version check before would fail if stored version is invalid
-    let stored_version: Version = stored_version.version.parse().unwrap();
-
-    ensure_from_older_version(deps.storage, CONTRACT_NAME, CONTRACT_VERSION)?;
+    let stored_version = ensure_from_older_version(deps.storage, CONTRACT_NAME, CONTRACT_VERSION)?;
 
     // FIXME: Currently we don't need mechanism for migrating ballots, as testnets starts from scratch anyway
     // migrate_ballots(deps.branch(), &env, &msg, &stored_version)?;
