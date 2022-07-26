@@ -7,10 +7,9 @@ use cosmwasm_std::{
 use cw3_fixed_multisig::msg::{InstantiateMsg as Cw3InstantiateMsg, Voter};
 use cw_storage_plus::Bound;
 
-use cw2::{get_contract_version, set_contract_version};
+use cw2::set_contract_version;
 use cw3::VoterListResponse;
 use cw_utils::{must_pay, parse_reply_instantiate_data, Duration, Threshold};
-use semver::Version;
 use tg_bindings::{
     request_privileges, Privilege, PrivilegeChangeMsg, TgradeMsg, TgradeQuery, TgradeSudoMsg,
 };
@@ -542,11 +541,7 @@ pub fn migrate(
     _env: Env,
     msg: MigrationMsg,
 ) -> Result<Response, ContractError> {
-    // FIXME: After https://github.com/confio/poe-contracts/pull/164, use the returned original version
-    let stored = get_contract_version(deps.storage)?;
-    let storage_version: Version = stored.version.parse().unwrap();
-
-    ensure_from_older_version(deps.storage, CONTRACT_NAME, CONTRACT_VERSION)?;
+    let storage_version = ensure_from_older_version(deps.storage, CONTRACT_NAME, CONTRACT_VERSION)?;
 
     migrate_config(deps, &storage_version, &msg)?;
     Ok(Response::new())
