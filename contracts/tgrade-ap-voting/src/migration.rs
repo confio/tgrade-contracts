@@ -40,7 +40,6 @@ pub fn migrate_config(
         config.multisig_code_id = msg.multisig_code;
     }
     if msg.waiting_period.seconds() > 0 {
-        // tgrade-1.0.0 does not set waiting_period during bootstrap
         config.waiting_period = msg.waiting_period;
     }
 
