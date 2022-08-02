@@ -2,7 +2,7 @@
 use cosmwasm_std::entry_point;
 use cosmwasm_std::{
     coin, to_binary, Addr, BankMsg, Binary, CosmosMsg, Decimal, Deps, DepsMut, Env, MessageInfo,
-    Order, Reply, StdError, StdResult, Uint128, WasmMsg,
+    Order, Reply, StdResult, Uint128, WasmMsg,
 };
 use cw3_fixed_multisig::msg::{InstantiateMsg as Cw3InstantiateMsg, Voter};
 use cw_storage_plus::Bound;
@@ -541,19 +541,7 @@ pub fn migrate(
     _env: Env,
     msg: MigrationMsg,
 ) -> Result<Response, ContractError> {
-    // FIXME: Restore `CONTRACT_NAME` param after successful migration to 0.13.1
-    let storage_version = ensure_from_older_version(
-        deps.storage,
-        "crates.io:tgrade_validator_voting_proposals",
-        CONTRACT_VERSION,
-    )?;
-    if storage_version
-        < "0.13.1"
-            .parse()
-            .map_err(|err| StdError::generic_err(format!("Semver: {}", err)))?
-    {
-        set_contract_version(deps.storage, CONTRACT_NAME, CONTRACT_VERSION)?;
-    }
+    let storage_version = ensure_from_older_version(deps.storage, CONTRACT_NAME, CONTRACT_VERSION)?;
 
     migrate_config(deps, &storage_version, &msg)?;
     Ok(Response::new())
