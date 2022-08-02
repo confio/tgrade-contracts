@@ -2,7 +2,15 @@
 
 ## [Unreleased](https://github.com/confio/tgrade-contracts/tree/HEAD)
 
-[Full Changelog](https://github.com/confio/tgrade-contracts/compare/v0.13.0...HEAD)
+[Full Changelog](https://github.com/confio/tgrade-contracts/compare/v0.13.1...HEAD)
+
+## [v0.13.1](https://github.com/confio/tgrade-contracts/tree/v0.13.1) (2022-08-02)
+
+[Full Changelog](https://github.com/confio/tgrade-contracts/compare/v0.13.0...v0.13.1)
+
+**Merged pull requests:**
+
+- Fix ap-voting contract name [\#517](https://github.com/confio/tgrade-contracts/pull/517) ([maurolacy](https://github.com/maurolacy))
 
 ## [v0.13.0](https://github.com/confio/tgrade-contracts/tree/v0.13.0) (2022-07-26)
 
