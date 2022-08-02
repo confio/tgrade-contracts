@@ -1,6 +1,6 @@
 [package]
 name = "tgrade-tc-payments"
-version = "0.13.0"
+version = "0.13.1"
 authors = ["Mauro Lacy <maurolacy@users.noreply.github.com>"]
 edition = "2021"
 description = "Oversight Community / Arbiter Pool payments contract"
@@ -37,5 +37,5 @@ tg4-engagement = "0.13.0"
 tg-voting-contract = "0.13.0"
 tg-bindings-test = "0.13.0"
 tg-utils = "0.13.0"
-tgrade-trusted-circle = { version = "0.13.0", path = "../tgrade-trusted-circle" }
-tgrade-ap-voting = { version = "0.13.0", path = "../tgrade-ap-voting" }
+tgrade-trusted-circle = { version = "0.13.1", path = "../tgrade-trusted-circle" }
+tgrade-ap-voting = { version = "0.13.1", path = "../tgrade-ap-voting" }

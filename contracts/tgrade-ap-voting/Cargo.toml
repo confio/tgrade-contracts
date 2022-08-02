@@ -1,6 +1,6 @@
 [package]
 name = "tgrade-ap-voting"
-version = "0.13.0"
+version = "0.13.1"
 authors = ["Bartłomiej Kuras <bart.k@confio.gmbh>"]
 edition = "2018"
 description = "Implementing tgrade-ap-voting"
@@ -39,4 +39,4 @@ tg-bindings-test = "0.13.0"
 tg-test-utils = "0.13.0"
 tg4 = "0.13.0"
 tg4-engagement = "0.13.0"
-tgrade-oc-proposals = { path = "../tgrade-oc-proposals", version = "0.13.0" }
+tgrade-oc-proposals = { path = "../tgrade-oc-proposals", version = "0.13.1" }
