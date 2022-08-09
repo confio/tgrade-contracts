@@ -7,3 +7,5 @@ pub mod migration;
 pub mod msg;
 pub mod state;
 mod tests;
+
+pub use msg::QueryMsg;

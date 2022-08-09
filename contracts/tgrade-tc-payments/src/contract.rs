@@ -1,8 +1,8 @@
 #[cfg(not(feature = "library"))]
 use cosmwasm_std::entry_point;
 use cosmwasm_std::{
-    coins, to_binary, BankMsg, Binary, CustomQuery, Deps, DepsMut, Env, Event, MessageInfo, Order,
-    StdResult,
+    coins, to_binary, BankMsg, Binary, Coin, CustomQuery, Decimal, Deps, DepsMut, Env, Event,
+    MessageInfo, Order, QueryRequest, StdResult, Uint128, WasmMsg, WasmQuery,
 };
 use cw2::set_contract_version;
 use cw_storage_plus::Bound;
@@ -10,10 +10,11 @@ use tg4::Tg4Contract;
 use tg_bindings::{
     request_privileges, Privilege, PrivilegeChangeMsg, TgradeMsg, TgradeQuery, TgradeSudoMsg,
 };
+use tgrade_trusted_circle::QueryMsg as TCQueryMsg;
 
 use crate::error::ContractError;
-use crate::msg::{ExecuteMsg, InstantiateMsg, PaymentListResponse, QueryMsg};
 use crate::msg::ExecuteMsg::DistributeRewards;
+use crate::msg::{ExecuteMsg, InstantiateMsg, PaymentListResponse, QueryMsg};
 use crate::payment::{DEFAULT_LIMIT, MAX_LIMIT};
 use crate::state::{hour_after_midnight, payments, PaymentsConfig, ADMIN, CONFIG, PAYMENTS};
 
@@ -75,6 +76,16 @@ pub fn execute(
     }
 }
 
+// Taken from tg4-stake
+pub fn validate_funds(funds: &[Coin], stake_denom: &str) -> Result<Uint128, ContractError> {
+    match funds {
+        [] => Ok(Uint128::zero()),
+        [Coin { denom, amount }] if denom == stake_denom => Ok(*amount),
+        [_] => Err(ContractError::MissingDenom(stake_denom.to_string())),
+        _ => Err(ContractError::ExtraDenoms(stake_denom.to_string())),
+    }
+}
+
 pub fn execute_distribute_rewards<Q: CustomQuery>(
     deps: DepsMut<Q>,
     env: Env,
@@ -88,39 +99,49 @@ pub fn execute_distribute_rewards<Q: CustomQuery>(
 
     let denom = CONFIG.load(deps.storage)?.denom;
 
-    let amount: u128 = info
-        .funds
-        .iter()
-        .filter(|c| c.denom == denom)
-        .map(|c| c.amount.u128())
-        .sum();
+    let funds_received = validate_funds(&info.funds, &denom)?;
 
-    if amount == 0 {
+    if funds_received == Uint128::zero() {
         return Ok(Response::new());
     }
 
-    // TODO: If funds are not enough yet, then keep 1% of the funds for the contract:
-    //   1. query the number of oc members (TODO: Implement GetNumMembers in TC and use it here)
-    //   2. query the number of ap members (TODO: Idem)
-    //   3. query our balance (Use get_balance(deps.as_ref(), env.contract.address)?; or so)
-    //   4. check that `config.payment_amount` times (num_ap_members + num_oc_members) is less than the balance
-    //   5. Then send the other 99% to the engagement address (through DistributeRewards)
-    // If funds are enough already, then send **all** the funds to the engagement address (through DistributeRewards)
+    let config = CONFIG.load(deps.storage)?;
+    let number_of_oc_members: u128 = deps.querier.query(&QueryRequest::Wasm(WasmQuery::Smart {
+        contract_addr: config.oc_addr.addr().to_string(),
+        msg: to_binary(&TCQueryMsg::GetNumberOfMembers {})?,
+    }))?;
+    let number_of_ap_members: u128 = deps.querier.query(&QueryRequest::Wasm(WasmQuery::Smart {
+        contract_addr: config.ap_addr.addr().to_string(),
+        msg: to_binary(&TCQueryMsg::GetNumberOfMembers {})?,
+    }))?;
 
-    // Example of DistributeRewards (from tg4-valset)
-    // if reward_pool > Uint128::zero() {
-    //    messages.push(SubMsg::new(WasmMsg::Execute {
-    //        contract_addr: config.validator_group.to_string(),
-    //        msg: to_binary(&RewardsDistribution::DistributeRewards {})?,
-    //        funds: coins(reward_pool.into(), &block_reward.denom),
-    //    }));
-    //}
+    let total_funds = deps
+        .querier
+        .query_balance(env.contract.address, denom.clone())?
+        .amount;
+
+    // If funds stored on contract are enough to cover payments for OC and AP members, then distribute full sent amount.
+    // Otherwise, send 99% of amount and store 1%.
+    let rewards_fund =
+        Uint128::new(number_of_ap_members + number_of_oc_members) * config.payment_amount;
+    let funds_to_distribute = if rewards_fund >= total_funds {
+        funds_received
+    } else {
+        Decimal::percent(99) * funds_received
+    };
+
+    let distribute_msg = SubMsg::new(WasmMsg::Execute {
+        contract_addr: config.engagement_addr.to_string(),
+        msg: to_binary(&DistributeRewards { sender: None })?,
+        funds: coins(funds_to_distribute.u128(), denom.clone()),
+    });
 
     let resp = Response::new()
         .add_attribute("action", "distribute_rewards")
         .add_attribute("sender", sender.as_str())
         .add_attribute("denom", &denom)
-        .add_attribute("amount", &amount.to_string());
+        .add_attribute("amount", &funds_to_distribute.to_string())
+        .add_submessage(distribute_msg);
 
     Ok(resp)
 }

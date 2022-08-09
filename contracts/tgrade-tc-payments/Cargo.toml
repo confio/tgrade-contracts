@@ -29,6 +29,7 @@ schemars = "0.8"
 serde = { version = "1.0.103", default-features = false, features = ["derive"] }
 tg-bindings = "0.13.0"
 tg4 = "0.13.0"
+tgrade-trusted-circle = { version = "0.13.1", path = "../tgrade-trusted-circle" }
 thiserror = "1.0.21"
 
 [dev-dependencies]
@@ -37,5 +38,4 @@ tg4-engagement = "0.13.0"
 tg-voting-contract = "0.13.0"
 tg-bindings-test = "0.13.0"
 tg-utils = "0.13.0"
-tgrade-trusted-circle = { version = "0.13.1", path = "../tgrade-trusted-circle" }
 tgrade-ap-voting = { version = "0.13.1", path = "../tgrade-ap-voting" }
