@@ -489,8 +489,7 @@ mod tests {
         res.events
             .iter()
             .filter(|e| e.ty == "wasm-tc_payments")
-            .map(|e| e.attributes.clone())
-            .flatten()
+            .flat_map(|e| e.attributes.clone())
             .collect()
     }
 
@@ -498,8 +497,7 @@ mod tests {
         res.events
             .iter()
             .filter(|e| e.ty == "transfer")
-            .map(|e| e.attributes.clone())
-            .flatten()
+            .flat_map(|e| e.attributes.clone())
             .collect()
     }
 

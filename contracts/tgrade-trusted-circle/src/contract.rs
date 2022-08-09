@@ -1432,10 +1432,10 @@ pub(crate) fn list_members<Q: CustomQuery>(
     Ok(MemberListResponse { members: members? })
 }
 
-pub(crate) fn get_number_of_members<Q: CustomQuery>(deps: Deps<Q>) -> usize {
+pub(crate) fn get_number_of_members<Q: CustomQuery>(deps: Deps<Q>) -> u128 {
     members()
         .range(deps.storage, None, None, Order::Ascending)
-        .count()
+        .count() as u128
 }
 
 pub(crate) fn list_voting_members<Q: CustomQuery>(
