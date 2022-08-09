@@ -1308,6 +1308,7 @@ pub fn query(deps: Deps<TgradeQuery>, env: Env, msg: QueryMsg) -> StdResult<Bina
         } => to_binary(&query_member(deps, addr, height)?),
         Escrow { addr } => to_binary(&query_escrow(deps, addr)?),
         ListMembers { start_after, limit } => to_binary(&list_members(deps, start_after, limit)?),
+        GetNumberOfMembers {} => to_binary(&get_number_of_members(deps)),
         ListNonVotingMembers { start_after, limit } => {
             to_binary(&list_non_voting_members(deps, start_after, limit)?)
         }
@@ -1429,6 +1430,12 @@ pub(crate) fn list_members<Q: CustomQuery>(
         .collect();
 
     Ok(MemberListResponse { members: members? })
+}
+
+pub(crate) fn get_number_of_members<Q: CustomQuery>(deps: Deps<Q>) -> usize {
+    members()
+        .range(deps.storage, None, None, Order::Ascending)
+        .count()
 }
 
 pub(crate) fn list_voting_members<Q: CustomQuery>(
