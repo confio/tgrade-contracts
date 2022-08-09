@@ -17,7 +17,7 @@ pub struct InstantiateMsg {
     pub engagement_addr: String,
     /// The payments denom
     pub denom: String,
-    /// The required payment amount, in the `denom`
+    /// The required per-member payment amount, in the `denom`
     pub payment_amount: Uint128,
     /// Payment period (daily / monthly / yearly)
     pub payment_period: Period,
