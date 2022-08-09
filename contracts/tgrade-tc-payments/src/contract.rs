@@ -13,6 +13,7 @@ use tg_bindings::{
 
 use crate::error::ContractError;
 use crate::msg::{ExecuteMsg, InstantiateMsg, PaymentListResponse, QueryMsg};
+use crate::msg::ExecuteMsg::DistributeRewards;
 use crate::payment::{DEFAULT_LIMIT, MAX_LIMIT};
 use crate::state::{hour_after_midnight, payments, PaymentsConfig, ADMIN, CONFIG, PAYMENTS};
 
@@ -76,7 +77,7 @@ pub fn execute(
 
 pub fn execute_distribute_rewards<Q: CustomQuery>(
     deps: DepsMut<Q>,
-    _env: Env,
+    env: Env,
     info: MessageInfo,
     sender: Option<String>,
 ) -> Result<Response, ContractError> {
@@ -97,6 +98,23 @@ pub fn execute_distribute_rewards<Q: CustomQuery>(
     if amount == 0 {
         return Ok(Response::new());
     }
+
+    // TODO: If funds are not enough yet, then keep 1% of the funds for the contract:
+    //   1. query the number of oc members (TODO: Implement GetNumMembers in TC and use it here)
+    //   2. query the number of ap members (TODO: Idem)
+    //   3. query our balance (Use get_balance(deps.as_ref(), env.contract.address)?; or so)
+    //   4. check that `config.payment_amount` times (num_ap_members + num_oc_members) is less than the balance
+    //   5. Then send the other 99% to the engagement address (through DistributeRewards)
+    // If funds are enough already, then send **all** the funds to the engagement address (through DistributeRewards)
+
+    // Example of DistributeRewards (from tg4-valset)
+    // if reward_pool > Uint128::zero() {
+    //    messages.push(SubMsg::new(WasmMsg::Execute {
+    //        contract_addr: config.validator_group.to_string(),
+    //        msg: to_binary(&RewardsDistribution::DistributeRewards {})?,
+    //        funds: coins(reward_pool.into(), &block_reward.denom),
+    //    }));
+    //}
 
     let resp = Response::new()
         .add_attribute("action", "distribute_rewards")
@@ -166,6 +184,7 @@ fn end_block<Q: CustomQuery>(deps: DepsMut<Q>, env: Env) -> Result<Response, Con
         return Ok(resp);
     }
 
+    // TODO: Use DistributeRewards instead!
     // Pay oc + ap members
     // Get all members from oc
     let limit = Some(100);
