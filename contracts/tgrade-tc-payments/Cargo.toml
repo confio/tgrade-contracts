@@ -29,7 +29,7 @@ schemars = "0.8"
 serde = { version = "1.0.103", default-features = false, features = ["derive"] }
 tg-bindings = "0.13.0"
 tg4 = "0.13.0"
-tgrade-trusted-circle = { version = "0.13.1", path = "../tgrade-trusted-circle" }
+tgrade-trusted-circle = { version = "0.13.1", path = "../tgrade-trusted-circle", features = ["library"] }
 thiserror = "1.0.21"
 
 [dev-dependencies]
