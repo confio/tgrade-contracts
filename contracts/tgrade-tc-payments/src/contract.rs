@@ -2,7 +2,7 @@
 use cosmwasm_std::entry_point;
 use cosmwasm_std::{
     coins, to_binary, Binary, Coin, CustomQuery, Decimal, Deps, DepsMut, Env, Event, MessageInfo,
-    Order, QueryRequest, StdResult, Uint128, WasmMsg, WasmQuery,
+    Order, StdResult, Uint128, WasmMsg,
 };
 use cw2::set_contract_version;
 use cw_storage_plus::Bound;
@@ -10,7 +10,6 @@ use tg4::Tg4Contract;
 use tg_bindings::{
     request_privileges, Privilege, PrivilegeChangeMsg, TgradeMsg, TgradeQuery, TgradeSudoMsg,
 };
-use tgrade_trusted_circle::{ExecuteMsg as TCExecuteMsg, QueryMsg as TCQueryMsg};
 
 use crate::error::ContractError;
 use crate::msg::{ExecuteMsg, InstantiateMsg, PaymentListResponse, QueryMsg};
@@ -105,15 +104,8 @@ pub fn execute_distribute_rewards<Q: CustomQuery>(
     }
 
     let config = CONFIG.load(deps.storage)?;
-    let number_of_oc_members: u128 = deps.querier.query(&QueryRequest::Wasm(WasmQuery::Smart {
-        contract_addr: config.oc_addr.addr().to_string(),
-        msg: to_binary(&TCQueryMsg::GetNumberOfMembers {})?,
-    }))?;
-    let number_of_ap_members: u128 = deps.querier.query(&QueryRequest::Wasm(WasmQuery::Smart {
-        contract_addr: config.ap_addr.addr().to_string(),
-        msg: to_binary(&TCQueryMsg::GetNumberOfMembers {})?,
-    }))?;
-
+    let number_of_oc_members = config.oc_addr.total_points(&deps.querier)? as u128;
+    let number_of_ap_members = config.ap_addr.total_points(&deps.querier)? as u128;
     let total_funds = deps
         .querier
         .query_balance(env.contract.address, denom.clone())?
@@ -122,7 +114,7 @@ pub fn execute_distribute_rewards<Q: CustomQuery>(
     // If funds stored on contract are enough to cover payments for OC and AP members, then distribute full sent amount.
     // Otherwise, send 99% of amount and store 1%.
     let rewards_fund =
-        Uint128::new(number_of_ap_members + number_of_oc_members) * config.payment_amount;
+        Uint128::new(number_of_oc_members + number_of_ap_members) * config.payment_amount;
     let funds_to_distribute = if rewards_fund >= total_funds {
         funds_received
     } else {
@@ -131,7 +123,9 @@ pub fn execute_distribute_rewards<Q: CustomQuery>(
 
     let distribute_msg = SubMsg::new(WasmMsg::Execute {
         contract_addr: config.engagement_addr.to_string(),
-        msg: to_binary(&ExecuteMsg::DistributeRewards { sender: None })?,
+        msg: to_binary(&ExecuteMsg::DistributeRewards {
+            sender: Some(sender.to_string()),
+        })?,
         funds: coins(funds_to_distribute.u128(), denom.clone()),
     });
 
@@ -197,15 +191,8 @@ fn end_block<Q: CustomQuery>(deps: DepsMut<Q>, env: Env) -> Result<Response, Con
         .u128();
 
     // Get all members from oc
-    let number_of_oc_members: u128 = deps.querier.query(&QueryRequest::Wasm(WasmQuery::Smart {
-        contract_addr: config.oc_addr.addr().to_string(),
-        msg: to_binary(&TCQueryMsg::GetNumberOfMembers {})?,
-    }))?;
-
-    let number_of_ap_members: u128 = deps.querier.query(&QueryRequest::Wasm(WasmQuery::Smart {
-        contract_addr: config.ap_addr.addr().to_string(),
-        msg: to_binary(&TCQueryMsg::GetNumberOfMembers {})?,
-    }))?;
+    let number_of_oc_members = config.oc_addr.total_points(&deps.querier)? as u128;
+    let number_of_ap_members = config.ap_addr.total_points(&deps.querier)? as u128;
 
     if total_funds == 0
         || (number_of_ap_members + number_of_oc_members) * config.payment_amount.u128()
@@ -225,7 +212,7 @@ fn end_block<Q: CustomQuery>(deps: DepsMut<Q>, env: Env) -> Result<Response, Con
     );
     let oc_reward_msg = SubMsg::new(WasmMsg::Execute {
         contract_addr: config.oc_addr.addr().to_string(),
-        msg: to_binary(&TCExecuteMsg::DistributeRewards {})?,
+        msg: to_binary(&ExecuteMsg::DistributeRewards { sender: None })?,
         funds: oc_funds_to_pay,
     });
 
@@ -235,7 +222,7 @@ fn end_block<Q: CustomQuery>(deps: DepsMut<Q>, env: Env) -> Result<Response, Con
     );
     let ap_reward_msg = SubMsg::new(WasmMsg::Execute {
         contract_addr: config.ap_addr.addr().to_string(),
-        msg: to_binary(&TCExecuteMsg::DistributeRewards {})?,
+        msg: to_binary(&ExecuteMsg::DistributeRewards { sender: None })?,
         funds: ap_funds_to_pay,
     });
 

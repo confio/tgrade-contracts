@@ -89,8 +89,6 @@ pub enum QueryMsg {
         start_after: Option<String>,
         limit: Option<u32>,
     },
-    /// Returns usize as a quantity of members
-    GetNumberOfMembers {},
     /// Returns MemberListResponse, only points == 0 members
     ListNonVotingMembers {
         start_after: Option<String>,

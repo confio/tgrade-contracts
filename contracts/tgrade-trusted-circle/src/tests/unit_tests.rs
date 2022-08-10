@@ -2152,19 +2152,3 @@ fn instantiate_with_default_denom() {
         }
     );
 }
-
-#[test]
-fn query_get_number_of_members() {
-    let mut deps = mock_deps_tgrade();
-    let info = mock_info(INIT_ADMIN, &escrow_funds());
-    do_instantiate(
-        deps.as_mut(),
-        info,
-        vec![VOTING1.into(), VOTING2.into(), VOTING3.into()],
-        false,
-    )
-    .unwrap();
-
-    let number_of_voters = get_number_of_members(deps.as_ref());
-    assert_eq!(4, number_of_voters); // 3 members plus admin
-}
