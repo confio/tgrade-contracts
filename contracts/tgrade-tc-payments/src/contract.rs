@@ -1,8 +1,8 @@
 #[cfg(not(feature = "library"))]
 use cosmwasm_std::entry_point;
 use cosmwasm_std::{
-    coins, to_binary, BankMsg, Binary, Coin, CustomQuery, Decimal, Deps, DepsMut, Env, Event,
-    MessageInfo, Order, QueryRequest, StdResult, Uint128, WasmMsg, WasmQuery,
+    coins, to_binary, Binary, Coin, CustomQuery, Decimal, Deps, DepsMut, Env, Event, MessageInfo,
+    Order, QueryRequest, StdResult, Uint128, WasmMsg, WasmQuery,
 };
 use cw2::set_contract_version;
 use cw_storage_plus::Bound;
@@ -10,10 +10,9 @@ use tg4::Tg4Contract;
 use tg_bindings::{
     request_privileges, Privilege, PrivilegeChangeMsg, TgradeMsg, TgradeQuery, TgradeSudoMsg,
 };
-use tgrade_trusted_circle::QueryMsg as TCQueryMsg;
+use tgrade_trusted_circle::{ExecuteMsg as TCExecuteMsg, QueryMsg as TCQueryMsg};
 
 use crate::error::ContractError;
-use crate::msg::ExecuteMsg::DistributeRewards;
 use crate::msg::{ExecuteMsg, InstantiateMsg, PaymentListResponse, QueryMsg};
 use crate::payment::{DEFAULT_LIMIT, MAX_LIMIT};
 use crate::state::{hour_after_midnight, payments, PaymentsConfig, ADMIN, CONFIG, PAYMENTS};
@@ -132,7 +131,7 @@ pub fn execute_distribute_rewards<Q: CustomQuery>(
 
     let distribute_msg = SubMsg::new(WasmMsg::Execute {
         contract_addr: config.engagement_addr.to_string(),
-        msg: to_binary(&DistributeRewards { sender: None })?,
+        msg: to_binary(&ExecuteMsg::DistributeRewards { sender: None })?,
         funds: coins(funds_to_distribute.u128(), denom.clone()),
     });
 
@@ -197,7 +196,21 @@ fn end_block<Q: CustomQuery>(deps: DepsMut<Q>, env: Env) -> Result<Response, Con
         .amount
         .u128();
 
-    if total_funds == 0 {
+    // Get all members from oc
+    let number_of_oc_members: u128 = deps.querier.query(&QueryRequest::Wasm(WasmQuery::Smart {
+        contract_addr: config.oc_addr.addr().to_string(),
+        msg: to_binary(&TCQueryMsg::GetNumberOfMembers {})?,
+    }))?;
+
+    let number_of_ap_members: u128 = deps.querier.query(&QueryRequest::Wasm(WasmQuery::Smart {
+        contract_addr: config.ap_addr.addr().to_string(),
+        msg: to_binary(&TCQueryMsg::GetNumberOfMembers {})?,
+    }))?;
+
+    if total_funds == 0
+        || (number_of_ap_members + number_of_oc_members) * config.payment_amount.u128()
+            > total_funds
+    {
         // Register empty payment in state (to avoid checking / doing the same work again), until next payment period
         payments().create_payment(deps.storage, 0, 0, &env.block)?;
 
@@ -205,78 +218,37 @@ fn end_block<Q: CustomQuery>(deps: DepsMut<Q>, env: Env) -> Result<Response, Con
         return Ok(resp);
     }
 
-    // TODO: Use DistributeRewards instead!
     // Pay oc + ap members
-    // Get all members from oc
-    let limit = Some(100);
-    let mut oc_members = vec![];
-    let mut batch = config.oc_addr.list_members(&deps.querier, None, limit)?;
+    let oc_funds_to_pay = coins(
+        number_of_oc_members * config.payment_amount.u128(),
+        config.denom.clone(),
+    );
+    let oc_reward_msg = SubMsg::new(WasmMsg::Execute {
+        contract_addr: config.oc_addr.addr().to_string(),
+        msg: to_binary(&TCExecuteMsg::DistributeRewards {})?,
+        funds: oc_funds_to_pay,
+    });
 
-    while !batch.is_empty() {
-        let last = Some(batch.last().unwrap().addr.clone());
+    let ap_funds_to_pay = coins(
+        number_of_ap_members * config.payment_amount.u128(),
+        config.denom.clone(),
+    );
+    let ap_reward_msg = SubMsg::new(WasmMsg::Execute {
+        contract_addr: config.ap_addr.addr().to_string(),
+        msg: to_binary(&TCExecuteMsg::DistributeRewards {})?,
+        funds: ap_funds_to_pay,
+    });
 
-        oc_members.extend_from_slice(&batch);
-
-        // and get the next page
-        batch = config.oc_addr.list_members(&deps.querier, last, limit)?;
-    }
-
-    // Get all members from ap
-    let mut ap_members = vec![];
-    let mut batch = config.ap_addr.list_members(&deps.querier, None, limit)?;
-
-    while !batch.is_empty() {
-        let last = Some(batch.last().unwrap().addr.clone());
-
-        ap_members.extend_from_slice(&batch);
-
-        // and get the next page
-        batch = config.ap_addr.list_members(&deps.querier, last, limit)?;
-    }
-    let num_members = (oc_members.len() + ap_members.len()) as u128;
-
-    // Check if there are enough funds to pay all members
-    let mut member_pay = config.payment_amount.u128();
-    // Don't pay oc + ap members if there are not enough funds (prioritize engagement point holders)
-    if num_members == 0 || total_funds / num_members < member_pay {
-        member_pay = 0;
-    }
-
-    // Register payment in state
-    payments().create_payment(deps.storage, num_members as _, member_pay, &env.block)?;
-
-    // If enough funds, create pay messages for members
-    let mut msgs = if member_pay > 0 {
-        let member_amount = coins(member_pay, config.denom.clone());
-        [oc_members, ap_members]
-            .concat()
-            .iter()
-            .map(|m| BankMsg::Send {
-                to_address: m.addr.clone(),
-                amount: member_amount.clone(),
-            })
-            .collect::<Vec<_>>()
-    } else {
-        vec![]
-    };
-
-    // Send the rest of the funds to the engagement contract for distribution
-    let engagement_rewards = total_funds - member_pay * num_members;
-    let engagement_amount = coins(engagement_rewards, config.denom.clone());
-    let engagement_rewards_msg = BankMsg::Send {
-        to_address: config.engagement_addr.to_string(),
-        amount: engagement_amount,
-    };
-    msgs.push(engagement_rewards_msg);
+    let msgs = vec![oc_reward_msg, ap_reward_msg];
 
     let evt = Event::new("tc_payments")
         .add_attribute("time", env.block.time.to_string())
         .add_attribute("height", env.block.height.to_string())
-        .add_attribute("num_members", num_members.to_string())
-        .add_attribute("member_pay", member_pay.to_string())
-        .add_attribute("engagement_rewards", engagement_rewards.to_string())
+        .add_attribute("num_oc_members", number_of_oc_members.to_string())
+        .add_attribute("num_ap_members", number_of_ap_members.to_string())
+        .add_attribute("member_pay", config.payment_amount.to_string())
         .add_attribute("denom", config.denom);
-    let resp = resp.add_messages(msgs).add_event(evt);
+    let resp = resp.add_submessages(msgs).add_event(evt);
 
     Ok(resp)
 }

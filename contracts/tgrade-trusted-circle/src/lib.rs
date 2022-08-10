@@ -8,4 +8,4 @@ pub mod msg;
 pub mod state;
 mod tests;
 
-pub use msg::QueryMsg;
+pub use msg::{ExecuteMsg, QueryMsg};
