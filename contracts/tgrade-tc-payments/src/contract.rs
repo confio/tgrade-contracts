@@ -371,7 +371,7 @@ mod tests {
     fn oc_members(num_oc_members: u64) -> Vec<Member> {
         let mut members = vec![];
         for i in 1u64..=num_oc_members {
-            members.push(member(format!("oc_member{:04}", i), 1000u64 * i));
+            members.push(member(format!("oc_member{:04}", i), 1));
         }
         members
     }
@@ -379,7 +379,7 @@ mod tests {
     fn ap_members(num_ap_members: u64) -> Vec<Member> {
         let mut members = vec![];
         for i in 1u64..=num_ap_members {
-            members.push(member(format!("ap_member{:04}", i), 100u64 * i));
+            members.push(member(format!("ap_member{:04}", i), 1));
         }
         members
     }
@@ -506,7 +506,7 @@ mod tests {
 
         let num_oc_members = 2;
         let num_ap_members = 1;
-        let (payments_addr, _oc_addr, _ap_addr, engagement_addr) =
+        let (payments_addr, _oc_addr, _ap_addr, _) =
             setup_test_case(&mut app, num_oc_members, num_ap_members);
         let num_members = num_oc_members + num_ap_members;
 
@@ -538,10 +538,10 @@ mod tests {
         let expected_event_types: Vec<String> = vec![
             "sudo".into(),
             "wasm-tc_payments".into(),
-            "transfer".into(),
-            "transfer".into(),
-            "transfer".into(),
-            "transfer".into(),
+            "execute".into(),
+            "wasm".into(), // distribute rewards 1
+            "execute".into(),
+            "wasm".into(), // distribute rewards 2
         ];
 
         assert_sorted_eq(got_event_types, expected_event_types, &|l, r| l.cmp(r));
@@ -563,15 +563,15 @@ mod tests {
                 value: block.height.to_string(),
             },
             Attribute {
-                key: "num_members".to_string(),
-                value: num_members.to_string(),
+                key: "num_oc_members".to_string(),
+                value: num_oc_members.to_string(),
+            },
+            Attribute {
+                key: "num_ap_members".to_string(),
+                value: num_ap_members.to_string(),
             },
             Attribute {
                 key: "member_pay".to_string(),
-                value: PAYMENT_AMOUNT.to_string(),
-            },
-            Attribute {
-                key: "engagement_rewards".to_string(),
                 value: PAYMENT_AMOUNT.to_string(),
             },
             Attribute {
@@ -583,67 +583,6 @@ mod tests {
         assert_sorted_eq(
             got_tc_payments_attributes,
             expected_tc_payments_attributes,
-            &cmp_attr_by_key,
-        );
-
-        // Check transfer attributes
-        let got_transfer_attributes = transfer_attributes(&res);
-
-        let payment_amount = [&PAYMENT_AMOUNT.to_string(), TC_DENOM].concat();
-        let expected_transfer_attributes = vec![
-            Attribute {
-                key: "recipient".to_string(),
-                value: "oc_member0001".to_string(),
-            },
-            Attribute {
-                key: "sender".to_string(),
-                value: "contract3".to_string(),
-            },
-            Attribute {
-                key: "amount".to_string(),
-                value: payment_amount.clone(),
-            },
-            Attribute {
-                key: "recipient".to_string(),
-                value: "oc_member0002".to_string(),
-            },
-            Attribute {
-                key: "sender".to_string(),
-                value: "contract3".to_string(),
-            },
-            Attribute {
-                key: "amount".to_string(),
-                value: payment_amount.clone(),
-            },
-            Attribute {
-                key: "recipient".to_string(),
-                value: "ap_member0001".to_string(),
-            },
-            Attribute {
-                key: "sender".to_string(),
-                value: "contract3".to_string(),
-            },
-            Attribute {
-                key: "amount".to_string(),
-                value: payment_amount.clone(),
-            },
-            Attribute {
-                key: "recipient".to_string(),
-                value: engagement_addr.to_string(),
-            },
-            Attribute {
-                key: "sender".to_string(),
-                value: "contract3".to_string(),
-            },
-            Attribute {
-                key: "amount".to_string(),
-                value: payment_amount,
-            },
-        ];
-
-        assert_sorted_eq(
-            got_transfer_attributes,
-            expected_transfer_attributes,
             &cmp_attr_by_key,
         );
     }
