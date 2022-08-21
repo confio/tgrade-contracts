@@ -34,6 +34,7 @@ thiserror = "1.0.21"
 [dev-dependencies]
 anyhow = "1"
 cw-multi-test = "0.13.4"
+derivative = "2"
 tg4-engagement = "0.13"
 tg-voting-contract = "0.13"
 tg-bindings-test = "0.13"
