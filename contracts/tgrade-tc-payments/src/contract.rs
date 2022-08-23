@@ -90,6 +90,7 @@ pub fn execute_distribute_rewards<Q: CustomQuery>(
     info: MessageInfo,
     sender: Option<String>,
 ) -> Result<Response, ContractError> {
+    dbg!("execute distribute rewards");
     let sender = sender
         .map(|sender| deps.api.addr_validate(&sender))
         .transpose()?

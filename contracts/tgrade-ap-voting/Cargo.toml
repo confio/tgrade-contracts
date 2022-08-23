@@ -24,10 +24,14 @@ schemars = "0.8.1"
 semver = "1"
 serde = { version = "1", default-features = false, features = ["derive"] }
 thiserror = "1"
-tg-bindings = "0.13.0"
-tg-voting-contract = "0.13.0"
-tg-utils = "0.13.0"
-tg3 = "0.13.0"
+# tg-bindings = "0.13.0"
+tg-bindings = { version = "0.13", path = "../../../../poe-contracts/packages/bindings" }
+# tg-voting-contract = "0.13.0"
+tg-voting-contract = { version = "0.13", path = "../../../../poe-contracts/packages/voting-contract" }
+# tg-utils = "0.13.0"
+tg-utils = { version = "0.13", path = "../../../../poe-contracts/packages/utils" }
+# tg3 = "0.13.0"
+tg3 = { version = "0.13", path = "../../../../poe-contracts/packages/tg3" }
 
 [dev-dependencies]
 anyhow = "1"
@@ -35,8 +39,12 @@ assert_matches = "1.5"
 cosmwasm-schema = "1.0.0"
 cw-multi-test = "0.13.4"
 cw-storage-plus = "0.13.4"
-tg-bindings-test = "0.13.0"
-tg-test-utils = "0.13.0"
-tg4 = "0.13.0"
-tg4-engagement = "0.13.0"
+# tg-bindings-test = "0.13.0"
+tg-bindings-test = { version = "0.13", path = "../../../../poe-contracts/packages/bindings-test" }
+# tg-test-utils = "0.13.0"
+tg-test-utils = { version = "0.13", path = "../../../../poe-contracts/packages/test-utils" }
+# tg4 = "0.13.0"
+tg4 = { version = "0.13", path = "../../../../poe-contracts/packages/tg4" }
+# tg4-engagement = "0.13.0"
+tg4-engagement = { version = "0.13", path = "../../../../poe-contracts/contracts/tg4-engagement" }
 tgrade-oc-proposals = { path = "../tgrade-oc-proposals", version = "0.13.1" }

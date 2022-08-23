@@ -12,7 +12,7 @@ pub enum ContractError {
     #[error("Unrecognized sudo message")]
     UnknownSudoMsg {},
 
-    #[error("Unauthorized: {0}")]
+    #[error("Unauthorized xxx: {0}")]
     Unauthorized(String),
 
     #[error("Must send '{0}' to distribute rewards`")]

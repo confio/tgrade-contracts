@@ -1,18 +1,19 @@
-use anyhow::{anyhow, Result as AnyResult};
+use anyhow::Result as AnyResult;
 use derivative::Derivative;
 
-use cosmwasm_std::{coin, Addr, Binary, Coin, Decimal, Uint128};
-use cw_multi_test::{AppResponse, Executor};
+use cosmwasm_std::{coin, Addr, Binary, Decimal, StdResult, Uint128};
+use cw_multi_test::Executor;
 use cw_multi_test::{Contract, ContractWrapper};
 use tg4::Member;
-use tg_bindings::{Pubkey, TgradeMsg, TgradeQuery};
+use tg_bindings::{Pubkey, TgradeMsg, TgradeQuery, TgradeSudoMsg};
 use tg_bindings_test::TgradeApp;
 use tg_utils::Duration;
-use tgrade_valset::msg::{
-    UnvalidatedDistributionContract, UnvalidatedDistributionContracts, ValidatorMetadata,
+use tgrade_valset::{
+    msg::{UnvalidatedDistributionContract, UnvalidatedDistributionContracts, ValidatorMetadata},
+    state::ValsetState,
 };
 
-use crate::msg::{ExecuteMsg, InstantiateMsg, Period, QueryMsg};
+use crate::msg::{InstantiateMsg, Period};
 
 const ED25519_PUBKEY_LENGTH: usize = 32;
 
@@ -81,6 +82,9 @@ pub struct SuiteBuilder {
     pub payment_amount: Uint128,
     #[derivative(Default(value = "Period::Daily {}"))]
     pub payment_period: Period,
+    /// Epoch length in seconds, 100s by default
+    #[derivative(Default(value = "100"))]
+    epoch_length: u64,
     /// Valset operators, with optionally provided pubkeys
     operators: Vec<(String, Option<Pubkey>)>,
     /// Engagement members
@@ -163,8 +167,9 @@ impl SuiteBuilder {
         Pubkey::Ed25519(Binary(raw))
     }
 
-    fn build(mut self) -> Suite {
+    pub fn build(self) -> Suite {
         let admin = "admin";
+        let denom = "usdc".to_owned();
 
         let mut app = TgradeApp::new(admin);
         app.back_to_genesis();
@@ -189,7 +194,7 @@ impl SuiteBuilder {
                     preauths_hooks: 0,
                     preauths_slashing: 1,
                     halflife: None,
-                    denom: "usdc".to_owned(),
+                    denom: denom.clone(),
                 },
                 &[],
                 "group",
@@ -225,7 +230,7 @@ impl SuiteBuilder {
                     preauths_hooks: 0,
                     preauths_slashing: 1,
                     halflife: self.oc_distribution.halflife,
-                    denom: "usdc".to_owned(),
+                    denom: denom.clone(),
                 },
                 &[],
                 "oc_distribution",
@@ -242,7 +247,7 @@ impl SuiteBuilder {
                     preauths_hooks: 0,
                     preauths_slashing: 1,
                     halflife: self.ap_distribution.halflife,
-                    denom: "usdc".to_owned(),
+                    denom: denom.clone(),
                 },
                 &[],
                 "oc_distribution",
@@ -260,7 +265,7 @@ impl SuiteBuilder {
                     oc_addr: oc_distribution_contract.to_string(),
                     ap_addr: ap_distribution_contract.to_string(),
                     engagement_addr: membership.to_string(),
-                    denom: "usdc".to_owned(),
+                    denom: denom.clone(),
                     payment_amount: self.payment_amount,
                     payment_period: self.payment_period,
                 },
@@ -280,7 +285,7 @@ impl SuiteBuilder {
                     membership: membership.to_string(),
                     min_points: 1u64,
                     max_validators: u32::MAX,
-                    epoch_length: 100,
+                    epoch_length: self.epoch_length,
                     epoch_reward: coin(100, "usdc"),
                     initial_keys: operators.clone(),
                     scaling: None,
@@ -303,8 +308,47 @@ impl SuiteBuilder {
             )
             .unwrap();
 
-        Suite {}
+        Suite {
+            app,
+            valset,
+            epoch_length: self.epoch_length,
+            denom,
+        }
     }
 }
 
-struct Suite {}
+pub struct Suite {
+    app: TgradeApp,
+    valset: Addr,
+    epoch_length: u64,
+    denom: String,
+}
+
+impl Suite {
+    pub fn advance_epoch(&mut self) -> AnyResult<()> {
+        self.app.advance_seconds(self.epoch_length);
+        let _ = self.app.end_block()?;
+        self.app.begin_block(vec![])?;
+        Ok(())
+    }
+
+    /// Shortcut for querying reward token balance of contract
+    pub fn token_balance(&self, owner: &str) -> StdResult<u128> {
+        let amount = self
+            .app
+            .wrap()
+            .query_balance(&Addr::unchecked(owner), &self.denom)?
+            .amount;
+        Ok(amount.into())
+    }
+
+    pub fn trigger_valset_end_block(&mut self) -> AnyResult<()> {
+        self.app
+            .wasm_sudo(
+                self.valset.clone(),
+                &TgradeSudoMsg::<ValsetState>::EndWithValidatorUpdate {},
+            )
+            .unwrap();
+        Ok(())
+    }
+}
