@@ -5,12 +5,11 @@ use cosmwasm_std::{coin, Addr, Binary, Decimal, StdResult, Uint128};
 use cw_multi_test::Executor;
 use cw_multi_test::{Contract, ContractWrapper};
 use tg4::Member;
-use tg_bindings::{Pubkey, TgradeMsg, TgradeQuery, TgradeSudoMsg};
+use tg_bindings::{Pubkey, TgradeMsg, TgradeQuery};
 use tg_bindings_test::TgradeApp;
 use tg_utils::Duration;
-use tgrade_valset::{
-    msg::{UnvalidatedDistributionContract, UnvalidatedDistributionContracts, ValidatorMetadata},
-    state::ValsetState,
+use tgrade_valset::msg::{
+    UnvalidatedDistributionContract, UnvalidatedDistributionContracts, ValidatorMetadata,
 };
 
 use crate::msg::{InstantiateMsg, Period};
@@ -23,27 +22,6 @@ pub fn contract_engagement() -> Box<dyn Contract<TgradeMsg, TgradeQuery>> {
         tg4_engagement::contract::instantiate,
         tg4_engagement::contract::query,
     );
-    Box::new(contract)
-}
-
-pub fn contract_ap_voting() -> Box<dyn Contract<TgradeMsg, TgradeQuery>> {
-    let contract = ContractWrapper::new(
-        tgrade_ap_voting::contract::execute,
-        tgrade_ap_voting::contract::instantiate,
-        tgrade_ap_voting::contract::query,
-    )
-    .with_reply(tgrade_ap_voting::contract::reply);
-
-    Box::new(contract)
-}
-
-pub fn contract_trusted_circle() -> Box<dyn Contract<TgradeMsg, TgradeQuery>> {
-    let contract = ContractWrapper::new(
-        tgrade_trusted_circle::contract::execute,
-        tgrade_trusted_circle::contract::instantiate,
-        tgrade_trusted_circle::contract::query,
-    );
-
     Box::new(contract)
 }
 
@@ -208,7 +186,7 @@ impl SuiteBuilder {
         let membership = app
             .instantiate_contract(
                 engagement_id,
-                Addr::unchecked(admin.clone()),
+                Addr::unchecked(admin),
                 &tg4_engagement::msg::InstantiateMsg {
                     admin: Some(admin.to_string()),
                     members,
@@ -244,7 +222,7 @@ impl SuiteBuilder {
         let oc_distribution_contract = app
             .instantiate_contract(
                 engagement_id,
-                Addr::unchecked(admin.clone()),
+                Addr::unchecked(admin),
                 &tg4_engagement::msg::InstantiateMsg {
                     admin: Some(admin.to_string()),
                     members: self.oc_distribution.members,
@@ -261,7 +239,7 @@ impl SuiteBuilder {
         let ap_distribution_contract = app
             .instantiate_contract(
                 engagement_id,
-                Addr::unchecked(admin.clone()),
+                Addr::unchecked(admin),
                 &tg4_engagement::msg::InstantiateMsg {
                     admin: Some(admin.to_string()),
                     members: self.ap_distribution.members,
@@ -280,7 +258,7 @@ impl SuiteBuilder {
         let tc_payments = app
             .instantiate_contract(
                 tc_payments_id,
-                Addr::unchecked(admin.clone()),
+                Addr::unchecked(admin),
                 &InstantiateMsg {
                     admin: Some(admin.to_owned()),
                     oc_addr: oc_distribution_contract.to_string(),
@@ -300,7 +278,7 @@ impl SuiteBuilder {
         let valset = app
             .instantiate_contract(
                 valset_id,
-                Addr::unchecked(admin.clone()),
+                Addr::unchecked(admin),
                 &tgrade_valset::msg::InstantiateMsg {
                     admin: Some(admin.to_string()),
                     membership: membership.to_string(),
@@ -308,7 +286,7 @@ impl SuiteBuilder {
                     max_validators: u32::MAX,
                     epoch_length: self.epoch_length,
                     epoch_reward: coin(self.epoch_reward, "usdc"),
-                    initial_keys: operators.clone(),
+                    initial_keys: operators,
                     scaling: None,
                     fee_percentage: Decimal::zero(),
                     auto_unjail: false,
@@ -329,12 +307,18 @@ impl SuiteBuilder {
             )
             .unwrap();
 
+        // promote the tc-payments and valset contract
+        app.promote(admin, valset.as_str()).unwrap();
+        app.promote(admin, tc_payments.as_str()).unwrap();
+
+        // process initial genesis block
+        app.next_block().unwrap();
+
         Suite {
             app,
             tc_payments,
             ap_contract: ap_distribution_contract,
             oc_contract: oc_distribution_contract,
-            valset,
             epoch_length: self.epoch_length,
             denom,
         }
@@ -346,7 +330,6 @@ pub struct Suite {
     pub tc_payments: Addr,
     pub ap_contract: Addr,
     pub oc_contract: Addr,
-    valset: Addr,
     epoch_length: u64,
     denom: String,
 }
@@ -377,25 +360,5 @@ impl Suite {
             .query_balance(&Addr::unchecked(owner), &self.denom)?
             .amount;
         Ok(amount.into())
-    }
-
-    pub fn trigger_valset_end_block(&mut self) -> AnyResult<()> {
-        self.app
-            .wasm_sudo(
-                self.valset.clone(),
-                &TgradeSudoMsg::<ValsetState>::EndWithValidatorUpdate {},
-            )
-            .unwrap();
-        Ok(())
-    }
-
-    pub fn trigger_tc_payments_end_block(&mut self) -> AnyResult<()> {
-        self.app
-            .wasm_sudo(
-                self.tc_payments.clone(),
-                &TgradeSudoMsg::<ValsetState>::EndBlock {},
-            )
-            .unwrap();
-        Ok(())
     }
 }

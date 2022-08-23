@@ -15,37 +15,28 @@ fn simple_distribution() {
         .with_ap(&[(ap[0], 1)], None)
         .build();
 
-    assert_eq!(suite.token_balance("dist1").unwrap(), 0);
-    assert_eq!(suite.token_balance("dist2").unwrap(), 0);
-    assert_eq!(suite.token_balance("community").unwrap(), 0);
-    assert_eq!(suite.token_balance("member1").unwrap(), 0);
-    assert_eq!(suite.token_balance("member2").unwrap(), 0);
-
-    // advance epoch and trigger end_block twice, since first there is no reward
+    // First time, 160 tokens are being sent and 2 tokens are left on tc-payment contract
+    // First block is processed at the end of SuiteBuilder::build(), and with
+    // advance_epoch() suite enters second epoch
     suite.advance_epoch().unwrap();
-    suite.trigger_valset_end_block().unwrap();
-    suite.advance_epoch().unwrap();
+    assert_eq!(suite.token_balance(suite.tc_payments.as_str()).unwrap(), 2);
 
-    // First time, 80 tokens are being sent and 1 token is left on tc-payment contract
-    suite.trigger_valset_end_block().unwrap();
-    assert_eq!(suite.token_balance(suite.tc_payments.as_str()).unwrap(), 1);
-
-    // Triggering payments does nothing, because there are not enough funds
-    suite.trigger_tc_payments_end_block().unwrap();
+    // Tokens are not sent, because there are not enough funds
     assert_eq!(suite.token_balance(suite.ap_contract.as_str()).unwrap(), 0);
     assert_eq!(suite.token_balance(suite.oc_contract.as_str()).unwrap(), 0);
 
-    // Advance epoch twice - this time 160 tokens are being sent to tc-payments
-    // and 2 tokens are left, summarizing to 3 in total
+    // Advance epoch twice - first time tc-payment end_block is being called,
+    // but at a time only 2 tokens are present on balance.
+    // Then valset starts its own end_block, which sends tokens to tc-payments.
+    // At the start of another end_block finally distribute_rewards transaction
+    // is sent, which fills receivers balances.
+    // At the end, valset triggers own end_block again, sending 80 tokens to
+    // tc-payments once more, which results in 1 token left again.
     suite.advance_epoch().unwrap();
     suite.advance_epoch().unwrap();
-    suite.trigger_valset_end_block().unwrap();
-    assert_eq!(suite.token_balance(suite.tc_payments.as_str()).unwrap(), 3);
 
-    // This time triggering tc-payments end block will result in transfer
-    // to both oc and ac contracts via DistributeRewards message
-    suite.trigger_tc_payments_end_block().unwrap();
-    assert_eq!(suite.token_balance(suite.tc_payments.as_str()).unwrap(), 0);
+    assert_eq!(suite.token_balance(suite.tc_payments.as_str()).unwrap(), 1);
+
     // 1 token for one member of AP
     assert_eq!(suite.token_balance(suite.ap_contract.as_str()).unwrap(), 1);
     // 2 tokens for two member of OC
