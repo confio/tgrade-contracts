@@ -52,7 +52,8 @@ pub fn contract_tc_payments() -> Box<dyn Contract<TgradeMsg, TgradeQuery>> {
         crate::contract::execute,
         crate::contract::instantiate,
         crate::contract::query,
-    );
+    )
+    .with_sudo(crate::contract::sudo);
 
     Box::new(contract)
 }
@@ -79,11 +80,16 @@ struct DistributionConfig {
 #[derive(Derivative, Debug, Clone)]
 #[derivative(Default = "new")]
 pub struct SuiteBuilder {
+    /// Amount of reward by member paid by tc-payments contract
     pub payment_amount: Uint128,
+    /// Percentage of how much tokens valset sends as a reward to tc-payments contract
+    pub distribute_ratio: Decimal,
     #[derivative(Default(value = "Period::Daily {}"))]
     pub payment_period: Period,
-    /// Epoch length in seconds, 100s by default
-    #[derivative(Default(value = "100"))]
+    /// Amount of tokens sent periodically by valset contract to tc-payments
+    pub epoch_reward: u128,
+    /// Epoch length in seconds, 24h by default
+    #[derivative(Default(value = "3600 * 24"))]
     epoch_length: u64,
     /// Valset operators, with optionally provided pubkeys
     operators: Vec<(String, Option<Pubkey>)>,
@@ -96,6 +102,21 @@ pub struct SuiteBuilder {
 }
 
 impl SuiteBuilder {
+    pub fn with_distribute_ratio(mut self, amount: u64) -> Self {
+        self.distribute_ratio = Decimal::percent(amount);
+        self
+    }
+
+    pub fn with_payment_amount(mut self, amount: impl Into<Uint128>) -> Self {
+        self.payment_amount = amount.into();
+        self
+    }
+
+    pub fn with_epoch_reward(mut self, amount: u128) -> Self {
+        self.epoch_reward = amount;
+        self
+    }
+
     pub fn with_operators(mut self, operators: &[&str]) -> Self {
         self.operators = operators
             .iter()
@@ -286,7 +307,7 @@ impl SuiteBuilder {
                     min_points: 1u64,
                     max_validators: u32::MAX,
                     epoch_length: self.epoch_length,
-                    epoch_reward: coin(100, "usdc"),
+                    epoch_reward: coin(self.epoch_reward, "usdc"),
                     initial_keys: operators.clone(),
                     scaling: None,
                     fee_percentage: Decimal::zero(),
@@ -295,7 +316,7 @@ impl SuiteBuilder {
                     distribution_contracts: UnvalidatedDistributionContracts {
                         inner: vec![UnvalidatedDistributionContract {
                             contract: tc_payments.to_string(),
-                            ratio: Decimal::percent(60),
+                            ratio: self.distribute_ratio,
                         }],
                     },
                     validator_group_code_id: engagement_id,
@@ -310,6 +331,7 @@ impl SuiteBuilder {
 
         Suite {
             app,
+            tc_payments,
             valset,
             epoch_length: self.epoch_length,
             denom,
@@ -319,6 +341,7 @@ impl SuiteBuilder {
 
 pub struct Suite {
     app: TgradeApp,
+    tc_payments: Addr,
     valset: Addr,
     epoch_length: u64,
     denom: String,
@@ -327,6 +350,16 @@ pub struct Suite {
 impl Suite {
     pub fn advance_epoch(&mut self) -> AnyResult<()> {
         self.app.advance_seconds(self.epoch_length);
+
+        use chrono::{NaiveDateTime, Timelike};
+        let timestamp = self.app.block_info().time;
+        let daytime = NaiveDateTime::from_timestamp(timestamp.seconds() as i64, 0);
+        if daytime.hour() != 0 {
+            // if time isn't midnight, advance it 15 hours (default timestamp starts at 9)
+            // it's requried workaround since end_block implementation requires to be at 0
+            self.app.advance_seconds(3600 * 15);
+        }
+
         let _ = self.app.end_block()?;
         self.app.begin_block(vec![])?;
         Ok(())
@@ -347,6 +380,16 @@ impl Suite {
             .wasm_sudo(
                 self.valset.clone(),
                 &TgradeSudoMsg::<ValsetState>::EndWithValidatorUpdate {},
+            )
+            .unwrap();
+        Ok(())
+    }
+
+    pub fn trigger_tc_payments_end_block(&mut self) -> AnyResult<()> {
+        self.app
+            .wasm_sudo(
+                self.tc_payments.clone(),
+                &TgradeSudoMsg::<ValsetState>::EndBlock {},
             )
             .unwrap();
         Ok(())
