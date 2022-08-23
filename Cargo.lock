@@ -938,8 +938,6 @@ dependencies = [
  "tg-voting-contract",
  "tg4",
  "tg4-engagement",
- "tgrade-ap-voting",
- "tgrade-trusted-circle",
  "thiserror",
 ]
 
