@@ -75,12 +75,12 @@ pub fn execute(
 }
 
 // Taken from tg4-stake
-pub fn validate_funds(funds: &[Coin], stake_denom: &str) -> Result<Uint128, ContractError> {
+pub fn validate_funds(funds: &[Coin], distribute_denom: &str) -> Result<Uint128, ContractError> {
     match funds {
         [] => Ok(Uint128::zero()),
-        [Coin { denom, amount }] if denom == stake_denom => Ok(*amount),
-        [_] => Err(ContractError::MissingDenom(stake_denom.to_string())),
-        _ => Err(ContractError::ExtraDenoms(stake_denom.to_string())),
+        [Coin { denom, amount }] if denom == distribute_denom => Ok(*amount),
+        [_] => Err(ContractError::MissingDenom(distribute_denom.to_string())),
+        _ => Err(ContractError::ExtraDenoms(distribute_denom.to_string())),
     }
 }
 
@@ -95,7 +95,8 @@ pub fn execute_distribute_rewards<Q: CustomQuery>(
         .transpose()?
         .unwrap_or(info.sender);
 
-    let denom = CONFIG.load(deps.storage)?.denom;
+    let config = CONFIG.load(deps.storage)?;
+    let denom = config.denom.clone();
 
     let funds_received = validate_funds(&info.funds, &denom)?;
 
@@ -103,19 +104,20 @@ pub fn execute_distribute_rewards<Q: CustomQuery>(
         return Ok(Response::new());
     }
 
-    let config = CONFIG.load(deps.storage)?;
+    // Number of AP/OC members can be extrapolated from total points query, since
+    // each member has 1 point.
     let number_of_oc_members = config.oc_addr.total_points(&deps.querier)? as u128;
     let number_of_ap_members = config.ap_addr.total_points(&deps.querier)? as u128;
-    let total_funds = deps
+    let current_funds = deps
         .querier
         .query_balance(env.contract.address, denom.clone())?
         .amount;
 
     // If funds stored on contract are enough to cover payments for OC and AP members, then distribute full sent amount.
     // Otherwise, send 99% of amount and store 1%.
-    let rewards_fund =
+    let required_reward_amount =
         Uint128::new(number_of_oc_members + number_of_ap_members) * config.payment_amount;
-    let funds_to_distribute = if rewards_fund >= total_funds {
+    let funds_to_distribute = if current_funds >= required_reward_amount + funds_received {
         funds_received
     } else {
         Decimal::percent(99) * funds_received
@@ -194,11 +196,13 @@ fn end_block<Q: CustomQuery>(deps: DepsMut<Q>, env: Env) -> Result<Response, Con
     let number_of_oc_members = config.oc_addr.total_points(&deps.querier)? as u128;
     let number_of_ap_members = config.ap_addr.total_points(&deps.querier)? as u128;
 
+    // TODO follow up: Second condition may be later lifted; not-full amount can be distributed as well
     if total_funds == 0
         || (number_of_ap_members + number_of_oc_members) * config.payment_amount.u128()
             > total_funds
     {
-        // Register empty payment in state (to avoid checking / doing the same work again), until next payment period
+        // Register empty payment in state (to avoid checking / doing the same work again),
+        // until next payment period
         payments().create_payment(deps.storage, 0, 0, &env.block)?;
 
         // Nothing to distribute
@@ -207,6 +211,7 @@ fn end_block<Q: CustomQuery>(deps: DepsMut<Q>, env: Env) -> Result<Response, Con
 
     // Pay oc + ap members
     let mut msgs = vec![];
+    // TODO follow up: Replace that with ratio per total amount of current funds
     let oc_amount = number_of_oc_members * config.payment_amount.u128();
     if oc_amount != 0 {
         let oc_funds_to_pay = coins(oc_amount, config.denom.clone());
@@ -218,6 +223,7 @@ fn end_block<Q: CustomQuery>(deps: DepsMut<Q>, env: Env) -> Result<Response, Con
         msgs.push(oc_reward_msg);
     }
 
+    // TODO follow up: Replace that with ratio per total amount of current funds
     let ap_amount = number_of_ap_members * config.payment_amount.u128();
     if ap_amount != 0 {
         let ap_funds_to_pay = coins(ap_amount, config.denom.clone());

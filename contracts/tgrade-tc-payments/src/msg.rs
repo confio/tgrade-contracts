@@ -45,9 +45,9 @@ impl Period {
 #[serde(rename_all = "snake_case")]
 pub enum ExecuteMsg {
     /// Distributes rewards sent with this message.
-    /// Added here to comply with the distribution standard (CW2222). In this contract, rewards are
-    /// just kept in the contract, for monthly distribution to OC + AP members (payment) and
-    /// engagement point holders (remaining after payment sent to `engagement_addr`).
+    /// Added here to comply with the distribution standard (CW2222). In this contract,
+    /// 1% of rewards are kept in the contract, for monthly distribution to OC + AP members (payment)
+    /// and the rest (99%) are sent to engagement point holders (`tg4-engagement` contract).
     DistributeRewards {
         /// Original source of rewards. Informational; if present, overwrites "sender" field on
         /// the propagated event.
