@@ -332,6 +332,8 @@ impl SuiteBuilder {
         Suite {
             app,
             tc_payments,
+            ap_contract: ap_distribution_contract,
+            oc_contract: oc_distribution_contract,
             valset,
             epoch_length: self.epoch_length,
             denom,
@@ -341,7 +343,9 @@ impl SuiteBuilder {
 
 pub struct Suite {
     app: TgradeApp,
-    tc_payments: Addr,
+    pub tc_payments: Addr,
+    pub ap_contract: Addr,
+    pub oc_contract: Addr,
     valset: Addr,
     epoch_length: u64,
     denom: String,

@@ -90,7 +90,6 @@ pub fn execute_distribute_rewards<Q: CustomQuery>(
     info: MessageInfo,
     sender: Option<String>,
 ) -> Result<Response, ContractError> {
-    dbg!("execute distribute rewards");
     let sender = sender
         .map(|sender| deps.api.addr_validate(&sender))
         .transpose()?
@@ -139,7 +138,6 @@ pub fn execute_distribute_rewards<Q: CustomQuery>(
         .add_attribute("amount", &funds_to_distribute.to_string())
         .add_submessage(distribute_msg);
 
-    dbg!(resp.clone());
     Ok(resp)
 }
 
@@ -162,7 +160,6 @@ fn privilege_promote<Q: CustomQuery>(_deps: DepsMut<Q>) -> Result<Response, Cont
 }
 
 fn end_block<Q: CustomQuery>(deps: DepsMut<Q>, env: Env) -> Result<Response, ContractError> {
-    dbg!("proper end block");
     let resp = Response::new();
     // If not at beginning of day, do nothing
     if !hour_after_midnight(&env.block.time) {
@@ -196,9 +193,8 @@ fn end_block<Q: CustomQuery>(deps: DepsMut<Q>, env: Env) -> Result<Response, Con
         .u128();
 
     // Get all members from oc
-    let number_of_oc_members = dbg!(config.oc_addr.total_points(&deps.querier)? as u128);
-    let number_of_ap_members = dbg!(config.ap_addr.total_points(&deps.querier)? as u128);
-    dbg!(total_funds.clone());
+    let number_of_oc_members = config.oc_addr.total_points(&deps.querier)? as u128;
+    let number_of_ap_members = config.ap_addr.total_points(&deps.querier)? as u128;
 
     // TODO follow up: Second condition may be later lifted; not-full amount can be distributed as well
     if total_funds == 0
@@ -247,8 +243,6 @@ fn end_block<Q: CustomQuery>(deps: DepsMut<Q>, env: Env) -> Result<Response, Con
         .add_attribute("member_pay", config.payment_amount.to_string())
         .add_attribute("denom", config.denom);
     let resp = resp.add_submessages(msgs).add_event(evt);
-
-    dbg!(resp.clone());
 
     Ok(resp)
 }
