@@ -2,15 +2,12 @@ use super::suite::SuiteBuilder;
 
 #[test]
 fn simple_distribution() {
-    let oc = vec!["dist1", "dist2"];
-    let ap = vec!["community"];
-    let members = vec!["member1", "member2"];
+    let oc = vec!["oc1", "oc2"];
+    let ap = vec!["ap1"];
     let mut suite = SuiteBuilder::new()
         .with_epoch_reward(100u128)
         .with_distribute_ratio(80)
         .with_payment_amount(1u128)
-        .with_engagement(&[(members[0], 1), (members[1], 1)])
-        .with_operators(&members)
         .with_oc(&[(oc[0], 1), (oc[1], 1)], None)
         .with_ap(&[(ap[0], 1)], None)
         .build();

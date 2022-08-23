@@ -70,8 +70,10 @@ pub struct SuiteBuilder {
     #[derivative(Default(value = "3600 * 24"))]
     epoch_length: u64,
     /// Valset operators, with optionally provided pubkeys
+    #[derivative(Default(value = "vec![(\"operator1\".to_owned(), None)]"))]
     operators: Vec<(String, Option<Pubkey>)>,
     /// Engagement members
+    #[derivative(Default(value = "vec![(\"operator1\".to_owned(), 1)]"))]
     members: Vec<(String, u64)>,
     /// Configuration of Oversight Community distribution contract
     oc_distribution: DistributionConfig,
@@ -92,22 +94,6 @@ impl SuiteBuilder {
 
     pub fn with_epoch_reward(mut self, amount: u128) -> Self {
         self.epoch_reward = amount;
-        self
-    }
-
-    pub fn with_operators(mut self, operators: &[&str]) -> Self {
-        self.operators = operators
-            .iter()
-            .map(|addr| ((*addr).to_owned(), None))
-            .collect();
-        self
-    }
-
-    pub fn with_engagement(mut self, members: &[(&str, u64)]) -> Self {
-        self.members = members
-            .iter()
-            .map(|(addr, points)| ((*addr).to_owned(), *points))
-            .collect();
         self
     }
 
