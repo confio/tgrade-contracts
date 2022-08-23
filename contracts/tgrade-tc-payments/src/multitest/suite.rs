@@ -1,4 +1,5 @@
 use anyhow::Result as AnyResult;
+use chrono::{NaiveDateTime, Timelike};
 use derivative::Derivative;
 
 use cosmwasm_std::{coin, Addr, Binary, Decimal, StdResult, Uint128};
@@ -300,6 +301,15 @@ impl SuiteBuilder {
         // process initial genesis block
         app.next_block().unwrap();
 
+        // Move timestamp to midnight
+        let timestamp = app.block_info().time;
+        let daytime = NaiveDateTime::from_timestamp(timestamp.seconds() as i64, 0);
+        if daytime.hour() != 0 {
+            // if time isn't midnight, advance it 15 hours (default timestamp starts at 9)
+            // it's requried workaround since end_block implementation requires to be at 0
+            app.advance_seconds(3600 * 15);
+        }
+
         Suite {
             app,
             tc_payments,
@@ -321,18 +331,8 @@ pub struct Suite {
 }
 
 impl Suite {
-    pub fn advance_epoch(&mut self) -> AnyResult<()> {
-        self.app.advance_seconds(self.epoch_length);
-
-        use chrono::{NaiveDateTime, Timelike};
-        let timestamp = self.app.block_info().time;
-        let daytime = NaiveDateTime::from_timestamp(timestamp.seconds() as i64, 0);
-        if daytime.hour() != 0 {
-            // if time isn't midnight, advance it 15 hours (default timestamp starts at 9)
-            // it's requried workaround since end_block implementation requires to be at 0
-            self.app.advance_seconds(3600 * 15);
-        }
-
+    pub fn advance_epochs(&mut self, number: u64) -> AnyResult<()> {
+        self.app.advance_seconds(self.epoch_length * number);
         let _ = self.app.end_block()?;
         self.app.begin_block(vec![])?;
         Ok(())
