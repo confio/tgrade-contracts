@@ -460,6 +460,14 @@ mod tests {
             .collect()
     }
 
+    fn wasm_attributes(res: &AppResponse) -> Vec<Attribute> {
+        res.events
+            .iter()
+            .filter(|e| e.ty == "wasm")
+            .flat_map(|e| e.attributes.clone())
+            .collect()
+    }
+
     #[track_caller]
     fn assert_sorted_eq<F, T>(left: Vec<T>, right: Vec<T>, cmp: &F)
     where
@@ -670,10 +678,61 @@ mod tests {
 
         // Try to make payments
         let res = app.wasm_sudo(payments_addr.clone(), &sudo_msg).unwrap();
+        let block = app.block_info();
+        assert!(is_month_beginning(&block));
 
         // Check there's a payment summary message
-        assert_eq!(res.events.len(), 1);
-        assert_eq!(res.events[0].ty, "sudo");
+        assert_eq!(res.events.len(), 6);
+        assert_eq!(res.events[1].ty, "wasm-tc_payments");
+        let got_wasm_attributes = wasm_attributes(&res);
+        let expected_wasm_attributes = vec![
+            Attribute {
+                key: "_contract_addr".to_string(),
+                value: "contract0".to_string(),
+            },
+            Attribute {
+                key: "action".to_string(),
+                value: "distribute_rewards".to_string(),
+            },
+            Attribute {
+                key: "sender".to_string(),
+                value: "contract3".to_string(),
+            },
+            Attribute {
+                key: "denom".to_string(),
+                value: TC_DENOM.to_string(),
+            },
+            Attribute {
+                key: "amount".to_string(),
+                value: "66666666".to_string(),
+            },
+            // second transaction
+            Attribute {
+                key: "_contract_addr".to_string(),
+                value: "contract1".to_string(),
+            },
+            Attribute {
+                key: "action".to_string(),
+                value: "distribute_rewards".to_string(),
+            },
+            Attribute {
+                key: "sender".to_string(),
+                value: "contract3".to_string(),
+            },
+            Attribute {
+                key: "denom".to_string(),
+                value: TC_DENOM.to_string(),
+            },
+            Attribute {
+                key: "amount".to_string(),
+                value: "33333333".to_string(),
+            },
+        ];
+        assert_sorted_eq(
+            got_wasm_attributes,
+            expected_wasm_attributes,
+            &cmp_attr_by_key,
+        );
 
         // 4. Fully funded contract, but pay again fails (already marked as paid, although didn't go through)
         // Enough money for all members, plus some amount for engagement contract.
@@ -696,9 +755,58 @@ mod tests {
         // Try to make payments
         let res = app.wasm_sudo(payments_addr.clone(), &sudo_msg).unwrap();
 
-        // Check events (sudo log event only)
-        assert_eq!(res.events.len(), 1);
-        assert_eq!(res.events[0].ty, "sudo");
+        // Check there's a payment summary message
+        assert_eq!(res.events.len(), 6);
+        assert_eq!(res.events[1].ty, "wasm-tc_payments");
+        let got_wasm_attributes = wasm_attributes(&res);
+        let expected_wasm_attributes = vec![
+            Attribute {
+                key: "_contract_addr".to_string(),
+                value: "contract0".to_string(),
+            },
+            Attribute {
+                key: "action".to_string(),
+                value: "distribute_rewards".to_string(),
+            },
+            Attribute {
+                key: "sender".to_string(),
+                value: "contract3".to_string(),
+            },
+            Attribute {
+                key: "denom".to_string(),
+                value: TC_DENOM.to_string(),
+            },
+            Attribute {
+                key: "amount".to_string(),
+                value: "233333333".to_string(),
+            },
+            // second transaction
+            Attribute {
+                key: "_contract_addr".to_string(),
+                value: "contract1".to_string(),
+            },
+            Attribute {
+                key: "action".to_string(),
+                value: "distribute_rewards".to_string(),
+            },
+            Attribute {
+                key: "sender".to_string(),
+                value: "contract3".to_string(),
+            },
+            Attribute {
+                key: "denom".to_string(),
+                value: TC_DENOM.to_string(),
+            },
+            Attribute {
+                key: "amount".to_string(),
+                value: "116666666".to_string(),
+            },
+        ];
+        assert_sorted_eq(
+            got_wasm_attributes,
+            expected_wasm_attributes,
+            &cmp_attr_by_key,
+        );
 
         // Advance to more than one hour after midnight
         app.advance_seconds(3600);
@@ -710,7 +818,7 @@ mod tests {
         // Try to make payments
         let res = app.wasm_sudo(payments_addr, &sudo_msg).unwrap();
 
-        // Check events (sudo log event only)
+        // Check events (sudo log event only) - nothing happens
         assert_eq!(res.events.len(), 1);
         assert_eq!(res.events[0].ty, "sudo");
     }
