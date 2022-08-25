@@ -194,6 +194,7 @@ fn end_block<Q: CustomQuery>(deps: DepsMut<Q>, env: Env) -> Result<Response, Con
     // Get all members from oc
     let number_of_oc_members = config.oc_addr.total_points(&deps.querier)? as u128;
     let number_of_ap_members = config.ap_addr.total_points(&deps.querier)? as u128;
+    let sum_of_members = number_of_ap_members + number_of_oc_members;
 
     if total_funds == Uint128::zero() {
         // Register empty payment in state (to avoid checking / doing the same work again),
@@ -206,11 +207,15 @@ fn end_block<Q: CustomQuery>(deps: DepsMut<Q>, env: Env) -> Result<Response, Con
 
     // Pay oc + ap members
     let mut msgs = vec![];
-    let oc_amount = total_funds
-        * Decimal::from_ratio(
-            number_of_oc_members,
-            number_of_oc_members + number_of_ap_members,
-        );
+    let oc_amount = if sum_of_members == 0 {
+        Uint128::zero()
+    } else {
+        total_funds
+            * Decimal::from_ratio(
+                number_of_oc_members,
+                number_of_oc_members + number_of_ap_members,
+            )
+    };
     if oc_amount != Uint128::zero() {
         let oc_funds_to_pay = coins(oc_amount.u128(), config.denom.clone());
         let oc_reward_msg = SubMsg::new(WasmMsg::Execute {
@@ -221,11 +226,15 @@ fn end_block<Q: CustomQuery>(deps: DepsMut<Q>, env: Env) -> Result<Response, Con
         msgs.push(oc_reward_msg);
     }
 
-    let ap_amount = total_funds
-        * Decimal::from_ratio(
-            number_of_ap_members,
-            number_of_oc_members + number_of_ap_members,
-        );
+    let ap_amount = if sum_of_members == 0 {
+        Uint128::zero()
+    } else {
+        total_funds
+            * Decimal::from_ratio(
+                number_of_ap_members,
+                number_of_oc_members + number_of_ap_members,
+            )
+    };
     if ap_amount != Uint128::zero() {
         let ap_funds_to_pay = coins(ap_amount.u128(), config.denom.clone());
         let ap_reward_msg = SubMsg::new(WasmMsg::Execute {
