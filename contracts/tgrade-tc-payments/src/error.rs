@@ -15,7 +15,9 @@ pub enum ContractError {
     #[error("Unauthorized: {0}")]
     Unauthorized(String),
 
-    /// TODO: Remove after we finished implementing everything
-    #[error("Unimplemented")]
-    Unimplemented {},
+    #[error("Must send '{0}' to distribute rewards`")]
+    MissingDenom(String),
+
+    #[error("Sent unsupported denoms, must send '{0}' to distribute rewards")]
+    ExtraDenoms(String),
 }

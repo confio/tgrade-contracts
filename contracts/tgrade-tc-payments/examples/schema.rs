@@ -3,8 +3,7 @@ use std::fs::create_dir_all;
 
 use cosmwasm_schema::{export_schema, export_schema_with_title, remove_schemas, schema_for};
 
-use tgrade_tc_payments::msg::PaymentListResponse;
-pub use tgrade_tc_payments::msg::{ExecuteMsg, InstantiateMsg, QueryMsg};
+use tgrade_tc_payments::msg::{ExecuteMsg, InstantiateMsg, PaymentListResponse, Period, QueryMsg};
 use tgrade_tc_payments::state::PaymentsConfig;
 
 fn main() {
@@ -18,4 +17,5 @@ fn main() {
     export_schema_with_title(&schema_for!(QueryMsg), &out_dir, "QueryMsg");
     export_schema(&schema_for!(PaymentsConfig), &out_dir);
     export_schema(&schema_for!(PaymentListResponse), &out_dir);
+    export_schema(&schema_for!(Period), &out_dir);
 }

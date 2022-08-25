@@ -1,8 +1,8 @@
 #[cfg(not(feature = "library"))]
 use cosmwasm_std::entry_point;
 use cosmwasm_std::{
-    coins, to_binary, BankMsg, Binary, CustomQuery, Deps, DepsMut, Env, Event, MessageInfo, Order,
-    StdResult,
+    coins, to_binary, Binary, Coin, CustomQuery, Decimal, Deps, DepsMut, Env, Event, MessageInfo,
+    Order, StdResult, Uint128, WasmMsg,
 };
 use cw2::set_contract_version;
 use cw_storage_plus::Bound;
@@ -62,12 +62,83 @@ pub fn instantiate(
 
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn execute(
-    _deps: DepsMut<TgradeQuery>,
-    _env: Env,
-    _info: MessageInfo,
-    _msg: ExecuteMsg,
+    deps: DepsMut<TgradeQuery>,
+    env: Env,
+    info: MessageInfo,
+    msg: ExecuteMsg,
 ) -> Result<Response, ContractError> {
-    Err(ContractError::Unimplemented {})
+    match msg {
+        ExecuteMsg::DistributeRewards { sender } => {
+            execute_distribute_rewards(deps, env, info, sender)
+        }
+    }
+}
+
+// Taken from tg4-stake
+pub fn validate_funds(funds: &[Coin], distribute_denom: &str) -> Result<Uint128, ContractError> {
+    match funds {
+        [] => Ok(Uint128::zero()),
+        [Coin { denom, amount }] if denom == distribute_denom => Ok(*amount),
+        [_] => Err(ContractError::MissingDenom(distribute_denom.to_string())),
+        _ => Err(ContractError::ExtraDenoms(distribute_denom.to_string())),
+    }
+}
+
+pub fn execute_distribute_rewards<Q: CustomQuery>(
+    deps: DepsMut<Q>,
+    env: Env,
+    info: MessageInfo,
+    sender: Option<String>,
+) -> Result<Response, ContractError> {
+    let sender = sender
+        .map(|sender| deps.api.addr_validate(&sender))
+        .transpose()?
+        .unwrap_or(info.sender);
+
+    let config = CONFIG.load(deps.storage)?;
+    let denom = config.denom.clone();
+
+    let funds_received = validate_funds(&info.funds, &denom)?;
+
+    if funds_received == Uint128::zero() {
+        return Ok(Response::new());
+    }
+
+    // Number of AP/OC members can be extrapolated from total points query, since
+    // each member has 1 point.
+    let number_of_oc_members = config.oc_addr.total_points(&deps.querier)? as u128;
+    let number_of_ap_members = config.ap_addr.total_points(&deps.querier)? as u128;
+    let current_funds = deps
+        .querier
+        .query_balance(env.contract.address, denom.clone())?
+        .amount;
+
+    // If funds stored on contract are enough to cover payments for OC and AP members, then distribute full sent amount.
+    // Otherwise, send 99% of amount and store 1%.
+    let required_reward_amount =
+        Uint128::new(number_of_oc_members + number_of_ap_members) * config.payment_amount;
+    let funds_to_distribute = if current_funds >= required_reward_amount + funds_received {
+        funds_received
+    } else {
+        Decimal::percent(99) * funds_received
+    };
+
+    let distribute_msg = SubMsg::new(WasmMsg::Execute {
+        contract_addr: config.engagement_addr.to_string(),
+        msg: to_binary(&ExecuteMsg::DistributeRewards {
+            sender: Some(sender.to_string()),
+        })?,
+        funds: coins(funds_to_distribute.u128(), denom.clone()),
+    });
+
+    let resp = Response::new()
+        .add_attribute("action", "distribute_rewards")
+        .add_attribute("sender", sender.as_str())
+        .add_attribute("denom", &denom)
+        .add_attribute("amount", &funds_to_distribute.to_string())
+        .add_submessage(distribute_msg);
+
+    Ok(resp)
 }
 
 #[cfg_attr(not(feature = "library"), entry_point)]
@@ -121,8 +192,17 @@ fn end_block<Q: CustomQuery>(deps: DepsMut<Q>, env: Env) -> Result<Response, Con
         .amount
         .u128();
 
-    if total_funds == 0 {
-        // Register empty payment in state (to avoid checking / doing the same work again), until next payment period
+    // Get all members from oc
+    let number_of_oc_members = config.oc_addr.total_points(&deps.querier)? as u128;
+    let number_of_ap_members = config.ap_addr.total_points(&deps.querier)? as u128;
+
+    // TODO follow up: Second condition may be later lifted; not-full amount can be distributed as well
+    if total_funds == 0
+        || (number_of_ap_members + number_of_oc_members) * config.payment_amount.u128()
+            > total_funds
+    {
+        // Register empty payment in state (to avoid checking / doing the same work again),
+        // until next payment period
         payments().create_payment(deps.storage, 0, 0, &env.block)?;
 
         // Nothing to distribute
@@ -130,76 +210,39 @@ fn end_block<Q: CustomQuery>(deps: DepsMut<Q>, env: Env) -> Result<Response, Con
     }
 
     // Pay oc + ap members
-    // Get all members from oc
-    let limit = Some(100);
-    let mut oc_members = vec![];
-    let mut batch = config.oc_addr.list_members(&deps.querier, None, limit)?;
-
-    while !batch.is_empty() {
-        let last = Some(batch.last().unwrap().addr.clone());
-
-        oc_members.extend_from_slice(&batch);
-
-        // and get the next page
-        batch = config.oc_addr.list_members(&deps.querier, last, limit)?;
+    let mut msgs = vec![];
+    // TODO follow up: Replace that with ratio per total amount of current funds
+    let oc_amount = number_of_oc_members * config.payment_amount.u128();
+    if oc_amount != 0 {
+        let oc_funds_to_pay = coins(oc_amount, config.denom.clone());
+        let oc_reward_msg = SubMsg::new(WasmMsg::Execute {
+            contract_addr: config.oc_addr.addr().to_string(),
+            msg: to_binary(&ExecuteMsg::DistributeRewards { sender: None })?,
+            funds: oc_funds_to_pay,
+        });
+        msgs.push(oc_reward_msg);
     }
 
-    // Get all members from ap
-    let mut ap_members = vec![];
-    let mut batch = config.ap_addr.list_members(&deps.querier, None, limit)?;
-
-    while !batch.is_empty() {
-        let last = Some(batch.last().unwrap().addr.clone());
-
-        ap_members.extend_from_slice(&batch);
-
-        // and get the next page
-        batch = config.ap_addr.list_members(&deps.querier, last, limit)?;
+    // TODO follow up: Replace that with ratio per total amount of current funds
+    let ap_amount = number_of_ap_members * config.payment_amount.u128();
+    if ap_amount != 0 {
+        let ap_funds_to_pay = coins(ap_amount, config.denom.clone());
+        let ap_reward_msg = SubMsg::new(WasmMsg::Execute {
+            contract_addr: config.ap_addr.addr().to_string(),
+            msg: to_binary(&ExecuteMsg::DistributeRewards { sender: None })?,
+            funds: ap_funds_to_pay,
+        });
+        msgs.push(ap_reward_msg);
     }
-    let num_members = (oc_members.len() + ap_members.len()) as u128;
-
-    // Check if there are enough funds to pay all members
-    let mut member_pay = config.payment_amount.u128();
-    // Don't pay oc + ap members if there are not enough funds (prioritize engagement point holders)
-    if num_members == 0 || total_funds / num_members < member_pay {
-        member_pay = 0;
-    }
-
-    // Register payment in state
-    payments().create_payment(deps.storage, num_members as _, member_pay, &env.block)?;
-
-    // If enough funds, create pay messages for members
-    let mut msgs = if member_pay > 0 {
-        let member_amount = coins(member_pay, config.denom.clone());
-        [oc_members, ap_members]
-            .concat()
-            .iter()
-            .map(|m| BankMsg::Send {
-                to_address: m.addr.clone(),
-                amount: member_amount.clone(),
-            })
-            .collect::<Vec<_>>()
-    } else {
-        vec![]
-    };
-
-    // Send the rest of the funds to the engagement contract for distribution
-    let engagement_rewards = total_funds - member_pay * num_members;
-    let engagement_amount = coins(engagement_rewards, config.denom.clone());
-    let engagement_rewards_msg = BankMsg::Send {
-        to_address: config.engagement_addr.to_string(),
-        amount: engagement_amount,
-    };
-    msgs.push(engagement_rewards_msg);
 
     let evt = Event::new("tc_payments")
         .add_attribute("time", env.block.time.to_string())
         .add_attribute("height", env.block.height.to_string())
-        .add_attribute("num_members", num_members.to_string())
-        .add_attribute("member_pay", member_pay.to_string())
-        .add_attribute("engagement_rewards", engagement_rewards.to_string())
+        .add_attribute("num_oc_members", number_of_oc_members.to_string())
+        .add_attribute("num_ap_members", number_of_ap_members.to_string())
+        .add_attribute("member_pay", config.payment_amount.to_string())
         .add_attribute("denom", config.denom);
-    let resp = resp.add_messages(msgs).add_event(evt);
+    let resp = resp.add_submessages(msgs).add_event(evt);
 
     Ok(resp)
 }
@@ -335,7 +378,7 @@ mod tests {
     fn oc_members(num_oc_members: u64) -> Vec<Member> {
         let mut members = vec![];
         for i in 1u64..=num_oc_members {
-            members.push(member(format!("oc_member{:04}", i), 1000u64 * i));
+            members.push(member(format!("oc_member{:04}", i), 1));
         }
         members
     }
@@ -343,7 +386,7 @@ mod tests {
     fn ap_members(num_ap_members: u64) -> Vec<Member> {
         let mut members = vec![];
         for i in 1u64..=num_ap_members {
-            members.push(member(format!("ap_member{:04}", i), 100u64 * i));
+            members.push(member(format!("ap_member{:04}", i), 1));
         }
         members
     }
@@ -412,17 +455,7 @@ mod tests {
         res.events
             .iter()
             .filter(|e| e.ty == "wasm-tc_payments")
-            .map(|e| e.attributes.clone())
-            .flatten()
-            .collect()
-    }
-
-    fn transfer_attributes(res: &AppResponse) -> Vec<Attribute> {
-        res.events
-            .iter()
-            .filter(|e| e.ty == "transfer")
-            .map(|e| e.attributes.clone())
-            .flatten()
+            .flat_map(|e| e.attributes.clone())
             .collect()
     }
 
@@ -472,7 +505,7 @@ mod tests {
 
         let num_oc_members = 2;
         let num_ap_members = 1;
-        let (payments_addr, _oc_addr, _ap_addr, engagement_addr) =
+        let (payments_addr, _oc_addr, _ap_addr, _) =
             setup_test_case(&mut app, num_oc_members, num_ap_members);
         let num_members = num_oc_members + num_ap_members;
 
@@ -504,10 +537,10 @@ mod tests {
         let expected_event_types: Vec<String> = vec![
             "sudo".into(),
             "wasm-tc_payments".into(),
-            "transfer".into(),
-            "transfer".into(),
-            "transfer".into(),
-            "transfer".into(),
+            "execute".into(),
+            "wasm".into(), // distribute rewards 1
+            "execute".into(),
+            "wasm".into(), // distribute rewards 2
         ];
 
         assert_sorted_eq(got_event_types, expected_event_types, &|l, r| l.cmp(r));
@@ -529,15 +562,15 @@ mod tests {
                 value: block.height.to_string(),
             },
             Attribute {
-                key: "num_members".to_string(),
-                value: num_members.to_string(),
+                key: "num_oc_members".to_string(),
+                value: num_oc_members.to_string(),
+            },
+            Attribute {
+                key: "num_ap_members".to_string(),
+                value: num_ap_members.to_string(),
             },
             Attribute {
                 key: "member_pay".to_string(),
-                value: PAYMENT_AMOUNT.to_string(),
-            },
-            Attribute {
-                key: "engagement_rewards".to_string(),
                 value: PAYMENT_AMOUNT.to_string(),
             },
             Attribute {
@@ -549,67 +582,6 @@ mod tests {
         assert_sorted_eq(
             got_tc_payments_attributes,
             expected_tc_payments_attributes,
-            &cmp_attr_by_key,
-        );
-
-        // Check transfer attributes
-        let got_transfer_attributes = transfer_attributes(&res);
-
-        let payment_amount = [&PAYMENT_AMOUNT.to_string(), TC_DENOM].concat();
-        let expected_transfer_attributes = vec![
-            Attribute {
-                key: "recipient".to_string(),
-                value: "oc_member0001".to_string(),
-            },
-            Attribute {
-                key: "sender".to_string(),
-                value: "contract3".to_string(),
-            },
-            Attribute {
-                key: "amount".to_string(),
-                value: payment_amount.clone(),
-            },
-            Attribute {
-                key: "recipient".to_string(),
-                value: "oc_member0002".to_string(),
-            },
-            Attribute {
-                key: "sender".to_string(),
-                value: "contract3".to_string(),
-            },
-            Attribute {
-                key: "amount".to_string(),
-                value: payment_amount.clone(),
-            },
-            Attribute {
-                key: "recipient".to_string(),
-                value: "ap_member0001".to_string(),
-            },
-            Attribute {
-                key: "sender".to_string(),
-                value: "contract3".to_string(),
-            },
-            Attribute {
-                key: "amount".to_string(),
-                value: payment_amount.clone(),
-            },
-            Attribute {
-                key: "recipient".to_string(),
-                value: engagement_addr.to_string(),
-            },
-            Attribute {
-                key: "sender".to_string(),
-                value: "contract3".to_string(),
-            },
-            Attribute {
-                key: "amount".to_string(),
-                value: payment_amount,
-            },
-        ];
-
-        assert_sorted_eq(
-            got_transfer_attributes,
-            expected_transfer_attributes,
             &cmp_attr_by_key,
         );
     }
@@ -634,7 +606,7 @@ mod tests {
 
         let num_oc_members = 2;
         let num_ap_members = 1;
-        let (payments_addr, _oc_addr, _ap_addr, engagement_addr) = setup_test_case(&mut app, 2, 1);
+        let (payments_addr, _oc_addr, _ap_addr, _) = setup_test_case(&mut app, 2, 1);
         let num_members = num_oc_members + num_ap_members;
 
         // 1. Out of range (not first day of month, not after midnight)
@@ -699,75 +671,10 @@ mod tests {
         let res = app.wasm_sudo(payments_addr.clone(), &sudo_msg).unwrap();
 
         // Check there's a payment summary message
-        assert_eq!(res.events.len(), 3);
+        assert_eq!(res.events.len(), 1);
         assert_eq!(res.events[0].ty, "sudo");
 
-        // Check tc-payments attributes
-        let got_tc_payments_attributes = tc_payments_attributes(&res);
-
-        let expected_tc_payments_attributes = vec![
-            Attribute {
-                key: "_contract_addr".to_string(),
-                value: "contract3".to_string(),
-            },
-            Attribute {
-                key: "time".to_string(),
-                value: block.time.to_string(),
-            },
-            Attribute {
-                key: "height".to_string(),
-                value: block.height.to_string(),
-            },
-            Attribute {
-                key: "num_members".to_string(),
-                value: num_members.to_string(),
-            },
-            Attribute {
-                key: "member_pay".to_string(),
-                value: "0".to_string(), // No pay for members (not enough funds)
-            },
-            Attribute {
-                key: "engagement_rewards".to_string(),
-                value: PAYMENT_AMOUNT.to_string(),
-            },
-            Attribute {
-                key: "denom".to_string(),
-                value: TC_DENOM.to_string(),
-            },
-        ];
-
-        assert_sorted_eq(
-            got_tc_payments_attributes,
-            expected_tc_payments_attributes,
-            &cmp_attr_by_key,
-        );
-
-        // Check there's one transfer message (to engagement contract)
-        let got_transfer_attributes = transfer_attributes(&res);
-
-        let payment_amount = [&PAYMENT_AMOUNT.to_string(), TC_DENOM].concat();
-        let expected_transfer_attributes = vec![
-            Attribute {
-                key: "recipient".to_string(),
-                value: engagement_addr.to_string(),
-            },
-            Attribute {
-                key: "sender".to_string(),
-                value: "contract3".to_string(),
-            },
-            Attribute {
-                key: "amount".to_string(),
-                value: payment_amount,
-            },
-        ];
-
-        assert_sorted_eq(
-            got_transfer_attributes,
-            expected_transfer_attributes,
-            &cmp_attr_by_key,
-        );
-
-        // 4. Fully funded contract, but pay again fails (already paid)
+        // 4. Fully funded contract, but pay again fails (already marked as paid, although didn't go through)
         // Enough money for all members, plus some amount for engagement contract.
         // (Just sends funds from OWNER for simplicity)
         app.send_tokens(
@@ -827,7 +734,7 @@ mod tests {
 
         let num_oc_members = 0;
         let num_ap_members = 1;
-        let (payments_addr, _oc_addr, _ap_addr, engagement_addr) =
+        let (payments_addr, _oc_addr, _ap_addr, _) =
             setup_test_case(&mut app, num_oc_members, num_ap_members);
         let num_members = num_oc_members + num_ap_members;
 
@@ -854,43 +761,16 @@ mod tests {
 
         assert_eq!(res.events.len(), 2 + num_members as usize + 1);
 
-        // Check transfer messages
-        let got_transfer_attributes = transfer_attributes(&res);
-        println!("transfer: {:#?}", got_transfer_attributes);
+        let got_event_types = event_types(&res);
 
-        let payment_amount = [&PAYMENT_AMOUNT.to_string(), TC_DENOM].concat();
-        let expected_transfer_attributes = vec![
-            Attribute {
-                key: "recipient".to_string(),
-                value: "ap_member0001".to_string(),
-            },
-            Attribute {
-                key: "sender".to_string(),
-                value: "contract3".to_string(),
-            },
-            Attribute {
-                key: "amount".to_string(),
-                value: payment_amount.clone(),
-            },
-            Attribute {
-                key: "recipient".to_string(),
-                value: engagement_addr.to_string(),
-            },
-            Attribute {
-                key: "sender".to_string(),
-                value: "contract3".to_string(),
-            },
-            Attribute {
-                key: "amount".to_string(),
-                value: payment_amount,
-            },
+        let expected_event_types: Vec<String> = vec![
+            "sudo".into(),
+            "wasm-tc_payments".into(),
+            "execute".into(),
+            "wasm".into(), // distribute rewards, only one payment went through
         ];
 
-        assert_sorted_eq(
-            got_transfer_attributes,
-            expected_transfer_attributes,
-            &cmp_attr_by_key,
-        );
+        assert_sorted_eq(got_event_types, expected_event_types, &|l, r| l.cmp(r));
     }
 
     #[test]
@@ -913,7 +793,7 @@ mod tests {
 
         let num_oc_members = 2;
         let num_ap_members = 0;
-        let (payments_addr, _oc_addr, _ap_addr, engagement_addr) =
+        let (payments_addr, _oc_addr, _ap_addr, _) =
             setup_test_case(&mut app, num_oc_members, num_ap_members);
         let num_members = num_oc_members + num_ap_members;
 
@@ -938,55 +818,18 @@ mod tests {
         let sudo_msg = TgradeSudoMsg::<Empty>::EndBlock {};
         let res = app.wasm_sudo(payments_addr, &sudo_msg).unwrap();
 
-        assert_eq!(res.events.len(), 2 + num_members as usize + 1);
+        assert_eq!(res.events.len(), 2 + num_members as usize);
         // Check transfer messages
-        let got_transfer_attributes = transfer_attributes(&res);
+        let got_event_types = event_types(&res);
 
-        let payment_amount = [&PAYMENT_AMOUNT.to_string(), TC_DENOM].concat();
-        let expected_transfer_attributes = vec![
-            Attribute {
-                key: "recipient".to_string(),
-                value: "oc_member0001".to_string(),
-            },
-            Attribute {
-                key: "sender".to_string(),
-                value: "contract3".to_string(),
-            },
-            Attribute {
-                key: "amount".to_string(),
-                value: payment_amount.clone(),
-            },
-            Attribute {
-                key: "recipient".to_string(),
-                value: "oc_member0002".to_string(),
-            },
-            Attribute {
-                key: "sender".to_string(),
-                value: "contract3".to_string(),
-            },
-            Attribute {
-                key: "amount".to_string(),
-                value: payment_amount.clone(),
-            },
-            Attribute {
-                key: "recipient".to_string(),
-                value: engagement_addr.to_string(),
-            },
-            Attribute {
-                key: "sender".to_string(),
-                value: "contract3".to_string(),
-            },
-            Attribute {
-                key: "amount".to_string(),
-                value: payment_amount,
-            },
+        let expected_event_types: Vec<String> = vec![
+            "sudo".into(),
+            "wasm-tc_payments".into(),
+            "execute".into(),
+            "wasm".into(), // distribute rewards, only one payment went through
         ];
 
-        assert_sorted_eq(
-            got_transfer_attributes,
-            expected_transfer_attributes,
-            &cmp_attr_by_key,
-        );
+        assert_sorted_eq(got_event_types, expected_event_types, &|l, r| l.cmp(r));
     }
 
     #[test]
@@ -1009,7 +852,7 @@ mod tests {
 
         let num_oc_members = 0;
         let num_ap_members = 0;
-        let (payments_addr, _oc_addr, _ap_addr, engagement_addr) =
+        let (payments_addr, _oc_addr, _ap_addr, _) =
             setup_test_case(&mut app, num_oc_members, num_ap_members);
         let num_members = num_oc_members + num_ap_members;
 
@@ -1034,30 +877,42 @@ mod tests {
         let sudo_msg = TgradeSudoMsg::<Empty>::EndBlock {};
         let res = app.wasm_sudo(payments_addr, &sudo_msg).unwrap();
 
-        assert_eq!(res.events.len(), 2 + num_members as usize + 1);
-
-        // Check transfer messages
-        let got_transfer_attributes = transfer_attributes(&res);
-
-        let payment_amount = [&PAYMENT_AMOUNT.to_string(), TC_DENOM].concat();
-        let expected_transfer_attributes = vec![
+        assert_eq!(res.events[0].ty, "sudo");
+        let got_tc_payments_attributes = tc_payments_attributes(&res);
+        let expected_tc_payments_attributes = vec![
             Attribute {
-                key: "recipient".to_string(),
-                value: engagement_addr.to_string(),
-            },
-            Attribute {
-                key: "sender".to_string(),
+                key: "_contract_addr".to_string(),
                 value: "contract3".to_string(),
             },
             Attribute {
-                key: "amount".to_string(),
-                value: payment_amount,
+                key: "time".to_string(),
+                value: block.time.to_string(),
+            },
+            Attribute {
+                key: "height".to_string(),
+                value: block.height.to_string(),
+            },
+            Attribute {
+                key: "num_oc_members".to_string(),
+                value: num_oc_members.to_string(),
+            },
+            Attribute {
+                key: "num_ap_members".to_string(),
+                value: num_ap_members.to_string(),
+            },
+            Attribute {
+                key: "member_pay".to_string(),
+                value: PAYMENT_AMOUNT.to_string(),
+            },
+            Attribute {
+                key: "denom".to_string(),
+                value: TC_DENOM.to_string(),
             },
         ];
 
         assert_sorted_eq(
-            got_transfer_attributes,
-            expected_transfer_attributes,
+            got_tc_payments_attributes,
+            expected_tc_payments_attributes,
             &cmp_attr_by_key,
         );
     }

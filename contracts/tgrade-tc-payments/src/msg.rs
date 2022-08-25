@@ -17,7 +17,7 @@ pub struct InstantiateMsg {
     pub engagement_addr: String,
     /// The payments denom
     pub denom: String,
-    /// The required payment amount, in the `denom`
+    /// The required per-member payment amount, in the `denom`
     pub payment_amount: Uint128,
     /// Payment period (daily / monthly / yearly)
     pub payment_period: Period,
@@ -43,7 +43,17 @@ impl Period {
 
 #[derive(Serialize, Deserialize, Clone, PartialEq, JsonSchema, Debug)]
 #[serde(rename_all = "snake_case")]
-pub enum ExecuteMsg {}
+pub enum ExecuteMsg {
+    /// Distributes rewards sent with this message.
+    /// Added here to comply with the distribution standard (CW2222). In this contract,
+    /// 1% of rewards are kept in the contract, for monthly distribution to OC + AP members (payment)
+    /// and the rest (99%) are sent to engagement point holders (`tg4-engagement` contract).
+    DistributeRewards {
+        /// Original source of rewards. Informational; if present, overwrites "sender" field on
+        /// the propagated event.
+        sender: Option<String>,
+    },
+}
 
 #[derive(Serialize, Deserialize, Clone, PartialEq, JsonSchema, Debug)]
 #[serde(rename_all = "snake_case")]
