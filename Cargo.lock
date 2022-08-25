@@ -923,6 +923,7 @@ dependencies = [
 name = "tgrade-tc-payments"
 version = "0.13.1"
 dependencies = [
+ "anyhow",
  "chrono",
  "cosmwasm-schema",
  "cosmwasm-std",
@@ -930,6 +931,7 @@ dependencies = [
  "cw-multi-test",
  "cw-storage-plus",
  "cw2",
+ "derivative",
  "schemars",
  "serde",
  "tg-bindings",
@@ -938,6 +940,7 @@ dependencies = [
  "tg-voting-contract",
  "tg4",
  "tg4-engagement",
+ "tgrade-valset",
  "thiserror",
 ]
 
