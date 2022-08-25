@@ -1,6 +1,12 @@
 # TGrade Trusted Circle Payments
 
 This contract makes regular payments to the Oversight Community and Arbiter Pool members.
+It works as a proxy, that retains 1% of tokens sent through `ExecuteMsg::DistributeRewards {}` message,
+passing the rest to the `engagement_addr` contract.
+When particular amount `payment_amount * number of OC members * number of AP members` is met, contract
+sends 100% of such tokens and is ready to send rewards to all the members.
+`tc-payments` contract needs to be registered as an end blocker, and after that it will send `payment_amount`
+amount to OC and AP contracts through `DistributeRewards {}` message.
 
 ## Init
 
@@ -15,6 +21,9 @@ pub struct InstantiateMsg {
   pub oc_addr: String,
   /// Arbiter pool contract address
   pub ap_addr: String,
+  /// Engagement contract address.
+  /// To send the remaining funds after payment
+  pub engagement_addr: String,
   /// The required payment amount, in the payments denom
   pub denom: String,
   /// The required payment amount, in the TC denom
@@ -34,8 +43,9 @@ pub enum Period {
 
 #### Notes
   - This contract is to be funded from block rewards, i.e. its address and distribution percentage must be in the `distribution_contracts` tgrade_valset list.
-  - If there are not enough funds to make a `payment_amount` to all OC + AP members, the existing funds are distributed to the engagement point holders.
-  - Funds are distributed directly to members through `Bank::Send`. This assumes the total number of members is small (less than thirty).
+  - If there are not enough funds to make a `payment_amount` to all OC + AP members, 99% of existing funds are distributed to the engagement point holders and
+    1% is retained on contract till required amount is met.
+  - Funds are distributed to members through `tg4-engagement`'s `DistributeRewards message`.
   - If both OC and AP addresses are of the same contract, they are treated as different addresses, i.e. each member will be paid "twice".
   - The contract would need an `EndBlocker` privilege, to check the payment time, and execute it if appropriate.
     Alternatively, a cron contract could call the payment entry point with a frequency greater or equal than that of `payment_period`.
