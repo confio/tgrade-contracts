@@ -189,18 +189,13 @@ fn end_block<Q: CustomQuery>(deps: DepsMut<Q>, env: Env) -> Result<Response, Con
     let total_funds = deps
         .querier
         .query_balance(env.contract.address, config.denom.clone())?
-        .amount
-        .u128();
+        .amount;
 
     // Get all members from oc
     let number_of_oc_members = config.oc_addr.total_points(&deps.querier)? as u128;
     let number_of_ap_members = config.ap_addr.total_points(&deps.querier)? as u128;
 
-    // TODO follow up: Second condition may be later lifted; not-full amount can be distributed as well
-    if total_funds == 0
-        || (number_of_ap_members + number_of_oc_members) * config.payment_amount.u128()
-            > total_funds
-    {
+    if total_funds == Uint128::zero() {
         // Register empty payment in state (to avoid checking / doing the same work again),
         // until next payment period
         payments().create_payment(deps.storage, 0, 0, &env.block)?;
@@ -211,10 +206,13 @@ fn end_block<Q: CustomQuery>(deps: DepsMut<Q>, env: Env) -> Result<Response, Con
 
     // Pay oc + ap members
     let mut msgs = vec![];
-    // TODO follow up: Replace that with ratio per total amount of current funds
-    let oc_amount = number_of_oc_members * config.payment_amount.u128();
-    if oc_amount != 0 {
-        let oc_funds_to_pay = coins(oc_amount, config.denom.clone());
+    let oc_amount = total_funds
+        * Decimal::from_ratio(
+            number_of_oc_members,
+            number_of_oc_members + number_of_ap_members,
+        );
+    if oc_amount != Uint128::zero() {
+        let oc_funds_to_pay = coins(oc_amount.u128(), config.denom.clone());
         let oc_reward_msg = SubMsg::new(WasmMsg::Execute {
             contract_addr: config.oc_addr.addr().to_string(),
             msg: to_binary(&ExecuteMsg::DistributeRewards { sender: None })?,
@@ -223,10 +221,13 @@ fn end_block<Q: CustomQuery>(deps: DepsMut<Q>, env: Env) -> Result<Response, Con
         msgs.push(oc_reward_msg);
     }
 
-    // TODO follow up: Replace that with ratio per total amount of current funds
-    let ap_amount = number_of_ap_members * config.payment_amount.u128();
-    if ap_amount != 0 {
-        let ap_funds_to_pay = coins(ap_amount, config.denom.clone());
+    let ap_amount = total_funds
+        * Decimal::from_ratio(
+            number_of_ap_members,
+            number_of_oc_members + number_of_ap_members,
+        );
+    if ap_amount != Uint128::zero() {
+        let ap_funds_to_pay = coins(ap_amount.u128(), config.denom.clone());
         let ap_reward_msg = SubMsg::new(WasmMsg::Execute {
             contract_addr: config.ap_addr.addr().to_string(),
             msg: to_binary(&ExecuteMsg::DistributeRewards { sender: None })?,
