@@ -1,6 +1,12 @@
 # TGrade Trusted Circle Payments
 
 This contract makes regular payments to the Oversight Community and Arbiter Pool members.
+It works as a proxy, that retains 1% of tokens sent through `ExecuteMsg::DistributeRewards {}` message,
+passing the rest to the `engagement_addr` contract.
+When particular amount `payment_amount * number of OC members * number of AP members` is met, contract
+sends 100% of such tokens and is ready to send rewards to all the members.
+`tc-payments` contract needs to be registered as an end blocker, and after that it will send `payment_amount`
+amount to OC and AP contracts through `DistributeRewards {}` message.
 
 ## Init
 
@@ -15,6 +21,9 @@ pub struct InstantiateMsg {
   pub oc_addr: String,
   /// Arbiter pool contract address
   pub ap_addr: String,
+  /// Engagement contract address.
+  /// To send the remaining funds after payment
+  pub engagement_addr: String,
   /// The required payment amount, in the payments denom
   pub denom: String,
   /// The required payment amount, in the TC denom
