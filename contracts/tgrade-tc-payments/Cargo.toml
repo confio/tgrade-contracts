@@ -27,16 +27,16 @@ cw-controllers = "0.13.4"
 cw-storage-plus = "0.13.4"
 schemars = "0.8"
 serde = { version = "1.0.103", default-features = false, features = ["derive"] }
-tg-bindings = "0.13"
-tg4 = "0.13"
+tg-bindings = "0.13.0"
+tg4 = "0.13.0"
 thiserror = "1.0.21"
 
 [dev-dependencies]
 anyhow = "1"
 cw-multi-test = "0.13.4"
 derivative = "2"
-tg4-engagement = "0.13"
-tg-voting-contract = "0.13"
-tg-bindings-test = "0.13"
-tg-utils = "0.13"
-tgrade-valset = "0.13"
+tg4-engagement = { version = "0.13.0", features = ["library"] }
+tg-voting-contract = "0.13.0"
+tg-bindings-test = "0.13.0"
+tg-utils = "0.13.0"
+tgrade-valset = { version = "0.13.0", features = ["library"] }
