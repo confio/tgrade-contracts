@@ -64,7 +64,9 @@ pub enum ExecuteMsg {
 #[derive(Serialize, Deserialize, Clone, PartialEq, JsonSchema, Debug)]
 #[serde(rename_all = "snake_case")]
 pub enum QueryMsg {
-    /// Return VotingRules
+    /// Returns configuration
+    Configuration {},
+    /// Returns VotingRules
     Rules {},
     /// Returns ProposalResponse
     Proposal { proposal_id: u64 },
