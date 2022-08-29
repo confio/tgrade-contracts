@@ -3,8 +3,7 @@ use chrono::{NaiveDateTime, Timelike};
 use derivative::Derivative;
 
 use cosmwasm_std::{coin, Addr, Binary, Decimal, StdResult, Uint128};
-use cw_multi_test::Executor;
-use cw_multi_test::{Contract, ContractWrapper};
+use cw_multi_test::{AppResponse, Contract, ContractWrapper, Executor};
 use tg4::Member;
 use tg_bindings::{Pubkey, TgradeMsg, TgradeQuery};
 use tg_bindings_test::TgradeApp;
@@ -346,5 +345,17 @@ impl Suite {
             .query_balance(&Addr::unchecked(owner), &self.denom)?
             .amount;
         Ok(amount.into())
+    }
+
+    pub fn withdraw_rewards(&mut self, sender: &str, contract: Addr) -> AnyResult<AppResponse> {
+        self.app.execute_contract(
+            Addr::unchecked(sender),
+            contract,
+            &tg4_engagement::msg::ExecuteMsg::WithdrawRewards {
+                owner: None,
+                receiver: None,
+            },
+            &[],
+        )
     }
 }

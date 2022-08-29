@@ -253,7 +253,6 @@ fn end_block<Q: CustomQuery>(deps: DepsMut<Q>, env: Env) -> Result<Response, Con
         .add_attribute("member_pay", config.payment_amount.to_string())
         .add_attribute("denom", config.denom);
     let resp = resp.add_submessages(msgs).add_event(evt);
-
     Ok(resp)
 }
 

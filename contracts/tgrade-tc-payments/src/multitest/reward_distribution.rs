@@ -5,40 +5,59 @@ fn simple_distribution() {
     let oc = vec!["oc1", "oc2"];
     let ap = vec!["ap1"];
     let mut suite = SuiteBuilder::new()
-        .with_epoch_reward(100u128)
+        .with_epoch_reward(10_000u128)
         .with_distribute_ratio(80)
-        .with_payment_amount(1u128)
+        .with_payment_amount(1000u128)
         .with_oc(&[(oc[0], 1), (oc[1], 1)], None)
         .with_ap(&[(ap[0], 1)], None)
         .build();
 
-    // First time, 160 tokens are being sent and 2 tokens are left on tc-payment
-    // contract as rounded-up 1%.
     // First block is processed at the end of SuiteBuilder::build(), and with
     // advance_epoch() suite enters second epoch
+    // First time, 16_000 tokens (2 epochs * 10k reward * 80% distribute ratio)
+    // are being sent and 160 tokens are left on tc-payment contract as rounded-up 1%.
     suite.advance_epochs(1).unwrap();
-    assert_eq!(suite.token_balance(suite.tc_payments.as_str()).unwrap(), 2);
+    assert_eq!(
+        suite.token_balance(suite.tc_payments.as_str()).unwrap(),
+        160
+    );
 
-    // Tokens are not sent, because there are not enough funds
-    assert_eq!(suite.token_balance(suite.ap_contract.as_str()).unwrap(), 0);
-    assert_eq!(suite.token_balance(suite.oc_contract.as_str()).unwrap(), 0);
-
-    // Advance epoch twice - first time tc-payment end_block is being called,
-    // but at a time only 2 tokens are present on balance.
-    // Then valset starts its own end_block, which sends tokens to tc-payments.
-    // At the start of another end_block finally distribute_rewards transaction
-    // is sent, which fills receivers balances.
-    // At the end, valset triggers own end_block again, sending 80 tokens to
-    // tc-payments once more, which results in 1 token left again.
     suite.advance_epochs(1).unwrap();
+    // Since valset endblocker is executed last, another round of reward is sent
+    // (10k reward * 80% ratio) which 1% is kept with some leftovers from last transfers
+    assert_eq!(suite.token_balance(suite.tc_payments.as_str()).unwrap(), 81);
+    // 160 tokens are distributed amongst AP/OC members, 53 AP and 106 OC
+    assert_eq!(suite.token_balance(suite.ap_contract.as_str()).unwrap(), 53);
+    assert_eq!(
+        suite.token_balance(suite.oc_contract.as_str()).unwrap(),
+        106
+    );
+
     suite.advance_epochs(1).unwrap();
+    // As above - new reward with leftovers
+    assert_eq!(suite.token_balance(suite.tc_payments.as_str()).unwrap(), 82);
+    // 81 tokens are distributed, 26 AP and 53 OC
+    assert_eq!(suite.token_balance(suite.ap_contract.as_str()).unwrap(), 79);
+    assert_eq!(
+        suite.token_balance(suite.oc_contract.as_str()).unwrap(),
+        159
+    );
 
-    assert_eq!(suite.token_balance(suite.tc_payments.as_str()).unwrap(), 1);
+    // Call withdraw rewards on particular contract and show that rewards are
+    // evenly distributed
+    suite
+        .withdraw_rewards(oc[0], suite.oc_contract.clone())
+        .unwrap();
+    suite
+        .withdraw_rewards(oc[1], suite.oc_contract.clone())
+        .unwrap();
+    assert_eq!(suite.token_balance(oc[0]).unwrap(), 79);
+    assert_eq!(suite.token_balance(oc[1]).unwrap(), 79);
 
-    // 1 token for one member of AP
-    assert_eq!(suite.token_balance(suite.ap_contract.as_str()).unwrap(), 1);
-    // 2 tokens for two member of OC
-    assert_eq!(suite.token_balance(suite.oc_contract.as_str()).unwrap(), 2);
+    suite
+        .withdraw_rewards(ap[0], suite.ap_contract.clone())
+        .unwrap();
+    assert_eq!(suite.token_balance(ap[0]).unwrap(), 79);
 }
 
 #[test]
@@ -67,15 +86,14 @@ fn more_users_distribution() {
     suite.advance_epochs(1).unwrap();
     // Which transfers tokens to both group accounts and leaves another 1% from next
     // valset transfer on tc-payments account.
-    assert_eq!(suite.token_balance(suite.tc_payments.as_str()).unwrap(), 10);
+    assert_eq!(suite.token_balance(suite.tc_payments.as_str()).unwrap(), 12);
     // 50 payment amount * 4 members
     assert_eq!(
         suite.token_balance(suite.ap_contract.as_str()).unwrap(),
-        200
+        199
     );
     // 50 payment amount * 2 members
-    assert_eq!(
-        suite.token_balance(suite.oc_contract.as_str()).unwrap(),
-        100
-    );
+    assert_eq!(suite.token_balance(suite.oc_contract.as_str()).unwrap(), 99);
+    // uneven numbers are caused by now counting reward by ratio of users, which in that case
+    // is 0.3(3)
 }
