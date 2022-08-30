@@ -210,11 +210,7 @@ fn end_block<Q: CustomQuery>(deps: DepsMut<Q>, env: Env) -> Result<Response, Con
     let oc_amount = if sum_of_members == 0 {
         Uint128::zero()
     } else {
-        total_funds
-            * Decimal::from_ratio(
-                number_of_oc_members,
-                number_of_oc_members + number_of_ap_members,
-            )
+        total_funds * Decimal::from_ratio(number_of_oc_members, sum_of_members)
     };
     if oc_amount != Uint128::zero() {
         let oc_funds_to_pay = coins(oc_amount.u128(), config.denom.clone());
@@ -229,11 +225,7 @@ fn end_block<Q: CustomQuery>(deps: DepsMut<Q>, env: Env) -> Result<Response, Con
     let ap_amount = if sum_of_members == 0 {
         Uint128::zero()
     } else {
-        total_funds
-            * Decimal::from_ratio(
-                number_of_ap_members,
-                number_of_oc_members + number_of_ap_members,
-            )
+        total_funds * Decimal::from_ratio(number_of_ap_members, sum_of_members)
     };
     if ap_amount != Uint128::zero() {
         let ap_funds_to_pay = coins(ap_amount.u128(), config.denom.clone());
