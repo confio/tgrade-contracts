@@ -429,6 +429,7 @@ pub fn query(deps: Deps<TgradeQuery>, env: Env, msg: QueryMsg) -> StdResult<Bina
     use QueryMsg::*;
 
     match msg {
+        Configuration {} => to_binary(&CONFIG.load(deps.storage)?),
         Rules {} => to_binary(&query_rules(deps)?),
         Proposal { proposal_id } => to_binary(&query_proposal::<ArbiterPoolProposal, TgradeQuery>(
             deps,

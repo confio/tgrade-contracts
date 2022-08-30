@@ -80,9 +80,9 @@ pub enum ExecuteMsg {
 #[derive(Serialize, Deserialize, Clone, PartialEq, JsonSchema, Debug)]
 #[serde(rename_all = "snake_case")]
 pub enum QueryMsg {
-    /// Return TrustedCircleResponse
+    /// Returns TrustedCircleResponse
     TrustedCircle {},
-    /// Return TotalPointsResponse
+    /// Returns TotalPointsResponse
     TotalPoints {},
     /// Returns MemberListResponse, for all (voting and non-voting) members
     ListMembers {
