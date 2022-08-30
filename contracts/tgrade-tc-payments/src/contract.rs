@@ -189,18 +189,14 @@ fn end_block<Q: CustomQuery>(deps: DepsMut<Q>, env: Env) -> Result<Response, Con
     let total_funds = deps
         .querier
         .query_balance(env.contract.address, config.denom.clone())?
-        .amount
-        .u128();
+        .amount;
 
     // Get all members from oc
     let number_of_oc_members = config.oc_addr.total_points(&deps.querier)? as u128;
     let number_of_ap_members = config.ap_addr.total_points(&deps.querier)? as u128;
+    let sum_of_members = number_of_ap_members + number_of_oc_members;
 
-    // TODO follow up: Second condition may be later lifted; not-full amount can be distributed as well
-    if total_funds == 0
-        || (number_of_ap_members + number_of_oc_members) * config.payment_amount.u128()
-            > total_funds
-    {
+    if total_funds == Uint128::zero() {
         // Register empty payment in state (to avoid checking / doing the same work again),
         // until next payment period
         payments().create_payment(deps.storage, 0, 0, &env.block)?;
@@ -211,10 +207,13 @@ fn end_block<Q: CustomQuery>(deps: DepsMut<Q>, env: Env) -> Result<Response, Con
 
     // Pay oc + ap members
     let mut msgs = vec![];
-    // TODO follow up: Replace that with ratio per total amount of current funds
-    let oc_amount = number_of_oc_members * config.payment_amount.u128();
-    if oc_amount != 0 {
-        let oc_funds_to_pay = coins(oc_amount, config.denom.clone());
+    let oc_amount = if sum_of_members == 0 {
+        Uint128::zero()
+    } else {
+        total_funds * Decimal::from_ratio(number_of_oc_members, sum_of_members)
+    };
+    if oc_amount != Uint128::zero() {
+        let oc_funds_to_pay = coins(oc_amount.u128(), config.denom.clone());
         let oc_reward_msg = SubMsg::new(WasmMsg::Execute {
             contract_addr: config.oc_addr.addr().to_string(),
             msg: to_binary(&ExecuteMsg::DistributeRewards { sender: None })?,
@@ -223,10 +222,13 @@ fn end_block<Q: CustomQuery>(deps: DepsMut<Q>, env: Env) -> Result<Response, Con
         msgs.push(oc_reward_msg);
     }
 
-    // TODO follow up: Replace that with ratio per total amount of current funds
-    let ap_amount = number_of_ap_members * config.payment_amount.u128();
-    if ap_amount != 0 {
-        let ap_funds_to_pay = coins(ap_amount, config.denom.clone());
+    let ap_amount = if sum_of_members == 0 {
+        Uint128::zero()
+    } else {
+        total_funds * Decimal::from_ratio(number_of_ap_members, sum_of_members)
+    };
+    if ap_amount != Uint128::zero() {
+        let ap_funds_to_pay = coins(ap_amount.u128(), config.denom.clone());
         let ap_reward_msg = SubMsg::new(WasmMsg::Execute {
             contract_addr: config.ap_addr.addr().to_string(),
             msg: to_binary(&ExecuteMsg::DistributeRewards { sender: None })?,
@@ -243,7 +245,6 @@ fn end_block<Q: CustomQuery>(deps: DepsMut<Q>, env: Env) -> Result<Response, Con
         .add_attribute("member_pay", config.payment_amount.to_string())
         .add_attribute("denom", config.denom);
     let resp = resp.add_submessages(msgs).add_event(evt);
-
     Ok(resp)
 }
 
@@ -459,6 +460,14 @@ mod tests {
             .collect()
     }
 
+    fn wasm_attributes(res: &AppResponse) -> Vec<Attribute> {
+        res.events
+            .iter()
+            .filter(|e| e.ty == "wasm")
+            .flat_map(|e| e.attributes.clone())
+            .collect()
+    }
+
     #[track_caller]
     fn assert_sorted_eq<F, T>(left: Vec<T>, right: Vec<T>, cmp: &F)
     where
@@ -669,10 +678,61 @@ mod tests {
 
         // Try to make payments
         let res = app.wasm_sudo(payments_addr.clone(), &sudo_msg).unwrap();
+        let block = app.block_info();
+        assert!(is_month_beginning(&block));
 
         // Check there's a payment summary message
-        assert_eq!(res.events.len(), 1);
-        assert_eq!(res.events[0].ty, "sudo");
+        assert_eq!(res.events.len(), 6);
+        assert_eq!(res.events[1].ty, "wasm-tc_payments");
+        let got_wasm_attributes = wasm_attributes(&res);
+        let expected_wasm_attributes = vec![
+            Attribute {
+                key: "_contract_addr".to_string(),
+                value: "contract0".to_string(),
+            },
+            Attribute {
+                key: "action".to_string(),
+                value: "distribute_rewards".to_string(),
+            },
+            Attribute {
+                key: "sender".to_string(),
+                value: "contract3".to_string(),
+            },
+            Attribute {
+                key: "denom".to_string(),
+                value: TC_DENOM.to_string(),
+            },
+            Attribute {
+                key: "amount".to_string(),
+                value: "66666666".to_string(),
+            },
+            // second transaction
+            Attribute {
+                key: "_contract_addr".to_string(),
+                value: "contract1".to_string(),
+            },
+            Attribute {
+                key: "action".to_string(),
+                value: "distribute_rewards".to_string(),
+            },
+            Attribute {
+                key: "sender".to_string(),
+                value: "contract3".to_string(),
+            },
+            Attribute {
+                key: "denom".to_string(),
+                value: TC_DENOM.to_string(),
+            },
+            Attribute {
+                key: "amount".to_string(),
+                value: "33333333".to_string(),
+            },
+        ];
+        assert_sorted_eq(
+            got_wasm_attributes,
+            expected_wasm_attributes,
+            &cmp_attr_by_key,
+        );
 
         // 4. Fully funded contract, but pay again fails (already marked as paid, although didn't go through)
         // Enough money for all members, plus some amount for engagement contract.
@@ -695,9 +755,58 @@ mod tests {
         // Try to make payments
         let res = app.wasm_sudo(payments_addr.clone(), &sudo_msg).unwrap();
 
-        // Check events (sudo log event only)
-        assert_eq!(res.events.len(), 1);
-        assert_eq!(res.events[0].ty, "sudo");
+        // Check there's a payment summary message
+        assert_eq!(res.events.len(), 6);
+        assert_eq!(res.events[1].ty, "wasm-tc_payments");
+        let got_wasm_attributes = wasm_attributes(&res);
+        let expected_wasm_attributes = vec![
+            Attribute {
+                key: "_contract_addr".to_string(),
+                value: "contract0".to_string(),
+            },
+            Attribute {
+                key: "action".to_string(),
+                value: "distribute_rewards".to_string(),
+            },
+            Attribute {
+                key: "sender".to_string(),
+                value: "contract3".to_string(),
+            },
+            Attribute {
+                key: "denom".to_string(),
+                value: TC_DENOM.to_string(),
+            },
+            Attribute {
+                key: "amount".to_string(),
+                value: "233333333".to_string(),
+            },
+            // second transaction
+            Attribute {
+                key: "_contract_addr".to_string(),
+                value: "contract1".to_string(),
+            },
+            Attribute {
+                key: "action".to_string(),
+                value: "distribute_rewards".to_string(),
+            },
+            Attribute {
+                key: "sender".to_string(),
+                value: "contract3".to_string(),
+            },
+            Attribute {
+                key: "denom".to_string(),
+                value: TC_DENOM.to_string(),
+            },
+            Attribute {
+                key: "amount".to_string(),
+                value: "116666666".to_string(),
+            },
+        ];
+        assert_sorted_eq(
+            got_wasm_attributes,
+            expected_wasm_attributes,
+            &cmp_attr_by_key,
+        );
 
         // Advance to more than one hour after midnight
         app.advance_seconds(3600);
@@ -709,7 +818,7 @@ mod tests {
         // Try to make payments
         let res = app.wasm_sudo(payments_addr, &sudo_msg).unwrap();
 
-        // Check events (sudo log event only)
+        // Check events (sudo log event only) - nothing happens
         assert_eq!(res.events.len(), 1);
         assert_eq!(res.events[0].ty, "sudo");
     }
