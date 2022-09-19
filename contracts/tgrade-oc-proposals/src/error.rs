@@ -35,6 +35,12 @@ pub enum ContractError {
 
     #[error("Invalid max validators: {0}")]
     InvalidMaxValidators(u64),
+
+    #[error("Invalid scaling: {0}")]
+    InvalidScaling(u64),
+
+    #[error("Invalid reward denom")]
+    InvalidRewardDenom {},
 }
 
 impl From<tg_voting_contract::ContractError> for ContractError {

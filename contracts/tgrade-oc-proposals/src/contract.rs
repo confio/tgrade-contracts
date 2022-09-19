@@ -164,19 +164,27 @@ pub fn execute_execute<Q: CustomQuery>(
         UpdateConfig {
             min_points,
             max_validators,
+            scaling,
+            epoch_reward,
+            fee_percentage,
+            auto_unjail,
+            double_sign_slash_ratio,
+            distribution_contracts,
+            verify_validators,
+            offline_jail_duration,
         } => {
             res = res.add_submessage(valset_contract.encode_raw_msg(to_binary(
                 &tgrade_valset::msg::ExecuteMsg::UpdateConfig {
                     min_points,
                     max_validators,
-                    scaling: None,
-                    epoch_reward: None,
-                    fee_percentage: None,
-                    auto_unjail: None,
-                    double_sign_slash_ratio: None,
-                    distribution_contracts: None,
-                    verify_validators: None,
-                    offline_jail_duration: None,
+                    scaling,
+                    epoch_reward,
+                    fee_percentage,
+                    auto_unjail,
+                    double_sign_slash_ratio,
+                    distribution_contracts,
+                    verify_validators,
+                    offline_jail_duration,
                 },
             )?)?);
         }
@@ -675,7 +683,7 @@ mod tests {
             voters.voters,
             vec![VoterDetail {
                 addr: OWNER.into(),
-                points: 1
+                points: 1,
             }]
         );
     }
