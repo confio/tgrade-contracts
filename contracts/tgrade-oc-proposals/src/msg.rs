@@ -23,7 +23,7 @@ pub enum ExecuteMsg {
     Propose {
         title: String,
         description: String,
-        proposal: OversightProposal,
+        proposal: Box<OversightProposal>,
     },
     Vote {
         proposal_id: u64,

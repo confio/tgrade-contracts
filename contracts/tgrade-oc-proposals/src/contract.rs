@@ -82,7 +82,7 @@ pub fn execute(
                 info,
                 title,
                 description,
-                proposal,
+                *proposal,
             )
             .map_err(ContractError::from)
         }
@@ -593,7 +593,7 @@ mod tests {
         ExecuteMsg::Propose {
             title,
             description,
-            proposal,
+            proposal: Box::new(proposal),
         }
     }
 

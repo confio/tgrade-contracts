@@ -337,7 +337,7 @@ impl Suite {
             &ExecuteMsg::Propose {
                 title: title.to_owned(),
                 description: description.to_owned(),
-                proposal,
+                proposal: Box::new(proposal),
             },
             &[],
         )
