@@ -487,7 +487,7 @@ fn voting_deposit_return_propose_leave() {
     // can leave, but long_leave
     leave(deps.as_mut(), VOTING).unwrap();
 
-    // TODO: we need to handle close TRUSTED_CIRCLE here (last voter leaving)
+    // TODO: We need to handle close TRUSTED_CIRCLE here (last voter leaving) (https://github.com/confio/tgrade-contracts/issues/521)
     // check no longer voting
     assert_membership(deps.as_ref(), VOTING, Some(0));
     assert_eq!(query_total_points(deps.as_ref()).unwrap().points, 0);

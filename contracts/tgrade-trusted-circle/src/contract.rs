@@ -666,7 +666,7 @@ pub fn execute_leave_trusted_circle<Q: CustomQuery>(
 ) -> Result<Response, ContractError> {
     cw_utils::nonpayable(&info)?;
 
-    // FIXME: special check if last member leaving (future story)
+    // FIXME: Special check if last member leaving (https://github.com/confio/tgrade-contracts/issues/521)
     let escrow = ESCROWS
         .may_load(deps.storage, &info.sender)?
         .ok_or(ContractError::NotAMember {})?;
