@@ -356,12 +356,8 @@ mod voting {
             ],
         );
 
-        // Non-open proposals cannot be voted
-        let err = suite.vote(members[2], proposal_id, Vote::Yes).unwrap_err();
-        assert_eq!(
-            ContractError::Voting(VotingError::NotOpen {}),
-            err.downcast().unwrap()
-        );
+        // Passed proposals can still be voted, if they are not expired
+        suite.vote(members[2], proposal_id, Vote::Yes).unwrap();
     }
 
     #[test]
@@ -389,7 +385,7 @@ mod voting {
 
         let err = suite.vote(members[1], proposal_id, Vote::Yes).unwrap_err();
         assert_eq!(
-            ContractError::Voting(VotingError::NotOpen {}),
+            ContractError::Voting(VotingError::Expired {}),
             err.downcast().unwrap()
         );
     }
