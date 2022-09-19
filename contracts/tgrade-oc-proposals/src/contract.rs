@@ -5,9 +5,10 @@ use cosmwasm_std::{
 };
 
 use cw2::set_contract_version;
+use cw_utils::ensure_from_older_version;
 use tg4::Tg4Contract;
 use tg_bindings::{TgradeMsg, TgradeQuery};
-use tg_utils::{ensure_from_older_version, JailMsg, SlashMsg};
+use tg_utils::{JailMsg, SlashMsg};
 
 use crate::msg::{ExecuteMsg, InstantiateMsg, QueryMsg};
 use crate::state::{Config, OversightProposal, CONFIG};
@@ -168,6 +169,14 @@ pub fn execute_execute<Q: CustomQuery>(
                 &tgrade_valset::msg::ExecuteMsg::UpdateConfig {
                     min_points,
                     max_validators,
+                    scaling: None,
+                    epoch_reward: None,
+                    fee_percentage: None,
+                    auto_unjail: None,
+                    double_sign_slash_ratio: None,
+                    distribution_contracts: None,
+                    verify_validators: None,
+                    offline_jail_duration: None,
                 },
             )?)?);
         }

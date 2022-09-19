@@ -9,11 +9,12 @@ use cw_storage_plus::Bound;
 
 use cw2::set_contract_version;
 use cw3::VoterListResponse;
-use cw_utils::{must_pay, parse_reply_instantiate_data, Duration, Threshold};
+use cw_utils::{
+    ensure_from_older_version, must_pay, parse_reply_instantiate_data, Duration, Threshold,
+};
 use tg_bindings::{
     request_privileges, Privilege, PrivilegeChangeMsg, TgradeMsg, TgradeQuery, TgradeSudoMsg,
 };
-use tg_utils::ensure_from_older_version;
 
 use crate::migration::migrate_config;
 use crate::msg::{ExecuteMsg, InstantiateMsg, ListComplaintsResp, MigrationMsg, QueryMsg};
