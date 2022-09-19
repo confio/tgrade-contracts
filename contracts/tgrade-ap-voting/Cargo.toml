@@ -14,7 +14,7 @@ backtraces = ["cosmwasm-std/backtraces"]
 library = []
 
 [dependencies]
-cosmwasm-std = "1.0.0"
+cosmwasm-std = "1.1.0"
 cw2 = "0.13.4"
 cw3 = "0.13.4"
 cw3-fixed-multisig = "0.13.4"
@@ -32,7 +32,7 @@ tg3 = "0.13.0"
 [dev-dependencies]
 anyhow = "1"
 assert_matches = "1.5"
-cosmwasm-schema = "1.0.0"
+cosmwasm-schema = "1.1.0"
 cw-multi-test = "0.13.4"
 cw-storage-plus = "0.13.4"
 tg-bindings-test = "0.13.0"
