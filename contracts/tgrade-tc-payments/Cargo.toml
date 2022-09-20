@@ -1,6 +1,6 @@
 [package]
 name = "tgrade-tc-payments"
-version = "0.13.1"
+version = "0.14.0"
 authors = ["Mauro Lacy <maurolacy@users.noreply.github.com>"]
 edition = "2021"
 description = "Oversight Community / Arbiter Pool payments contract"

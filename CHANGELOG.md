@@ -2,7 +2,33 @@
 
 ## [Unreleased](https://github.com/confio/tgrade-contracts/tree/HEAD)
 
-[Full Changelog](https://github.com/confio/tgrade-contracts/compare/v0.13.1...HEAD)
+[Full Changelog](https://github.com/confio/tgrade-contracts/compare/v0.14.0...HEAD)
+
+## [v0.14.0](https://github.com/confio/tgrade-contracts/tree/v0.14.0) (2022-09-20)
+
+[Full Changelog](https://github.com/confio/tgrade-contracts/compare/v0.13.1...v0.14.0)
+
+**Implemented enhancements:**
+
+- \[tgrade-tc-payments\] Support distribution of messages instead of `Bank::Send` [\#497](https://github.com/confio/tgrade-contracts/issues/497)
+
+**Closed issues:**
+
+- Add Config QueryMsg to tgrade-ap-voting [\#524](https://github.com/confio/tgrade-contracts/issues/524)
+- Review TODOs / FIXMEs [\#494](https://github.com/confio/tgrade-contracts/issues/494)
+- Oversight Community & Arbiter Pool member Renumeration [\#491](https://github.com/confio/tgrade-contracts/issues/491)
+- Test: Create an initial setup for Tgrade Contracts Integration tests. [\#474](https://github.com/confio/tgrade-contracts/issues/474)
+- Test: Make the Tgrade state dump available for contracts integration tests [\#473](https://github.com/confio/tgrade-contracts/issues/473)
+
+**Merged pull requests:**
+
+- Update to poe-contracts 0.15 [\#527](https://github.com/confio/tgrade-contracts/pull/527) ([maurolacy](https://github.com/maurolacy))
+- TODO / FIXME review [\#526](https://github.com/confio/tgrade-contracts/pull/526) ([maurolacy](https://github.com/maurolacy))
+- ap-voting: Add Configuration query [\#525](https://github.com/confio/tgrade-contracts/pull/525) ([ueco-jb](https://github.com/ueco-jb))
+- `tc-payments`: Modify reward distribution mechanism [\#522](https://github.com/confio/tgrade-contracts/pull/522) ([ueco-jb](https://github.com/ueco-jb))
+- Tc payments distribute rewards multitests [\#520](https://github.com/confio/tgrade-contracts/pull/520) ([ueco-jb](https://github.com/ueco-jb))
+- Fix / remove outdated migration code [\#519](https://github.com/confio/tgrade-contracts/pull/519) ([maurolacy](https://github.com/maurolacy))
+- Add `DistributeRewards` handler [\#501](https://github.com/confio/tgrade-contracts/pull/501) ([maurolacy](https://github.com/maurolacy))
 
 ## [v0.13.1](https://github.com/confio/tgrade-contracts/tree/v0.13.1) (2022-08-02)
 
