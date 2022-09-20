@@ -7,13 +7,13 @@ use cosmwasm_std::{
 };
 use cw2::set_contract_version;
 use cw_storage_plus::Bound;
-use cw_utils::{maybe_addr, Expiration};
+use cw_utils::{ensure_from_older_version, maybe_addr, Expiration};
 use tg3::{Status, Vote};
 use tg4::{
     member_key, Member, MemberInfo, MemberListResponse, MemberResponse, TotalPointsResponse,
 };
 use tg_bindings::{TgradeMsg, TgradeQuery};
-use tg_utils::{ensure_from_older_version, members, TOTAL};
+use tg_utils::{members, TOTAL};
 use tg_voting_contract::ballots::ballots;
 
 use crate::error::ContractError;

@@ -124,8 +124,7 @@ impl SuiteBuilder {
                     denom: "utgd".to_string(),
                     amount: Uint128::new(1_000_000),
                     recipient: owner.to_string(),
-                })
-                .into(),
+                }),
             )?;
             Ok(())
         })

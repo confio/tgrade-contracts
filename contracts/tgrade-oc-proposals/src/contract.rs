@@ -5,9 +5,10 @@ use cosmwasm_std::{
 };
 
 use cw2::set_contract_version;
+use cw_utils::ensure_from_older_version;
 use tg4::Tg4Contract;
 use tg_bindings::{TgradeMsg, TgradeQuery};
-use tg_utils::{ensure_from_older_version, JailMsg, SlashMsg};
+use tg_utils::{JailMsg, SlashMsg};
 
 use crate::msg::{ExecuteMsg, InstantiateMsg, QueryMsg};
 use crate::state::{Config, OversightProposal, CONFIG};
@@ -81,7 +82,7 @@ pub fn execute(
                 info,
                 title,
                 description,
-                proposal,
+                *proposal,
             )
             .map_err(ContractError::from)
         }
@@ -163,11 +164,27 @@ pub fn execute_execute<Q: CustomQuery>(
         UpdateConfig {
             min_points,
             max_validators,
+            scaling,
+            epoch_reward,
+            fee_percentage,
+            auto_unjail,
+            double_sign_slash_ratio,
+            distribution_contracts,
+            verify_validators,
+            offline_jail_duration,
         } => {
             res = res.add_submessage(valset_contract.encode_raw_msg(to_binary(
                 &tgrade_valset::msg::ExecuteMsg::UpdateConfig {
                     min_points,
                     max_validators,
+                    scaling,
+                    epoch_reward,
+                    fee_percentage,
+                    auto_unjail,
+                    double_sign_slash_ratio,
+                    distribution_contracts,
+                    verify_validators,
+                    offline_jail_duration,
                 },
             )?)?);
         }
@@ -576,7 +593,7 @@ mod tests {
         ExecuteMsg::Propose {
             title,
             description,
-            proposal,
+            proposal: Box::new(proposal),
         }
     }
 
@@ -666,7 +683,7 @@ mod tests {
             voters.voters,
             vec![VoterDetail {
                 addr: OWNER.into(),
-                points: 1
+                points: 1,
             }]
         );
     }

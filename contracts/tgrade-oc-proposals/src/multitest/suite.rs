@@ -337,7 +337,7 @@ impl Suite {
             &ExecuteMsg::Propose {
                 title: title.to_owned(),
                 description: description.to_owned(),
-                proposal,
+                proposal: Box::new(proposal),
             },
             &[],
         )
@@ -403,6 +403,14 @@ impl Suite {
             OversightProposal::UpdateConfig {
                 min_points: min_points.into(),
                 max_validators: max_validators.into(),
+                scaling: None,
+                epoch_reward: None,
+                fee_percentage: None,
+                auto_unjail: None,
+                double_sign_slash_ratio: None,
+                distribution_contracts: None,
+                verify_validators: None,
+                offline_jail_duration: None,
             },
         )
     }
