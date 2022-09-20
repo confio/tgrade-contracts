@@ -4,7 +4,7 @@
 
 [Full Changelog](https://github.com/confio/tgrade-contracts/compare/v0.14.0...HEAD)
 
-## [v0.14.0](https://github.com/confio/tgrade-contracts/tree/v0.14.0) (2022-09-19)
+## [v0.14.0](https://github.com/confio/tgrade-contracts/tree/v0.14.0) (2022-09-20)
 
 [Full Changelog](https://github.com/confio/tgrade-contracts/compare/v0.13.1...v0.14.0)
 
@@ -22,6 +22,7 @@
 
 **Merged pull requests:**
 
+- Update to poe-contracts 0.15 [\#527](https://github.com/confio/tgrade-contracts/pull/527) ([maurolacy](https://github.com/maurolacy))
 - TODO / FIXME review [\#526](https://github.com/confio/tgrade-contracts/pull/526) ([maurolacy](https://github.com/maurolacy))
 - ap-voting: Add Configuration query [\#525](https://github.com/confio/tgrade-contracts/pull/525) ([ueco-jb](https://github.com/ueco-jb))
 - `tc-payments`: Modify reward distribution mechanism [\#522](https://github.com/confio/tgrade-contracts/pull/522) ([ueco-jb](https://github.com/ueco-jb))
