@@ -160,7 +160,7 @@ jobs:
           paths:
             - /usr/local/cargo/registry
             - target
-          key: cargocache-tgrade-tc-payments-rust:1.58.1-{{ checksum "~/project/Cargo.lock" }}
+          key: cargocache-tgrade-dispute-multisig-rust:1.58.1-{{ checksum "~/project/Cargo.lock" }}
 
   lint:
     docker:
