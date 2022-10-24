@@ -8,7 +8,7 @@ pub struct InstantiateMsg {
     pub voters: Vec<Voter>,
     pub threshold: Threshold,
     pub max_voting_period: Duration,
-    /// Complaint id this contract is voting for. It would be send back with `RenderDecision`
+    /// Complaint id this contract is voting for. It will be sent back with `RenderDecision`
     /// message later.
     pub complaint_id: u64,
 }
