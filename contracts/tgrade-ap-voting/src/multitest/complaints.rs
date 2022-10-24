@@ -587,7 +587,7 @@ fn full_complaint_flow() {
         .app
         .execute_contract(
             Addr::unchecked(arbiters[1]),
-            voting.clone(),
+            voting,
             &tgrade_dispute_multisig::msg::ExecuteMsg::Execute {
                 summary: "Summary".to_owned(),
                 ipfs_link: "ipfs".to_owned(),
