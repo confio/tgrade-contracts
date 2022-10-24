@@ -504,7 +504,7 @@ mod tests {
         let voting_period = Duration::Time(2000000);
 
         let info = mock_info(OWNER, &[]);
-        setup_test_case(deps.as_mut(), info.clone(), threshold, voting_period, 0).unwrap();
+        setup_test_case(deps.as_mut(), info, threshold, voting_period, 0).unwrap();
 
         let yes_vote = ExecuteMsg::Vote { vote: Vote::Yes };
         let no_vote = ExecuteMsg::Vote { vote: Vote::No };
