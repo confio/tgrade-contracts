@@ -4,14 +4,13 @@ use cosmwasm_std::{
     coin, to_binary, Addr, BankMsg, Binary, CosmosMsg, Decimal, Deps, DepsMut, Env, MessageInfo,
     Order, Reply, StdResult, Uint128, WasmMsg,
 };
-use cw3_fixed_multisig::msg::{InstantiateMsg as Cw3InstantiateMsg, Voter};
 use cw_storage_plus::Bound;
 
 use cw2::set_contract_version;
-use cw3::VoterListResponse;
 use cw_utils::{
     ensure_from_older_version, must_pay, parse_reply_instantiate_data, Duration, Threshold,
 };
+use tg3::VoterListResponse;
 use tg_bindings::{
     request_privileges, Privilege, PrivilegeChangeMsg, TgradeMsg, TgradeQuery, TgradeSudoMsg,
 };
@@ -28,6 +27,8 @@ use tg_voting_contract::{
     list_votes_by_voter, mark_executed, propose as execute_propose, query_group_contract,
     query_proposal, query_rules, query_vote, query_voter, reverse_proposals, vote as execute_vote,
 };
+
+use tgrade_dispute_multisig::msg::{InstantiateMsg as MultisigInstantiate, Voter};
 
 pub type Response = cosmwasm_std::Response<TgradeMsg>;
 pub type SubMsg = cosmwasm_std::SubMsg<TgradeMsg>;
@@ -122,7 +123,7 @@ fn query_multisig_voters(
     loop {
         let resp: VoterListResponse = deps.querier.query_wasm_smart(
             addr.clone(),
-            &cw3_fixed_multisig::msg::QueryMsg::ListVoters {
+            &tgrade_dispute_multisig::msg::QueryMsg::ListVoters {
                 start_after: voters.last().cloned(),
                 limit: None,
             },
@@ -230,7 +231,7 @@ fn execute_propose_arbiters(
     let config = CONFIG.load(deps.storage)?;
 
     let pass_weight = (arbiters.len() / 2) + 1;
-    let cw3_instantiate = Cw3InstantiateMsg {
+    let multisig_instantiate = MultisigInstantiate {
         voters: arbiters
             .into_iter()
             .map(|arbiter| Voter {
@@ -242,21 +243,22 @@ fn execute_propose_arbiters(
             weight: pass_weight as u64,
         },
         max_voting_period: Duration::Time(config.waiting_period.seconds()),
+        complaint_id: case_id,
     };
 
     let label = format!("{} AP", case_id);
 
-    let cw3_instantiate = WasmMsg::Instantiate {
+    let multisig_instantiate = WasmMsg::Instantiate {
         admin: None,
         code_id: config.multisig_code_id,
-        msg: to_binary(&cw3_instantiate)?,
+        msg: to_binary(&multisig_instantiate)?,
         funds: vec![],
         label,
     };
 
     COMPLAINT_AWAITING.save(deps.storage, &case_id)?;
     let resp = Response::new().add_submessage(SubMsg::reply_on_success(
-        cw3_instantiate,
+        multisig_instantiate,
         AWAITING_MULTISIG_RESP,
     ));
 

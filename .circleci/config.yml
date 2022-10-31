@@ -135,6 +135,33 @@ jobs:
             - target
           key: cargocache-tgrade-tc-payments-rust:1.58.1-{{ checksum "~/project/Cargo.lock" }}
 
+  contract_tgrade_dispute_multisig:
+    docker:
+      - image: rust:1.58.1
+    working_directory: ~/project/contracts/tgrade-dispute-multisig
+    steps:
+      - checkout:
+          path: ~/project
+      - run:
+          name: Version information
+          command: rustc --version; cargo --version; rustup --version
+      - restore_cache:
+          keys:
+            - cargocache-tgrade-dispute-multisig-rust:1.58.1-{{ checksum "~/project/Cargo.lock" }}
+      - run:
+          name: Unit Tests
+          environment:
+            RUST_BACKTRACE: 1
+          command: cargo unit-test --locked
+      - run:
+          name: Build and run schema generator
+          command: cargo schema --locked
+      - save_cache:
+          paths:
+            - /usr/local/cargo/registry
+            - target
+          key: cargocache-tgrade-dispute-multisig-rust:1.58.1-{{ checksum "~/project/Cargo.lock" }}
+
   lint:
     docker:
       - image: rust:1.58.1
@@ -192,7 +219,7 @@ jobs:
             for C in ./contracts/*/
             do
               echo "Compiling $(basename $C) ..."
-              (cd $C && cargo build --release --target wasm32-unknown-unknown --locked)
+              (cd $C && cargo build --release --target wasm32-unknown-unknown --locked --lib)
             done
       - run:
           name: Install check_contract

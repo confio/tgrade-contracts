@@ -1,8 +1,7 @@
 use anyhow::{anyhow, Result as AnyResult};
 
 use cosmwasm_std::{coin, Addr, Coin, Decimal};
-use cw_multi_test::{AppResponse, Executor};
-use cw_multi_test::{Contract, ContractWrapper};
+use cw_multi_test::{AppResponse, Contract, ContractWrapper, Executor};
 use tg3::Vote;
 use tg4::Member;
 use tg_bindings::{TgradeMsg, TgradeQuery};
@@ -26,10 +25,10 @@ pub fn contract_engagement() -> Box<dyn Contract<TgradeMsg, TgradeQuery>> {
 }
 
 pub fn contract_multisig() -> Box<dyn Contract<TgradeMsg, TgradeQuery>> {
-    let contract = ContractWrapper::new_with_empty(
-        cw3_fixed_multisig::contract::execute,
-        cw3_fixed_multisig::contract::instantiate,
-        cw3_fixed_multisig::contract::query,
+    let contract = ContractWrapper::new(
+        tgrade_dispute_multisig::contract::execute,
+        tgrade_dispute_multisig::contract::instantiate,
+        tgrade_dispute_multisig::contract::query,
     );
 
     Box::new(contract)

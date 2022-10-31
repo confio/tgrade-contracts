@@ -1,0 +1,36 @@
+[package]
+name = "tgrade-dispute-multisig"
+version = "0.14.0"
+authors = ["Ethan Frey <ethanfrey@users.noreply.github.com>"]
+edition = "2018"
+description = "Implementing tg3 with an fixed group multisig and rendering decision feature"
+license = "Apache-2.0"
+repository = "https://github.com/CosmWasm/cw-plus"
+homepage = "https://cosmwasm.com"
+documentation = "https://docs.cosmwasm.com"
+
+[lib]
+crate-type = ["cdylib", "rlib"]
+
+[features]
+backtraces = ["cosmwasm-std/backtraces"]
+# use library feature to disable all instantiate/execute/query exports
+library = []
+
+[dependencies]
+cosmwasm-schema = "1.1.4"
+cw-utils = "0.15.1" 
+cw2 = "0.16.0" 
+tg3 = "0.15.1"
+cw-storage-plus = "0.15.1" 
+cosmwasm-std = "1.1.4"
+schemars = "0.8.11"
+serde = { version = "1.0.145", default-features = false, features = ["derive"] }
+tg-bindings = "0.15.0"
+thiserror = "1.0.37"
+
+[dev-dependencies]
+cw20 = "0.16.0"
+cw20-base = { version = "0.16.0", features = ["library"] }
+cw-multi-test = "0.16.0"
+tg-bindings-test = "0.15.1"

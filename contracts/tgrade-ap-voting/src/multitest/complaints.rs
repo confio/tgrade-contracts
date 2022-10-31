@@ -1,4 +1,5 @@
 use cosmwasm_std::{coin, coins, Addr, Timestamp};
+use cw_multi_test::Executor;
 use tg3::{Status, Vote};
 
 use crate::error::ContractError;
@@ -509,4 +510,95 @@ fn render_decision() {
     // reverse query works
     let res = suite.list_proposals_reverse().unwrap();
     assert_eq!(res.proposals.len(), 1);
+}
+
+#[test]
+fn full_complaint_flow() {
+    let plaintiff = "plaintiff";
+    let defendant = "defendant";
+    let arbiters = ["arbiter0", "arbiter1", "arbiter2"];
+
+    let mut suite = SuiteBuilder::new()
+        .with_waiting_period(100)
+        .with_dispute_cost(coin(100, DENOM))
+        .with_member(arbiters[0], 1)
+        .with_member(arbiters[1], 1)
+        .with_member(arbiters[2], 1)
+        .with_funds(plaintiff, coins(100, DENOM))
+        .with_funds(defendant, coins(100, DENOM))
+        .build();
+
+    let complaint_id = suite
+        .register_complaint_smart(
+            plaintiff,
+            "title",
+            "description",
+            defendant,
+            &coins(100, DENOM),
+        )
+        .unwrap();
+
+    suite
+        .accept_complaint(defendant, complaint_id, &coins(100, DENOM))
+        .unwrap();
+
+    suite.app.advance_seconds(100);
+
+    let proposal_id = suite
+        .propose_arbiters_smart(
+            arbiters[0],
+            "title",
+            "description",
+            complaint_id,
+            &arbiters[..],
+        )
+        .unwrap();
+    suite.vote(arbiters[1], proposal_id, Vote::Yes).unwrap();
+    suite.execute_proposal(arbiters[0], proposal_id).unwrap();
+
+    let complaint = suite.query_complaint(complaint_id).unwrap();
+    let voting = if let ComplaintState::Processing { arbiters } = complaint.state {
+        arbiters
+    } else {
+        panic!("Complaint not in `Processing` state");
+    };
+
+    suite
+        .app
+        .execute_contract(
+            Addr::unchecked(arbiters[0]),
+            voting.clone(),
+            &tgrade_dispute_multisig::msg::ExecuteMsg::Vote { vote: Vote::Yes },
+            &[],
+        )
+        .unwrap();
+
+    suite
+        .app
+        .execute_contract(
+            Addr::unchecked(arbiters[1]),
+            voting.clone(),
+            &tgrade_dispute_multisig::msg::ExecuteMsg::Vote { vote: Vote::Yes },
+            &[],
+        )
+        .unwrap();
+
+    suite
+        .app
+        .execute_contract(
+            Addr::unchecked(arbiters[1]),
+            voting,
+            &tgrade_dispute_multisig::msg::ExecuteMsg::Execute {
+                summary: "Summary".to_owned(),
+                ipfs_link: "ipfs".to_owned(),
+            },
+            &[],
+        )
+        .unwrap();
+
+    let complaint = suite.query_complaint(complaint_id).unwrap();
+    assert_matches!(complaint, Complaint {
+        state: ComplaintState::Closed { summary, ipfs_link },
+        ..
+    } if summary == "Summary" && ipfs_link == "ipfs");
 }
