@@ -108,7 +108,7 @@ jobs:
             - target
           key: cargocache-tgrade-ap-voting-rust:1.58.1-{{ checksum "~/project/Cargo.lock" }}
 
- contract_tgrade_tc_payments:
+  contract_tgrade_tc_payments:
     docker:
       - image: rust:1.58.1
     working_directory: ~/project/contracts/tgrade-tc-payments
@@ -135,7 +135,7 @@ jobs:
             - target
           key: cargocache-tgrade-tc-payments-rust:1.58.1-{{ checksum "~/project/Cargo.lock" }}
 
- contract_tgrade_dispute_multisig:
+  contract_tgrade_dispute_multisig:
     docker:
       - image: rust:1.58.1
     working_directory: ~/project/contracts/tgrade-dispute-multisig
