@@ -1,4 +1,5 @@
 use cosmwasm_std::StdError;
+use cw_controllers::AdminError;
 use thiserror::Error;
 
 #[derive(Error, Debug, PartialEq)]
@@ -14,6 +15,9 @@ pub enum ContractError {
 
     #[error("Unauthorized: {0}")]
     Unauthorized(String),
+
+    #[error("{0}")]
+    Admin(#[from] AdminError),
 
     #[error("Must send '{0}' to distribute rewards`")]
     MissingDenom(String),
