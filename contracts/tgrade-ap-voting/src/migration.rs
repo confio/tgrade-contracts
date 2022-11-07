@@ -6,7 +6,7 @@ use tg_bindings::TgradeQuery;
 use tg_utils::Duration;
 
 use crate::error::ContractError;
-use crate::msg::MigrationMsg;
+use crate::msg::MigrateMsg;
 use crate::state::{Config, CONFIG};
 
 #[derive(Serialize, Deserialize)]
@@ -19,7 +19,7 @@ struct ConfigV0_6_2 {
 pub fn migrate_config(
     deps: DepsMut<TgradeQuery>,
     version: &Version,
-    msg: &MigrationMsg,
+    msg: &MigrateMsg,
 ) -> Result<(), ContractError> {
     let mut config = if *version < "0.6.3".parse::<Version>().unwrap() {
         let old_storage: Item<ConfigV0_6_2> = Item::new("ap_config");
