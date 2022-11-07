@@ -469,7 +469,7 @@ mod tests {
     fn begin_next_month(block: BlockInfo) -> BlockInfo {
         // Advance to beginning of next month
         let dt = NaiveDateTime::from_timestamp(block.time.seconds() as _, 0);
-        let month = dt.month() + 1 % 12;
+        let month = dt.month() % 12 + 1;
         let year = dt.year() + (month == 1) as i32;
         let day = 1;
         let hour = 0;
