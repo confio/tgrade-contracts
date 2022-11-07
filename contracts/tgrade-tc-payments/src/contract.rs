@@ -16,7 +16,7 @@ use crate::error::ContractError;
 use crate::migration::migrate_config;
 use crate::msg::{ExecuteMsg, InstantiateMsg, MigrationMsg, PaymentListResponse, QueryMsg};
 use crate::payment::{DEFAULT_LIMIT, MAX_LIMIT};
-use crate::state::{hour_after_midnight, payments, PaymentsConfig, ADMIN, CONFIG, PAYMENTS};
+use crate::state::{hour_after_midnight, payments, Config, ADMIN, CONFIG, PAYMENTS};
 
 // version info for migration info
 const CONTRACT_NAME: &str = "crates.io:tgrade-tc-payments";
@@ -47,7 +47,7 @@ pub fn instantiate(
     let ap_addr = verify_tg4_input(deps.as_ref(), &msg.ap_addr)?;
     let engagement_addr = deps.api.addr_validate(&msg.engagement_addr)?;
 
-    let tc_payments = PaymentsConfig {
+    let tc_payments = Config {
         oc_addr,
         ap_addr,
         engagement_addr,

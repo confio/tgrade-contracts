@@ -14,6 +14,7 @@ use tgrade_valset::msg::{
 };
 
 use crate::msg::{ExecuteMsg, InstantiateMsg, Period, QueryMsg};
+use crate::state::Config;
 
 const ED25519_PUBKEY_LENGTH: usize = 32;
 
@@ -355,6 +356,13 @@ impl Suite {
         Ok(amount.into())
     }
 
+    /// Queries payments contract for its config
+    pub fn config(&self) -> StdResult<Config> {
+        self.app
+            .wrap()
+            .query_wasm_smart(&self.tc_payments, &QueryMsg::Configuration {})
+    }
+
     pub fn withdraw_rewards(&mut self, sender: &str, contract: Addr) -> AnyResult<AppResponse> {
         self.app.execute_contract(
             Addr::unchecked(sender),
@@ -378,6 +386,19 @@ impl Suite {
             &ExecuteMsg::UpdateAdmin {
                 admin: admin.into(),
             },
+            &[],
+        )
+    }
+
+    pub fn update_config(
+        &mut self,
+        executor: &str,
+        payment_amount: Option<Uint128>,
+    ) -> AnyResult<AppResponse> {
+        self.app.execute_contract(
+            Addr::unchecked(executor),
+            self.tc_payments.clone(),
+            &ExecuteMsg::UpdateConfig { payment_amount },
             &[],
         )
     }

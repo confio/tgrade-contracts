@@ -13,7 +13,7 @@ use crate::msg::Period;
 use crate::payment::{Payment, Payments};
 
 #[derive(Serialize, Deserialize, Clone, PartialEq, Debug, JsonSchema)]
-pub struct PaymentsConfig {
+pub struct Config {
     /// Trusted Circle / OC contract address
     pub oc_addr: Tg4Contract,
     /// Arbiter pool contract address
@@ -28,7 +28,7 @@ pub struct PaymentsConfig {
     pub payment_period: Period,
 }
 
-impl PaymentsConfig {
+impl Config {
     /// Checks if the payment should be applied based on the payment period.
     /// Must be called at least once per hour, or once per day at midnight UTC.
     /// If not, loss of payment will happen.
@@ -48,7 +48,7 @@ pub(crate) fn hour_after_midnight(t: &Timestamp) -> bool {
 
 pub const ADMIN: Admin = Admin::new("admin");
 
-pub const CONFIG: Item<PaymentsConfig> = Item::new("config");
+pub const CONFIG: Item<Config> = Item::new("config");
 
 pub const PAYMENTS: Map<u64, Payment> = Map::new("payments");
 
