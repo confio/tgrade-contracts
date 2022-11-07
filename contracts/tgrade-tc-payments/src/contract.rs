@@ -266,6 +266,7 @@ pub fn query(deps: Deps<TgradeQuery>, _env: Env, msg: QueryMsg) -> StdResult<Bin
     match msg {
         Configuration {} => to_binary(&CONFIG.load(deps.storage)?),
         ListPayments { start_after, limit } => to_binary(&list_payments(deps, start_after, limit)?),
+        Admin {} => Ok(to_binary(&ADMIN.query_admin(deps)?)?),
     }
 }
 
