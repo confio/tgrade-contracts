@@ -13,7 +13,7 @@ use tgrade_valset::msg::{
     UnvalidatedDistributionContract, UnvalidatedDistributionContracts, ValidatorMetadata,
 };
 
-use crate::msg::{ExecuteMsg, InstantiateMsg, Period, QueryMsg};
+use crate::msg::{ExecuteMsg, InstantiateMsg, MigrateMsg, Period, QueryMsg};
 use crate::state::Config;
 
 const ED25519_PUBKEY_LENGTH: usize = 32;
@@ -33,7 +33,8 @@ pub fn contract_tc_payments() -> Box<dyn Contract<TgradeMsg, TgradeQuery>> {
         crate::contract::instantiate,
         crate::contract::query,
     )
-    .with_sudo(crate::contract::sudo);
+    .with_sudo(crate::contract::sudo)
+    .with_migrate(crate::contract::migrate);
 
     Box::new(contract)
 }
@@ -315,6 +316,7 @@ impl SuiteBuilder {
             app,
             admin: admin.into(),
             tc_payments,
+            tc_payments_code_id: tc_payments_id,
             ap_contract: ap_distribution_contract,
             oc_contract: oc_distribution_contract,
             epoch_length: self.epoch_length,
@@ -325,9 +327,11 @@ impl SuiteBuilder {
 
 pub struct Suite {
     app: TgradeApp,
-    /// Admin of tgrade-tc-payments contract
+    /// Admin of tc-payments contract
     admin: String,
     pub tc_payments: Addr,
+    /// The code id of the tc-payments contract
+    tc_payments_code_id: u64,
     pub ap_contract: Addr,
     pub oc_contract: Addr,
     epoch_length: u64,
@@ -372,6 +376,17 @@ impl Suite {
                 receiver: None,
             },
             &[],
+        )
+    }
+
+    /// Migrates the contract to the same version (same code id), but possibly changing
+    /// some cfg values via MigrateMsg.
+    pub fn migrate(&mut self, addr: &str, msg: &MigrateMsg) -> AnyResult<AppResponse> {
+        self.app.migrate_contract(
+            Addr::unchecked(addr),
+            self.tc_payments.clone(),
+            msg,
+            self.tc_payments_code_id,
         )
     }
 
