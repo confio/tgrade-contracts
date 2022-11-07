@@ -80,6 +80,6 @@ pub struct PaymentListResponse {
 
 #[derive(Serialize, Deserialize, Clone, PartialEq, JsonSchema, Debug)]
 #[serde(rename_all = "snake_case")]
-pub struct MigrationMsg {
+pub struct MigrateMsg {
     pub payment_amount: Option<Uint128>,
 }

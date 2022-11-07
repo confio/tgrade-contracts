@@ -3,13 +3,13 @@ use semver::Version;
 use tg_bindings::TgradeQuery;
 
 use crate::error::ContractError;
-use crate::msg::MigrationMsg;
+use crate::msg::MigrateMsg;
 use crate::state::CONFIG;
 
 pub fn migrate_config(
     deps: DepsMut<TgradeQuery>,
     _version: &Version,
-    msg: &MigrationMsg,
+    msg: &MigrateMsg,
 ) -> Result<(), ContractError> {
     let mut config = CONFIG.load(deps.storage)?;
 

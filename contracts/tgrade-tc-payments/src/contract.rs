@@ -14,7 +14,7 @@ use tg_bindings::{
 
 use crate::error::ContractError;
 use crate::migration::migrate_config;
-use crate::msg::{ExecuteMsg, InstantiateMsg, MigrationMsg, PaymentListResponse, QueryMsg};
+use crate::msg::{ExecuteMsg, InstantiateMsg, MigrateMsg, PaymentListResponse, QueryMsg};
 use crate::payment::{DEFAULT_LIMIT, MAX_LIMIT};
 use crate::state::{hour_after_midnight, payments, Config, ADMIN, CONFIG, PAYMENTS};
 
@@ -306,7 +306,7 @@ pub fn query(deps: Deps<TgradeQuery>, _env: Env, msg: QueryMsg) -> StdResult<Bin
 pub fn migrate(
     deps: DepsMut<TgradeQuery>,
     _env: Env,
-    msg: MigrationMsg,
+    msg: MigrateMsg,
 ) -> Result<Response, ContractError> {
     let stored_version = ensure_from_older_version(deps.storage, CONTRACT_NAME, CONTRACT_VERSION)?;
 
