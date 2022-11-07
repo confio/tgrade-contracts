@@ -2,7 +2,7 @@
 use cosmwasm_std::entry_point;
 use cosmwasm_std::{
     coins, to_binary, Binary, Coin, CustomQuery, Decimal, Deps, DepsMut, Env, Event, MessageInfo,
-    Order, StdResult, Uint128, WasmMsg,
+    Order, StdError, StdResult, Uint128, WasmMsg,
 };
 use cw2::set_contract_version;
 use cw_storage_plus::Bound;
@@ -76,6 +76,9 @@ pub fn execute(
             info,
             admin.map(|admin| api.addr_validate(&admin)).transpose()?,
         )?),
+        ExecuteMsg::UpdateConfig { payment_amount } => {
+            execute_update_config(deps, info, payment_amount)
+        }
         ExecuteMsg::DistributeRewards { sender } => {
             execute_distribute_rewards(deps, env, info, sender)
         }
@@ -147,6 +150,27 @@ pub fn execute_distribute_rewards<Q: CustomQuery>(
         .add_submessage(distribute_msg);
 
     Ok(resp)
+}
+
+fn execute_update_config<Q: CustomQuery>(
+    deps: DepsMut<Q>,
+    info: MessageInfo,
+    payment_amount: Option<Uint128>,
+) -> Result<Response, ContractError> {
+    ADMIN.assert_admin(deps.as_ref(), &info.sender)?;
+
+    CONFIG.update::<_, StdError>(deps.storage, |mut cfg| {
+        if let Some(payment_amount) = payment_amount {
+            cfg.payment_amount = payment_amount;
+        }
+        Ok(cfg)
+    })?;
+
+    let res = Response::new()
+        .add_attribute("action", "update_config")
+        .add_attribute("operator", &info.sender);
+
+    Ok(res)
 }
 
 #[cfg_attr(not(feature = "library"), entry_point)]
