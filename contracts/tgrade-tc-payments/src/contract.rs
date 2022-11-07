@@ -1,11 +1,12 @@
 #[cfg(not(feature = "library"))]
 use cosmwasm_std::entry_point;
 use cosmwasm_std::{
-    coins, to_binary, Binary, Coin, CustomQuery, Decimal, Deps, DepsMut, Env, Event, MessageInfo,
-    Order, StdResult, Uint128, WasmMsg,
+    coins, to_binary, Binary, Coin, CustomQuery, Decimal, Deps, DepsMut, Empty, Env, Event,
+    MessageInfo, Order, StdResult, Uint128, WasmMsg,
 };
 use cw2::set_contract_version;
 use cw_storage_plus::Bound;
+use cw_utils::ensure_from_older_version;
 use tg4::Tg4Contract;
 use tg_bindings::{
     request_privileges, Privilege, PrivilegeChangeMsg, TgradeMsg, TgradeQuery, TgradeSudoMsg,
@@ -268,6 +269,17 @@ pub fn query(deps: Deps<TgradeQuery>, _env: Env, msg: QueryMsg) -> StdResult<Bin
         ListPayments { start_after, limit } => to_binary(&list_payments(deps, start_after, limit)?),
         Admin {} => Ok(to_binary(&ADMIN.query_admin(deps)?)?),
     }
+}
+
+#[cfg_attr(not(feature = "library"), entry_point)]
+pub fn migrate(
+    deps: DepsMut<TgradeQuery>,
+    _env: Env,
+    _msg: Empty,
+) -> Result<Response, ContractError> {
+    ensure_from_older_version(deps.storage, CONTRACT_NAME, CONTRACT_VERSION)?;
+
+    Ok(Response::new())
 }
 
 fn list_payments<Q: CustomQuery>(
