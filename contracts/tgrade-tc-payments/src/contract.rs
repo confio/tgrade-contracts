@@ -1,8 +1,8 @@
 #[cfg(not(feature = "library"))]
 use cosmwasm_std::entry_point;
 use cosmwasm_std::{
-    coins, to_binary, Binary, Coin, CustomQuery, Decimal, Deps, DepsMut, Empty, Env, Event,
-    MessageInfo, Order, StdResult, Uint128, WasmMsg,
+    coins, to_binary, Binary, Coin, CustomQuery, Decimal, Deps, DepsMut, Env, Event, MessageInfo,
+    Order, StdResult, Uint128, WasmMsg,
 };
 use cw2::set_contract_version;
 use cw_storage_plus::Bound;
@@ -13,7 +13,8 @@ use tg_bindings::{
 };
 
 use crate::error::ContractError;
-use crate::msg::{ExecuteMsg, InstantiateMsg, PaymentListResponse, QueryMsg};
+use crate::migration::migrate_config;
+use crate::msg::{ExecuteMsg, InstantiateMsg, MigrationMsg, PaymentListResponse, QueryMsg};
 use crate::payment::{DEFAULT_LIMIT, MAX_LIMIT};
 use crate::state::{hour_after_midnight, payments, PaymentsConfig, ADMIN, CONFIG, PAYMENTS};
 
@@ -275,10 +276,11 @@ pub fn query(deps: Deps<TgradeQuery>, _env: Env, msg: QueryMsg) -> StdResult<Bin
 pub fn migrate(
     deps: DepsMut<TgradeQuery>,
     _env: Env,
-    _msg: Empty,
+    msg: MigrationMsg,
 ) -> Result<Response, ContractError> {
-    ensure_from_older_version(deps.storage, CONTRACT_NAME, CONTRACT_VERSION)?;
+    let stored_version = ensure_from_older_version(deps.storage, CONTRACT_NAME, CONTRACT_VERSION)?;
 
+    migrate_config(deps, &stored_version, &msg)?;
     Ok(Response::new())
 }
 
