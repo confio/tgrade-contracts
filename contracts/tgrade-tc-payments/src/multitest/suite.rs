@@ -3,6 +3,7 @@ use chrono::{NaiveDateTime, Timelike};
 use derivative::Derivative;
 
 use cosmwasm_std::{coin, Addr, Binary, Decimal, StdResult, Uint128};
+use cw_controllers::AdminResponse;
 use cw_multi_test::{AppResponse, Contract, ContractWrapper, Executor};
 use tg4::Member;
 use tg_bindings::{Pubkey, TgradeMsg, TgradeQuery};
@@ -12,7 +13,7 @@ use tgrade_valset::msg::{
     UnvalidatedDistributionContract, UnvalidatedDistributionContracts, ValidatorMetadata,
 };
 
-use crate::msg::{InstantiateMsg, Period};
+use crate::msg::{ExecuteMsg, InstantiateMsg, Period, QueryMsg};
 
 const ED25519_PUBKEY_LENGTH: usize = 32;
 
@@ -311,6 +312,7 @@ impl SuiteBuilder {
 
         Suite {
             app,
+            admin: admin.into(),
             tc_payments,
             ap_contract: ap_distribution_contract,
             oc_contract: oc_distribution_contract,
@@ -322,6 +324,8 @@ impl SuiteBuilder {
 
 pub struct Suite {
     app: TgradeApp,
+    /// Admin of tgrade-tc-payments contract
+    admin: String,
     pub tc_payments: Addr,
     pub ap_contract: Addr,
     pub oc_contract: Addr,
@@ -330,6 +334,10 @@ pub struct Suite {
 }
 
 impl Suite {
+    pub fn admin(&self) -> &str {
+        &self.admin
+    }
+
     pub fn advance_epochs(&mut self, number: u64) -> AnyResult<()> {
         self.app.advance_seconds(self.epoch_length * number);
         let _ = self.app.end_block()?;
@@ -357,5 +365,29 @@ impl Suite {
             },
             &[],
         )
+    }
+
+    pub fn update_admin(
+        &mut self,
+        executor: &str,
+        admin: impl Into<Option<String>>,
+    ) -> AnyResult<AppResponse> {
+        self.app.execute_contract(
+            Addr::unchecked(executor),
+            self.tc_payments.clone(),
+            &ExecuteMsg::UpdateAdmin {
+                admin: admin.into(),
+            },
+            &[],
+        )
+    }
+
+    pub fn query_admin(&self) -> StdResult<Option<String>> {
+        let resp: AdminResponse = self
+            .app
+            .wrap()
+            .query_wasm_smart(self.tc_payments.clone(), &QueryMsg::Admin {})?;
+
+        Ok(resp.admin)
     }
 }

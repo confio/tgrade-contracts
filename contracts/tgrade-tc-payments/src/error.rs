@@ -17,7 +17,7 @@ pub enum ContractError {
     Unauthorized(String),
 
     #[error("{0}")]
-    Admin(#[from] AdminError),
+    AdminError(#[from] AdminError),
 
     #[error("Must send '{0}' to distribute rewards`")]
     MissingDenom(String),
