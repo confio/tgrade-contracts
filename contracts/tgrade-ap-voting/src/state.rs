@@ -77,7 +77,7 @@ pub const COMPLAINTS: Map<u64, Complaint> = Map::new("complaints");
 // This is an id of a complaint which handling is in progress (for reply handling)
 pub const COMPLAINT_AWAITING: Item<u64> = Item::new("complaint_awaiting");
 
-#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, Eq, JsonSchema)]
 #[serde(rename_all = "snake_case")]
 pub enum ArbiterPoolProposal {
     /// An open text proposal with no actual logic executed when it passes

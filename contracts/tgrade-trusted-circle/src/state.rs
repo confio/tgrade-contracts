@@ -16,7 +16,7 @@ use tg3::{Status, Vote};
 
 const ONE_TGD: u128 = 1_000_000; // One million µTGD
 
-#[derive(Serialize, Deserialize, Clone, PartialEq, Debug)]
+#[derive(Serialize, Deserialize, Clone, PartialEq, Eq, Debug)]
 pub struct TrustedCircle {
     pub name: String,
     pub denom: String,
@@ -30,7 +30,7 @@ pub struct TrustedCircle {
 }
 
 /// Pending escrow
-#[derive(Serialize, Deserialize, Clone, PartialEq, JsonSchema, Debug)]
+#[derive(Serialize, Deserialize, Clone, PartialEq, Eq, JsonSchema, Debug)]
 pub struct PendingEscrow {
     /// Associated proposal_id
     pub proposal_id: u64,
@@ -40,7 +40,7 @@ pub struct PendingEscrow {
     pub grace_ends_at: u64,
 }
 
-#[derive(Serialize, Deserialize, Clone, PartialEq, Debug, JsonSchema)]
+#[derive(Serialize, Deserialize, Clone, PartialEq, Eq, Debug, JsonSchema)]
 pub struct VotingRules {
     /// Length of voting period in days.
     /// Also used to define when escrow_pending is enforced.
@@ -77,7 +77,7 @@ impl VotingRules {
     }
 }
 
-#[derive(Serialize, Deserialize, Clone, PartialEq, Debug, JsonSchema)]
+#[derive(Serialize, Deserialize, Clone, PartialEq, Eq, Debug, JsonSchema)]
 pub struct TrustedCircleAdjustments {
     /// Escrow name
     pub name: Option<String>,
@@ -196,7 +196,7 @@ impl TrustedCircleAdjustments {
     }
 }
 
-#[derive(Serialize, Deserialize, Clone, PartialEq, Debug, JsonSchema)]
+#[derive(Serialize, Deserialize, Clone, PartialEq, Eq, Debug, JsonSchema)]
 #[serde(rename_all = "snake_case")]
 pub enum Punishment {
     DistributeEscrow {
@@ -327,7 +327,7 @@ pub const TRUSTED_CIRCLE: Item<TrustedCircle> = Item::new("trusted_circle");
 
 /// We store escrow and status together for all members.
 /// This is set for any address where points is not None.
-#[derive(Serialize, Deserialize, Clone, PartialEq, JsonSchema, Debug)]
+#[derive(Serialize, Deserialize, Clone, PartialEq, Eq, JsonSchema, Debug)]
 pub struct EscrowStatus {
     /// how much escrow they have paid
     pub paid: Uint128,
@@ -353,7 +353,7 @@ impl EscrowStatus {
     }
 }
 
-#[derive(Serialize, Deserialize, Clone, PartialEq, JsonSchema, Debug, Copy)]
+#[derive(Serialize, Deserialize, Clone, PartialEq, Eq, JsonSchema, Debug, Copy)]
 #[serde(rename_all = "snake_case")]
 pub enum MemberStatus {
     /// Normal member, not allowed to vote
@@ -396,7 +396,7 @@ pub const ESCROWS: Map<&Addr, EscrowStatus> = Map::new("escrows");
 
 /// A Batch is a group of members who got voted in together. We need this to
 /// calculate moving from *Paid, Pending Voter* to *Voter*
-#[derive(Serialize, Deserialize, Clone, PartialEq, JsonSchema, Debug)]
+#[derive(Serialize, Deserialize, Clone, PartialEq, Eq, JsonSchema, Debug)]
 pub struct Batch {
     /// Timestamp (seconds) when all members are no longer pending
     pub grace_ends_at: u64,
@@ -466,7 +466,7 @@ pub fn batches<'a>() -> IndexedMap<'a, u64, Batch, BatchIndexes<'a>> {
     IndexedMap::new("batch", indexes)
 }
 
-#[derive(Serialize, Deserialize, Clone, PartialEq, JsonSchema, Debug)]
+#[derive(Serialize, Deserialize, Clone, PartialEq, Eq, JsonSchema, Debug)]
 #[serde(rename_all = "snake_case")]
 pub enum ProposalContent {
     /// Apply a diff to the existing non-voting members.
@@ -505,7 +505,7 @@ pub struct Proposal {
 const PRECISION_FACTOR: u128 = 1_000_000_000;
 
 // points of votes for each option
-#[derive(Serialize, Deserialize, Clone, PartialEq, JsonSchema, Debug)]
+#[derive(Serialize, Deserialize, Clone, PartialEq, Eq, JsonSchema, Debug)]
 pub struct Votes {
     pub yes: u64,
     pub no: u64,
