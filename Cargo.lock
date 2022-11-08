@@ -234,6 +234,21 @@ dependencies = [
 ]
 
 [[package]]
+name = "cw-controllers"
+version = "0.16.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "24bd6738c3fd59c87d2f84911c1cad1e4f2d1c58ecaa6e52549b4f78f4ed6f07"
+dependencies = [
+ "cosmwasm-schema",
+ "cosmwasm-std",
+ "cw-storage-plus 0.16.0",
+ "cw-utils 0.16.0",
+ "schemars",
+ "serde",
+ "thiserror",
+]
+
+[[package]]
 name = "cw-multi-test"
 version = "0.15.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -890,9 +905,9 @@ dependencies = [
 
 [[package]]
 name = "tg-test-utils"
-version = "0.15.0"
+version = "0.15.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "55c94534b20cc7e29f1efe4f2fbf0d8ac490518c5beece5d96ac865d8b78cc2a"
+checksum = "9dcdb353f457e5c29c20e678026cffa61c75d567bb7c387ee5e5b890b749badc"
 dependencies = [
  "cosmwasm-std",
  "tg-voting-contract",
@@ -905,7 +920,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "8c4e0013294c4283a7abdc95135d19379419d0135477d972436ad5c9e4ded5a4"
 dependencies = [
  "cosmwasm-std",
- "cw-controllers",
+ "cw-controllers 0.15.0",
  "cw-storage-plus 0.15.1",
  "cw-utils 0.15.1",
  "cw2 0.15.1",
@@ -919,9 +934,9 @@ dependencies = [
 
 [[package]]
 name = "tg-voting-contract"
-version = "0.15.0"
+version = "0.15.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "82eda1ce273da07296a240b7d5dd98f3512bcb93531483e86428cf921027d02a"
+checksum = "9cf81da528cfc2478613e57cb543731b5db7bf8fa5cac1333fccbdd72189aaf8"
 dependencies = [
  "cosmwasm-std",
  "cw-storage-plus 0.15.1",
@@ -962,12 +977,12 @@ dependencies = [
 
 [[package]]
 name = "tg4-engagement"
-version = "0.15.0"
+version = "0.15.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "1d09194c334ab8d68555e1c555ac9e39e57ab86a411290343f61cd6fb59efc17"
+checksum = "edf39f6b58f7808fcd09ecefbd4c6a1bde59c01ddd1fc4b210c7c7a47358bcd3"
 dependencies = [
  "cosmwasm-std",
- "cw-controllers",
+ "cw-controllers 0.15.0",
  "cw-storage-plus 0.15.1",
  "cw-utils 0.15.1",
  "cw2 0.15.1",
@@ -981,7 +996,7 @@ dependencies = [
 
 [[package]]
 name = "tgrade-ap-voting"
-version = "0.14.0"
+version = "0.15.0"
 dependencies = [
  "anyhow",
  "assert_matches",
@@ -989,7 +1004,7 @@ dependencies = [
  "cosmwasm-std",
  "cw-multi-test 0.15.1",
  "cw-storage-plus 0.16.0",
- "cw-utils 0.15.1",
+ "cw-utils 0.16.0",
  "cw2 0.16.0",
  "schemars",
  "semver",
@@ -1009,13 +1024,13 @@ dependencies = [
 
 [[package]]
 name = "tgrade-dispute-multisig"
-version = "0.14.0"
+version = "0.15.0"
 dependencies = [
  "cosmwasm-schema",
  "cosmwasm-std",
  "cw-multi-test 0.16.0",
- "cw-storage-plus 0.15.1",
- "cw-utils 0.15.1",
+ "cw-storage-plus 0.16.0",
+ "cw-utils 0.16.0",
  "cw2 0.16.0",
  "cw20",
  "cw20-base",
@@ -1029,15 +1044,15 @@ dependencies = [
 
 [[package]]
 name = "tgrade-oc-proposals"
-version = "0.14.0"
+version = "0.15.0"
 dependencies = [
  "anyhow",
  "cosmwasm-schema",
  "cosmwasm-std",
  "cw-multi-test 0.15.1",
- "cw-storage-plus 0.15.1",
- "cw-utils 0.15.1",
- "cw2 0.15.1",
+ "cw-storage-plus 0.16.0",
+ "cw-utils 0.16.0",
+ "cw2 0.16.0",
  "schemars",
  "serde",
  "tg-bindings",
@@ -1054,17 +1069,17 @@ dependencies = [
 
 [[package]]
 name = "tgrade-tc-payments"
-version = "0.14.0"
+version = "0.15.0"
 dependencies = [
  "anyhow",
  "chrono",
  "cosmwasm-schema",
  "cosmwasm-std",
- "cw-controllers",
+ "cw-controllers 0.16.0",
  "cw-multi-test 0.15.1",
- "cw-storage-plus 0.15.1",
- "cw-utils 0.15.1",
- "cw2 0.15.1",
+ "cw-storage-plus 0.16.0",
+ "cw-utils 0.16.0",
+ "cw2 0.16.0",
  "derivative",
  "schemars",
  "semver",
@@ -1081,16 +1096,16 @@ dependencies = [
 
 [[package]]
 name = "tgrade-trusted-circle"
-version = "0.14.0"
+version = "0.15.0"
 dependencies = [
  "anyhow",
  "cosmwasm-schema",
  "cosmwasm-std",
- "cw-controllers",
+ "cw-controllers 0.16.0",
  "cw-multi-test 0.15.1",
  "cw-storage-plus 0.15.1",
- "cw-utils 0.15.1",
- "cw2 0.15.1",
+ "cw-utils 0.16.0",
+ "cw2 0.16.0",
  "derivative",
  "schemars",
  "semver",
@@ -1108,12 +1123,12 @@ dependencies = [
 
 [[package]]
 name = "tgrade-valset"
-version = "0.15.0"
+version = "0.15.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "d000163b2fa4e87bc9e50fce4f29fbc5f205115b1de3b7d0c7113d6447d80622"
+checksum = "9a02f6dd8ae3f378e7a316d1b6431082831afae0340ca8533e1845c55d554e61"
 dependencies = [
  "cosmwasm-std",
- "cw-controllers",
+ "cw-controllers 0.15.0",
  "cw-storage-plus 0.15.1",
  "cw-utils 0.15.1",
  "cw2 0.15.1",

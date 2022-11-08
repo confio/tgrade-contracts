@@ -2,7 +2,20 @@
 
 ## [Unreleased](https://github.com/confio/tgrade-contracts/tree/HEAD)
 
-[Full Changelog](https://github.com/confio/tgrade-contracts/compare/v0.14.0...HEAD)
+[Full Changelog](https://github.com/confio/tgrade-contracts/compare/v0.15.0...HEAD)
+
+## [v0.15.0](https://github.com/confio/tgrade-contracts/tree/v0.15.0) (2022-11-08)
+
+[Full Changelog](https://github.com/confio/tgrade-contracts/compare/v0.14.0...v0.15.0)
+
+**Implemented enhancements:**
+
+- \[tgrade-tc-payments\] Add `UpdateAdmin` and `UpdateConfig` entry points [\#496](https://github.com/confio/tgrade-contracts/issues/496)
+
+**Merged pull requests:**
+
+- tc-payments update admin, config, and migrate [\#530](https://github.com/confio/tgrade-contracts/pull/530) ([maurolacy](https://github.com/maurolacy))
+- Custom complaints voting contract [\#529](https://github.com/confio/tgrade-contracts/pull/529) ([hashedone](https://github.com/hashedone))
 
 ## [v0.14.0](https://github.com/confio/tgrade-contracts/tree/v0.14.0) (2022-09-20)
 

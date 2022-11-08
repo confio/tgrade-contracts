@@ -456,7 +456,7 @@ pub fn batches<'a>() -> IndexedMap<'a, u64, Batch, BatchIndexes<'a>> {
     let indexes = BatchIndexes {
         promotion_time: MultiIndex::new(
             |_, b: &Batch| {
-                let promoted = if b.batch_promoted { 1u8 } else { 0u8 };
+                let promoted = u8::from(b.batch_promoted);
                 (promoted, b.grace_ends_at)
             },
             "batch",

@@ -1,6 +1,6 @@
 [package]
 name = "tgrade-tc-payments"
-version = "0.14.0"
+version = "0.15.0"
 authors = ["Mauro Lacy <maurolacy@users.noreply.github.com>"]
 edition = "2021"
 description = "Oversight Community / Arbiter Pool payments contract"
@@ -22,23 +22,23 @@ library = []
 chrono = "0.4.19"
 cosmwasm-schema = "1.1.0"
 cosmwasm-std = "1.1.0"
-cw2 = "0.15.0"
-cw-controllers = "0.15.0"
-cw-storage-plus = "0.15.0"
-cw-utils = "0.15.0"
+cw2 = "0.16.0"
+cw-controllers = "0.16.0"
+cw-storage-plus = "0.16.0"
+cw-utils = "0.16.0"
 schemars = "0.8"
 semver = "1.0"
 serde = { version = "1.0.103", default-features = false, features = ["derive"] }
-tg-bindings = "0.15.0"
-tg4 = "0.15.0"
+tg-bindings = "0.15.1"
+tg4 = "0.15.1"
 thiserror = "1.0.21"
 
 [dev-dependencies]
 anyhow = "1"
-cw-multi-test = "0.15.0"
+cw-multi-test = "0.15.1"
 derivative = "2"
-tg4-engagement = { version = "0.15.0", features = ["library"] }
-tg-voting-contract = "0.15.0"
-tg-bindings-test = "0.15.0"
-tg-utils = "0.15.0"
-tgrade-valset = { version = "0.15.0", features = ["library"] }
+tg4-engagement = { version = "0.15.1", features = ["library"] }
+tg-voting-contract = "0.15.1"
+tg-bindings-test = "0.15.1"
+tg-utils = "0.15.1"
+tgrade-valset = { version = "0.15.1", features = ["library"] }
