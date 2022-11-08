@@ -996,7 +996,7 @@ dependencies = [
 
 [[package]]
 name = "tgrade-ap-voting"
-version = "0.14.0"
+version = "0.15.0"
 dependencies = [
  "anyhow",
  "assert_matches",
@@ -1024,7 +1024,7 @@ dependencies = [
 
 [[package]]
 name = "tgrade-dispute-multisig"
-version = "0.14.0"
+version = "0.15.0"
 dependencies = [
  "cosmwasm-schema",
  "cosmwasm-std",
@@ -1044,7 +1044,7 @@ dependencies = [
 
 [[package]]
 name = "tgrade-oc-proposals"
-version = "0.14.0"
+version = "0.15.0"
 dependencies = [
  "anyhow",
  "cosmwasm-schema",
@@ -1069,7 +1069,7 @@ dependencies = [
 
 [[package]]
 name = "tgrade-tc-payments"
-version = "0.14.0"
+version = "0.15.0"
 dependencies = [
  "anyhow",
  "chrono",
@@ -1096,7 +1096,7 @@ dependencies = [
 
 [[package]]
 name = "tgrade-trusted-circle"
-version = "0.14.0"
+version = "0.15.0"
 dependencies = [
  "anyhow",
  "cosmwasm-schema",

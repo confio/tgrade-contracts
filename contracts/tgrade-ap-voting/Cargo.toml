@@ -1,6 +1,6 @@
 [package]
 name = "tgrade-ap-voting"
-version = "0.14.0"
+version = "0.15.0"
 authors = ["Bartłomiej Kuras <bart.k@confio.gmbh>"]
 edition = "2018"
 description = "Implementing tgrade-ap-voting"
@@ -16,7 +16,7 @@ library = []
 [dependencies]
 cosmwasm-std = "1.1.0"
 cw2 = "0.16.0"
-tgrade-dispute-multisig = { version = "0.14.0", path = "../tgrade-dispute-multisig" }
+tgrade-dispute-multisig = { version = "0.15.0", path = "../tgrade-dispute-multisig" }
 cw-utils = "0.16.0"
 cw-storage-plus = "0.16.0"
 schemars = "0.8.1"
@@ -38,4 +38,4 @@ tg-bindings-test = "0.15.1"
 tg-test-utils = "0.15.1"
 tg4 = "0.15.1"
 tg4-engagement = "0.15.1"
-tgrade-oc-proposals = { path = "../tgrade-oc-proposals", version = "0.14.0" }
+tgrade-oc-proposals = { path = "../tgrade-oc-proposals", version = "0.15.0" }
