@@ -19,10 +19,10 @@ library = []
 
 [dependencies]
 cosmwasm-schema = "1.1.4"
-cw-utils = "0.15.1" 
-cw2 = "0.16.0" 
+cw-utils = "0.16.0"
+cw2 = "0.16.0"
 tg3 = "0.15.1"
-cw-storage-plus = "0.15.1" 
+cw-storage-plus = "0.16.0"
 cosmwasm-std = "1.1.4"
 schemars = "0.8.11"
 serde = { version = "1.0.145", default-features = false, features = ["derive"] }

@@ -17,7 +17,7 @@ library = []
 cosmwasm-std = "1.1.0"
 cw2 = "0.16.0"
 tgrade-dispute-multisig = { version = "0.14.0", path = "../tgrade-dispute-multisig" }
-cw-utils = "0.15.1"
+cw-utils = "0.16.0"
 cw-storage-plus = "0.16.0"
 schemars = "0.8.1"
 semver = "1"
