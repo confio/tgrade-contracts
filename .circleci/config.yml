@@ -164,8 +164,8 @@ jobs:
 
   lint:
     docker:
-      - image: rust:1.58.1
-    steps:
+      - image: rust:1.65.0
+    step0:
       - checkout
       - run:
           name: Version information
