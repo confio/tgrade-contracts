@@ -16,7 +16,7 @@ use tg_bindings::{
 };
 
 use crate::migration::migrate_config;
-use crate::msg::{ExecuteMsg, InstantiateMsg, ListComplaintsResp, MigrationMsg, QueryMsg};
+use crate::msg::{ExecuteMsg, InstantiateMsg, ListComplaintsResp, MigrateMsg, QueryMsg};
 use crate::state::{
     ArbiterPoolProposal, Complaint, ComplaintState, Config, COMPLAINTS, COMPLAINT_AWAITING, CONFIG,
 };
@@ -543,7 +543,7 @@ fn privilege_change(_deps: DepsMut<TgradeQuery>, change: PrivilegeChangeMsg) -> 
 pub fn migrate(
     deps: DepsMut<TgradeQuery>,
     _env: Env,
-    msg: MigrationMsg,
+    msg: MigrateMsg,
 ) -> Result<Response, ContractError> {
     let storage_version = ensure_from_older_version(deps.storage, CONTRACT_NAME, CONTRACT_VERSION)?;
 

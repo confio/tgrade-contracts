@@ -3,10 +3,10 @@ use cosmwasm_std::Uint128;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
-#[derive(Serialize, Deserialize, Clone, PartialEq, JsonSchema, Debug)]
+#[derive(Serialize, Deserialize, Clone, PartialEq, Eq, JsonSchema, Debug)]
 #[serde(rename_all = "snake_case")]
 pub struct InstantiateMsg {
-    /// Admin (if set) can change the payment amount and period (TODO)
+    /// Admin (if set) can change the payment amount
     pub admin: Option<String>,
     /// Trusted Circle / OC contract address
     pub oc_addr: String,
@@ -23,7 +23,7 @@ pub struct InstantiateMsg {
     pub payment_period: Period,
 }
 
-#[derive(Serialize, Deserialize, Clone, PartialEq, JsonSchema, Debug)]
+#[derive(Serialize, Deserialize, Clone, PartialEq, Eq, JsonSchema, Debug)]
 #[serde(rename_all = "snake_case")]
 pub enum Period {
     Daily {},
@@ -41,9 +41,13 @@ impl Period {
     }
 }
 
-#[derive(Serialize, Deserialize, Clone, PartialEq, JsonSchema, Debug)]
+#[derive(Serialize, Deserialize, Clone, PartialEq, Eq, JsonSchema, Debug)]
 #[serde(rename_all = "snake_case")]
 pub enum ExecuteMsg {
+    /// Change the admin
+    UpdateAdmin { admin: Option<String> },
+    /// Alter config values
+    UpdateConfig { payment_amount: Option<Uint128> },
     /// Distributes rewards sent with this message.
     /// Added here to comply with the distribution standard (CW2222). In this contract,
     /// 1% of rewards are kept in the contract, for monthly distribution to OC + AP members (payment)
@@ -55,7 +59,7 @@ pub enum ExecuteMsg {
     },
 }
 
-#[derive(Serialize, Deserialize, Clone, PartialEq, JsonSchema, Debug)]
+#[derive(Serialize, Deserialize, Clone, PartialEq, Eq, JsonSchema, Debug)]
 #[serde(rename_all = "snake_case")]
 pub enum QueryMsg {
     /// Returns configuration
@@ -65,9 +69,17 @@ pub enum QueryMsg {
         start_after: Option<u64>,
         limit: Option<u32>,
     },
+    /// Returns cw_controllers::AdminResponse
+    Admin {},
 }
 
-#[derive(Serialize, Deserialize, Clone, PartialEq, JsonSchema, Debug)]
+#[derive(Serialize, Deserialize, Clone, PartialEq, Eq, JsonSchema, Debug)]
 pub struct PaymentListResponse {
     pub payments: Vec<Payment>,
+}
+
+#[derive(Serialize, Deserialize, Clone, PartialEq, Eq, JsonSchema, Debug)]
+#[serde(rename_all = "snake_case")]
+pub struct MigrateMsg {
+    pub payment_amount: Option<Uint128>,
 }

@@ -11,7 +11,7 @@ fn default_denom() -> String {
     "utgd".to_owned()
 }
 
-#[derive(Serialize, Deserialize, Clone, PartialEq, JsonSchema, Debug)]
+#[derive(Serialize, Deserialize, Clone, PartialEq, Eq, JsonSchema, Debug)]
 #[serde(rename_all = "snake_case")]
 pub struct InstantiateMsg {
     /// Trusted circle name
@@ -76,7 +76,7 @@ pub enum ExecuteMsg {
     WithdrawRewards {},
 }
 
-#[derive(Serialize, Deserialize, Clone, PartialEq, JsonSchema, Debug)]
+#[derive(Serialize, Deserialize, Clone, PartialEq, Eq, JsonSchema, Debug)]
 #[serde(rename_all = "snake_case")]
 pub enum QueryMsg {
     /// Returns TrustedCircleResponse
@@ -155,7 +155,7 @@ pub enum QueryMsg {
 
 pub type EscrowResponse = Option<EscrowStatus>;
 
-#[derive(Serialize, Deserialize, Clone, PartialEq, JsonSchema, Debug)]
+#[derive(Serialize, Deserialize, Clone, PartialEq, Eq, JsonSchema, Debug)]
 pub struct TrustedCircleResponse {
     /// TRUSTED_CIRCLE Name
     pub name: String,
@@ -170,7 +170,7 @@ pub struct TrustedCircleResponse {
     pub edit_trusted_circle_disabled: bool,
 }
 
-#[derive(Serialize, Deserialize, Clone, PartialEq, JsonSchema, Debug)]
+#[derive(Serialize, Deserialize, Clone, PartialEq, Eq, JsonSchema, Debug)]
 pub struct RulesResponse {
     pub rules: VotingRules,
 }
@@ -215,7 +215,7 @@ pub struct VoteResponse {
     pub vote: Option<VoteInfo>,
 }
 
-#[derive(Serialize, Deserialize, Clone, PartialEq, JsonSchema, Debug)]
+#[derive(Serialize, Deserialize, Clone, PartialEq, Eq, JsonSchema, Debug)]
 pub struct Escrow {
     pub addr: String,
     pub escrow_status: EscrowStatus,
@@ -228,12 +228,12 @@ impl Escrow {
     }
 }
 
-#[derive(Serialize, Deserialize, Clone, PartialEq, JsonSchema, Debug)]
+#[derive(Serialize, Deserialize, Clone, PartialEq, Eq, JsonSchema, Debug)]
 pub struct EscrowListResponse {
     pub escrows: Vec<Escrow>,
 }
 
-#[derive(Serialize, Deserialize, Clone, PartialEq, JsonSchema, Debug)]
+#[derive(Serialize, Deserialize, Clone, PartialEq, Eq, JsonSchema, Debug)]
 pub struct RewardsResponse {
     pub rewards: Coin,
 }

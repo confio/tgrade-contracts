@@ -14,7 +14,7 @@ use crate::state::PAYMENTS;
 pub(crate) const MAX_LIMIT: u32 = 100;
 pub(crate) const DEFAULT_LIMIT: u32 = 30;
 
-#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, Eq, JsonSchema)]
 pub struct Payment {
     /// Time of the payment (timestamp since epoch, in seconds)
     pub payment_time: u64,

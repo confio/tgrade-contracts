@@ -1,10 +1,10 @@
 #[cfg(not(feature = "library"))]
 use cosmwasm_std::entry_point;
-use cosmwasm_std::{to_binary, Addr, Binary, Env, MessageInfo, Order, StdResult, WasmMsg};
+use cosmwasm_std::{to_binary, Addr, Binary, Empty, Env, MessageInfo, Order, StdResult, WasmMsg};
 
 use cw2::set_contract_version;
 use cw_storage_plus::Bound;
-use cw_utils::{Duration, Expiration, ThresholdResponse};
+use cw_utils::{ensure_from_older_version, Duration, Expiration, ThresholdResponse};
 use tg3::{
     Status, Vote, VoteInfo, VoteListResponse, VoteResponse, VoterDetail, VoterListResponse,
     VoterResponse,
@@ -326,6 +326,13 @@ fn query_complaint(deps: Deps) -> StdResult<ComplaintResp> {
     )?;
 
     Ok(resp)
+}
+
+#[cfg_attr(not(feature = "library"), entry_point)]
+pub fn migrate(deps: DepsMut, _env: Env, _msg: Empty) -> Result<Response, ContractError> {
+    ensure_from_older_version(deps.storage, CONTRACT_NAME, CONTRACT_VERSION)?;
+
+    Ok(Response::new())
 }
 
 #[cfg(test)]

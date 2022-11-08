@@ -3,6 +3,7 @@ use chrono::{NaiveDateTime, Timelike};
 use derivative::Derivative;
 
 use cosmwasm_std::{coin, Addr, Binary, Decimal, StdResult, Uint128};
+use cw_controllers::AdminResponse;
 use cw_multi_test::{AppResponse, Contract, ContractWrapper, Executor};
 use tg4::Member;
 use tg_bindings::{Pubkey, TgradeMsg, TgradeQuery};
@@ -12,7 +13,8 @@ use tgrade_valset::msg::{
     UnvalidatedDistributionContract, UnvalidatedDistributionContracts, ValidatorMetadata,
 };
 
-use crate::msg::{InstantiateMsg, Period};
+use crate::msg::{ExecuteMsg, InstantiateMsg, MigrateMsg, Period, QueryMsg};
+use crate::state::Config;
 
 const ED25519_PUBKEY_LENGTH: usize = 32;
 
@@ -31,7 +33,8 @@ pub fn contract_tc_payments() -> Box<dyn Contract<TgradeMsg, TgradeQuery>> {
         crate::contract::instantiate,
         crate::contract::query,
     )
-    .with_sudo(crate::contract::sudo);
+    .with_sudo(crate::contract::sudo)
+    .with_migrate(crate::contract::migrate);
 
     Box::new(contract)
 }
@@ -311,7 +314,9 @@ impl SuiteBuilder {
 
         Suite {
             app,
+            admin: admin.into(),
             tc_payments,
+            tc_payments_code_id: tc_payments_id,
             ap_contract: ap_distribution_contract,
             oc_contract: oc_distribution_contract,
             epoch_length: self.epoch_length,
@@ -322,7 +327,11 @@ impl SuiteBuilder {
 
 pub struct Suite {
     app: TgradeApp,
+    /// Admin of tc-payments contract
+    admin: String,
     pub tc_payments: Addr,
+    /// The code id of the tc-payments contract
+    tc_payments_code_id: u64,
     pub ap_contract: Addr,
     pub oc_contract: Addr,
     epoch_length: u64,
@@ -330,6 +339,10 @@ pub struct Suite {
 }
 
 impl Suite {
+    pub fn admin(&self) -> &str {
+        &self.admin
+    }
+
     pub fn advance_epochs(&mut self, number: u64) -> AnyResult<()> {
         self.app.advance_seconds(self.epoch_length * number);
         let _ = self.app.end_block()?;
@@ -347,6 +360,13 @@ impl Suite {
         Ok(amount.into())
     }
 
+    /// Queries payments contract for its config
+    pub fn config(&self) -> StdResult<Config> {
+        self.app
+            .wrap()
+            .query_wasm_smart(&self.tc_payments, &QueryMsg::Configuration {})
+    }
+
     pub fn withdraw_rewards(&mut self, sender: &str, contract: Addr) -> AnyResult<AppResponse> {
         self.app.execute_contract(
             Addr::unchecked(sender),
@@ -357,5 +377,53 @@ impl Suite {
             },
             &[],
         )
+    }
+
+    /// Migrates the contract to the same version (same code id), but possibly changing
+    /// some cfg values via MigrateMsg.
+    pub fn migrate(&mut self, addr: &str, msg: &MigrateMsg) -> AnyResult<AppResponse> {
+        self.app.migrate_contract(
+            Addr::unchecked(addr),
+            self.tc_payments.clone(),
+            msg,
+            self.tc_payments_code_id,
+        )
+    }
+
+    pub fn update_admin(
+        &mut self,
+        executor: &str,
+        admin: impl Into<Option<String>>,
+    ) -> AnyResult<AppResponse> {
+        self.app.execute_contract(
+            Addr::unchecked(executor),
+            self.tc_payments.clone(),
+            &ExecuteMsg::UpdateAdmin {
+                admin: admin.into(),
+            },
+            &[],
+        )
+    }
+
+    pub fn update_config(
+        &mut self,
+        executor: &str,
+        payment_amount: Option<Uint128>,
+    ) -> AnyResult<AppResponse> {
+        self.app.execute_contract(
+            Addr::unchecked(executor),
+            self.tc_payments.clone(),
+            &ExecuteMsg::UpdateConfig { payment_amount },
+            &[],
+        )
+    }
+
+    pub fn query_admin(&self) -> StdResult<Option<String>> {
+        let resp: AdminResponse = self
+            .app
+            .wrap()
+            .query_wasm_smart(self.tc_payments.clone(), &QueryMsg::Admin {})?;
+
+        Ok(resp.admin)
     }
 }

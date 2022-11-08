@@ -2,19 +2,21 @@
 use cosmwasm_std::entry_point;
 use cosmwasm_std::{
     coins, to_binary, Binary, Coin, CustomQuery, Decimal, Deps, DepsMut, Env, Event, MessageInfo,
-    Order, StdResult, Uint128, WasmMsg,
+    Order, StdError, StdResult, Uint128, WasmMsg,
 };
 use cw2::set_contract_version;
 use cw_storage_plus::Bound;
+use cw_utils::ensure_from_older_version;
 use tg4::Tg4Contract;
 use tg_bindings::{
     request_privileges, Privilege, PrivilegeChangeMsg, TgradeMsg, TgradeQuery, TgradeSudoMsg,
 };
 
 use crate::error::ContractError;
-use crate::msg::{ExecuteMsg, InstantiateMsg, PaymentListResponse, QueryMsg};
+use crate::migration::migrate_config;
+use crate::msg::{ExecuteMsg, InstantiateMsg, MigrateMsg, PaymentListResponse, QueryMsg};
 use crate::payment::{DEFAULT_LIMIT, MAX_LIMIT};
-use crate::state::{hour_after_midnight, payments, PaymentsConfig, ADMIN, CONFIG, PAYMENTS};
+use crate::state::{hour_after_midnight, payments, Config, ADMIN, CONFIG, PAYMENTS};
 
 // version info for migration info
 const CONTRACT_NAME: &str = "crates.io:tgrade-tc-payments";
@@ -45,7 +47,7 @@ pub fn instantiate(
     let ap_addr = verify_tg4_input(deps.as_ref(), &msg.ap_addr)?;
     let engagement_addr = deps.api.addr_validate(&msg.engagement_addr)?;
 
-    let tc_payments = PaymentsConfig {
+    let tc_payments = Config {
         oc_addr,
         ap_addr,
         engagement_addr,
@@ -67,7 +69,16 @@ pub fn execute(
     info: MessageInfo,
     msg: ExecuteMsg,
 ) -> Result<Response, ContractError> {
+    let api = deps.api;
     match msg {
+        ExecuteMsg::UpdateAdmin { admin } => Ok(ADMIN.execute_update_admin(
+            deps,
+            info,
+            admin.map(|admin| api.addr_validate(&admin)).transpose()?,
+        )?),
+        ExecuteMsg::UpdateConfig { payment_amount } => {
+            execute_update_config(deps, info, payment_amount)
+        }
         ExecuteMsg::DistributeRewards { sender } => {
             execute_distribute_rewards(deps, env, info, sender)
         }
@@ -139,6 +150,27 @@ pub fn execute_distribute_rewards<Q: CustomQuery>(
         .add_submessage(distribute_msg);
 
     Ok(resp)
+}
+
+fn execute_update_config<Q: CustomQuery>(
+    deps: DepsMut<Q>,
+    info: MessageInfo,
+    payment_amount: Option<Uint128>,
+) -> Result<Response, ContractError> {
+    ADMIN.assert_admin(deps.as_ref(), &info.sender)?;
+
+    CONFIG.update::<_, StdError>(deps.storage, |mut cfg| {
+        if let Some(payment_amount) = payment_amount {
+            cfg.payment_amount = payment_amount;
+        }
+        Ok(cfg)
+    })?;
+
+    let res = Response::new()
+        .add_attribute("action", "update_config")
+        .add_attribute("operator", &info.sender);
+
+    Ok(res)
 }
 
 #[cfg_attr(not(feature = "library"), entry_point)]
@@ -266,7 +298,20 @@ pub fn query(deps: Deps<TgradeQuery>, _env: Env, msg: QueryMsg) -> StdResult<Bin
     match msg {
         Configuration {} => to_binary(&CONFIG.load(deps.storage)?),
         ListPayments { start_after, limit } => to_binary(&list_payments(deps, start_after, limit)?),
+        Admin {} => Ok(to_binary(&ADMIN.query_admin(deps)?)?),
     }
+}
+
+#[cfg_attr(not(feature = "library"), entry_point)]
+pub fn migrate(
+    deps: DepsMut<TgradeQuery>,
+    _env: Env,
+    msg: MigrateMsg,
+) -> Result<Response, ContractError> {
+    let stored_version = ensure_from_older_version(deps.storage, CONTRACT_NAME, CONTRACT_VERSION)?;
+
+    migrate_config(deps, &stored_version, &msg)?;
+    Ok(Response::new())
 }
 
 fn list_payments<Q: CustomQuery>(
@@ -424,7 +469,7 @@ mod tests {
     fn begin_next_month(block: BlockInfo) -> BlockInfo {
         // Advance to beginning of next month
         let dt = NaiveDateTime::from_timestamp(block.time.seconds() as _, 0);
-        let month = dt.month() + 1 % 12;
+        let month = dt.month() % 12 + 1;
         let year = dt.year() + (month == 1) as i32;
         let day = 1;
         let hour = 0;
