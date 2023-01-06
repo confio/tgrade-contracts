@@ -47,6 +47,10 @@ pub fn instantiate(
     let ap_addr = verify_tg4_input(deps.as_ref(), &msg.ap_addr)?;
     let engagement_addr = deps.api.addr_validate(&msg.engagement_addr)?;
 
+    if msg.funds_ratio < Decimal::percent(0) || msg.funds_ratio > Decimal::percent(100) {
+        return Err(ContractError::WrongFundsRatio {});
+    }
+
     let tc_payments = Config {
         oc_addr,
         ap_addr,
@@ -54,6 +58,7 @@ pub fn instantiate(
         denom: msg.denom,
         payment_amount: msg.payment_amount,
         payment_period: msg.payment_period,
+        funds_ratio: msg.funds_ratio,
     };
 
     CONFIG.save(deps.storage, &tc_payments)?;
@@ -125,13 +130,13 @@ pub fn execute_distribute_rewards<Q: CustomQuery>(
         .amount;
 
     // If funds stored on contract are enough to cover payments for OC and AP members, then distribute full sent amount.
-    // Otherwise, send 99% of amount and store 1%.
+    // Otherwise, store `funds_ratio` percentage of sent amount, and send the rest.
     let required_reward_amount =
         Uint128::new(number_of_oc_members + number_of_ap_members) * config.payment_amount;
     let funds_to_distribute = if current_funds >= required_reward_amount + funds_received {
         funds_received
     } else {
-        Decimal::percent(99) * funds_received
+        (Decimal::percent(100) - config.funds_ratio) * funds_received
     };
 
     let distribute_msg = SubMsg::new(WasmMsg::Execute {
@@ -338,7 +343,7 @@ fn list_payments<Q: CustomQuery>(
 mod tests {
     use crate::msg::Period;
     use chrono::{Datelike, NaiveDate, NaiveDateTime, Timelike};
-    use cosmwasm_std::{coins, Addr, Attribute, BlockInfo, Empty, Timestamp, Uint128};
+    use cosmwasm_std::{coins, Addr, Attribute, BlockInfo, Decimal, Empty, Timestamp, Uint128};
     use cw_multi_test::{next_block, AppResponse, Contract, ContractWrapper, Executor};
     use std::fmt::Debug;
     use tg4::Member;
@@ -409,6 +414,7 @@ mod tests {
             denom: "utgd".to_string(),
             payment_amount: Uint128::new(PAYMENT_AMOUNT),
             payment_period: Period::Monthly {},
+            funds_ratio: Decimal::percent(1),
         };
         app.instantiate_contract(
             payments_id,
