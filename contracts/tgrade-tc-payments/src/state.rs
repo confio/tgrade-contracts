@@ -2,7 +2,7 @@ use chrono::{Datelike, NaiveDateTime, Timelike};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
-use cosmwasm_std::{Addr, Timestamp, Uint128};
+use cosmwasm_std::{Addr, Decimal, Timestamp, Uint128};
 
 use cw_controllers::Admin;
 use cw_storage_plus::{Item, Map};
@@ -26,6 +26,8 @@ pub struct Config {
     pub payment_amount: Uint128,
     /// Payment period
     pub payment_period: Period,
+    /// Percentage of received rewards to store for payment
+    pub funds_ratio: Decimal,
 }
 
 impl Config {

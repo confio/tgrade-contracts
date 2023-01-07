@@ -14,6 +14,7 @@ fn migration_can_alter_cfg() {
             &admin,
             &MigrateMsg {
                 payment_amount: Some(2_500u128.into()),
+                funds_ratio: None,
             },
         )
         .unwrap();

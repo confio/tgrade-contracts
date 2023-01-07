@@ -24,4 +24,7 @@ pub enum ContractError {
 
     #[error("Sent unsupported denoms, must send '{0}' to distribute rewards")]
     ExtraDenoms(String),
+
+    #[error("Funds ratio must be between zero and hundred percent inclusive")]
+    WrongFundsRatio {},
 }

@@ -1,5 +1,5 @@
 use crate::payment::Payment;
-use cosmwasm_std::Uint128;
+use cosmwasm_std::{Decimal, Uint128};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
@@ -21,6 +21,8 @@ pub struct InstantiateMsg {
     pub payment_amount: Uint128,
     /// Payment period (daily / monthly / yearly)
     pub payment_period: Period,
+    /// Percentage of received rewards to keep for payment
+    pub funds_ratio: Decimal,
 }
 
 #[derive(Serialize, Deserialize, Clone, PartialEq, Eq, JsonSchema, Debug)]
@@ -82,4 +84,5 @@ pub struct PaymentListResponse {
 #[serde(rename_all = "snake_case")]
 pub struct MigrateMsg {
     pub payment_amount: Option<Uint128>,
+    pub funds_ratio: Option<Decimal>,
 }

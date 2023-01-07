@@ -256,6 +256,7 @@ impl SuiteBuilder {
                     denom: denom.clone(),
                     payment_amount: self.payment_amount,
                     payment_period: self.payment_period,
+                    funds_ratio: Decimal::percent(1),
                 },
                 &[],
                 "tc_payments",
