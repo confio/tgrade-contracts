@@ -17,7 +17,7 @@ pub fn migrate_config(
         config.payment_amount = amount;
     }
     if let Some(funds_ratio) = msg.funds_ratio {
-        if funds_ratio < Decimal::percent(0) || funds_ratio > Decimal::percent(100) {
+        if funds_ratio > Decimal::percent(100) {
             return Err(ContractError::WrongFundsRatio {});
         }
         config.funds_ratio = funds_ratio;

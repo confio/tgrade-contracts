@@ -47,7 +47,7 @@ pub fn instantiate(
     let ap_addr = verify_tg4_input(deps.as_ref(), &msg.ap_addr)?;
     let engagement_addr = deps.api.addr_validate(&msg.engagement_addr)?;
 
-    if msg.funds_ratio < Decimal::percent(0) || msg.funds_ratio > Decimal::percent(100) {
+    if msg.funds_ratio > Decimal::percent(100) {
         return Err(ContractError::WrongFundsRatio {});
     }
 
